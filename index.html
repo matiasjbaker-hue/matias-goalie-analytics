@@ -1,18 +1,492 @@
-<!doctype html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Matias Baker | Goalie Analytics</title><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script><style>*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:#07111f;color:#eef4ff}header{padding:42px 5vw 34px;background:linear-gradient(135deg,#0b1b30,#102a45);border-bottom:1px solid #223b55}h1{margin:0;font-size:clamp(32px,6vw,64px);letter-spacing:.04em}header p{margin:8px 0 0;color:#a9bdd3;font-size:15px;letter-spacing:.12em;text-transform:uppercase}.wrap{max-width:1250px;margin:auto;padding:28px 5vw 60px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.card,.panel{background:#0c1a2b;border:1px solid #1e344c;border-radius:14px}.card{padding:20px}.label{color:#91a9c1;font-size:11px;text-transform:uppercase;letter-spacing:.12em}.value{font-size:32px;font-weight:800;margin-top:6px}.section{margin-top:28px}.section h2{font-size:18px;margin:0 0 14px}.charts{display:grid;grid-template-columns:1fr 1fr;gap:14px}.panel{padding:20px;height:330px}.periods{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.period{padding:18px;background:#0c1a2b;border:1px solid #1e344c;border-radius:14px}.period strong{font-size:20px}.statline{display:flex;justify-content:space-between;margin-top:14px;color:#b9c9d9}.tablewrap{overflow:auto}.table{width:100%;border-collapse:collapse;min-width:650px}.table th,.table td{text-align:left;padding:13px;border-bottom:1px solid #1e344c}.table th{color:#91a9c1;font-size:11px;text-transform:uppercase}.empty{padding:30px;text-align:center;color:#91a9c1}.error{color:#ff9d9d;background:#351b23;padding:14px;border-radius:10px;margin-top:15px}@media(max-width:800px){.grid{grid-template-columns:repeat(2,1fr)}.charts{grid-template-columns:1fr}.periods{grid-template-columns:1fr 1fr}}@media(max-width:500px){.grid{grid-template-columns:1fr 1fr}.card{padding:15px}.value{font-size:25px}}
-</style></head><body><header><div class="wrap"><h1>MATIAS BAKER</h1><p>PELHAM PANTHERS · GOALIE ANALYTICS · 2026–27</p></div></header><main class="wrap"><div id="status"></div><section class="grid" id="cards"></section><section class="section"><h2>Performance Trends</h2><div class="charts"><div class="panel"><canvas id="svChart"></canvas></div><div class="panel"><canvas id="gaaChart"></canvas></div></div></section><section class="section"><h2>Period Performance</h2><div class="periods" id="periods"></div></section><section class="section"><h2>Game Log</h2><div class="panel tablewrap" style="height:auto"><div id="games" class="empty">Loading games…</div></div></section></main><script>
-const URL='https://iiuqxxrrruvwvfehrzic.supabase.co';
-// Publishable browser key. Safe for a browser app when Supabase RLS is configured for public reads.
-const KEY='sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ';
-const headers={apikey:KEY,Authorization:'Bearer '+KEY};
-const q=async table=>{const r=await fetch(`${URL}/rest/v1/${encodeURIComponent(table)}?select=*`,{headers});if(!r.ok)throw new Error(`${table}: ${r.status} ${await r.text()}`);return r.json()};
-const pct=(s,sa)=>sa?((s/sa)*100).toFixed(1)+'%':'—';
-const num=n=>Number(n||0);
-function card(l,v){return `<div class="card"><div class="label">${l}</div><div class="value">${v}</div></div>`}
-function render(games,periods){games.sort((a,b)=>num(a.id)-num(b.id));const SA=games.reduce((x,g)=>x+num(g.shots_against),0),S=games.reduce((x,g)=>x+num(g.saves),0),GA=games.reduce((x,g)=>x+num(g.goals_against),0),M=games.reduce((x,g)=>x+num(g.minutes_played),0);document.getElementById('cards').innerHTML=[card('GP',games.length),card('SV%',pct(S,SA)),card('GAA',M?((GA/M)*60).toFixed(2):'—'),card('Shots Against',SA),card('Saves',S),card('Goals Against',GA),card('W / L / OTL','— / — / —'),card('Shutouts','—')].join('');
-const byPeriod=[1,2,3].map(p=>{const a=periods.filter(x=>String(x.period)==String(p));return {p,sa:a.reduce((x,g)=>x+num(g.shots_against),0),s:a.reduce((x,g)=>x+num(g.saves),0),ga:a.reduce((x,g)=>x+num(g.goals_against),0),m:a.reduce((x,g)=>x+num(g.minutes_played),0)}});document.getElementById('periods').innerHTML=byPeriod.map(x=>`<div class="period"><strong>${x.p===1?'1st':x.p===2?'2nd':'3rd'} Period</strong><div class="statline"><span>SV%</span><b>${pct(x.s,x.sa)}</b></div><div class="statline"><span>GAA</span><b>${x.m?((x.ga/x.m)*60).toFixed(2):'—'}</b></div><div class="statline"><span>Shots</span><b>${x.sa}</b></div></div>`).join('');
-const labels=games.map((_,i)=>`Game ${i+1}`), sv=games.map(g=>num(g.shots_against)?num(g.saves)/num(g.shots_against)*100:null), gaa=games.map(g=>num(g.minutes_played)?num(g.goals_against)/num(g.minutes_played)*60:null);new Chart(document.getElementById('svChart'),{type:'line',data:{labels,datasets:[{label:'SV%',data:sv,tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#b9c9d9'}}},scales:{x:{ticks:{color:'#91a9c1'},grid:{color:'#1e344c'}},y:{ticks:{color:'#91a9c1'},grid:{color:'#1e344c'}}}}});new Chart(document.getElementById('gaaChart'),{type:'line',data:{labels,datasets:[{label:'GAA',data:gaa,tension:.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#b9c9d9'}}},scales:{x:{ticks:{color:'#91a9c1'},grid:{color:'#1e344c'}},y:{ticks:{color:'#91a9c1'},grid:{color:'#1e344c'}}}}});
-document.getElementById('games').innerHTML=games.length?`<table class="table"><thead><tr><th>Game</th><th>Shots</th><th>Saves</th><th>GA</th><th>SV%</th><th>GAA</th><th>Minutes</th></tr></thead><tbody>${games.map((g,i)=>`<tr><td>Game ${i+1}</td><td>${num(g.shots_against)}</td><td>${num(g.saves)}</td><td>${num(g.goals_against)}</td><td>${pct(g.saves,g.shots_against)}</td><td>${num(g.minutes_played)?(num(g.goals_against)/num(g.minutes_played)*60).toFixed(2):'—'}</td><td>${num(g.minutes_played)}</td></tr>`).join('')}</tbody></table>`:'No games entered yet.'}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Matias Baker | Goalie Analytics</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:#06111f;
+  color:#f5f7fa;
+  font-family:Arial,Helvetica,sans-serif;
 }
-(async()=>{try{const [games,periods]=await Promise.all([q('Games'),q('Period Stats')]);render(games.filter(g=>String(g.season)==='2026-27'||String(g.season)==='2026/27'||String(g.season)==='2026–27'),periods)}catch(e){document.getElementById('status').innerHTML=`<div class="error"><b>Supabase connection needs one permission change.</b><br>${e.message}<br><br>In Supabase, open each table's <b>Policies</b> and allow public SELECT (or tell me what you see and I'll guide you).</div>`}})();
-</script></body></html>
+.container{
+  max-width:1200px;
+  margin:auto;
+  padding:30px 20px 60px;
+}
+header{
+  background:linear-gradient(135deg,#0d2742,#071524);
+  border:1px solid #193957;
+  border-radius:18px;
+  padding:35px;
+  margin-bottom:22px;
+}
+h1{
+  margin:0;
+  font-size:42px;
+  letter-spacing:2px;
+}
+.subtitle{
+  margin-top:10px;
+  color:#8fa9c2;
+  font-size:17px;
+}
+.season{
+  margin-top:20px;
+  display:inline-block;
+  padding:8px 14px;
+  border-radius:8px;
+  background:#123454;
+  font-weight:bold;
+}
+.grid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:14px;
+  margin-bottom:22px;
+}
+.card,.panel{
+  background:#0b1b2d;
+  border:1px solid #193957;
+  border-radius:15px;
+}
+.card{
+  padding:20px;
+}
+.label{
+  color:#7892aa;
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:1px;
+}
+.value{
+  font-size:30px;
+  font-weight:bold;
+  margin-top:8px;
+}
+.panel{
+  padding:22px;
+  margin-bottom:22px;
+}
+.panel h2{
+  margin:0 0 18px;
+  font-size:19px;
+}
+.charts{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:20px;
+}
+.chartbox{
+  height:300px;
+}
+.periods{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:14px;
+}
+.period{
+  background:#071524;
+  border:1px solid #193957;
+  padding:18px;
+  border-radius:12px;
+}
+.period h3{margin-top:0}
+.period-stat{
+  display:flex;
+  justify-content:space-between;
+  padding:7px 0;
+  border-bottom:1px solid #142b40;
+}
+table{
+  width:100%;
+  border-collapse:collapse;
+}
+th,td{
+  text-align:left;
+  padding:13px 10px;
+  border-bottom:1px solid #193957;
+}
+th{
+  color:#7892aa;
+  font-size:12px;
+  text-transform:uppercase;
+}
+.message{
+  padding:20px;
+  border-radius:10px;
+  background:#101f30;
+  color:#a9bdd0;
+}
+.error{
+  color:#ffb4b4;
+  background:#35191d;
+  border:1px solid #6d2b31;
+}
+@media(max-width:800px){
+  .grid{grid-template-columns:repeat(2,1fr)}
+  .charts{grid-template-columns:1fr}
+  .periods{grid-template-columns:1fr}
+  h1{font-size:32px}
+}
+@media(max-width:500px){
+  .grid{grid-template-columns:1fr 1fr}
+  .container{padding:15px}
+  header{padding:25px 20px}
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<header>
+  <h1>MATIAS BAKER</h1>
+  <div class="subtitle">PELHAM PANTHERS • GOALTENDER</div>
+  <div class="season">2026–27</div>
+</header>
+
+<div id="status" class="message">Loading goalie data...</div>
+
+<div class="grid">
+  <div class="card">
+    <div class="label">Games Played</div>
+    <div class="value" id="gp">—</div>
+  </div>
+  <div class="card">
+    <div class="label">Save %</div>
+    <div class="value" id="sv">—</div>
+  </div>
+  <div class="card">
+    <div class="label">GAA</div>
+    <div class="value" id="gaa">—</div>
+  </div>
+  <div class="card">
+    <div class="label">Shots Against</div>
+    <div class="value" id="shots">—</div>
+  </div>
+  <div class="card">
+    <div class="label">Saves</div>
+    <div class="value" id="saves">—</div>
+  </div>
+  <div class="card">
+    <div class="label">Goals Against</div>
+    <div class="value" id="goals">—</div>
+  </div>
+  <div class="card">
+    <div class="label">Wins</div>
+    <div class="value">—</div>
+  </div>
+  <div class="card">
+    <div class="label">Shutouts</div>
+    <div class="value">—</div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Performance Trends</h2>
+  <div class="charts">
+    <div class="chartbox">
+      <canvas id="svChart"></canvas>
+    </div>
+    <div class="chartbox">
+      <canvas id="gaaChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Period Performance</h2>
+  <div class="periods" id="periods">
+    <div class="period"><h3>1st Period</h3><div>Loading...</div></div>
+    <div class="period"><h3>2nd Period</h3><div>Loading...</div></div>
+    <div class="period"><h3>3rd Period</h3><div>Loading...</div></div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Game Log</h2>
+  <div id="games">
+    <div class="message">Loading games...</div>
+  </div>
+</div>
+
+</div>
+
+<script>
+const SUPABASE_URL = "https://iiuqxxrrruvwvfehrzic.supabase.co";
+const SUPABASE_KEY = "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
+
+const headers = {
+  "apikey": SUPABASE_KEY,
+  "Authorization": "Bearer " + SUPABASE_KEY
+};
+
+async function getTable(table){
+  const response = await fetch(
+    SUPABASE_URL + "/rest/v1/" + encodeURIComponent(table) + "?select=*",
+    {headers}
+  );
+
+  if(!response.ok){
+    const text = await response.text();
+    throw new Error(table + " request failed: " + response.status + " " + text);
+  }
+
+  return response.json();
+}
+
+function seasonMatch(value){
+  if(!value) return false;
+  const s = String(value);
+  return (
+    s === "2026-27" ||
+    s === "2026/27" ||
+    s === "2026–27" ||
+    s === "2026-2027"
+  );
+}
+
+function number(v){
+  return Number(v || 0);
+}
+
+async function load(){
+
+  try{
+
+    const games = await getTable("Games");
+    const periods = await getTable("Period Stats");
+
+    const seasonGames = games.filter(g => seasonMatch(g.season));
+
+    const gameIds = new Set(seasonGames.map(g => String(g.id)));
+
+    const seasonPeriods = periods.filter(p =>
+      gameIds.has(String(p.game_id))
+    );
+
+    let shots = 0;
+    let saves = 0;
+    let goals = 0;
+    let minutes = 0;
+
+    seasonGames.forEach(g => {
+      shots += number(g.shots_against);
+      saves += number(g.saves);
+      goals += number(g.goals_against);
+      minutes += number(g.minutes_played);
+    });
+
+    const sv = shots ? saves / shots : 0;
+    const gaa = minutes ? goals / minutes * 60 : 0;
+
+    document.getElementById("gp").textContent = seasonGames.length;
+    document.getElementById("shots").textContent = shots;
+    document.getElementById("saves").textContent = saves;
+    document.getElementById("goals").textContent = goals;
+
+    document.getElementById("sv").textContent =
+      shots ? (sv * 100).toFixed(1) + "%" : "—";
+
+    document.getElementById("gaa").textContent =
+      minutes ? gaa.toFixed(2) : "—";
+
+    document.getElementById("status").style.display = "none";
+
+    drawCharts(seasonGames);
+    drawPeriods(seasonPeriods);
+    drawGames(seasonGames);
+
+  }catch(error){
+
+    console.error(error);
+
+    const status = document.getElementById("status");
+    status.className = "message error";
+    status.innerHTML =
+      "<strong>Data connection error</strong><br><br>" +
+      error.message +
+      "<br><br>Check the browser console for more details.";
+
+  }
+}
+
+function drawCharts(games){
+
+  const labels = games.map((g,i) => "Game " + (i+1));
+
+  let runningShots = 0;
+  let runningSaves = 0;
+  let runningGoals = 0;
+  let runningMinutes = 0;
+
+  const svData = [];
+  const gaaData = [];
+
+  games.forEach(g => {
+
+    runningShots += number(g.shots_against);
+    runningSaves += number(g.saves);
+    runningGoals += number(g.goals_against);
+    runningMinutes += number(g.minutes_played);
+
+    svData.push(
+      runningShots ? (runningSaves / runningShots * 100) : null
+    );
+
+    gaaData.push(
+      runningMinutes ? (runningGoals / runningMinutes * 60) : null
+    );
+  });
+
+  new Chart(document.getElementById("svChart"),{
+    type:"line",
+    data:{
+      labels,
+      datasets:[{
+        label:"Save %",
+        data:svData,
+        tension:.3
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      scales:{
+        y:{
+          min:80,
+          max:100
+        }
+      }
+    }
+  });
+
+  new Chart(document.getElementById("gaaChart"),{
+    type:"line",
+    data:{
+      labels,
+      datasets:[{
+        label:"GAA",
+        data:gaaData,
+        tension:.3
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false
+    }
+  });
+}
+
+function drawPeriods(periods){
+
+  const box = document.getElementById("periods");
+
+  const names = {
+    "1":"1st Period",
+    "2":"2nd Period",
+    "3":"3rd Period"
+  };
+
+  box.innerHTML = "";
+
+  ["1","2","3"].forEach(p => {
+
+    const rows = periods.filter(x =>
+      String(x.period) === p ||
+      String(x.period).startsWith(p)
+    );
+
+    let shots = 0;
+    let saves = 0;
+    let goals = 0;
+    let minutes = 0;
+
+    rows.forEach(x => {
+      shots += number(x.shots_against);
+      saves += number(x.saves);
+      goals += number(x.goals_against);
+      minutes += number(x.minutes_played);
+    });
+
+    const sv = shots ? (saves/shots*100).toFixed(1)+"%" : "—";
+    const gaa = minutes ? (goals/minutes*60).toFixed(2) : "—";
+
+    box.innerHTML += `
+      <div class="period">
+        <h3>${names[p]}</h3>
+        <div class="period-stat"><span>Shots</span><strong>${shots}</strong></div>
+        <div class="period-stat"><span>Saves</span><strong>${saves}</strong></div>
+        <div class="period-stat"><span>Goals</span><strong>${goals}</strong></div>
+        <div class="period-stat"><span>Save %</span><strong>${sv}</strong></div>
+        <div class="period-stat"><span>GAA</span><strong>${gaa}</strong></div>
+      </div>
+    `;
+  });
+}
+
+function drawGames(games){
+
+  const box = document.getElementById("games");
+
+  if(!games.length){
+    box.innerHTML =
+      '<div class="message">No games have been entered for the 2026–27 season yet.</div>';
+    return;
+  }
+
+  let html = `
+    <table>
+      <thead>
+        <tr>
+          <th>Game</th>
+          <th>Shots</th>
+          <th>Saves</th>
+          <th>GA</th>
+          <th>SV%</th>
+          <th>GAA</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  games.forEach((g,i) => {
+
+    const shots = number(g.shots_against);
+    const saves = number(g.saves);
+    const goals = number(g.goals_against);
+    const minutes = number(g.minutes_played);
+
+    const sv = shots ? (saves/shots*100).toFixed(1)+"%" : "—";
+    const gaa = minutes ? (goals/minutes*60).toFixed(2) : "—";
+
+    html += `
+      <tr>
+        <td>Game ${i+1}</td>
+        <td>${shots}</td>
+        <td>${saves}</td>
+        <td>${goals}</td>
+        <td>${sv}</td>
+        <td>${gaa}</td>
+      </tr>
+    `;
+  });
+
+  html += "</tbody></table>";
+
+  box.innerHTML = html;
+}
+
+load();
+</script>
+
+</body>
+</html>
