@@ -245,8 +245,9 @@ async function getTable(table){
 
 function seasonMatch(value){
   if(!value) return false;
-  const s = String(value);
+  const s = String(value).trim();
   return (
+    s === "2026 Pre-Season" ||
     s === "2026-27" ||
     s === "2026/27" ||
     s === "2026–27" ||
