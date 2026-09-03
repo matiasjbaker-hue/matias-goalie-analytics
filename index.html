@@ -1290,158 +1290,154 @@ function renderPeriods(periods){
 }
 
 
-```js
 function renderIncremental(games){
 
-  const sortedGames=[...games].sort((a,b)=>{
-    return Number(a.id || 0)-Number(b.id || 0);
-  });
+  const s=calculateStats(games);
 
 
-  function getRollingStats(windowGames){
-
-    const GP=windowGames.length;
-
-    const SA=windowGames.reduce(
-      (total,g)=>total+Number(g.shots_against || 0),0
-    );
-
-    const S=windowGames.reduce(
-      (total,g)=>total+Number(g.saves || 0),0
-    );
-
-    const GA=windowGames.reduce(
-      (total,g)=>total+Number(g.goals_against || 0),0
-    );
-
-    const MIN=windowGames.reduce(
-      (total,g)=>total+Number(g.minutes_played || 0),0
-    );
-
-    const wins=windowGames.filter(
-      g=>String(g.result || '').trim().toUpperCase()==='W'
-    ).length;
-
-    const losses=windowGames.filter(
-      g=>String(g.result || '').trim().toUpperCase()==='L'
-    ).length;
-
-    const otl=windowGames.filter(
-      g=>String(g.result || '').trim().toUpperCase()==='OTL'
-    ).length;
-
-    const shutouts=windowGames.filter(
-      g=>String(g.shutout).toLowerCase()==='true' ||
-         Number(g.shutout)===1
-    ).length;
-
-    return {
-      GP,
-
-      svPct:SA
-        ? (S/SA*100).toFixed(1)+'%'
-        : '—',
-
-      gaa:MIN
-        ? (GA/MIN*60).toFixed(2)
-        : '—',
-
-      shotsPer60:MIN
-        ? (SA/MIN*60).toFixed(1)
-        : '—',
-
-      savesPer60:MIN
-        ? (S/MIN*60).toFixed(1)
-        : '—',
-
-      record:`${wins}-${losses}-${otl}`,
-
-      shutouts
-    };
-  }
+  const shotsPer60=s.MIN
+    ? (s.SA/s.MIN*60).toFixed(1)
+    : '—';
 
 
-  function windowCard(title,windowGames,requiredGames){
-
-    if(windowGames.length<requiredGames){
-
-      return `
-        <div class="metric-card">
-
-          <h3>${title}</h3>
-
-          <p style="font-size:16px;">
-            ${windowGames.length} game${windowGames.length===1?'':'s'}
-            available
-          </p>
-
-          <small>
-            Need ${requiredGames} games for this window.
-          </small>
-
-        </div>
-      `;
-    }
+  const savesPer60=s.MIN
+    ? (s.S/s.MIN*60).toFixed(1)
+    : '—';
 
 
-    const r=getRollingStats(windowGames);
+  const goalsAgainstPer60=s.MIN
+    ? (s.GA/s.MIN*60).toFixed(2)
+    : '—';
 
 
-    return `
-
-      <div class="metric-card">
-
-        <h3>${title}</h3>
-
-        <p>${r.svPct}</p>
-
-        <small>SV%</small>
-
-        <p>${r.gaa}</p>
-
-        <small>GAA</small>
-
-        <p>${r.shotsPer60}</p>
-
-        <small>Shots Against / 60</small>
-
-        <p>${r.record}</p>
-
-        <small>Record</small>
-
-        <p>${r.shutouts}</p>
-
-        <small>Shutouts</small>
-
-      </div>
-
-    `;
-  }
+  const avgShots=s.GP
+    ? (s.SA/s.GP).toFixed(1)
+    : '—';
 
 
-  const last5=sortedGames.slice(-5);
-  const last10=sortedGames.slice(-10);
+  const avgGoals=s.GP
+    ? (s.GA/s.GP).toFixed(2)
+    : '—';
+
+
+  const winRate=s.GP
+    ? (s.wins/s.GP*100).toFixed(1)+'%'
+    : '—';
+
+
+  const shutoutRate=s.GP
+    ? (s.shutouts/s.GP*100).toFixed(1)+'%'
+    : '—';
 
 
   document.getElementById('incrementalCards').innerHTML=`
 
-    ${windowCard(
-      'Last 5 Games',
-      last5,
-      5
-    )}
+    <div class="metric-card">
 
-    ${windowCard(
-      'Last 10 Games',
-      last10,
-      10
-    )}
+      <h3>
+        Shots Against / 60
+      </h3>
+
+      <p>
+        ${shotsPer60}
+      </p>
+
+    </div>
+
+
+    <div class="metric-card">
+
+      <h3>
+        Saves / 60
+      </h3>
+
+      <p>
+        ${savesPer60}
+      </p>
+
+    </div>
+
+
+    <div class="metric-card">
+
+      <h3>
+        Goals Against / 60
+      </h3>
+
+      <p>
+        ${goalsAgainstPer60}
+      </p>
+
+    </div>
+
+
+    <div class="metric-card">
+
+      <h3>
+        Average Shots Against
+      </h3>
+
+      <p>
+        ${avgShots} per game
+      </p>
+
+    </div>
+
+
+    <div class="metric-card">
+
+      <h3>
+        Average Goals Against
+      </h3>
+
+      <p>
+        ${avgGoals} per game
+      </p>
+
+    </div>
+
+
+    <div class="metric-card">
+
+      <h3>
+        Win Rate
+      </h3>
+
+      <p>
+        ${winRate}
+      </p>
+
+    </div>
+
+
+    <div class="metric-card">
+
+      <h3>
+        Total Ice Time
+      </h3>
+
+      <p>
+        ${s.MIN} minutes
+      </p>
+
+    </div>
+
+
+    <div class="metric-card">
+
+      <h3>
+        Shutout Rate
+      </h3>
+
+      <p>
+        ${shutoutRate}
+      </p>
+
+    </div>
 
   `;
 
 }
-```
-
 
 
 (async()=>{
