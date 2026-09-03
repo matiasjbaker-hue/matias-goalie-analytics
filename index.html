@@ -1466,167 +1466,210 @@ function renderRollingTrends(games){
     return;
   }
 
+
   function getSV(game){
+
     const shots=Number(game.shots_against || 0);
     const saves=Number(game.saves || 0);
-    return shots ? saves/shots*100 : 0;
+
+    return shots ? (saves/shots*100) : 0;
+
   }
+
 
   function getGAA(game){
+
     const goals=Number(game.goals_against || 0);
     const minutes=Number(game.minutes_played || 0);
-    return minutes ? goals/minutes*60 : 0;
+
+    return minutes ? (goals/minutes*60) : 0;
+
   }
 
-  function makeChart(title,values,type){
 
-    const width=600;
-    const height=280;
+  const svValues=last5.map(getSV);
+  const gaaValues=last5.map(getGAA);
 
-    const paddingLeft=50;
-    const paddingRight=25;
-    const paddingTop=30;
-    const paddingBottom=50;
 
-    const chartWidth=width-paddingLeft-paddingRight;
-    const chartHeight=height-paddingTop-paddingBottom;
+  function makeBarGraph(values,type){
 
     let min=Math.min(...values);
     let max=Math.max(...values);
 
     if(min===max){
-      min-=1;
-      max+=1;
-    }else{
-      const padding=(max-min)*0.15;
-      min-=padding;
-      max+=padding;
+      min=min-1;
+      max=max+1;
     }
 
-    const points=values.map((value,index)=>{
 
-      const x=values.length===1
-        ? width/2
-        : paddingLeft+
-          index/(values.length-1)*chartWidth;
+    return values.map((value,index)=>{
 
-      const y=paddingTop+
-        (max-value)/(max-min)*chartHeight;
+      let percentage;
 
-      return {x,y,value};
+      if(type==='sv'){
 
-    });
+        percentage=((value-min)/(max-min))*100;
 
-    const line=points.map((point,index)=>
-      `${index===0?'M':'L'} ${point.x} ${point.y}`
-    ).join(' ');
+      }else{
 
-    const circles=points.map(point=>`
-      <circle
-        cx="${point.x}"
-        cy="${point.y}"
-        r="5"
-        fill="currentColor">
-      </circle>
-    `).join('');
+        // Lower GAA is better, so reverse the bars
+        percentage=((max-value)/(max-min))*100;
 
-    const labels=points.map((point,index)=>`
-      <text
-        x="${point.x}"
-        y="${height-20}"
-        text-anchor="middle"
-        font-size="12">
-        Game ${index+1}
-      </text>
-    `).join('');
+      }
 
-    const latest=values[values.length-1];
 
-    const latestText=type==='sv'
-      ? latest.toFixed(1)+'%'
-      : latest.toFixed(2);
+      percentage=Math.max(10,percentage);
 
-    return `
 
-      <div class="metric-card">
+      const displayValue=
+        type==='sv'
+        ? value.toFixed(1)+'%'
+        : value.toFixed(2);
 
-        <h3>${title}</h3>
 
-        <p style="font-size:28px;">
-          ${latestText}
-        </p>
+      return `
 
-        <small>
-          Latest ${type==='sv'?'SV%':'GAA'}
-        </small>
+        <div style="
+          flex:1;
+          display:flex;
+          flex-direction:column;
+          align-items:center;
+          justify-content:flex-end;
+          min-width:45px;
+        ">
 
-        <div style="margin-top:20px;">
+          <div style="
+            font-size:12px;
+            margin-bottom:6px;
+            text-align:center;
+          ">
+            ${displayValue}
+          </div>
 
-          <svg
-            viewBox="0 0 ${width} ${height}"
-            width="100%"
-            height="280">
 
-            <line
-              x1="${paddingLeft}"
-              y1="${paddingTop}"
-              x2="${paddingLeft}"
-              y2="${height-paddingBottom}"
-              stroke="currentColor"
-              stroke-opacity="0.2">
-            </line>
+          <div style="
+            width:100%;
+            max-width:55px;
+            height:${percentage * 1.4}px;
+            min-height:20px;
+            background:#3b82f6;
+            border-radius:6px 6px 0 0;
+          ">
+          </div>
 
-            <line
-              x1="${paddingLeft}"
-              y1="${height-paddingBottom}"
-              x2="${width-paddingRight}"
-              y2="${height-paddingBottom}"
-              stroke="currentColor"
-              stroke-opacity="0.2">
-            </line>
 
-            <path
-              d="${line}"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="3">
-            </path>
-
-            ${circles}
-
-            ${labels}
-
-          </svg>
+          <div style="
+            font-size:12px;
+            margin-top:8px;
+          ">
+            Game ${index+1}
+          </div>
 
         </div>
 
-      </div>
+      `;
 
-    `;
+    }).join('');
+
   }
 
-  const svValues=last5.map(getSV);
-  const gaaValues=last5.map(getGAA);
+
+  const latestSV=svValues[svValues.length-1];
+  const latestGAA=gaaValues[gaaValues.length-1];
+
 
   document.getElementById('rollingTrends').innerHTML=`
 
     <div class="two-col">
 
-      ${makeChart(
-        '5-Game SV% Trend',
-        svValues,
-        'sv'
-      )}
 
-      ${makeChart(
-        '5-Game GAA Trend',
-        gaaValues,
-        'gaa'
-      )}
+      <!-- SV% GRAPH -->
+
+      <div class="metric-card">
+
+        <h3>5-Game SV% Trend</h3>
+
+        <p style="font-size:28px;">
+          ${latestSV.toFixed(1)}%
+        </p>
+
+        <small>
+          Latest SV%
+        </small>
+
+
+        <div style="
+          margin-top:25px;
+          height:230px;
+          display:flex;
+          align-items:flex-end;
+          gap:12px;
+          border-bottom:1px solid rgba(128,128,128,0.4);
+          padding:0 10px;
+        ">
+
+          ${makeBarGraph(svValues,'sv')}
+
+        </div>
+
+
+        <p style="
+          font-size:12px;
+          margin-top:12px;
+          opacity:0.7;
+        ">
+          Higher bar = better SV%
+        </p>
+
+      </div>
+
+
+
+      <!-- GAA GRAPH -->
+
+      <div class="metric-card">
+
+        <h3>5-Game GAA Trend</h3>
+
+        <p style="font-size:28px;">
+          ${latestGAA.toFixed(2)}
+        </p>
+
+        <small>
+          Latest GAA
+        </small>
+
+
+        <div style="
+          margin-top:25px;
+          height:230px;
+          display:flex;
+          align-items:flex-end;
+          gap:12px;
+          border-bottom:1px solid rgba(128,128,128,0.4);
+          padding:0 10px;
+        ">
+
+          ${makeBarGraph(gaaValues,'gaa')}
+
+        </div>
+
+
+        <p style="
+          font-size:12px;
+          margin-top:12px;
+          opacity:0.7;
+        ">
+          Higher bar = better (lower GAA)
+        </p>
+
+      </div>
+
 
     </div>
 
   `;
+
 }
   
 </script>
