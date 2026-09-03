@@ -1292,154 +1292,100 @@ function renderPeriods(periods){
 
 function renderIncremental(games){
 
-  const s=calculateStats(games);
+  const sortedGames=[...games];
+
+  const last5=sortedGames.slice(-5);
+  const last10=sortedGames.slice(-10);
 
 
-  const shotsPer60=s.MIN
-    ? (s.SA/s.MIN*60).toFixed(1)
-    : '—';
+  function getStats(windowGames){
+
+    const SA=windowGames.reduce(
+      (total,g)=>total+Number(g.shots_against || 0),0
+    );
+
+    const S=windowGames.reduce(
+      (total,g)=>total+Number(g.saves || 0),0
+    );
+
+    const GA=windowGames.reduce(
+      (total,g)=>total+Number(g.goals_against || 0),0
+    );
+
+    const MIN=windowGames.reduce(
+      (total,g)=>total+Number(g.minutes_played || 0),0
+    );
+
+    const wins=windowGames.filter(
+      g=>String(g.result || '').trim().toUpperCase()==='W'
+    ).length;
+
+    const losses=windowGames.filter(
+      g=>String(g.result || '').trim().toUpperCase()==='L'
+    ).length;
+
+    const otl=windowGames.filter(
+      g=>String(g.result || '').trim().toUpperCase()==='OTL'
+    ).length;
+
+    return {
+      svPct:SA ? (S/SA*100).toFixed(1)+'%' : '—',
+      gaa:MIN ? (GA/MIN*60).toFixed(2) : '—',
+      shotsPer60:MIN ? (SA/MIN*60).toFixed(1) : '—',
+      record:`${wins}-${losses}-${otl}`
+    };
+  }
 
 
-  const savesPer60=s.MIN
-    ? (s.S/s.MIN*60).toFixed(1)
-    : '—';
+  function makeCard(title,windowGames){
+
+    if(windowGames.length===0){
+
+      return `
+        <div class="metric-card">
+          <h3>${title}</h3>
+          <p>No games available</p>
+        </div>
+      `;
+
+    }
 
 
-  const goalsAgainstPer60=s.MIN
-    ? (s.GA/s.MIN*60).toFixed(2)
-    : '—';
+    const s=getStats(windowGames);
 
 
-  const avgShots=s.GP
-    ? (s.SA/s.GP).toFixed(1)
-    : '—';
+    return `
+      <div class="metric-card">
 
+        <h3>${title}</h3>
 
-  const avgGoals=s.GP
-    ? (s.GA/s.GP).toFixed(2)
-    : '—';
+        <p>${s.svPct}</p>
+        <small>SV%</small>
 
+        <p>${s.gaa}</p>
+        <small>GAA</small>
 
-  const winRate=s.GP
-    ? (s.wins/s.GP*100).toFixed(1)+'%'
-    : '—';
+        <p>${s.shotsPer60}</p>
+        <small>Shots Against / 60</small>
 
+        <p>${s.record}</p>
+        <small>Record</small>
 
-  const shutoutRate=s.GP
-    ? (s.shutouts/s.GP*100).toFixed(1)+'%'
-    : '—';
+      </div>
+    `;
+  }
 
 
   document.getElementById('incrementalCards').innerHTML=`
 
-    <div class="metric-card">
+    ${makeCard('Last 5 Games',last5)}
 
-      <h3>
-        Shots Against / 60
-      </h3>
-
-      <p>
-        ${shotsPer60}
-      </p>
-
-    </div>
-
-
-    <div class="metric-card">
-
-      <h3>
-        Saves / 60
-      </h3>
-
-      <p>
-        ${savesPer60}
-      </p>
-
-    </div>
-
-
-    <div class="metric-card">
-
-      <h3>
-        Goals Against / 60
-      </h3>
-
-      <p>
-        ${goalsAgainstPer60}
-      </p>
-
-    </div>
-
-
-    <div class="metric-card">
-
-      <h3>
-        Average Shots Against
-      </h3>
-
-      <p>
-        ${avgShots} per game
-      </p>
-
-    </div>
-
-
-    <div class="metric-card">
-
-      <h3>
-        Average Goals Against
-      </h3>
-
-      <p>
-        ${avgGoals} per game
-      </p>
-
-    </div>
-
-
-    <div class="metric-card">
-
-      <h3>
-        Win Rate
-      </h3>
-
-      <p>
-        ${winRate}
-      </p>
-
-    </div>
-
-
-    <div class="metric-card">
-
-      <h3>
-        Total Ice Time
-      </h3>
-
-      <p>
-        ${s.MIN} minutes
-      </p>
-
-    </div>
-
-
-    <div class="metric-card">
-
-      <h3>
-        Shutout Rate
-      </h3>
-
-      <p>
-        ${shutoutRate}
-      </p>
-
-    </div>
+    ${makeCard('Last 10 Games',last10)}
 
   `;
 
 }
-
-
+  
 (async()=>{
 
   try{
