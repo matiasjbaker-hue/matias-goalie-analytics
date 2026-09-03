@@ -1343,6 +1343,263 @@ function renderIncremental(games){
 
       return `
         <div class="metric-card">
+
+          <h3>${title}</h3>
+
+          <p>No games available</p>
+
+        </div>
+      `;
+    }
+
+
+    const s=getStats(windowGames);
+
+
+    return `
+      <div class="metric-card">
+
+        <h3>${title}</h3>
+
+        <p>${s.svPct}</p>
+        <small>SV%</small>
+
+        <p>${s.gaa}</p>
+        <small>GAA</small>
+
+        <p>${s.shotsPer60}</p>
+        <small>Shots Against / 60</small>
+
+        <p>${s.record}</p>
+        <small>Record</small>
+
+      </div>
+    `;
+  }
+
+
+  function gameSV(g){
+
+    const SA=Number(g.shots_against || 0);
+    const S=Number(g.saves || 0);
+
+    return SA ? (S/SA*100) : 0;
+  }
+
+
+  function gameGAA(g){
+
+    const GA=Number(g.goals_against || 0);
+    const MIN=Number(g.minutes_played || 0);
+
+    return MIN ? (GA/MIN*60) : 0;
+  }
+
+
+  function makeTrendChart(title,windowGames,type){
+
+    if(windowGames.length===0){
+
+      return `
+        <div class="metric-card">
+
+          <h3>${title}</h3>
+
+          <p>No games available yet.</p>
+
+        </div>
+      `;
+    }
+
+
+    const values=windowGames.map(g=>{
+      return type==='sv'
+        ? gameSV(g)
+        : gameGAA(g);
+    });
+
+
+    const width=520;
+    const height=220;
+
+    const left=45;
+    const right=15;
+    const top=25;
+    const bottom=45;
+
+    const chartWidth=width-left-right;
+    const chartHeight=height-top-bottom;
+
+
+    let min=Math.min(...values);
+    let max=Math.max(...values);
+
+
+    if(min===max){
+
+      min-=1;
+      max+=1;
+
+    }else{
+
+      const padding=(max-min)*0.15;
+
+      min-=padding;
+      max+=padding;
+
+    }
+
+
+    const points=values.map((value,index)=>{
+
+      const x=values.length===1
+        ? width/2
+        : left+(index/(values.length-1))*chartWidth;
+
+      const y=top+
+        ((max-value)/(max-min))*chartHeight;
+
+      return {
+        x,
+        y,
+        value
+      };
+
+    });
+
+
+    const path=points.map((point,index)=>{
+      return `${index===0?'M':'L'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
+    }).join(' ');
+
+
+    const circles=points.map(point=>{
+
+      return `
+        <circle
+          cx="${point.x}"
+          cy="${point.y}"
+          r="4"
+          fill="currentColor">
+        </circle>
+      `;
+
+    }).join('');
+
+
+    const labels=points.map((point,index)=>{
+
+      return `
+        <text
+          x="${point.x}"
+          y="${height-15}"
+          text-anchor="middle"
+          font-size="11">
+          Game ${index+1}
+        </text>
+      `;
+
+    }).join('');
+
+
+    const latest=values[values.length-1];
+
+    const latestDisplay=type==='sv'
+      ? latest.toFixed(1)+'%'
+      : latest.toFixed(2);
+
+
+    const metricLabel=type==='sv'
+      ? 'SV%'
+      : 'GAA';
+
+
+    return `
+      <div class="metric-card">
+
+        <h3>${title}</h3>
+
+        <p>${latestDisplay}</p>
+
+        <small>Latest ${metricLabel}</small>
+
+        <div style="width:100%; overflow:hidden; margin-top:15px;">
+
+          <svg
+            viewBox="0 0 ${width} ${height}"
+            width="100%"
+            height="220"
+            role="img"
+            aria-label="${title}">
+
+            <line
+              x1="${left}"
+              y1="${top}"
+              x2="${left}"
+              y2="${height-bottom}"
+              stroke="currentColor"
+              stroke-opacity="0.2">
+            </line>
+
+            <line
+              x1="${left}"
+              y1="${height-bottom}"
+              x2="${width-right}"
+              y2="${height-bottom}"
+              stroke="currentColor"
+              stroke-opacity="0.2">
+            </line>
+
+            <path
+              d="${path}"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="3"
+              stroke-linecap="round"
+              stroke-linejoin="round">
+            </path>
+
+            ${circles}
+
+            ${labels}
+
+          </svg>
+
+        </div>
+
+      </div>
+    `;
+  }
+
+
+  document.getElementById('incrementalCards').innerHTML=`
+
+    ${makeCard('Last 5 Games',last5)}
+
+    ${makeCard('Last 10 Games',last10)}
+
+    ${makeTrendChart(
+      '5-Game SV% Trend',
+      last5,
+      'sv'
+    )}
+
+    ${makeTrendChart(
+      '5-Game GAA Trend',
+      last5,
+      'gaa'
+    )}
+
+  `;
+
+}
+
+  function makeCard(title,windowGames){
+
+    if(windowGames.length===0){
+
+      return `
+        <div class="metric-card">
           <h3>${title}</h3>
           <p>No games available</p>
         </div>
