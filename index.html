@@ -1454,6 +1454,90 @@ function renderIncremental(games){
   }
 
 })();
+  
+renderIncremental(games);
+renderRollingTrends(games);
+
+function renderRollingTrends(games){
+
+  const sorted=[...games];
+
+  const last5=sorted.slice(-5);
+
+  if(last5.length===0){
+    return;
+  }
+
+  function getSV(game){
+    const shots=Number(game.shots_against || 0);
+    const saves=Number(game.saves || 0);
+
+    return shots ? (saves/shots*100) : 0;
+  }
+
+  function getGAA(game){
+    const goals=Number(game.goals_against || 0);
+    const minutes=Number(game.minutes_played || 0);
+
+    return minutes ? (goals/minutes*60) : 0;
+  }
+
+  const svValues=last5.map(getSV);
+  const gaaValues=last5.map(getGAA);
+
+  const svText=svValues
+    .map((v,i)=>`Game ${i+1}: ${v.toFixed(1)}%`)
+    .join('<br>');
+
+  const gaaText=gaaValues
+    .map((v,i)=>`Game ${i+1}: ${v.toFixed(2)}`)
+    .join('<br>');
+
+  document.getElementById('rollingTrends').innerHTML=`
+
+    <div class="two-col">
+
+      <div class="metric-card">
+
+        <h3>5-Game SV% Trend</h3>
+
+        <p style="font-size:28px;">
+          ${svValues[svValues.length-1].toFixed(1)}%
+        </p>
+
+        <small>
+          Latest SV%
+        </small>
+
+        <div style="margin-top:20px; line-height:1.8;">
+          ${svText}
+        </div>
+
+      </div>
+
+
+      <div class="metric-card">
+
+        <h3>5-Game GAA Trend</h3>
+
+        <p style="font-size:28px;">
+          ${gaaValues[gaaValues.length-1].toFixed(2)}
+        </p>
+
+        <small>
+          Latest GAA
+        </small>
+
+        <div style="margin-top:20px; line-height:1.8;">
+          ${gaaText}
+        </div>
+
+      </div>
+
+    </div>
+
+  `;
+}
 
 </script>
 
