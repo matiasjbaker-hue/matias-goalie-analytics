@@ -1,493 +1,1094 @@
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Matias Baker | Goalie Analytics</title>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 
 <style>
 *{box-sizing:border-box}
+
 body{
   margin:0;
-  background:#06111f;
-  color:#f5f7fa;
-  font-family:Arial,Helvetica,sans-serif;
+  font-family:Inter,Arial,sans-serif;
+  background:#07111f;
+  color:#eef4ff;
 }
-.container{
-  max-width:1200px;
-  margin:auto;
-  padding:30px 20px 60px;
-}
+
 header{
-  background:linear-gradient(135deg,#0d2742,#071524);
-  border:1px solid #193957;
-  border-radius:18px;
-  padding:35px;
-  margin-bottom:22px;
+  padding:34px 5vw 22px;
+  background:linear-gradient(135deg,#0b1b30,#102a45);
+  border-bottom:1px solid #223b55;
 }
+
+.header-inner{
+  max-width:1250px;
+  margin:auto;
+}
+
 h1{
   margin:0;
-  font-size:42px;
-  letter-spacing:2px;
+  font-size:clamp(30px,5vw,54px);
+  letter-spacing:.04em;
 }
-.subtitle{
-  margin-top:10px;
-  color:#8fa9c2;
-  font-size:17px;
+
+header p{
+  margin:7px 0 0;
+  color:#a9bdd3;
+  font-size:13px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
 }
-.season{
-  margin-top:20px;
-  display:inline-block;
-  padding:8px 14px;
-  border-radius:8px;
-  background:#123454;
-  font-weight:bold;
+
+nav{
+  max-width:1250px;
+  margin:0 auto;
+  padding:14px 5vw;
+  display:flex;
+  gap:8px;
+  overflow-x:auto;
+  border-bottom:1px solid #1e344c;
 }
+
+nav button{
+  border:1px solid #29435d;
+  background:#0c1a2b;
+  color:#a9bdd3;
+  padding:11px 17px;
+  border-radius:9px;
+  cursor:pointer;
+  font-weight:700;
+  white-space:nowrap;
+}
+
+nav button:hover{
+  background:#132942;
+  color:#fff;
+}
+
+nav button.active{
+  background:#173653;
+  color:#fff;
+  border-color:#47749b;
+}
+
+.wrap{
+  max-width:1250px;
+  margin:auto;
+  padding:28px 5vw 60px;
+}
+
+.tab{
+  display:none;
+}
+
+.tab.active{
+  display:block;
+}
+
 .grid{
   display:grid;
   grid-template-columns:repeat(4,1fr);
   gap:14px;
-  margin-bottom:22px;
 }
-.card,.panel{
-  background:#0b1b2d;
-  border:1px solid #193957;
-  border-radius:15px;
+
+.card,.panel,.period{
+  background:#0c1a2b;
+  border:1px solid #1e344c;
+  border-radius:14px;
 }
+
 .card{
   padding:20px;
 }
+
 .label{
-  color:#7892aa;
-  font-size:12px;
+  color:#91a9c1;
+  font-size:11px;
   text-transform:uppercase;
-  letter-spacing:1px;
+  letter-spacing:.12em;
 }
+
 .value{
-  font-size:30px;
-  font-weight:bold;
-  margin-top:8px;
+  font-size:31px;
+  font-weight:800;
+  margin-top:6px;
 }
-.panel{
-  padding:22px;
-  margin-bottom:22px;
+
+.section{
+  margin-top:28px;
 }
-.panel h2{
-  margin:0 0 18px;
-  font-size:19px;
+
+.section h2{
+  font-size:18px;
+  margin:0 0 14px;
 }
+
+.section-subtitle{
+  color:#91a9c1;
+  margin-top:-7px;
+  margin-bottom:18px;
+  font-size:13px;
+}
+
 .charts{
   display:grid;
   grid-template-columns:1fr 1fr;
-  gap:20px;
+  gap:14px;
 }
-.chartbox{
-  height:300px;
+
+.panel{
+  padding:20px;
 }
+
+.chart-panel{
+  height:330px;
+}
+
 .periods{
   display:grid;
   grid-template-columns:repeat(3,1fr);
   gap:14px;
 }
+
 .period{
-  background:#071524;
-  border:1px solid #193957;
-  padding:18px;
-  border-radius:12px;
+  padding:20px;
 }
-.period h3{margin-top:0}
-.period-stat{
+
+.period strong{
+  font-size:20px;
+}
+
+.statline{
   display:flex;
   justify-content:space-between;
-  padding:7px 0;
-  border-bottom:1px solid #142b40;
+  margin-top:14px;
+  color:#b9c9d9;
 }
-table{
+
+.tablewrap{
+  overflow:auto;
+}
+
+.table{
   width:100%;
   border-collapse:collapse;
+  min-width:950px;
 }
-th,td{
+
+.table th,.table td{
   text-align:left;
-  padding:13px 10px;
-  border-bottom:1px solid #193957;
+  padding:13px;
+  border-bottom:1px solid #1e344c;
 }
-th{
-  color:#7892aa;
-  font-size:12px;
+
+.table th{
+  color:#91a9c1;
+  font-size:11px;
   text-transform:uppercase;
 }
-.message{
-  padding:20px;
-  border-radius:10px;
-  background:#101f30;
-  color:#a9bdd0;
+
+.table td{
+  color:#dce7f3;
 }
+
+.badge{
+  display:inline-block;
+  padding:4px 9px;
+  border-radius:20px;
+  font-size:11px;
+  font-weight:800;
+}
+
+.badge.win{
+  background:#123c2b;
+  color:#7ee2ad;
+}
+
+.badge.loss{
+  background:#422126;
+  color:#ff9d9d;
+}
+
+.badge.otl{
+  background:#3d3518;
+  color:#f1d875;
+}
+
+.empty{
+  padding:30px;
+  text-align:center;
+  color:#91a9c1;
+}
+
 .error{
-  color:#ffb4b4;
-  background:#35191d;
-  border:1px solid #6d2b31;
+  color:#ff9d9d;
+  background:#351b23;
+  padding:14px;
+  border-radius:10px;
+  margin-bottom:20px;
 }
+
+.about{
+  max-width:850px;
+}
+
+.about h2{
+  margin-top:0;
+  font-size:28px;
+}
+
+.about p{
+  color:#b9c9d9;
+  line-height:1.7;
+}
+
+.highlight{
+  padding:20px;
+  margin-top:20px;
+  background:#10243a;
+  border:1px solid #29435d;
+  border-radius:12px;
+}
+
+.two-col{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:14px;
+}
+
+.metric-card{
+  padding:20px;
+  background:#0c1a2b;
+  border:1px solid #1e344c;
+  border-radius:14px;
+}
+
+.metric-card h3{
+  margin:0 0 8px;
+  font-size:15px;
+}
+
+.metric-card p{
+  margin:0;
+  color:#91a9c1;
+  font-size:13px;
+  line-height:1.5;
+}
+
 @media(max-width:800px){
-  .grid{grid-template-columns:repeat(2,1fr)}
-  .charts{grid-template-columns:1fr}
-  .periods{grid-template-columns:1fr}
-  h1{font-size:32px}
+  .grid{
+    grid-template-columns:repeat(2,1fr);
+  }
+
+  .charts{
+    grid-template-columns:1fr;
+  }
+
+  .periods{
+    grid-template-columns:1fr;
+  }
+
+  .two-col{
+    grid-template-columns:1fr;
+  }
 }
+
 @media(max-width:500px){
-  .grid{grid-template-columns:1fr 1fr}
-  .container{padding:15px}
-  header{padding:25px 20px}
+  .grid{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .card{
+    padding:15px;
+  }
+
+  .value{
+    font-size:24px;
+  }
 }
 </style>
 </head>
 
 <body>
 
-<div class="container">
-
 <header>
-  <h1>MATIAS BAKER</h1>
-  <div class="subtitle">PELHAM PANTHERS • GOALTENDER</div>
-  <div class="season">2026–27</div>
+  <div class="header-inner">
+    <h1>MATIAS BAKER</h1>
+    <p>PELHAM PANTHERS · GOALIE ANALYTICS · 2026–27</p>
+  </div>
 </header>
 
-<div id="status" class="message">Loading goalie data...</div>
+<nav>
+  <button class="active" onclick="showTab('overview',this)">Overview</button>
+  <button onclick="showTab('games',this)">Game Log</button>
+  <button onclick="showTab('periods',this)">Period Breakdown</button>
+  <button onclick="showTab('incremental',this)">Incremental Stats</button>
+  <button onclick="showTab('about',this)">About</button>
+</nav>
 
-<div class="grid">
-  <div class="card">
-    <div class="label">Games Played</div>
-    <div class="value" id="gp">—</div>
-  </div>
-  <div class="card">
-    <div class="label">Save %</div>
-    <div class="value" id="sv">—</div>
-  </div>
-  <div class="card">
-    <div class="label">GAA</div>
-    <div class="value" id="gaa">—</div>
-  </div>
-  <div class="card">
-    <div class="label">Shots Against</div>
-    <div class="value" id="shots">—</div>
-  </div>
-  <div class="card">
-    <div class="label">Saves</div>
-    <div class="value" id="saves">—</div>
-  </div>
-  <div class="card">
-    <div class="label">Goals Against</div>
-    <div class="value" id="goals">—</div>
-  </div>
-  <div class="card">
-    <div class="label">Wins</div>
-    <div class="value">—</div>
-  </div>
-  <div class="card">
-    <div class="label">Shutouts</div>
-    <div class="value">—</div>
-  </div>
-</div>
+<main class="wrap">
 
-<div class="panel">
-  <h2>Performance Trends</h2>
-  <div class="charts">
-    <div class="chartbox">
-      <canvas id="svChart"></canvas>
+<div id="status"></div>
+
+<!-- OVERVIEW -->
+<section id="overview" class="tab active">
+
+  <div class="grid" id="overviewCards"></div>
+
+  <section class="section">
+    <h2>Performance Trends</h2>
+    <div class="charts">
+      <div class="panel chart-panel">
+        <canvas id="svChart"></canvas>
+      </div>
+
+      <div class="panel chart-panel">
+        <canvas id="gaaChart"></canvas>
+      </div>
     </div>
-    <div class="chartbox">
-      <canvas id="gaaChart"></canvas>
+  </section>
+
+  <section class="section">
+    <h2>Recent Games</h2>
+    <div class="panel tablewrap">
+      <div id="recentGames" class="empty">Loading games…</div>
     </div>
-  </div>
-</div>
+  </section>
 
-<div class="panel">
-  <h2>Period Performance</h2>
-  <div class="periods" id="periods">
-    <div class="period"><h3>1st Period</h3><div>Loading...</div></div>
-    <div class="period"><h3>2nd Period</h3><div>Loading...</div></div>
-    <div class="period"><h3>3rd Period</h3><div>Loading...</div></div>
-  </div>
-</div>
+</section>
 
-<div class="panel">
-  <h2>Game Log</h2>
-  <div id="games">
-    <div class="message">Loading games...</div>
-  </div>
-</div>
 
-</div>
+<!-- GAME LOG -->
+<section id="games" class="tab">
+
+  <section>
+    <h2>Game Log</h2>
+    <p class="section-subtitle">
+      Complete 2026–27 game-by-game performance.
+    </p>
+
+    <div class="panel tablewrap">
+      <div id="gameLog" class="empty">Loading games…</div>
+    </div>
+  </section>
+
+</section>
+
+
+<!-- PERIOD BREAKDOWN -->
+<section id="periods" class="tab">
+
+  <section>
+    <h2>Period Breakdown</h2>
+    <p class="section-subtitle">
+      Performance split across the 1st, 2nd and 3rd periods.
+    </p>
+
+    <div class="periods" id="periodCards"></div>
+  </section>
+
+  <section class="section">
+    <h2>Period Comparison</h2>
+
+    <div class="panel chart-panel">
+      <canvas id="periodChart"></canvas>
+    </div>
+  </section>
+
+</section>
+
+
+<!-- INCREMENTAL STATS -->
+<section id="incremental" class="tab">
+
+  <section>
+    <h2>Incremental Stats</h2>
+    <p class="section-subtitle">
+      Additional metrics calculated from your game data.
+    </p>
+
+    <div class="two-col" id="incrementalCards"></div>
+  </section>
+
+</section>
+
+
+<!-- ABOUT -->
+<section id="about" class="tab">
+
+  <div class="about">
+
+    <h2>About</h2>
+
+    <p>
+      Matias Baker Goalie Analytics is a personal performance platform
+      designed to track and analyze goaltending performance throughout
+      the 2026–27 season with the Pelham Panthers.
+    </p>
+
+    <p>
+      The platform goes beyond traditional statistics by breaking down
+      performance by game and by period, allowing trends and areas for
+      improvement to be identified throughout the season.
+    </p>
+
+    <div class="highlight">
+      <strong>2026–27 Season</strong>
+      <p>
+        Pelham Panthers · Goaltender · 2008
+      </p>
+    </div>
+
+  </div>
+
+</section>
+
+</main>
+
 
 <script>
-const SUPABASE_URL = "https://iiuqxxrrruvwvfehrzic.supabase.co";
-const SUPABASE_KEY = "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
 
-const headers = {
-  "apikey": SUPABASE_KEY,
-  "Authorization": "Bearer " + SUPABASE_KEY
+const URL='https://iiuqxxrrruvwvfehrzic.supabase.co';
+
+const KEY='sb_publishable_b8r2Nb1BWv4cndNyE75dA_o40__ZPQ';
+
+const headers={
+  apikey:KEY,
+  Authorization:'Bearer '+KEY
 };
 
-async function getTable(table){
-  const response = await fetch(
-    SUPABASE_URL + "/rest/v1/" + encodeURIComponent(table) + "?select=*",
+const q=async table=>{
+  const r=await fetch(
+    `${URL}/rest/v1/${encodeURIComponent(table)}?select=*`,
     {headers}
   );
 
-  if(!response.ok){
-    const text = await response.text();
-    throw new Error(table + " request failed: " + response.status + " " + text);
+  if(!r.ok){
+    throw new Error(
+      `${table}: ${r.status} ${await r.text()}`
+    );
   }
 
-  return response.json();
+  return r.json();
+};
+
+
+const num=n=>Number(n||0);
+
+const pct=(s,sa)=>{
+  return sa
+    ? ((Number(s)/Number(sa))*100).toFixed(1)+'%'
+    : '—';
+};
+
+
+function card(label,value){
+  return `
+    <div class="card">
+      <div class="label">${label}</div>
+      <div class="value">${value}</div>
+    </div>
+  `;
 }
 
-function seasonMatch(value){
-  if(!value) return false;
-  const s = String(value).trim();
-  return (
-    s === "2026 Pre-Season" ||
-    s === "2026-27" ||
-    s === "2026/27" ||
-    s === "2026–27" ||
-    s === "2026-2027"
+
+function showTab(tab,button){
+
+  document.querySelectorAll('.tab')
+    .forEach(x=>x.classList.remove('active'));
+
+  document.getElementById(tab)
+    .classList.add('active');
+
+  document.querySelectorAll('nav button')
+    .forEach(x=>x.classList.remove('active'));
+
+  button.classList.add('active');
+}
+
+
+function resultBadge(result){
+
+  if(!result) return '—';
+
+  const r=String(result).toUpperCase();
+
+  let cls='';
+
+  if(r==='W') cls='win';
+  else if(r==='L') cls='loss';
+  else if(r==='OTL') cls='otl';
+
+  return `<span class="badge ${cls}">${result}</span>`;
+}
+
+
+function calculateStats(games){
+
+  const SA=games.reduce(
+    (x,g)=>x+num(g.SA ?? g.shots_against),0
   );
+
+  const S=games.reduce(
+    (x,g)=>x+num(g.saves),0
+  );
+
+  const GA=games.reduce(
+    (x,g)=>x+num(g.GA ?? g.goals_against),0
+  );
+
+  const MIN=games.reduce(
+    (x,g)=>x+num(g.MIN ?? g.minutes_played),0
+  );
+
+  const wins=games.filter(
+    g=>String(g.result).toUpperCase()==='W'
+  ).length;
+
+  const losses=games.filter(
+    g=>String(g.result).toUpperCase()==='L'
+  ).length;
+
+  const otls=games.filter(
+    g=>String(g.result).toUpperCase()==='OTL'
+  ).length;
+
+  const shutouts=games.filter(
+    g=>g.shutout===true ||
+    String(g.shutout).toLowerCase()==='true' ||
+    String(g.shutout)==='1'
+  ).length;
+
+  return {
+    GP:games.length,
+    SA,
+    S,
+    GA,
+    MIN,
+    wins,
+    losses,
+    otls,
+    shutouts,
+    sv:SA ? (S/SA*100).toFixed(1)+'%' : '—',
+    gaa:MIN ? (GA/MIN*60).toFixed(2) : '—'
+  };
 }
 
-function number(v){
-  return Number(v || 0);
-}
 
-async function load(){
+function renderOverview(games){
 
-  try{
+  const s=calculateStats(games);
 
-    const games = await getTable("Games");
-    const periods = await getTable("Period Stats");
+  document.getElementById('overviewCards').innerHTML=[
+    card('GP',s.GP),
+    card('SV%',s.sv),
+    card('GAA',s.gaa),
+    card('Record',`${s.wins} / ${s.losses} / ${s.otls}`),
+    card('Shots Against',s.SA),
+    card('Saves',s.S),
+    card('Goals Against',s.GA),
+    card('Shutouts',s.shutouts)
+  ].join('');
 
-    const seasonGames = games.filter(g => seasonMatch(g.season));
-
-    const gameIds = new Set(seasonGames.map(g => String(g.id)));
-
-    const seasonPeriods = periods.filter(p =>
-      gameIds.has(String(p.game_id))
-    );
-
-    let shots = 0;
-    let saves = 0;
-    let goals = 0;
-    let minutes = 0;
-
-    seasonGames.forEach(g => {
-      shots += number(g.shots_against);
-      saves += number(g.saves);
-      goals += number(g.goals_against);
-      minutes += number(g.minutes_played);
-    });
-
-    const sv = shots ? saves / shots : 0;
-    const gaa = minutes ? goals / minutes * 60 : 0;
-
-    document.getElementById("gp").textContent = seasonGames.length;
-    document.getElementById("shots").textContent = shots;
-    document.getElementById("saves").textContent = saves;
-    document.getElementById("goals").textContent = goals;
-
-    document.getElementById("sv").textContent =
-      shots ? (sv * 100).toFixed(1) + "%" : "—";
-
-    document.getElementById("gaa").textContent =
-      minutes ? gaa.toFixed(2) : "—";
-
-    document.getElementById("status").style.display = "none";
-
-    drawCharts(seasonGames);
-    drawPeriods(seasonPeriods);
-    drawGames(seasonGames);
-
-  }catch(error){
-
-    console.error(error);
-
-    const status = document.getElementById("status");
-    status.className = "message error";
-    status.innerHTML =
-      "<strong>Data connection error</strong><br><br>" +
-      error.message +
-      "<br><br>Check the browser console for more details.";
-
-  }
-}
-
-function drawCharts(games){
-
-  const labels = games.map((g,i) => "Game " + (i+1));
-
-  let runningShots = 0;
-  let runningSaves = 0;
-  let runningGoals = 0;
-  let runningMinutes = 0;
-
-  const svData = [];
-  const gaaData = [];
-
-  games.forEach(g => {
-
-    runningShots += number(g.shots_against);
-    runningSaves += number(g.saves);
-    runningGoals += number(g.goals_against);
-    runningMinutes += number(g.minutes_played);
-
-    svData.push(
-      runningShots ? (runningSaves / runningShots * 100) : null
-    );
-
-    gaaData.push(
-      runningMinutes ? (runningGoals / runningMinutes * 60) : null
-    );
+  const labels=games.map((g,i)=>{
+    return g.opponent
+      ? `vs ${g.opponent}`
+      : `Game ${i+1}`;
   });
 
-  new Chart(document.getElementById("svChart"),{
-    type:"line",
-    data:{
-      labels,
-      datasets:[{
-        label:"Save %",
-        data:svData,
-        tension:.3
-      }]
-    },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      scales:{
-        y:{
-          min:80,
-          max:100
+  const sv=games.map(g=>{
+    const sa=num(g.SA ?? g.shots_against);
+    const saves=num(g.saves);
+    return sa ? saves/sa*100 : null;
+  });
+
+  const gaa=games.map(g=>{
+    const min=num(g.MIN ?? g.minutes_played);
+    const ga=num(g.GA ?? g.goals_against);
+    return min ? ga/min*60 : null;
+  });
+
+  new Chart(
+    document.getElementById('svChart'),
+    {
+      type:'line',
+      data:{
+        labels,
+        datasets:[
+          {
+            label:'SV%',
+            data:sv,
+            tension:.3
+          }
+        ]
+      },
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{
+          legend:{
+            labels:{
+              color:'#b9c9d9'
+            }
+          }
+        },
+        scales:{
+          x:{
+            ticks:{color:'#91a9c1'},
+            grid:{color:'#1e344c'}
+          },
+          y:{
+            ticks:{color:'#91a9c1'},
+            grid:{color:'#1e344c'}
+          }
         }
       }
     }
-  });
+  );
 
-  new Chart(document.getElementById("gaaChart"),{
-    type:"line",
-    data:{
-      labels,
-      datasets:[{
-        label:"GAA",
-        data:gaaData,
-        tension:.3
-      }]
-    },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false
+
+  new Chart(
+    document.getElementById('gaaChart'),
+    {
+      type:'line',
+      data:{
+        labels,
+        datasets:[
+          {
+            label:'GAA',
+            data:gaa,
+            tension:.3
+          }
+        ]
+      },
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{
+          legend:{
+            labels:{
+              color:'#b9c9d9'
+            }
+          }
+        },
+        scales:{
+          x:{
+            ticks:{color:'#91a9c1'},
+            grid:{color:'#1e344c'}
+          },
+          y:{
+            ticks:{color:'#91a9c1'},
+            grid:{color:'#1e344c'}
+          }
+        }
+      }
     }
-  });
+  );
+
+
+  renderRecentGames(games);
 }
 
-function drawPeriods(periods){
 
-  const box = document.getElementById("periods");
+function renderRecentGames(games){
 
-  const names = {
-    "1":"1st Period",
-    "2":"2nd Period",
-    "3":"3rd Period"
-  };
+  const recent=games.slice(-5).reverse();
 
-  box.innerHTML = "";
-
-  ["1","2","3"].forEach(p => {
-
-    const rows = periods.filter(x =>
-      String(x.period) === p ||
-      String(x.period).startsWith(p)
-    );
-
-    let shots = 0;
-    let saves = 0;
-    let goals = 0;
-    let minutes = 0;
-
-    rows.forEach(x => {
-      shots += number(x.shots_against);
-      saves += number(x.saves);
-      goals += number(x.goals_against);
-      minutes += number(x.minutes_played);
-    });
-
-    const sv = shots ? (saves/shots*100).toFixed(1)+"%" : "—";
-    const gaa = minutes ? (goals/minutes*60).toFixed(2) : "—";
-
-    box.innerHTML += `
-      <div class="period">
-        <h3>${names[p]}</h3>
-        <div class="period-stat"><span>Shots</span><strong>${shots}</strong></div>
-        <div class="period-stat"><span>Saves</span><strong>${saves}</strong></div>
-        <div class="period-stat"><span>Goals</span><strong>${goals}</strong></div>
-        <div class="period-stat"><span>Save %</span><strong>${sv}</strong></div>
-        <div class="period-stat"><span>GAA</span><strong>${gaa}</strong></div>
-      </div>
-    `;
-  });
-}
-
-function drawGames(games){
-
-  const box = document.getElementById("games");
-
-  if(!games.length){
-    box.innerHTML =
-      '<div class="message">No games have been entered for the 2026–27 season yet.</div>';
+  if(!recent.length){
+    document.getElementById('recentGames').innerHTML=
+      'No games entered yet.';
     return;
   }
 
-  let html = `
-    <table>
+  document.getElementById('recentGames').innerHTML=`
+    <table class="table">
       <thead>
         <tr>
           <th>Game</th>
-          <th>Shots</th>
+          <th>Opponent</th>
+          <th>Result</th>
+          <th>Score</th>
+          <th>SA</th>
+          <th>GA</th>
+          <th>SV%</th>
+        </tr>
+      </thead>
+
+      <tbody>
+
+        ${recent.map((g,i)=>{
+
+          const sa=num(g.SA ?? g.shots_against);
+          const saves=num(g.saves);
+          const ga=num(g.GA ?? g.goals_against);
+
+          return `
+            <tr>
+              <td>Game ${games.length-i}</td>
+              <td>${g.opponent || '—'}</td>
+              <td>${resultBadge(g.result)}</td>
+              <td>${g.team_goals ?? '—'} - ${g.opponent_goals ?? '—'}</td>
+              <td>${sa}</td>
+              <td>${ga}</td>
+              <td>${pct(saves,sa)}</td>
+            </tr>
+          `;
+
+        }).join('')}
+
+      </tbody>
+    </table>
+  `;
+}
+
+
+function renderGameLog(games){
+
+  if(!games.length){
+    document.getElementById('gameLog').innerHTML=
+      'No games entered yet.';
+    return;
+  }
+
+  document.getElementById('gameLog').innerHTML=`
+
+    <table class="table">
+
+      <thead>
+        <tr>
+          <th>Game</th>
+          <th>Opponent</th>
+          <th>H/A</th>
+          <th>Result</th>
+          <th>Score</th>
+          <th>SA</th>
           <th>Saves</th>
           <th>GA</th>
           <th>SV%</th>
           <th>GAA</th>
+          <th>MIN</th>
+          <th>SO</th>
         </tr>
       </thead>
+
       <tbody>
+
+      ${games.map((g,i)=>{
+
+        const sa=num(g.SA ?? g.shots_against);
+        const saves=num(g.saves);
+        const ga=num(g.GA ?? g.goals_against);
+        const min=num(g.MIN ?? g.minutes_played);
+
+        const gaa=min
+          ? (ga/min*60).toFixed(2)
+          : '—';
+
+        const so=
+          g.shutout===true ||
+          String(g.shutout).toLowerCase()==='true' ||
+          String(g.shutout)==='1'
+          ? '✓'
+          : '—';
+
+        return `
+
+          <tr>
+
+            <td>Game ${i+1}</td>
+
+            <td>${g.opponent || '—'}</td>
+
+            <td>${g['home/away'] || g.home_away || '—'}</td>
+
+            <td>${resultBadge(g.result)}</td>
+
+            <td>
+              ${g.team_goals ?? '—'} -
+              ${g.opponent_goals ?? '—'}
+            </td>
+
+            <td>${sa}</td>
+
+            <td>${saves}</td>
+
+            <td>${ga}</td>
+
+            <td>${pct(saves,sa)}</td>
+
+            <td>${gaa}</td>
+
+            <td>${min}</td>
+
+            <td>${so}</td>
+
+          </tr>
+
+        `;
+
+      }).join('')}
+
+      </tbody>
+
+    </table>
   `;
-
-  games.forEach((g,i) => {
-
-    const shots = number(g.shots_against);
-    const saves = number(g.saves);
-    const goals = number(g.goals_against);
-    const minutes = number(g.minutes_played);
-
-    const sv = shots ? (saves/shots*100).toFixed(1)+"%" : "—";
-    const gaa = minutes ? (goals/minutes*60).toFixed(2) : "—";
-
-    html += `
-      <tr>
-        <td>Game ${i+1}</td>
-        <td>${shots}</td>
-        <td>${saves}</td>
-        <td>${goals}</td>
-        <td>${sv}</td>
-        <td>${gaa}</td>
-      </tr>
-    `;
-  });
-
-  html += "</tbody></table>";
-
-  box.innerHTML = html;
 }
 
-load();
+
+function renderPeriods(periods){
+
+  const data=[1,2,3].map(p=>{
+
+    const rows=periods.filter(
+      x=>String(x.period)===String(p)
+    );
+
+    const sa=rows.reduce(
+      (x,g)=>x+num(g.SA ?? g.shots_against),0
+    );
+
+    const ga=rows.reduce(
+      (x,g)=>x+num(g.GA ?? g.goals_against),0
+    );
+
+    const min=rows.reduce(
+      (x,g)=>x+num(g.MIN ?? g.minutes_played),0
+    );
+
+    const saves=sa-ga;
+
+    return {
+      p,
+      sa,
+      ga,
+      min,
+      saves
+    };
+
+  });
+
+
+  document.getElementById('periodCards').innerHTML=
+    data.map(x=>`
+
+      <div class="period">
+
+        <strong>
+          ${x.p===1?'1st':x.p===2?'2nd':'3rd'} Period
+        </strong>
+
+        <div class="statline">
+          <span>Minutes</span>
+          <b>${x.min}</b>
+        </div>
+
+        <div class="statline">
+          <span>Shots Against</span>
+          <b>${x.sa}</b>
+        </div>
+
+        <div class="statline">
+          <span>Saves</span>
+          <b>${x.saves}</b>
+        </div>
+
+        <div class="statline">
+          <span>Goals Against</span>
+          <b>${x.ga}</b>
+        </div>
+
+        <div class="statline">
+          <span>SV%</span>
+          <b>${pct(x.saves,x.sa)}</b>
+        </div>
+
+        <div class="statline">
+          <span>GAA</span>
+          <b>
+            ${x.min
+              ? (x.ga/x.min*60).toFixed(2)
+              : '—'}
+          </b>
+        </div>
+
+      </div>
+
+    `).join('');
+
+
+  new Chart(
+    document.getElementById('periodChart'),
+    {
+      type:'bar',
+      data:{
+        labels:['1st Period','2nd Period','3rd Period'],
+        datasets:[
+          {
+            label:'SV%',
+            data:data.map(x=>
+              x.sa ? x.saves/x.sa*100 : null
+            )
+          }
+        ]
+      },
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{
+          legend:{
+            labels:{
+              color:'#b9c9d9'
+            }
+          }
+        },
+        scales:{
+          x:{
+            ticks:{color:'#91a9c1'},
+            grid:{color:'#1e344c'}
+          },
+          y:{
+            ticks:{color:'#91a9c1'},
+            grid:{color:'#1e344c'}
+          }
+        }
+      }
+    }
+  );
+}
+
+
+function renderIncremental(games){
+
+  const s=calculateStats(games);
+
+  const shotsPer60=
+    s.MIN ? (s.SA/s.MIN*60).toFixed(1) : '—';
+
+  const savesPer60=
+    s.MIN ? (s.S/s.MIN*60).toFixed(1) : '—';
+
+  const goalsAgainstPer60=
+    s.MIN ? (s.GA/s.MIN*60).toFixed(2) : '—';
+
+  const avgShots=
+    s.GP ? (s.SA/s.GP).toFixed(1) : '—';
+
+  const avgGoals=
+    s.GP ? (s.GA/s.GP).toFixed(2) : '—';
+
+  const winRate=
+    s.GP ? (s.wins/s.GP*100).toFixed(1)+'%' : '—';
+
+
+  document.getElementById('incrementalCards').innerHTML=`
+
+    <div class="metric-card">
+      <h3>Shots Against / 60</h3>
+      <p>${shotsPer60}</p>
+    </div>
+
+    <div class="metric-card">
+      <h3>Saves / 60</h3>
+      <p>${savesPer60}</p>
+    </div>
+
+    <div class="metric-card">
+      <h3>Goals Against / 60</h3>
+      <p>${goalsAgainstPer60}</p>
+    </div>
+
+    <div class="metric-card">
+      <h3>Average Shots Against</h3>
+      <p>${avgShots} per game</p>
+    </div>
+
+    <div class="metric-card">
+      <h3>Average Goals Against</h3>
+      <p>${avgGoals} per game</p>
+    </div>
+
+    <div class="metric-card">
+      <h3>Win Rate</h3>
+      <p>${winRate}</p>
+    </div>
+
+    <div class="metric-card">
+      <h3>Total Ice Time</h3>
+      <p>${s.MIN} minutes</p>
+    </div>
+
+    <div class="metric-card">
+      <h3>Shutout Rate</h3>
+      <p>
+        ${s.GP
+          ? (s.shutouts/s.GP*100).toFixed(1)+'%'
+          : '—'}
+      </p>
+    </div>
+
+  `;
+}
+
+
+(async()=>{
+
+  try{
+
+    const [games,periods]=await Promise.all([
+      q('Games'),
+      q('Period Stats')
+    ]);
+
+
+    const seasonGames=games
+      .filter(g=>
+        String(g.season)==='2026-27' ||
+        String(g.season)==='2026/27' ||
+        String(g.season)==='2026–27' ||
+        String(g.season)==='2026-2027'
+      )
+      .sort((a,b)=>num(a.id)-num(b.id));
+
+
+    renderOverview(seasonGames);
+
+    renderGameLog(seasonGames);
+
+    renderPeriods(periods);
+
+    renderIncremental(seasonGames);
+
+
+  }catch(e){
+
+    document.getElementById('status').innerHTML=`
+
+      <div class="error">
+
+        <b>Supabase connection error</b>
+
+        <br><br>
+
+        ${e.message}
+
+        <br><br>
+
+        Check that your Supabase tables allow public SELECT access.
+
+      </div>
+
+    `;
+
+  }
+
+})();
+
 </script>
 
 </body>
 </html>
+```
