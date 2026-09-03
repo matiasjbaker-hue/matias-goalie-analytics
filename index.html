@@ -275,7 +275,8 @@ nav button.active{
 .metric-card p{
   margin:0;
   color:#91a9c1;
-  font-size:13px;
+  font-size:18px;
+  font-weight:700;
   line-height:1.5;
 }
 
@@ -341,7 +342,9 @@ nav button.active{
 
   <section class="section">
     <h2>Performance Trends</h2>
+
     <div class="charts">
+
       <div class="panel chart-panel">
         <canvas id="svChart"></canvas>
       </div>
@@ -349,14 +352,19 @@ nav button.active{
       <div class="panel chart-panel">
         <canvas id="gaaChart"></canvas>
       </div>
+
     </div>
   </section>
 
   <section class="section">
     <h2>Recent Games</h2>
+
     <div class="panel tablewrap">
-      <div id="recentGames" class="empty">Loading games…</div>
+      <div id="recentGames" class="empty">
+        Loading games…
+      </div>
     </div>
+
   </section>
 
 </section>
@@ -365,16 +373,19 @@ nav button.active{
 <!-- GAME LOG -->
 <section id="games" class="tab">
 
-  <section>
-    <h2>Game Log</h2>
-    <p class="section-subtitle">
-      Complete 2026–27 game-by-game performance.
-    </p>
+  <h2>Game Log</h2>
 
-    <div class="panel tablewrap">
-      <div id="gameLog" class="empty">Loading games…</div>
+  <p class="section-subtitle">
+    Complete 2026–27 game-by-game performance.
+  </p>
+
+  <div class="panel tablewrap">
+
+    <div id="gameLog" class="empty">
+      Loading games…
     </div>
-  </section>
+
+  </div>
 
 </section>
 
@@ -382,21 +393,22 @@ nav button.active{
 <!-- PERIOD BREAKDOWN -->
 <section id="periods" class="tab">
 
-  <section>
-    <h2>Period Breakdown</h2>
-    <p class="section-subtitle">
-      Performance split across the 1st, 2nd and 3rd periods.
-    </p>
+  <h2>Period Breakdown</h2>
 
-    <div class="periods" id="periodCards"></div>
-  </section>
+  <p class="section-subtitle">
+    Performance split across the 1st, 2nd and 3rd periods.
+  </p>
+
+  <div class="periods" id="periodCards"></div>
 
   <section class="section">
+
     <h2>Period Comparison</h2>
 
     <div class="panel chart-panel">
       <canvas id="periodChart"></canvas>
     </div>
+
   </section>
 
 </section>
@@ -405,14 +417,13 @@ nav button.active{
 <!-- INCREMENTAL STATS -->
 <section id="incremental" class="tab">
 
-  <section>
-    <h2>Incremental Stats</h2>
-    <p class="section-subtitle">
-      Additional metrics calculated from your game data.
-    </p>
+  <h2>Incremental Stats</h2>
 
-    <div class="two-col" id="incrementalCards"></div>
-  </section>
+  <p class="section-subtitle">
+    Additional metrics calculated from your game data.
+  </p>
+
+  <div class="two-col" id="incrementalCards"></div>
 
 </section>
 
@@ -437,10 +448,13 @@ nav button.active{
     </p>
 
     <div class="highlight">
+
       <strong>2026–27 Season</strong>
+
       <p>
         Pelham Panthers · Goaltender · 2008
       </p>
+
     </div>
 
   </div>
@@ -454,6 +468,11 @@ nav button.active{
 
 const URL='https://iiuqxxrrruvwvfehrzic.supabase.co';
 
+/*
+IMPORTANT:
+Keep the working publishable key that is currently in your GitHub file.
+Do NOT post the key publicly.
+*/
 const KEY='sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ';
 
 const headers={
@@ -461,7 +480,9 @@ const headers={
   Authorization:'Bearer '+KEY
 };
 
+
 const q=async table=>{
+
   const r=await fetch(
     `${URL}/rest/v1/${encodeURIComponent(table)}?select=*`,
     {headers}
@@ -477,22 +498,45 @@ const q=async table=>{
 };
 
 
-const num=n=>Number(n||0);
+const num=n=>{
 
-const pct=(s,sa)=>{
+  if(n===null || n===undefined || n===''){
+    return 0;
+  }
+
+  const value=Number(n);
+
+  return Number.isFinite(value) ? value : 0;
+};
+
+
+const pct=(saves,shots)=>{
+
+  const s=num(saves);
+  const sa=num(shots);
+
   return sa
-    ? ((Number(s)/Number(sa))*100).toFixed(1)+'%'
+    ? ((s/sa)*100).toFixed(1)+'%'
     : '—';
 };
 
 
 function card(label,value){
+
   return `
     <div class="card">
-      <div class="label">${label}</div>
-      <div class="value">${value}</div>
+
+      <div class="label">
+        ${label}
+      </div>
+
+      <div class="value">
+        ${value}
+      </div>
+
     </div>
   `;
+
 }
 
 
@@ -508,41 +552,71 @@ function showTab(tab,button){
     .forEach(x=>x.classList.remove('active'));
 
   button.classList.add('active');
+
 }
 
 
 function resultBadge(result){
 
-  if(!result) return '—';
+  if(!result){
+    return '—';
+  }
 
   const r=String(result).toUpperCase();
 
   let cls='';
 
-  if(r==='W') cls='win';
-  else if(r==='L') cls='loss';
-  else if(r==='OTL') cls='otl';
+  if(r==='W'){
+    cls='win';
+  }
+  else if(r==='L'){
+    cls='loss';
+  }
+  else if(r==='OTL'){
+    cls='otl';
+  }
 
-  return `<span class="badge ${cls}">${result}</span>`;
+  return `
+    <span class="badge ${cls}">
+      ${result}
+    </span>
+  `;
+
+}
+
+
+function isShutout(value){
+
+  return (
+    value===true ||
+    value===1 ||
+    String(value).toLowerCase()==='true' ||
+    String(value)==='1'
+  );
+
 }
 
 
 function calculateStats(games){
 
   const SA=games.reduce(
-    (x,g)=>x+num(g.SA ?? g.shots_against),0
+    (total,g)=>total+num(g.shots_against),
+    0
   );
 
   const S=games.reduce(
-    (x,g)=>x+num(g.saves),0
+    (total,g)=>total+num(g.saves),
+    0
   );
 
   const GA=games.reduce(
-    (x,g)=>x+num(g.GA ?? g.goals_against),0
+    (total,g)=>total+num(g.goals_against),
+    0
   );
 
   const MIN=games.reduce(
-    (x,g)=>x+num(g.MIN ?? g.minutes_played),0
+    (total,g)=>total+num(g.minutes_played),
+    0
   );
 
   const wins=games.filter(
@@ -558,24 +632,39 @@ function calculateStats(games){
   ).length;
 
   const shutouts=games.filter(
-    g=>g.shutout===true ||
-    String(g.shutout).toLowerCase()==='true' ||
-    String(g.shutout)==='1'
+    g=>isShutout(g.shutout)
   ).length;
 
   return {
+
     GP:games.length,
+
     SA,
+
     S,
+
     GA,
+
     MIN,
+
     wins,
+
     losses,
+
     otls,
+
     shutouts,
-    sv:SA ? (S/SA*100).toFixed(1)+'%' : '—',
-    gaa:MIN ? (GA/MIN*60).toFixed(2) : '—'
+
+    sv:SA
+      ? (S/SA*100).toFixed(1)+'%'
+      : '—',
+
+    gaa:MIN
+      ? (GA/MIN*60).toFixed(2)
+      : '—'
+
   };
+
 }
 
 
@@ -584,40 +673,73 @@ function renderOverview(games){
   const s=calculateStats(games);
 
   document.getElementById('overviewCards').innerHTML=[
+
     card('GP',s.GP),
+
     card('SV%',s.sv),
+
     card('GAA',s.gaa),
-    card('Record',`${s.wins} / ${s.losses} / ${s.otls}`),
+
+    card(
+      'Record',
+      `${s.wins} / ${s.losses} / ${s.otls}`
+    ),
+
     card('Shots Against',s.SA),
+
     card('Saves',s.S),
+
     card('Goals Against',s.GA),
+
     card('Shutouts',s.shutouts)
+
   ].join('');
 
+
   const labels=games.map((g,i)=>{
+
     return g.opponent
       ? `vs ${g.opponent}`
       : `Game ${i+1}`;
+
   });
+
 
   const sv=games.map(g=>{
-    const sa=num(g.SA ?? g.shots_against);
+
+    const sa=num(g.shots_against);
+
     const saves=num(g.saves);
-    return sa ? saves/sa*100 : null;
+
+    return sa
+      ? saves/sa*100
+      : null;
+
   });
 
+
   const gaa=games.map(g=>{
-    const min=num(g.MIN ?? g.minutes_played);
-    const ga=num(g.GA ?? g.goals_against);
-    return min ? ga/min*60 : null;
+
+    const min=num(g.minutes_played);
+
+    const ga=num(g.goals_against);
+
+    return min
+      ? ga/min*60
+      : null;
+
   });
+
 
   new Chart(
     document.getElementById('svChart'),
     {
+
       type:'line',
+
       data:{
         labels,
+
         datasets:[
           {
             label:'SV%',
@@ -626,9 +748,11 @@ function renderOverview(games){
           }
         ]
       },
+
       options:{
         responsive:true,
         maintainAspectRatio:false,
+
         plugins:{
           legend:{
             labels:{
@@ -636,17 +760,31 @@ function renderOverview(games){
             }
           }
         },
+
         scales:{
           x:{
-            ticks:{color:'#91a9c1'},
-            grid:{color:'#1e344c'}
+            ticks:{
+              color:'#91a9c1'
+            },
+
+            grid:{
+              color:'#1e344c'
+            }
           },
+
           y:{
-            ticks:{color:'#91a9c1'},
-            grid:{color:'#1e344c'}
+            ticks:{
+              color:'#91a9c1'
+            },
+
+            grid:{
+              color:'#1e344c'
+            }
           }
         }
+
       }
+
     }
   );
 
@@ -654,9 +792,12 @@ function renderOverview(games){
   new Chart(
     document.getElementById('gaaChart'),
     {
+
       type:'line',
+
       data:{
         labels,
+
         datasets:[
           {
             label:'GAA',
@@ -665,9 +806,11 @@ function renderOverview(games){
           }
         ]
       },
+
       options:{
         responsive:true,
         maintainAspectRatio:false,
+
         plugins:{
           legend:{
             labels:{
@@ -675,38 +818,63 @@ function renderOverview(games){
             }
           }
         },
+
         scales:{
           x:{
-            ticks:{color:'#91a9c1'},
-            grid:{color:'#1e344c'}
+            ticks:{
+              color:'#91a9c1'
+            },
+
+            grid:{
+              color:'#1e344c'
+            }
           },
+
           y:{
-            ticks:{color:'#91a9c1'},
-            grid:{color:'#1e344c'}
+            ticks:{
+              color:'#91a9c1'
+            },
+
+            grid:{
+              color:'#1e344c'
+            }
           }
         }
+
       }
+
     }
   );
 
 
   renderRecentGames(games);
+
 }
 
 
 function renderRecentGames(games){
 
-  const recent=games.slice(-5).reverse();
+  const recent=games
+    .slice(-5)
+    .reverse();
+
 
   if(!recent.length){
+
     document.getElementById('recentGames').innerHTML=
       'No games entered yet.';
+
     return;
+
   }
 
+
   document.getElementById('recentGames').innerHTML=`
+
     <table class="table">
+
       <thead>
+
         <tr>
           <th>Game</th>
           <th>Opponent</th>
@@ -716,50 +884,87 @@ function renderRecentGames(games){
           <th>GA</th>
           <th>SV%</th>
         </tr>
+
       </thead>
 
       <tbody>
 
         ${recent.map((g,i)=>{
 
-          const sa=num(g.SA ?? g.shots_against);
+          const sa=num(g.shots_against);
+
           const saves=num(g.saves);
-          const ga=num(g.GA ?? g.goals_against);
+
+          const ga=num(g.goals_against);
 
           return `
+
             <tr>
-              <td>Game ${games.length-i}</td>
-              <td>${g.opponent || '—'}</td>
-              <td>${resultBadge(g.result)}</td>
-              <td>${g.team_goals ?? '—'} - ${g.opponent_goals ?? '—'}</td>
-              <td>${sa}</td>
-              <td>${ga}</td>
-              <td>${pct(saves,sa)}</td>
+
+              <td>
+                Game ${games.length-i}
+              </td>
+
+              <td>
+                ${g.opponent || '—'}
+              </td>
+
+              <td>
+                ${resultBadge(g.result)}
+              </td>
+
+              <td>
+                ${g.team_goals ?? '—'} -
+                ${g.opponent_goals ?? '—'}
+              </td>
+
+              <td>
+                ${sa}
+              </td>
+
+              <td>
+                ${ga}
+              </td>
+
+              <td>
+                ${pct(saves,sa)}
+              </td>
+
             </tr>
+
           `;
 
         }).join('')}
 
       </tbody>
+
     </table>
+
   `;
+
 }
 
 
 function renderGameLog(games){
 
   if(!games.length){
+
     document.getElementById('gameLog').innerHTML=
       'No games entered yet.';
+
     return;
+
   }
+
 
   document.getElementById('gameLog').innerHTML=`
 
     <table class="table">
 
       <thead>
+
         <tr>
+
           <th>Game</th>
           <th>Opponent</th>
           <th>H/A</th>
@@ -772,70 +977,97 @@ function renderGameLog(games){
           <th>GAA</th>
           <th>MIN</th>
           <th>SO</th>
+
         </tr>
+
       </thead>
 
       <tbody>
 
-      ${games.map((g,i)=>{
+        ${games.map((g,i)=>{
 
-        const sa=num(g.SA ?? g.shots_against);
-        const saves=num(g.saves);
-        const ga=num(g.GA ?? g.goals_against);
-        const min=num(g.MIN ?? g.minutes_played);
+          const sa=num(g.shots_against);
 
-        const gaa=min
-          ? (ga/min*60).toFixed(2)
-          : '—';
+          const saves=num(g.saves);
 
-        const so=
-          g.shutout===true ||
-          String(g.shutout).toLowerCase()==='true' ||
-          String(g.shutout)==='1'
-          ? '✓'
-          : '—';
+          const ga=num(g.goals_against);
 
-        return `
+          const min=num(g.minutes_played);
 
-          <tr>
+          const gaa=min
+            ? (ga/min*60).toFixed(2)
+            : '—';
 
-            <td>Game ${i+1}</td>
+          const so=isShutout(g.shutout)
+            ? '✓'
+            : '—';
 
-            <td>${g.opponent || '—'}</td>
 
-            <td>${g['home/away'] || g.home_away || '—'}</td>
+          return `
 
-            <td>${resultBadge(g.result)}</td>
+            <tr>
 
-            <td>
-              ${g.team_goals ?? '—'} -
-              ${g.opponent_goals ?? '—'}
-            </td>
+              <td>
+                Game ${i+1}
+              </td>
 
-            <td>${sa}</td>
+              <td>
+                ${g.opponent || '—'}
+              </td>
 
-            <td>${saves}</td>
+              <td>
+                ${g.home_away || '—'}
+              </td>
 
-            <td>${ga}</td>
+              <td>
+                ${resultBadge(g.result)}
+              </td>
 
-            <td>${pct(saves,sa)}</td>
+              <td>
+                ${g.team_goals ?? '—'} -
+                ${g.opponent_goals ?? '—'}
+              </td>
 
-            <td>${gaa}</td>
+              <td>
+                ${sa}
+              </td>
 
-            <td>${min}</td>
+              <td>
+                ${saves}
+              </td>
 
-            <td>${so}</td>
+              <td>
+                ${ga}
+              </td>
 
-          </tr>
+              <td>
+                ${pct(saves,sa)}
+              </td>
 
-        `;
+              <td>
+                ${gaa}
+              </td>
 
-      }).join('')}
+              <td>
+                ${min}
+              </td>
+
+              <td>
+                ${so}
+              </td>
+
+            </tr>
+
+          `;
+
+        }).join('')}
 
       </tbody>
 
     </table>
+
   `;
+
 }
 
 
@@ -847,72 +1079,136 @@ function renderPeriods(periods){
       x=>String(x.period)===String(p)
     );
 
+
     const sa=rows.reduce(
-      (x,g)=>x+num(g.SA ?? g.shots_against),0
+      (total,g)=>
+        total+num(g.shots_against),
+      0
     );
+
+
+    const saves=rows.reduce(
+      (total,g)=>
+        total+num(g.saves),
+      0
+    );
+
 
     const ga=rows.reduce(
-      (x,g)=>x+num(g.GA ?? g.goals_against),0
+      (total,g)=>
+        total+num(g.goals_against),
+      0
     );
+
 
     const min=rows.reduce(
-      (x,g)=>x+num(g.MIN ?? g.minutes_played),0
+      (total,g)=>
+        total+num(g.minutes_played),
+      0
     );
 
-    const saves=sa-ga;
 
     return {
       p,
       sa,
+      saves,
       ga,
-      min,
-      saves
+      min
     };
 
   });
 
 
   document.getElementById('periodCards').innerHTML=
+
     data.map(x=>`
 
       <div class="period">
 
         <strong>
-          ${x.p===1?'1st':x.p===2?'2nd':'3rd'} Period
+
+          ${
+            x.p===1
+              ? '1st'
+              : x.p===2
+              ? '2nd'
+              : '3rd'
+          }
+
+          Period
+
         </strong>
 
+
         <div class="statline">
+
           <span>Minutes</span>
-          <b>${x.min}</b>
-        </div>
 
-        <div class="statline">
-          <span>Shots Against</span>
-          <b>${x.sa}</b>
-        </div>
-
-        <div class="statline">
-          <span>Saves</span>
-          <b>${x.saves}</b>
-        </div>
-
-        <div class="statline">
-          <span>Goals Against</span>
-          <b>${x.ga}</b>
-        </div>
-
-        <div class="statline">
-          <span>SV%</span>
-          <b>${pct(x.saves,x.sa)}</b>
-        </div>
-
-        <div class="statline">
-          <span>GAA</span>
           <b>
-            ${x.min
-              ? (x.ga/x.min*60).toFixed(2)
-              : '—'}
+            ${x.min}
           </b>
+
+        </div>
+
+
+        <div class="statline">
+
+          <span>Shots Against</span>
+
+          <b>
+            ${x.sa}
+          </b>
+
+        </div>
+
+
+        <div class="statline">
+
+          <span>Saves</span>
+
+          <b>
+            ${x.saves}
+          </b>
+
+        </div>
+
+
+        <div class="statline">
+
+          <span>Goals Against</span>
+
+          <b>
+            ${x.ga}
+          </b>
+
+        </div>
+
+
+        <div class="statline">
+
+          <span>SV%</span>
+
+          <b>
+            ${pct(x.saves,x.sa)}
+          </b>
+
+        </div>
+
+
+        <div class="statline">
+
+          <span>GAA</span>
+
+          <b>
+
+            ${
+              x.min
+                ? (x.ga/x.min*60).toFixed(2)
+                : '—'
+            }
+
+          </b>
+
         </div>
 
       </div>
@@ -923,21 +1219,37 @@ function renderPeriods(periods){
   new Chart(
     document.getElementById('periodChart'),
     {
+
       type:'bar',
+
       data:{
-        labels:['1st Period','2nd Period','3rd Period'],
+
+        labels:[
+          '1st Period',
+          '2nd Period',
+          '3rd Period'
+        ],
+
         datasets:[
           {
             label:'SV%',
+
             data:data.map(x=>
-              x.sa ? x.saves/x.sa*100 : null
+              x.sa
+                ? x.saves/x.sa*100
+                : null
             )
           }
         ]
+
       },
+
       options:{
+
         responsive:true,
+
         maintainAspectRatio:false,
+
         plugins:{
           legend:{
             labels:{
@@ -945,19 +1257,36 @@ function renderPeriods(periods){
             }
           }
         },
+
         scales:{
+
           x:{
-            ticks:{color:'#91a9c1'},
-            grid:{color:'#1e344c'}
+            ticks:{
+              color:'#91a9c1'
+            },
+
+            grid:{
+              color:'#1e344c'
+            }
           },
+
           y:{
-            ticks:{color:'#91a9c1'},
-            grid:{color:'#1e344c'}
+            ticks:{
+              color:'#91a9c1'
+            },
+
+            grid:{
+              color:'#1e344c'
+            }
           }
+
         }
+
       }
+
     }
   );
+
 }
 
 
@@ -965,72 +1294,149 @@ function renderIncremental(games){
 
   const s=calculateStats(games);
 
-  const shotsPer60=
-    s.MIN ? (s.SA/s.MIN*60).toFixed(1) : '—';
 
-  const savesPer60=
-    s.MIN ? (s.S/s.MIN*60).toFixed(1) : '—';
+  const shotsPer60=s.MIN
+    ? (s.SA/s.MIN*60).toFixed(1)
+    : '—';
 
-  const goalsAgainstPer60=
-    s.MIN ? (s.GA/s.MIN*60).toFixed(2) : '—';
 
-  const avgShots=
-    s.GP ? (s.SA/s.GP).toFixed(1) : '—';
+  const savesPer60=s.MIN
+    ? (s.S/s.MIN*60).toFixed(1)
+    : '—';
 
-  const avgGoals=
-    s.GP ? (s.GA/s.GP).toFixed(2) : '—';
 
-  const winRate=
-    s.GP ? (s.wins/s.GP*100).toFixed(1)+'%' : '—';
+  const goalsAgainstPer60=s.MIN
+    ? (s.GA/s.MIN*60).toFixed(2)
+    : '—';
+
+
+  const avgShots=s.GP
+    ? (s.SA/s.GP).toFixed(1)
+    : '—';
+
+
+  const avgGoals=s.GP
+    ? (s.GA/s.GP).toFixed(2)
+    : '—';
+
+
+  const winRate=s.GP
+    ? (s.wins/s.GP*100).toFixed(1)+'%'
+    : '—';
+
+
+  const shutoutRate=s.GP
+    ? (s.shutouts/s.GP*100).toFixed(1)+'%'
+    : '—';
 
 
   document.getElementById('incrementalCards').innerHTML=`
 
     <div class="metric-card">
-      <h3>Shots Against / 60</h3>
-      <p>${shotsPer60}</p>
-    </div>
 
-    <div class="metric-card">
-      <h3>Saves / 60</h3>
-      <p>${savesPer60}</p>
-    </div>
+      <h3>
+        Shots Against / 60
+      </h3>
 
-    <div class="metric-card">
-      <h3>Goals Against / 60</h3>
-      <p>${goalsAgainstPer60}</p>
-    </div>
-
-    <div class="metric-card">
-      <h3>Average Shots Against</h3>
-      <p>${avgShots} per game</p>
-    </div>
-
-    <div class="metric-card">
-      <h3>Average Goals Against</h3>
-      <p>${avgGoals} per game</p>
-    </div>
-
-    <div class="metric-card">
-      <h3>Win Rate</h3>
-      <p>${winRate}</p>
-    </div>
-
-    <div class="metric-card">
-      <h3>Total Ice Time</h3>
-      <p>${s.MIN} minutes</p>
-    </div>
-
-    <div class="metric-card">
-      <h3>Shutout Rate</h3>
       <p>
-        ${s.GP
-          ? (s.shutouts/s.GP*100).toFixed(1)+'%'
-          : '—'}
+        ${shotsPer60}
       </p>
+
+    </div>
+
+
+    <div class="metric-card">
+
+      <h3>
+        Saves / 60
+      </h3>
+
+      <p>
+        ${savesPer60}
+      </p>
+
+    </div>
+
+
+    <div class="metric-card">
+
+      <h3>
+        Goals Against / 60
+      </h3>
+
+      <p>
+        ${goalsAgainstPer60}
+      </p>
+
+    </div>
+
+
+    <div class="metric-card">
+
+      <h3>
+        Average Shots Against
+      </h3>
+
+      <p>
+        ${avgShots} per game
+      </p>
+
+    </div>
+
+
+    <div class="metric-card">
+
+      <h3>
+        Average Goals Against
+      </h3>
+
+      <p>
+        ${avgGoals} per game
+      </p>
+
+    </div>
+
+
+    <div class="metric-card">
+
+      <h3>
+        Win Rate
+      </h3>
+
+      <p>
+        ${winRate}
+      </p>
+
+    </div>
+
+
+    <div class="metric-card">
+
+      <h3>
+        Total Ice Time
+      </h3>
+
+      <p>
+        ${s.MIN} minutes
+      </p>
+
+    </div>
+
+
+    <div class="metric-card">
+
+      <h3>
+        Shutout Rate
+      </h3>
+
+      <p>
+        ${shutoutRate}
+      </p>
+
     </div>
 
   `;
+
 }
 
 
@@ -1039,19 +1445,39 @@ function renderIncremental(games){
   try{
 
     const [games,periods]=await Promise.all([
+
       q('Games'),
+
       q('Period Stats')
+
     ]);
 
 
     const seasonGames=games
-      .filter(g=>
-        String(g.season)==='2026-27' ||
-        String(g.season)==='2026/27' ||
-        String(g.season)==='2026–27' ||
-        String(g.season)==='2026-2027'
-      )
-      .sort((a,b)=>num(a.id)-num(b.id));
+
+      .filter(g=>{
+
+        const season=String(g.season || '')
+          .trim();
+
+        return (
+          season==='2026-27' ||
+          season==='2026/27' ||
+          season==='2026–27' ||
+          season==='2026-2027'
+        );
+
+      })
+
+      .sort((a,b)=>{
+
+        const aId=num(a.id);
+
+        const bId=num(b.id);
+
+        return aId-bId;
+
+      });
 
 
     renderOverview(seasonGames);
@@ -1074,10 +1500,6 @@ function renderIncremental(games){
         <br><br>
 
         ${e.message}
-
-        <br><br>
-
-        Check that your Supabase tables allow public SELECT access.
 
       </div>
 
