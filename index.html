@@ -1453,21 +1453,19 @@ function renderIncremental(games){
     ]);
 
 
-    const seasonGames=games
+   const seasonGames=games
+  .filter(g=>{
+    const season=String(g.season || '')
+      .trim();
 
-      .filter(g=>{
-
-        const season=String(g.season || '')
-          .trim();
-
-        return (
-          season==='2026-27' ||
-          season==='2026/27' ||
-          season==='2026–27' ||
-          season==='2026-2027'
-        );
-
-      })
+    return (
+      season==='2026 Pre-Season' ||
+      season==='2026-27' ||
+      season==='2026/27' ||
+      season==='2026–27' ||
+      season==='2026-2027'
+    );
+  })
 
       .sort((a,b)=>{
 
