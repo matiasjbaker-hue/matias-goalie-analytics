@@ -1073,11 +1073,11 @@ function renderGameLog(games){
 
 function renderPeriods(periods){
 
-  const data=[1,2,3].map(p=>{
+  const data=['1st','2nd','3rd'].map(p=>{
 
-    const rows=periods.filter(
-      x=>String(x.period)===String(p)
-    );
+  const rows=periods.filter(
+    x=>String(x.period).trim()===p
+  );
 
 
     const sa=rows.reduce(
