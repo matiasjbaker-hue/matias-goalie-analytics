@@ -417,35 +417,13 @@ nav button.active{
 <!-- INCREMENTAL STATS -->
 <section id="incremental" class="tab">
 
-  <h2>Rolling Performance</h2>
+  <h2>Incremental Stats</h2>
 
   <p class="section-subtitle">
-    5-game and 10-game rolling windows to identify trends and streaks over time.
+    Additional metrics calculated from your game data.
   </p>
 
-  <div class="two-col">
-
-    <div class="card">
-      <h3>Last 5 Games</h3>
-      <div id="rolling5"></div>
-    </div>
-
-    <div class="card">
-      <h3>Last 10 Games</h3>
-      <div id="rolling10"></div>
-    </div>
-
-  </div>
-
-  <div class="card" style="margin-top:20px;">
-    <h3>Rolling SV% Trend</h3>
-    <canvas id="rollingSVChart"></canvas>
-  </div>
-
-  <div class="card" style="margin-top:20px;">
-    <h3>Rolling GAA Trend</h3>
-    <canvas id="rollingGAAChart"></canvas>
-  </div>
+  <div class="two-col" id="incrementalCards"></div>
 
 </section>
 
@@ -1312,341 +1290,155 @@ function renderPeriods(periods){
 }
 
 
-```html
-<!-- INCREMENTAL STATS -->
-<section id="incremental" class="tab">
-
-  <h2>Rolling Performance</h2>
-
-  <p class="section-subtitle">
-    5-game and 10-game rolling windows to identify trends and streaks over time.
-  </p>
-
-  <div class="two-col">
-
-    <div class="card">
-      <h3>Last 5 Games</h3>
-      <div id="rolling5"></div>
-    </div>
-
-    <div class="card">
-      <h3>Last 10 Games</h3>
-      <div id="rolling10"></div>
-    </div>
-
-  </div>
-
-  <div class="card" style="margin-top:20px;">
-    <h3>5-Game Rolling SV%</h3>
-    <canvas id="rollingSVChart"></canvas>
-  </div>
-
-  <div class="card" style="margin-top:20px;">
-    <h3>5-Game Rolling GAA</h3>
-    <canvas id="rollingGAAChart"></canvas>
-  </div>
-
-</section>
-```
-
-  ```js
 function renderIncremental(games){
 
-  const sortedGames=[...games].sort((a,b)=>{
-    return Number(a.id || 0)-Number(b.id || 0);
-  });
+  const s=calculateStats(games);
 
 
-  function rollingStats(windowGames){
+  const shotsPer60=s.MIN
+    ? (s.SA/s.MIN*60).toFixed(1)
+    : '—';
 
-    const SA=windowGames.reduce(
-      (total,g)=>total+Number(g.shots_against || 0),0
-    );
 
-    const S=windowGames.reduce(
-      (total,g)=>total+Number(g.saves || 0),0
-    );
+  const savesPer60=s.MIN
+    ? (s.S/s.MIN*60).toFixed(1)
+    : '—';
 
-    const GA=windowGames.reduce(
-      (total,g)=>total+Number(g.goals_against || 0),0
-    );
 
-    const MIN=windowGames.reduce(
-      (total,g)=>total+Number(g.minutes_played || 0),0
-    );
+  const goalsAgainstPer60=s.MIN
+    ? (s.GA/s.MIN*60).toFixed(2)
+    : '—';
 
-    const wins=windowGames.filter(
-      g=>String(g.result || '').trim().toUpperCase()==='W'
-    ).length;
 
-    const losses=windowGames.filter(
-      g=>String(g.result || '').trim().toUpperCase()==='L'
-    ).length;
+  const avgShots=s.GP
+    ? (s.SA/s.GP).toFixed(1)
+    : '—';
 
-    const otl=windowGames.filter(
-      g=>String(g.result || '').trim().toUpperCase()==='OTL'
-    ).length;
 
-    const shutouts=windowGames.filter(
-      g=>String(g.shutout).toLowerCase()==='true' ||
-         Number(g.shutout)===1
-    ).length;
+  const avgGoals=s.GP
+    ? (s.GA/s.GP).toFixed(2)
+    : '—';
 
-    return {
-      svPct:SA ? (S/SA*100).toFixed(1)+'%' : '—',
 
-      gaa:MIN
-        ? (GA/MIN*60).toFixed(2)
-        : '—',
+  const winRate=s.GP
+    ? (s.wins/s.GP*100).toFixed(1)+'%'
+    : '—';
 
-      shotsPer60:MIN
-        ? (SA/MIN*60).toFixed(1)
-        : '—',
 
-      record:`${wins}-${losses}-${otl}`,
+  const shutoutRate=s.GP
+    ? (s.shutouts/s.GP*100).toFixed(1)+'%'
+    : '—';
 
-      shutouts
-    };
-  }
 
+  document.getElementById('incrementalCards').innerHTML=`
 
-  function renderWindow(elementId,requiredGames,windowGames){
+    <div class="metric-card">
 
-    const el=document.getElementById(elementId);
+      <h3>
+        Shots Against / 60
+      </h3>
 
-    if(!el) return;
+      <p>
+        ${shotsPer60}
+      </p>
 
+    </div>
 
-    if(windowGames.length < requiredGames){
 
-      el.innerHTML=`
-        <p style="opacity:.7;">
-          ${windowGames.length} game${windowGames.length===1?'':'s'} played.
-          Need ${requiredGames} games for this window.
-        </p>
-      `;
+    <div class="metric-card">
 
-      return;
-    }
+      <h3>
+        Saves / 60
+      </h3>
 
+      <p>
+        ${savesPer60}
+      </p>
 
-    const r=rollingStats(windowGames);
+    </div>
 
 
-    el.innerHTML=`
+    <div class="metric-card">
 
-      <div class="metric-card">
-        <h3>SV%</h3>
-        <p>${r.svPct}</p>
-      </div>
+      <h3>
+        Goals Against / 60
+      </h3>
 
-      <div class="metric-card">
-        <h3>GAA</h3>
-        <p>${r.gaa}</p>
-      </div>
+      <p>
+        ${goalsAgainstPer60}
+      </p>
 
-      <div class="metric-card">
-        <h3>Shots Against / 60</h3>
-        <p>${r.shotsPer60}</p>
-      </div>
+    </div>
 
-      <div class="metric-card">
-        <h3>Record</h3>
-        <p>${r.record}</p>
-      </div>
 
-      <div class="metric-card">
-        <h3>Shutouts</h3>
-        <p>${r.shutouts}</p>
-      </div>
+    <div class="metric-card">
 
-    `;
-  }
+      <h3>
+        Average Shots Against
+      </h3>
 
+      <p>
+        ${avgShots} per game
+      </p>
 
-  /* LAST 5 GAMES */
+    </div>
 
-  const last5=sortedGames.slice(-5);
 
-  renderWindow(
-    'rolling5',
-    5,
-    last5
-  );
+    <div class="metric-card">
 
+      <h3>
+        Average Goals Against
+      </h3>
 
-  /* LAST 10 GAMES */
+      <p>
+        ${avgGoals} per game
+      </p>
 
-  const last10=sortedGames.slice(-10);
+    </div>
 
-  renderWindow(
-    'rolling10',
-    10,
-    last10
-  );
 
+    <div class="metric-card">
 
-  /* 5-GAME ROLLING SV% CHART */
+      <h3>
+        Win Rate
+      </h3>
 
-  const svLabels=[];
-  const svValues=[];
+      <p>
+        ${winRate}
+      </p>
 
+    </div>
 
-  for(let i=4;i<sortedGames.length;i++){
 
-    const windowGames=sortedGames.slice(i-4,i+1);
+    <div class="metric-card">
 
+      <h3>
+        Total Ice Time
+      </h3>
 
-    const SA=windowGames.reduce(
-      (total,g)=>total+Number(g.shots_against || 0),0
-    );
+      <p>
+        ${s.MIN} minutes
+      </p>
 
+    </div>
 
-    const S=windowGames.reduce(
-      (total,g)=>total+Number(g.saves || 0),0
-    );
 
+    <div class="metric-card">
 
-    if(SA>0){
+      <h3>
+        Shutout Rate
+      </h3>
 
-      svLabels.push(`Games ${i-3}-${i+1}`);
+      <p>
+        ${shutoutRate}
+      </p>
 
-      svValues.push(
-        Number((S/SA*100).toFixed(1))
-      );
+    </div>
 
-    }
-  }
-
-
-  const svCanvas=document.getElementById('rollingSVChart');
-
-
-  if(window.rollingSVChart){
-
-    window.rollingSVChart.destroy();
-
-  }
-
-
-  if(svCanvas && typeof Chart!=='undefined'){
-
-    window.rollingSVChart=new Chart(
-      svCanvas,
-      {
-        type:'line',
-
-        data:{
-          labels:svLabels,
-
-          datasets:[{
-
-            label:'5-Game SV%',
-
-            data:svValues,
-
-            tension:0.3
-
-          }]
-        },
-
-        options:{
-          responsive:true,
-
-          scales:{
-            y:{
-              beginAtZero:false
-            }
-          }
-        }
-      }
-    );
-  }
-
-
-  /* 5-GAME ROLLING GAA CHART */
-
-  const gaaLabels=[];
-  const gaaValues=[];
-
-
-  for(let i=4;i<sortedGames.length;i++){
-
-    const windowGames=sortedGames.slice(i-4,i+1);
-
-
-    const GA=windowGames.reduce(
-      (total,g)=>total+Number(g.goals_against || 0),0
-    );
-
-
-    const MIN=windowGames.reduce(
-      (total,g)=>total+Number(g.minutes_played || 0),0
-    );
-
-
-    if(MIN>0){
-
-      gaaLabels.push(`Games ${i-3}-${i+1}`);
-
-      gaaValues.push(
-        Number((GA/MIN*60).toFixed(2))
-      );
-
-    }
-  }
-
-
-  const gaaCanvas=document.getElementById('rollingGAAChart');
-
-
-  if(window.rollingGAAChart){
-
-    window.rollingGAAChart.destroy();
-
-  }
-
-
-  if(gaaCanvas && typeof Chart!=='undefined'){
-
-    window.rollingGAAChart=new Chart(
-      gaaCanvas,
-      {
-        type:'line',
-
-        data:{
-          labels:gaaLabels,
-
-          datasets:[{
-
-            label:'5-Game GAA',
-
-            data:gaaValues,
-
-            tension:0.3
-
-          }]
-        },
-
-        options:{
-          responsive:true,
-
-          scales:{
-            y:{
-              beginAtZero:true
-            }
-          }
-        }
-      }
-    );
-  }
+  `;
 
 }
-```
 
-
-
- 
 
 (async()=>{
 
