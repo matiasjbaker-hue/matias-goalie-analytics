@@ -166,6 +166,10 @@ nav button.active{
   height:390px;
 }
 
+.chart-panel.compact{
+  height:330px;
+}
+
 .panel-title{
   font-size:15px;
   font-weight:800;
@@ -493,6 +497,73 @@ nav button.active{
 }
 
 /* ==========================================
+   NEW PERFORMANCE DISTRIBUTION
+   ========================================== */
+
+.distribution-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:14px;
+}
+
+.distribution-panel{
+  height:360px;
+}
+
+.home-away-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:14px;
+}
+
+.home-away-card{
+  padding:22px;
+  background:
+    linear-gradient(145deg,#103621,#0a2115);
+  border:1px solid #245339;
+  border-radius:14px;
+}
+
+.home-away-title{
+  font-size:18px;
+  font-weight:900;
+  margin-bottom:18px;
+}
+
+.home-away-games{
+  color:#8faf9a;
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.1em;
+  margin-bottom:15px;
+}
+
+.home-away-stat{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:12px 0;
+  border-top:1px solid #19442c;
+}
+
+.home-away-stat span{
+  color:#8faf9a;
+  font-size:12px;
+}
+
+.home-away-stat strong{
+  color:#eef7f1;
+  font-size:18px;
+}
+
+.distribution-note{
+  color:#8faf9a;
+  font-size:11px;
+  line-height:1.5;
+  margin-top:12px;
+}
+
+/* ==========================================
    PERIOD BREAKDOWN
    ========================================== */
 
@@ -687,7 +758,8 @@ nav button.active{
     grid-template-columns:repeat(2,1fr);
   }
 
-  .charts{
+  .charts,
+  .distribution-grid{
     grid-template-columns:1fr;
   }
 
@@ -744,6 +816,10 @@ nav button.active{
   }
 
   .period-overview{
+    grid-template-columns:1fr;
+  }
+
+  .home-away-grid{
     grid-template-columns:1fr;
   }
 
@@ -870,6 +946,61 @@ nav button.active{
     <div class="grade-grid" id="gradeDistribution"></div>
 
   </section>
+
+
+  <!-- =========================================
+       NEW ANALYTICS
+       ========================================= -->
+
+  <section class="section">
+
+    <h2>Performance Distribution</h2>
+
+    <p class="section-subtitle">
+      Consistency, scoring distribution and performance by game environment.
+    </p>
+
+    <div class="distribution-grid">
+
+      <div class="panel distribution-panel">
+        <div class="panel-title">
+          SV% Distribution
+        </div>
+        <canvas id="svDistributionChart"></canvas>
+      </div>
+
+      <div class="panel distribution-panel">
+        <div class="panel-title">
+          Goals Allowed by Shot Grade
+        </div>
+        <canvas id="goalsByGradeChart"></canvas>
+      </div>
+
+      <div class="panel distribution-panel">
+        <div class="panel-title">
+          Goals Allowed per Game
+        </div>
+        <canvas id="gaDistributionChart"></canvas>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">
+          Home vs Away
+        </div>
+
+        <div class="home-away-grid" id="homeAwaySplit"></div>
+
+        <div class="distribution-note">
+          Home/away classification uses the <b>home_away</b> field from the
+          Games table. Record is calculated from the game's result field.
+        </div>
+
+      </div>
+
+    </div>
+
+  </section>
+
 
   <section class="section">
 
@@ -1816,6 +1947,11 @@ function renderOverview(games,shots){
     shots
   );
 
+  renderPerformanceDistribution(
+    games,
+    shots
+  );
+
   renderOverviewCharts(
     games,
     shots
@@ -1936,6 +2072,581 @@ function renderAdvancedOverview(games,shots){
     </div>
 
   `).join('');
+
+}
+
+
+/* ==========================================
+   PERFORMANCE DISTRIBUTION
+   ========================================== */
+
+function renderPerformanceDistribution(games,shots){
+
+  /*
+    SV% DISTRIBUTION
+
+    < .850
+    .850 - .880
+    .880 - .900
+    .900 - .920
+    .920 - .940
+    > .940
+  */
+
+  const svBuckets=[
+    {
+      label:'< .850',
+      count:0
+    },
+    {
+      label:'.850–.880',
+      count:0
+    },
+    {
+      label:'.880–.900',
+      count:0
+    },
+    {
+      label:'.900–.920',
+      count:0
+    },
+    {
+      label:'.920–.940',
+      count:0
+    },
+    {
+      label:'> .940',
+      count:0
+    }
+  ];
+
+  games.forEach(game=>{
+
+    const sa=num(game.shots_against);
+    const saves=num(game.saves);
+
+    if(!sa){
+      return;
+    }
+
+    const sv=saves/sa;
+
+    if(sv<.850){
+      svBuckets[0].count++;
+    }
+    else if(sv<.880){
+      svBuckets[1].count++;
+    }
+    else if(sv<.900){
+      svBuckets[2].count++;
+    }
+    else if(sv<.920){
+      svBuckets[3].count++;
+    }
+    else if(sv<=.940){
+      svBuckets[4].count++;
+    }
+    else{
+      svBuckets[5].count++;
+    }
+
+  });
+
+
+  makeChart(
+    'svDistributionChart',
+    {
+
+      type:'bar',
+
+      data:{
+
+        labels:svBuckets.map(
+          x=>x.label
+        ),
+
+        datasets:[
+
+          {
+            label:'Games',
+            data:svBuckets.map(
+              x=>x.count
+            )
+          }
+
+        ]
+
+      },
+
+      options:{
+
+        ...chartOptions(),
+
+        plugins:{
+
+          legend:{
+            display:false
+          }
+
+        },
+
+        scales:{
+
+          x:{
+
+            ticks:{
+              color:'#8faf9a'
+            },
+
+            grid:{
+              color:'#173b27'
+            }
+
+          },
+
+          y:{
+
+            beginAtZero:true,
+
+            ticks:{
+              color:'#8faf9a',
+              precision:0,
+              stepSize:1
+            },
+
+            grid:{
+              color:'#173b27'
+            }
+
+          }
+
+        }
+
+      }
+
+    }
+
+  );
+
+
+  /*
+    GOALS ALLOWED BY SHOT GRADE
+  */
+
+  const goalsByGrade={
+    'A+':0,
+    'A':0,
+    'B':0,
+    'C':0
+  };
+
+  shots.forEach(shot=>{
+
+    if(!isGoal(shot)){
+      return;
+    }
+
+    const xg=calculateShotXG(shot);
+
+    const grade=getShotGrade(xg);
+
+    goalsByGrade[grade]++;
+
+  });
+
+
+  makeChart(
+    'goalsByGradeChart',
+    {
+
+      type:'bar',
+
+      data:{
+
+        labels:[
+          'A+',
+          'A',
+          'B',
+          'C'
+        ],
+
+        datasets:[
+
+          {
+            label:'Goals Allowed',
+            data:[
+              goalsByGrade['A+'],
+              goalsByGrade['A'],
+              goalsByGrade['B'],
+              goalsByGrade['C']
+            ]
+          }
+
+        ]
+
+      },
+
+      options:{
+
+        ...chartOptions(),
+
+        plugins:{
+
+          legend:{
+            display:false
+          }
+
+        },
+
+        scales:{
+
+          x:{
+
+            ticks:{
+              color:'#8faf9a'
+            },
+
+            grid:{
+              color:'#173b27'
+            }
+
+          },
+
+          y:{
+
+            beginAtZero:true,
+
+            ticks:{
+              color:'#8faf9a',
+              precision:0,
+              stepSize:1
+            },
+
+            grid:{
+              color:'#173b27'
+            }
+
+          }
+
+        }
+
+      }
+
+    }
+
+  );
+
+
+  /*
+    GOALS ALLOWED DISTRIBUTION
+  */
+
+  const gaBuckets=[
+    {
+      label:'0 GA',
+      count:0
+    },
+    {
+      label:'1 GA',
+      count:0
+    },
+    {
+      label:'2 GA',
+      count:0
+    },
+    {
+      label:'3 GA',
+      count:0
+    },
+    {
+      label:'4 GA',
+      count:0
+    },
+    {
+      label:'5+ GA',
+      count:0
+    }
+  ];
+
+
+  games.forEach(game=>{
+
+    const ga=num(
+      game.goals_against
+    );
+
+    if(ga<=0){
+      gaBuckets[0].count++;
+    }
+    else if(ga===1){
+      gaBuckets[1].count++;
+    }
+    else if(ga===2){
+      gaBuckets[2].count++;
+    }
+    else if(ga===3){
+      gaBuckets[3].count++;
+    }
+    else if(ga===4){
+      gaBuckets[4].count++;
+    }
+    else{
+      gaBuckets[5].count++;
+    }
+
+  });
+
+
+  makeChart(
+    'gaDistributionChart',
+    {
+
+      type:'bar',
+
+      data:{
+
+        labels:gaBuckets.map(
+          x=>x.label
+        ),
+
+        datasets:[
+
+          {
+            label:'Games',
+            data:gaBuckets.map(
+              x=>x.count
+            )
+          }
+
+        ]
+
+      },
+
+      options:{
+
+        ...chartOptions(),
+
+        plugins:{
+
+          legend:{
+            display:false
+          }
+
+        },
+
+        scales:{
+
+          x:{
+
+            ticks:{
+              color:'#8faf9a'
+            },
+
+            grid:{
+              color:'#173b27'
+            }
+
+          },
+
+          y:{
+
+            beginAtZero:true,
+
+            ticks:{
+              color:'#8faf9a',
+              precision:0,
+              stepSize:1
+            },
+
+            grid:{
+              color:'#173b27'
+            }
+
+          }
+
+        }
+
+      }
+
+    }
+
+  );
+
+
+  /*
+    HOME / AWAY SPLIT
+  */
+
+  const homeGames=games.filter(
+    g=>{
+
+      const value=
+        normalize(g.home_away);
+
+      return (
+        value==='home' ||
+        value==='h'
+      );
+
+    }
+  );
+
+
+  const awayGames=games.filter(
+    g=>{
+
+      const value=
+        normalize(g.home_away);
+
+      return (
+        value==='away' ||
+        value==='a'
+      );
+
+    }
+  );
+
+
+  function splitStats(splitGames){
+
+    const SA=splitGames.reduce(
+      (total,g)=>
+        total+num(g.shots_against),
+      0
+    );
+
+    const saves=splitGames.reduce(
+      (total,g)=>
+        total+num(g.saves),
+      0
+    );
+
+    const GA=splitGames.reduce(
+      (total,g)=>
+        total+num(g.goals_against),
+      0
+    );
+
+    const MIN=splitGames.reduce(
+      (total,g)=>
+        total+num(g.minutes_played),
+      0
+    );
+
+    const wins=splitGames.filter(
+      g=>
+        String(g.result || '')
+          .trim()
+          .toUpperCase()==='W'
+    ).length;
+
+    const losses=splitGames.filter(
+      g=>
+        String(g.result || '')
+          .trim()
+          .toUpperCase()==='L'
+    ).length;
+
+    const otls=splitGames.filter(
+      g=>
+        String(g.result || '')
+          .trim()
+          .toUpperCase()==='OTL'
+    ).length;
+
+    return {
+
+      games:splitGames.length,
+
+      sv:
+        SA
+          ? (saves/SA*100).toFixed(1)+'%'
+          : '—',
+
+      gaa:
+        MIN
+          ? (GA/MIN*60).toFixed(2)
+          : '—',
+
+      record:
+        `${wins}-${losses}-${otls}`
+
+    };
+
+  }
+
+
+  function homeAwayCard(
+    title,
+    splitGames
+  ){
+
+    const s=splitStats(
+      splitGames
+    );
+
+    return `
+
+      <div class="home-away-card">
+
+        <div class="home-away-title">
+          ${title}
+        </div>
+
+        <div class="home-away-games">
+          ${s.games} game${s.games===1 ? '' : 's'}
+        </div>
+
+        <div class="home-away-stat">
+
+          <span>SV%</span>
+
+          <strong>
+            ${s.sv}
+          </strong>
+
+        </div>
+
+        <div class="home-away-stat">
+
+          <span>GAA</span>
+
+          <strong>
+            ${s.gaa}
+          </strong>
+
+        </div>
+
+        <div class="home-away-stat">
+
+          <span>Record</span>
+
+          <strong>
+            ${s.record}
+          </strong>
+
+        </div>
+
+      </div>
+
+    `;
+
+  }
+
+
+  document.getElementById(
+    'homeAwaySplit'
+  ).innerHTML=
+
+    homeAwayCard(
+      'Home',
+      homeGames
+    )+
+
+    homeAwayCard(
+      'Away',
+      awayGames
+    );
 
 }
 
