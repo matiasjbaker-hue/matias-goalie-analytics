@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -470,11 +469,6 @@ nav button.active{
 
 const URL='https://iiuqxxrrruvwvfehrzic.supabase.co';
 
-/*
-IMPORTANT:
-Keep the working publishable key that is currently in your GitHub file.
-Do NOT post the key publicly.
-*/
 const KEY='sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ';
 
 const headers={
@@ -1077,9 +1071,9 @@ function renderPeriods(periods){
 
   const data=['1st','2nd','3rd'].map(p=>{
 
-  const rows=periods.filter(
-    x=>String(x.period).trim()===p
-  );
+    const rows=periods.filter(
+      x=>String(x.period).trim()===p
+    );
 
 
     const sa=rows.reduce(
@@ -1130,9 +1124,9 @@ function renderPeriods(periods){
         <strong>
 
           ${
-            x.p===1
+            x.p==='1st'
               ? '1st'
-              : x.p===2
+              : x.p==='2nd'
               ? '2nd'
               : '3rd'
           }
@@ -1387,142 +1381,106 @@ function renderIncremental(games){
   `;
 
 }
-  
-(async()=>{
-
-  try{
-
-    const [games,periods]=await Promise.all([
-
-      q('Games'),
-
-      q('Period Stats')
-
-    ]);
 
 
-   const seasonGames=games
-  .filter(g=>{
-    const season=String(g.season || '')
-      .trim();
+/* ==========================================
+   ROLLING TRENDS
+   ========================================== */
 
-    return (
-      season==='2026 Pre-Season' ||
-      season==='2026-27' ||
-      season==='2026/27' ||
-      season==='2026–27' ||
-      season==='2026-2027'
-    );
-  })
-
-      .sort((a,b)=>{
-
-        const aId=num(a.id);
-
-        const bId=num(b.id);
-
-        return aId-bId;
-
-      });
-
-
-    renderOverview(seasonGames);
-
-    renderGameLog(seasonGames);
-
-    renderPeriods(periods);
-
-    renderIncremental(seasonGames);
-
-    renderRollingTrends(seasonGames);
-
-
-  }catch(e){
-
-    document.getElementById('status').innerHTML=`
-
-      <div class="error">
-
-        <b>Supabase connection error</b>
-
-        <br><br>
-
-        ${e.message}
-
-      </div>
-
-    `;
-
-  }
-
-})();
-  
-
-
-
-
- function renderRollingTrends(games){
+function renderRollingTrends(games){
 
   const container=document.getElementById('rollingTrends');
 
   if(!games.length){
+
     container.innerHTML='';
+
     return;
+
   }
+
+
+  /* ---------- CALCULATIONS ---------- */
 
   function getSV(windowGames){
 
     const SA=windowGames.reduce(
-      (total,g)=>total+Number(g.shots_against || 0),0
+      (total,g)=>total+Number(g.shots_against || 0),
+      0
     );
 
     const S=windowGames.reduce(
-      (total,g)=>total+Number(g.saves || 0),0
+      (total,g)=>total+Number(g.saves || 0),
+      0
     );
 
-    return SA ? (S/SA*100) : null;
+    return SA
+      ? (S/SA*100)
+      : null;
+
   }
 
 
   function getGAA(windowGames){
 
     const GA=windowGames.reduce(
-      (total,g)=>total+Number(g.goals_against || 0),0
+      (total,g)=>total+Number(g.goals_against || 0),
+      0
     );
 
     const MIN=windowGames.reduce(
-      (total,g)=>total+Number(g.minutes_played || 0),0
+      (total,g)=>total+Number(g.minutes_played || 0),
+      0
     );
 
-    return MIN ? (GA/MIN*60) : null;
+    return MIN
+      ? (GA/MIN*60)
+      : null;
+
   }
 
 
+  function getShots60(windowGames){
+
+    const SA=windowGames.reduce(
+      (total,g)=>total+Number(g.shots_against || 0),
+      0
+    );
+
+    const MIN=windowGames.reduce(
+      (total,g)=>total+Number(g.minutes_played || 0),
+      0
+    );
+
+    return MIN
+      ? (SA/MIN*60)
+      : null;
+
+  }
+
+
+  /* ---------- LABELS ---------- */
+
   const labels=games.map((g,i)=>
-    g.opponent ? `vs ${g.opponent}` : `Game ${i+1}`
+    g.opponent
+      ? `vs ${g.opponent}`
+      : `Game ${i+1}`
   );
 
-   function getShots60(windowGames){
 
-  const SA=windowGames.reduce(
-    (total,g)=>total+Number(g.shots_against || 0),0
-  );
+  /* ---------- ARRAYS ---------- */
 
-  const MIN=windowGames.reduce(
-    (total,g)=>total+Number(g.minutes_played || 0),0
-  );
+  const sv5=[];
+  const gaa5=[];
 
-  return MIN ? (SA/MIN*60) : null;
+  const sv10=[];
+  const gaa10=[];
 
-}
+  const shots605=[];
+  const shots6010=[];
 
-const sv5=[];
-const gaa5=[];
-const sv10=[];
-const gaa10=[];
-const shots605=[];
-const shots6010=[];
 
+  /* ---------- BUILD ROLLING WINDOWS ---------- */
 
   games.forEach((g,i)=>{
 
@@ -1537,20 +1495,41 @@ const shots6010=[];
     );
 
 
-   sv5.push(getSV(window5));
-gaa5.push(getGAA(window5));
+    sv5.push(
+      getSV(window5)
+    );
 
-sv10.push(getSV(window10));
-gaa10.push(getGAA(window10));
+    gaa5.push(
+      getGAA(window5)
+    );
 
-shots605.push(getShots60(window5));
-shots6010.push(getShots60(window10));
+    sv10.push(
+      getSV(window10)
+    );
+
+    gaa10.push(
+      getGAA(window10)
+    );
+
+    shots605.push(
+      getShots60(window5)
+    );
+
+    shots6010.push(
+      getShots60(window10)
+    );
+
   });
 
+
+  /* ---------- CHART PANELS ---------- */
 
   container.innerHTML=`
 
     <div class="charts">
+
+
+      <!-- 5 GAME SV% -->
 
       <div class="panel chart-panel">
 
@@ -1563,6 +1542,8 @@ shots6010.push(getShots60(window10));
       </div>
 
 
+      <!-- 10 GAME SV% -->
+
       <div class="panel chart-panel">
 
         <h3 style="margin-top:0;">
@@ -1573,6 +1554,8 @@ shots6010.push(getShots60(window10));
 
       </div>
 
+
+      <!-- 5 GAME GAA -->
 
       <div class="panel chart-panel">
 
@@ -1585,6 +1568,8 @@ shots6010.push(getShots60(window10));
       </div>
 
 
+      <!-- 10 GAME GAA -->
+
       <div class="panel chart-panel">
 
         <h3 style="margin-top:0;">
@@ -1595,10 +1580,39 @@ shots6010.push(getShots60(window10));
 
       </div>
 
+
+      <!-- 5 GAME SA/60 -->
+
+      <div class="panel chart-panel">
+
+        <h3 style="margin-top:0;">
+          5-Game Rolling Shots Against / 60
+        </h3>
+
+        <canvas id="incrementalSA605"></canvas>
+
+      </div>
+
+
+      <!-- 10 GAME SA/60 -->
+
+      <div class="panel chart-panel">
+
+        <h3 style="margin-top:0;">
+          10-Game Rolling Shots Against / 60
+        </h3>
+
+        <canvas id="incrementalSA6010"></canvas>
+
+      </div>
+
+
     </div>
 
   `;
 
+
+  /* ---------- CHART OPTIONS ---------- */
 
   function chartOptions(){
 
@@ -1645,6 +1659,8 @@ shots6010.push(getShots60(window10));
   }
 
 
+  /* ---------- SV% 5 ---------- */
+
   new Chart(
     document.getElementById('incrementalSV5'),
     {
@@ -1674,6 +1690,8 @@ shots6010.push(getShots60(window10));
 
   );
 
+
+  /* ---------- SV% 10 ---------- */
 
   new Chart(
     document.getElementById('incrementalSV10'),
@@ -1705,6 +1723,8 @@ shots6010.push(getShots60(window10));
   );
 
 
+  /* ---------- GAA 5 ---------- */
+
   new Chart(
     document.getElementById('incrementalGAA5'),
     {
@@ -1735,6 +1755,8 @@ shots6010.push(getShots60(window10));
   );
 
 
+  /* ---------- GAA 10 ---------- */
+
   new Chart(
     document.getElementById('incrementalGAA10'),
     {
@@ -1764,10 +1786,158 @@ shots6010.push(getShots60(window10));
 
   );
 
+
+  /* ---------- SA/60 5 ---------- */
+
+  new Chart(
+    document.getElementById('incrementalSA605'),
+    {
+
+      type:'line',
+
+      data:{
+
+        labels,
+
+        datasets:[
+
+          {
+            label:'Shots Against / 60',
+            data:shots605,
+            tension:.3,
+            spanGaps:true
+          }
+
+        ]
+
+      },
+
+      options:chartOptions()
+
+    }
+
+  );
+
+
+  /* ---------- SA/60 10 ---------- */
+
+  new Chart(
+    document.getElementById('incrementalSA6010'),
+    {
+
+      type:'line',
+
+      data:{
+
+        labels,
+
+        datasets:[
+
+          {
+            label:'Shots Against / 60',
+            data:shots6010,
+            tension:.3,
+            spanGaps:true
+          }
+
+        ]
+
+      },
+
+      options:chartOptions()
+
+    }
+
+  );
+
 }
-  
+
+
+/* ==========================================
+   LOAD DATA
+   ========================================== */
+
+(async()=>{
+
+  try{
+
+    const [games,periods]=await Promise.all([
+
+      q('Games'),
+
+      q('Period Stats')
+
+    ]);
+
+
+    const seasonGames=games
+
+      .filter(g=>{
+
+        const season=String(g.season || '')
+          .trim();
+
+        return (
+
+          season==='2026 Pre-Season' ||
+
+          season==='2026-27' ||
+
+          season==='2026/27' ||
+
+          season==='2026–27' ||
+
+          season==='2026-2027'
+
+        );
+
+      })
+
+      .sort((a,b)=>{
+
+        const aId=num(a.id);
+
+        const bId=num(b.id);
+
+        return aId-bId;
+
+      });
+
+
+    renderOverview(seasonGames);
+
+    renderGameLog(seasonGames);
+
+    renderPeriods(periods);
+
+    renderIncremental(seasonGames);
+
+    renderRollingTrends(seasonGames);
+
+
+  }
+
+  catch(e){
+
+    document.getElementById('status').innerHTML=`
+
+      <div class="error">
+
+        <b>Supabase connection error</b>
+
+        <br><br>
+
+        ${e.message}
+
+      </div>
+
+    `;
+
+  }
+
+})();
+
 </script>
 
 </body>
 </html>
-```
