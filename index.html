@@ -8,82 +8,80 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 
 <style>
-
-*{box-sizing:border-box}
+*{
+  box-sizing:border-box;
+}
 
 body{
   margin:0;
   font-family:Inter,Arial,sans-serif;
   background:
-    radial-gradient(circle at 15% 0%,rgba(38,130,75,.16),transparent 30%),
-    radial-gradient(circle at 90% 100%,rgba(20,100,55,.12),transparent 32%),
+    radial-gradient(circle at top left,rgba(18,82,51,.28),transparent 35%),
+    radial-gradient(circle at bottom right,rgba(12,55,35,.2),transparent 35%),
     #06120c;
-  color:#eef7f1;
+  color:#edf7f0;
 }
 
-header{
-  padding:34px 5vw 24px;
+.header{
+  padding:28px 34px;
   background:linear-gradient(135deg,#071b11,#0b3020);
-  border-bottom:1px solid #1d4d32;
+  border-bottom:1px solid #1b4b32;
 }
 
-.header-inner{max-width:1400px;margin:auto}
-
-h1{
+.header h1{
   margin:0;
-  font-size:clamp(30px,5vw,54px);
-  letter-spacing:.04em;
+  font-size:30px;
 }
 
-header p{
+.header p{
   margin:7px 0 0;
-  color:#9fbea9;
-  font-size:13px;
-  letter-spacing:.12em;
-  text-transform:uppercase;
+  color:#9eb7a8;
 }
 
-nav{
-  max-width:1400px;
-  margin:0 auto;
-  padding:14px 5vw;
+.nav{
   display:flex;
   gap:8px;
-  overflow-x:auto;
-  border-bottom:1px solid #173b27;
-  background:#07170f;
+  flex-wrap:wrap;
+  padding:16px 24px;
+  background:#071810;
+  border-bottom:1px solid #183b29;
 }
 
-nav button{
-  border:1px solid #245339;
-  background:#0a2115;
-  color:#9fbea9;
-  padding:11px 17px;
-  border-radius:9px;
+.nav button{
+  border:1px solid #25553b;
+  background:#0a2116;
+  color:#a9c4b3;
+  padding:10px 15px;
+  border-radius:8px;
   cursor:pointer;
-  font-weight:700;
-  white-space:nowrap;
+  font-size:14px;
 }
 
-nav button:hover{
-  background:#10351f;
+.nav button:hover,
+.nav button.active{
+  background:#17462d;
   color:#fff;
+  border-color:#3a8057;
 }
 
-nav button.active{
-  background:#155b32;
-  color:#fff;
-  border-color:#4b9b68;
-}
-
-.wrap{
-  max-width:1400px;
+.container{
+  max-width:1500px;
   margin:auto;
-  padding:28px 5vw 70px;
+  padding:25px;
 }
 
-.tab{display:none}
-.tab.active{display:block}
+.tab{
+  display:none;
+}
+
+.tab.active{
+  display:block;
+}
+
+.section-title{
+  margin:28px 0 14px;
+  font-size:21px;
+}
 
 .grid{
   display:grid;
@@ -91,2872 +89,359 @@ nav button.active{
   gap:14px;
 }
 
-.card,.panel,.period,.analysis-card,.split-card{
-  background:#0a2115;
-  border:1px solid #19442c;
-  border-radius:14px;
-}
-
-.card{padding:20px}
-
-.label{
-  color:#8faf9a;
-  font-size:11px;
-  text-transform:uppercase;
-  letter-spacing:.12em;
-}
-
-.value{
-  font-size:31px;
-  font-weight:800;
-  margin-top:6px;
-}
-
-.value.small{font-size:25px}
-
-.section{margin-top:32px}
-
-.section h2{
-  font-size:19px;
-  margin:0 0 7px;
-}
-
-.section-subtitle{
-  color:#8faf9a;
-  margin:0 0 18px;
-  font-size:13px;
-}
-
-.charts{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:14px;
-}
-
-.panel{padding:20px}
-
-.chart-panel{height:350px}
-.chart-panel.tall{height:390px}
-.chart-panel.compact{height:330px}
-
-.panel-title{
-  font-size:15px;
-  font-weight:800;
-  margin:0 0 15px;
-}
-
-.tablewrap{overflow:auto}
-
-.table{
-  width:100%;
-  border-collapse:collapse;
-  min-width:1050px;
-}
-
-.table th,.table td{
-  text-align:left;
-  padding:13px;
-  border-bottom:1px solid #19442c;
-}
-
-.table th{
-  color:#8faf9a;
-  font-size:11px;
-  text-transform:uppercase;
-  letter-spacing:.05em;
-}
-
-.table td{color:#dcebe1}
-
-.table tr:hover td{background:#0e2c1b}
-
-.badge{
-  display:inline-block;
-  padding:4px 9px;
-  border-radius:20px;
-  font-size:11px;
-  font-weight:800;
-}
-
-.badge.win{background:#123c27;color:#78dfa2}
-.badge.loss{background:#422126;color:#ff9d9d}
-.badge.otl{background:#3d3518;color:#f1d875}
-
-.empty{
-  padding:30px;
-  text-align:center;
-  color:#8faf9a;
-}
-
-.error{
-  color:#ff9d9d;
-  background:#351b23;
-  padding:14px;
-  border-radius:10px;
-  margin-bottom:20px;
-}
-
-.about{max-width:850px}
-
-.about h2{
-  margin-top:0;
-  font-size:30px;
-  margin-bottom:10px;
-}
-
-.about .intro{
-  font-size:18px;
-  line-height:1.7;
-  color:#dcebe1;
-}
-
-.about p{
-  color:#a9c2b2;
-  line-height:1.75;
-  font-size:14px;
-}
-
-.about-profile{
-  margin-top:28px;
-  padding:22px 24px;
-  background:linear-gradient(135deg,#103621,#0a2115);
-  border:1px solid #2c6844;
-  border-radius:14px;
-}
-
-.about-profile .profile-title{
-  color:#8faf9a;
-  font-size:11px;
-  text-transform:uppercase;
-  letter-spacing:.12em;
-  margin-bottom:8px;
-}
-
-.about-profile .profile-name{
-  font-size:22px;
-  font-weight:900;
-  margin-bottom:6px;
-}
-
-.about-profile .profile-meta{
-  color:#8faf9a;
-  font-size:13px;
-}
-
-.highlight{
-  padding:20px;
-  margin-top:20px;
-  background:#0e2c1b;
-  border:1px solid #245339;
+.card{
+  background:linear-gradient(145deg,#0b2417,#0a1d14);
+  border:1px solid #1d4931;
   border-radius:12px;
+  padding:18px;
+  min-height:105px;
 }
 
-.two-col{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:14px;
-}
-
-.three-col{
-  display:grid;
-  grid-template-columns:repeat(3,1fr);
-  gap:14px;
-}
-
-.metric-card{
-  padding:20px;
-  background:#0a2115;
-  border:1px solid #19442c;
-  border-radius:14px;
-}
-
-.metric-card h3{
-  margin:0 0 8px;
-  font-size:15px;
-}
-
-.metric-card p{
-  margin:0;
-  color:#eef7f1;
-  font-size:19px;
-  font-weight:800;
-  line-height:1.5;
-}
-
-.metric-card small{
-  color:#8faf9a;
-  font-size:11px;
+.card .label{
+  color:#8eaa99;
+  font-size:12px;
   text-transform:uppercase;
   letter-spacing:.08em;
 }
 
-.advanced-note{
-  padding:14px 16px;
-  margin-bottom:18px;
-  background:#0e2c1b;
-  border:1px solid #245339;
-  border-radius:10px;
-  color:#8faf9a;
-  font-size:12px;
-  line-height:1.6;
+.card .value{
+  font-size:28px;
+  font-weight:700;
+  margin-top:8px;
 }
 
-.grade-grid{
+.hero-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:16px;
+}
+
+.hero{
+  padding:24px;
+  border-radius:14px;
+  background:linear-gradient(135deg,#103b25,#0a2116);
+  border:1px solid #2a6846;
+}
+
+.hero .value{
+  font-size:38px;
+  font-weight:800;
+}
+
+.hero .label{
+  color:#a9c5b3;
+  margin-bottom:10px;
+}
+
+.panel{
+  background:#091b12;
+  border:1px solid #1b432d;
+  border-radius:13px;
+  padding:18px;
+  margin-top:16px;
+}
+
+.chart-wrap{
+  position:relative;
+  height:330px;
+}
+
+.chart-wrap.small{
+  height:280px;
+}
+
+.table-wrap{
+  overflow-x:auto;
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  min-width:850px;
+}
+
+th,td{
+  padding:11px 10px;
+  border-bottom:1px solid #183827;
+  text-align:left;
+  white-space:nowrap;
+}
+
+th{
+  color:#9db7a7;
+  font-size:12px;
+  text-transform:uppercase;
+}
+
+td{
+  font-size:14px;
+}
+
+.badge{
+  display:inline-block;
+  padding:4px 8px;
+  border-radius:6px;
+  font-size:12px;
+  font-weight:700;
+}
+
+.win{
+  background:#123f27;
+  color:#8ee0a8;
+}
+
+.loss{
+  background:#401c20;
+  color:#ef9da5;
+}
+
+.otl{
+  background:#40381b;
+  color:#eadb8b;
+}
+
+.insight-grid{
   display:grid;
   grid-template-columns:repeat(4,1fr);
   gap:14px;
 }
 
-.grade-card{
-  padding:20px;
-  background:#0a2115;
-  border:1px solid #19442c;
-  border-radius:14px;
-  text-align:center;
+.insight{
+  background:#0a2116;
+  border:1px solid #1b432d;
+  border-radius:11px;
+  padding:17px;
 }
 
-.grade-card .grade{
-  font-size:28px;
-  font-weight:900;
+.insight h3{
+  margin:0 0 8px;
+  font-size:15px;
 }
 
-.grade-card .grade-count{
-  margin-top:7px;
-  font-size:22px;
-  font-weight:800;
-}
-
-.grade-card .grade-label{
-  color:#8faf9a;
-  font-size:11px;
-  text-transform:uppercase;
-  letter-spacing:.1em;
-  margin-top:4px;
-}
-
-.analysis-grid{
-  display:grid;
-  grid-template-columns:repeat(3,1fr);
-  gap:14px;
-}
-
-.analysis-card{padding:20px}
-
-.analysis-card h3{
-  margin:0 0 9px;
+.insight p{
+  color:#9eb7a8;
+  line-height:1.55;
+  margin:0;
   font-size:14px;
 }
 
-.analysis-card .analysis-value{
-  font-size:25px;
-  font-weight:900;
-  margin-bottom:5px;
+.good{
+  color:#7ee39a;
 }
 
-.analysis-card p{
-  color:#8faf9a;
-  font-size:12px;
-  line-height:1.6;
-  margin:0;
+.bad{
+  color:#ef9a9f;
+}
+
+.neutral{
+  color:#d7e4db;
+}
+
+.control-grid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:15px;
+}
+
+.control-card{
+  background:linear-gradient(145deg,#0b2417,#091b12);
+  border:1px solid #214d34;
+  border-radius:13px;
+  padding:18px;
+}
+
+.control-card h3{
+  margin:0 0 16px;
+  font-size:17px;
+}
+
+.control-row{
+  display:flex;
+  justify-content:space-between;
+  padding:8px 0;
+  border-bottom:1px solid #183827;
+}
+
+.control-row:last-child{
+  border-bottom:none;
+}
+
+.control-label{
+  color:#91ab9c;
+}
+
+.control-value{
+  font-weight:700;
 }
 
 .split-grid{
   display:grid;
-  grid-template-columns:repeat(3,1fr);
-  gap:14px;
+  grid-template-columns:repeat(2,1fr);
+  gap:16px;
 }
 
-.split-card{padding:20px}
-
-.split-card h3{
-  margin:0 0 14px;
-  font-size:16px;
-}
-
-.split-stat{
-  display:flex;
-  justify-content:space-between;
-  margin-top:12px;
-  color:#9fbea9;
-}
-
-.split-stat b{color:#eef7f1}
-
-.positive{color:#75e0a0!important}
-.negative{color:#ff9d9d!important}
-.neutral{color:#f1d875!important}
-
-.hero-metric{
-  background:linear-gradient(135deg,#103621,#0a2115);
-  border:1px solid #2c6844;
-  border-radius:16px;
-  padding:24px;
-}
-
-.hero-metric .label{font-size:11px}
-
-.hero-metric .big{
-  font-size:42px;
-  font-weight:900;
-  margin-top:7px;
-}
-
-.hero-metric .description{
-  color:#8faf9a;
-  font-size:12px;
-  line-height:1.5;
-  margin-top:5px;
-}
-
-.mini-grid{
-  display:grid;
-  grid-template-columns:repeat(4,1fr);
-  gap:14px;
-}
-
-.section-divider{
-  margin:34px 0 0;
-  border-top:1px solid #19442c;
-}
-
-.distribution-grid{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:14px;
-}
-
-.distribution-panel{height:360px}
-
-.home-away-grid{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:14px;
-}
-
-.home-away-card{
-  padding:22px;
-  background:linear-gradient(145deg,#103621,#0a2115);
-  border:1px solid #245339;
-  border-radius:14px;
-}
-
-.home-away-title{
-  font-size:18px;
-  font-weight:900;
-  margin-bottom:18px;
-}
-
-.home-away-games{
-  color:#8faf9a;
-  font-size:11px;
-  text-transform:uppercase;
-  letter-spacing:.1em;
-  margin-bottom:15px;
-}
-
-.home-away-stat{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding:12px 0;
-  border-top:1px solid #19442c;
-}
-
-.home-away-stat span{
-  color:#8faf9a;
-  font-size:12px;
-}
-
-.home-away-stat strong{
-  color:#eef7f1;
-  font-size:18px;
-}
-
-.distribution-note{
-  color:#8faf9a;
-  font-size:11px;
-  line-height:1.5;
-  margin-top:12px;
-}
-
-.period-overview{
-  display:grid;
-  grid-template-columns:repeat(3,1fr);
-  gap:14px;
-  margin-top:24px;
-}
-
-.period-hero{
-  position:relative;
-  padding:24px;
-  background:linear-gradient(145deg,#103621,#0a2115);
-  border:1px solid #245339;
-  border-radius:16px;
-  overflow:hidden;
-}
-
-.period-hero.best{
-  border-color:#4b9b68;
-  box-shadow:0 0 0 1px rgba(75,155,104,.15);
-}
-
-.period-number{
-  color:#8faf9a;
-  font-size:11px;
-  text-transform:uppercase;
-  letter-spacing:.14em;
-  font-weight:800;
-}
-
-.period-name{
-  font-size:22px;
-  font-weight:900;
-  margin-top:6px;
-}
-
-.period-main-stat{
-  font-size:39px;
-  font-weight:900;
-  margin-top:20px;
-}
-
-.period-main-label{
-  color:#8faf9a;
-  font-size:11px;
-  text-transform:uppercase;
-  letter-spacing:.1em;
-  margin-top:2px;
-}
-
-.period-mini-stats{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:12px;
-  margin-top:22px;
-  padding-top:17px;
-  border-top:1px solid #245339;
-}
-
-.period-mini-stat span{
-  display:block;
-  color:#8faf9a;
-  font-size:10px;
-  text-transform:uppercase;
-  letter-spacing:.08em;
-}
-
-.period-mini-stat strong{
-  display:block;
-  font-size:17px;
-  margin-top:4px;
-}
-
-.best-label{
-  position:absolute;
-  top:18px;
-  right:18px;
-  padding:5px 9px;
-  border-radius:20px;
-  background:#155b32;
-  border:1px solid #4b9b68;
-  color:#d7f3e1;
-  font-size:10px;
-  text-transform:uppercase;
-  letter-spacing:.08em;
-  font-weight:800;
-}
-
-.period-comparison{
-  background:#0a2115;
-  border:1px solid #19442c;
-  border-radius:16px;
-  overflow:hidden;
-}
-
-.comparison-header{
-  padding:19px 22px;
-  border-bottom:1px solid #19442c;
-}
-
-.comparison-header h3{
-  margin:0;
-  font-size:15px;
-}
-
-.comparison-header p{
-  margin:5px 0 0;
-  color:#8faf9a;
-  font-size:12px;
-}
-
-.period-table{
-  width:100%;
-  border-collapse:collapse;
-  min-width:650px;
-}
-
-.period-table th,.period-table td{
-  padding:15px 20px;
-  border-bottom:1px solid #19442c;
-}
-
-.period-table th{
-  color:#8faf9a;
-  font-size:10px;
-  text-transform:uppercase;
-  letter-spacing:.09em;
-  text-align:right;
-}
-
-.period-table th:first-child,
-.period-table td:first-child{text-align:left}
-
-.period-table td{
-  text-align:right;
-  color:#dcebe1;
-  font-size:13px;
-}
-
-.period-table td:first-child{
-  font-weight:800;
-  color:#eef7f1;
-}
-
-.period-table tr:last-child td{border-bottom:none}
-
-.period-table .best-cell{
-  color:#75e0a0;
-  font-weight:900;
-}
-
-.period-advanced{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:14px;
-}
-
-.period-insight{
-  padding:20px 22px;
-  background:#0a2115;
-  border:1px solid #19442c;
-  border-radius:14px;
-}
-
-.period-insight h3{
-  margin:0 0 8px;
-  font-size:14px;
-}
-
-.period-insight p{
-  margin:0;
-  color:#8faf9a;
-  font-size:12px;
-  line-height:1.65;
-}
-
-/* ==========================================
-   REBOUND CONTROL
-   ========================================== */
-
-.rebound-summary{
-  display:grid;
-  grid-template-columns:repeat(4,1fr);
-  gap:14px;
-}
-
-.rebound-card{
-  padding:22px;
-  background:linear-gradient(145deg,#103621,#0a2115);
-  border:1px solid #245339;
-  border-radius:14px;
-}
-
-.rebound-card.good{
-  border-color:#2c6844;
-}
-
-.rebound-card.bad{
-  border-color:#63313a;
-}
-
-.rebound-card .rebound-label{
-  color:#8faf9a;
-  font-size:11px;
-  text-transform:uppercase;
-  letter-spacing:.1em;
-}
-
-.rebound-card .rebound-number{
-  font-size:34px;
-  font-weight:900;
-  margin-top:7px;
-}
-
-.rebound-card .rebound-description{
-  color:#8faf9a;
-  font-size:11px;
-  line-height:1.5;
-  margin-top:5px;
+.about{
+  max-width:900px;
+  line-height:1.7;
+  color:#a9beb0;
 }
 
-.rebound-comparison{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:14px;
+.about strong{
+  color:#fff;
 }
-
-.rebound-detail{
-  padding:24px;
-  background:#0a2115;
-  border:1px solid #19442c;
-  border-radius:14px;
-}
-
-.rebound-detail.good{
-  border-color:#2c6844;
-}
-
-.rebound-detail.bad{
-  border-color:#63313a;
-}
-
-.rebound-detail h3{
-  margin:0 0 18px;
-  font-size:19px;
-}
-
-.rebound-detail.good h3{
-  color:#75e0a0;
-}
-
-.rebound-detail.bad h3{
-  color:#ff9d9d;
-}
-
-.rebound-stat{
-  display:flex;
-  justify-content:space-between;
-  padding:13px 0;
-  border-top:1px solid #19442c;
-}
-
-.rebound-stat span{
-  color:#8faf9a;
-  font-size:12px;
-}
-
-.rebound-stat strong{
-  color:#eef7f1;
-  font-size:17px;
-}
-
-.rebound-table{
-  width:100%;
-  border-collapse:collapse;
-}
-
-.rebound-table th,
-.rebound-table td{
-  padding:14px 18px;
-  border-bottom:1px solid #19442c;
-}
-
-.rebound-table th{
-  color:#8faf9a;
-  font-size:10px;
-  text-transform:uppercase;
-  letter-spacing:.08em;
-  text-align:right;
-}
-
-.rebound-table th:first-child,
-.rebound-table td:first-child{
-  text-align:left;
-}
-
-.rebound-table td{
-  color:#dcebe1;
-  text-align:right;
-}
-
-.rebound-table td:first-child{
-  font-weight:800;
-  color:#eef7f1;
-}
-
-.rebound-table tr:last-child td{
-  border-bottom:none;
-}
-
-.rebound-note{
-  padding:16px 18px;
-  background:#0e2c1b;
-  border:1px solid #245339;
-  border-radius:10px;
-  color:#8faf9a;
-  font-size:12px;
-  line-height:1.6;
-}
-
-/* ==========================================
-   MOBILE
-   ========================================== */
 
 @media(max-width:1000px){
-
-  .grid{grid-template-columns:repeat(2,1fr)}
-
-  .charts,.distribution-grid{
-    grid-template-columns:1fr;
+  .grid,
+  .control-grid{
+    grid-template-columns:repeat(2,1fr);
   }
 
-  .analysis-grid{grid-template-columns:1fr 1fr}
-  .split-grid{grid-template-columns:1fr 1fr}
-  .three-col{grid-template-columns:1fr 1fr}
-  .mini-grid{grid-template-columns:1fr 1fr}
-  .period-overview{grid-template-columns:1fr 1fr}
-  .period-advanced{grid-template-columns:1fr}
-  .rebound-summary{grid-template-columns:1fr 1fr}
-
+  .hero-grid,
+  .insight-grid{
+    grid-template-columns:repeat(2,1fr);
+  }
 }
 
 @media(max-width:650px){
+  .header{
+    padding:22px;
+  }
 
-  .grid{grid-template-columns:1fr 1fr}
-  .analysis-grid{grid-template-columns:1fr}
-  .split-grid{grid-template-columns:1fr}
-  .three-col{grid-template-columns:1fr}
-  .grade-grid{grid-template-columns:1fr 1fr}
-  .mini-grid{grid-template-columns:1fr 1fr}
-  .period-overview{grid-template-columns:1fr}
-  .home-away-grid{grid-template-columns:1fr}
-  .rebound-summary{grid-template-columns:1fr 1fr}
-  .rebound-comparison{grid-template-columns:1fr}
+  .container{
+    padding:16px;
+  }
 
-  .hero-metric .big{font-size:34px}
-  .period-main-stat{font-size:34px}
+  .grid,
+  .control-grid,
+  .hero-grid,
+  .insight-grid,
+  .split-grid{
+    grid-template-columns:1fr;
+  }
 
+  .nav{
+    padding:12px;
+  }
 }
-
 </style>
 </head>
 
 <body>
 
-<header>
-  <div class="header-inner">
-    <h1>MATIAS BAKER</h1>
-    <p>PELHAM PANTHERS · GOALIE ANALYTICS · 2026 PRE-SEASON</p>
-  </div>
+<header class="header">
+  <h1>Matias Baker</h1>
+  <p>Goalie Analytics · 2026 Preseason</p>
 </header>
 
-<nav>
+<nav class="nav">
   <button class="active" onclick="showTab('overview',this)">Overview</button>
-  <button onclick="showTab('games',this)">Game Log</button>
+  <button onclick="showTab('gamelog',this)">Game Log</button>
   <button onclick="showTab('periods',this)">Period Breakdown</button>
-  <button onclick="showTab('situations',this)">Situational</button>
-  <button onclick="showTab('rebound',this)">Rebound Control</button>
-  <button onclick="showTab('incremental',this)">Trends</button>
+  <button onclick="showTab('situational',this)">Situational</button>
+  <button onclick="showTab('control',this)">Control</button>
+  <button onclick="showTab('trends',this)">Trends</button>
   <button onclick="showTab('about',this)">About</button>
 </nav>
 
-<main class="wrap">
+<main class="container">
 
-<div id="status"></div>
-
-<!-- =========================================
-     OVERVIEW
-     ========================================= -->
+<!-- ================= OVERVIEW ================= -->
 
 <section id="overview" class="tab active">
 
-  <div class="grid" id="overviewCards"></div>
+  <div class="section-title">Season Overview</div>
+  <div id="overviewCards" class="grid"></div>
 
-  <section class="section">
+  <div class="section-title">Advanced Goaltending</div>
+  <div id="heroMetrics" class="hero-grid"></div>
 
-    <div class="three-col">
+  <div class="section-title">Advanced Statistics</div>
+  <div id="advancedCards" class="grid"></div>
 
-      <div class="hero-metric">
-        <div class="label">Goals Saved Above Expected</div>
-        <div class="big" id="heroGsax">—</div>
-        <div class="description">
-          Difference between expected goals against and actual goals allowed.
-        </div>
-      </div>
-
-      <div class="hero-metric">
-        <div class="label">Expected Save Percentage</div>
-        <div class="big" id="heroExpectedSV">—</div>
-        <div class="description">
-          Estimated save percentage based on tracked shot quality.
-        </div>
-      </div>
-
-      <div class="hero-metric">
-        <div class="label">GSAx / 60</div>
-        <div class="big" id="heroGsax60">—</div>
-        <div class="description">
-          Goals saved above expected normalized to a 60-minute game.
-        </div>
-      </div>
-
+  <div class="section-title">Shot Grade Distribution</div>
+  <div class="panel">
+    <div class="chart-wrap">
+      <canvas id="gradeChart"></canvas>
     </div>
+  </div>
 
-  </section>
+  <div class="section-title">Performance Distribution</div>
 
-  <section class="section">
+  <div class="split-grid">
 
-    <h2>Advanced Goaltending</h2>
-
-    <p class="section-subtitle">
-      Shot-quality based evaluation of performance.
-    </p>
-
-    <div class="advanced-note">
-      The current xG model is intentionally conservative and transparent.
-      It estimates shot danger using distance, location, shot type, rush,
-      rebounds, screens, breakaways and cross-ice passes. As more shot data
-      is collected, the model can eventually be calibrated against real goals.
-    </div>
-
-    <div class="grid" id="advancedOverviewCards"></div>
-
-  </section>
-
-  <section class="section">
-
-    <h2>Shot Grade Distribution</h2>
-
-    <p class="section-subtitle">
-      Every tracked shot is classified by estimated danger.
-    </p>
-
-    <div class="grade-grid" id="gradeDistribution"></div>
-
-  </section>
-
-  <section class="section">
-
-    <h2>Performance Distribution</h2>
-
-    <p class="section-subtitle">
-      Consistency, scoring distribution and performance by game environment.
-    </p>
-
-    <div class="distribution-grid">
-
-      <div class="panel distribution-panel">
-        <div class="panel-title">SV% Distribution</div>
+    <div class="panel">
+      <h3>SV% Distribution</h3>
+      <div class="chart-wrap small">
         <canvas id="svDistributionChart"></canvas>
       </div>
-
-      <div class="panel distribution-panel">
-        <div class="panel-title">Goals Allowed by Shot Grade</div>
-        <canvas id="goalsByGradeChart"></canvas>
-      </div>
-
-      <div class="panel distribution-panel">
-        <div class="panel-title">Goals Allowed per Game</div>
-        <canvas id="gaDistributionChart"></canvas>
-      </div>
-
-      <div class="panel">
-
-        <div class="panel-title">Home vs Away</div>
-
-        <div class="home-away-grid" id="homeAwaySplit"></div>
-
-        <div class="distribution-note">
-          Home/away classification uses the <b>home_away</b> field from the
-          Games table. Record is calculated from the game's result field.
-        </div>
-
-      </div>
-
     </div>
 
-  </section>
-
-  <section class="section">
-
-    <h2>Performance Trends</h2>
-
-    <div class="charts">
-
-      <div class="panel chart-panel">
-        <div class="panel-title">Save Percentage</div>
-        <canvas id="svChart"></canvas>
+    <div class="panel">
+      <h3>Goals Allowed by Shot Grade</h3>
+      <div class="chart-wrap small">
+        <canvas id="goalsGradeChart"></canvas>
       </div>
-
-      <div class="panel chart-panel">
-        <div class="panel-title">Goals Against Average</div>
-        <canvas id="gaaChart"></canvas>
-      </div>
-
     </div>
 
-  </section>
-
-  <section class="section">
-
-    <h2>Advanced Trends</h2>
-
-    <div class="charts">
-
-      <div class="panel chart-panel">
-        <div class="panel-title">Expected Goals Against</div>
-        <canvas id="xgaChart"></canvas>
+    <div class="panel">
+      <h3>Goals Allowed per Game</h3>
+      <div class="chart-wrap small">
+        <canvas id="gaaDistributionChart"></canvas>
       </div>
-
-      <div class="panel chart-panel">
-        <div class="panel-title">Goals Saved Above Expected</div>
-        <canvas id="gsaxChart"></canvas>
-      </div>
-
     </div>
 
-  </section>
-
-  <section class="section">
-
-    <h2>Performance Summary</h2>
-
-    <div class="analysis-grid" id="performanceSummary"></div>
-
-  </section>
-
-  <section class="section">
-
-    <h2>Recent Games</h2>
-
-    <div class="panel tablewrap">
-      <div id="recentGames" class="empty">Loading games…</div>
-    </div>
-
-  </section>
-
-</section>
-
-
-<!-- =========================================
-     GAME LOG
-     ========================================= -->
-
-<section id="games" class="tab">
-
-  <h2>Game Log</h2>
-
-  <p class="section-subtitle">
-    Complete game-by-game traditional and advanced performance.
-  </p>
-
-  <div class="panel tablewrap">
-    <div id="gameLog" class="empty">Loading games…</div>
-  </div>
-
-</section>
-
-
-<!-- =========================================
-     PERIOD BREAKDOWN
-     ========================================= -->
-
-<section id="periods" class="tab">
-
-  <h2>Period Breakdown</h2>
-
-  <p class="section-subtitle">
-    A period-by-period view of workload, efficiency and shot quality.
-  </p>
-
-  <div id="periodOverview" class="period-overview"></div>
-
-  <section class="section">
-
-    <div class="period-comparison">
-
-      <div class="comparison-header">
-        <h3>Period Comparison</h3>
-        <p>
-          Traditional and advanced performance across all three periods.
-        </p>
+    <div class="panel">
+      <h3>Home vs Away</h3>
+      <div class="chart-wrap small">
+        <canvas id="homeAwayChart"></canvas>
       </div>
-
-      <div class="tablewrap">
-
-        <table class="period-table">
-
-          <thead>
-            <tr>
-              <th>Metric</th>
-              <th>1st</th>
-              <th>2nd</th>
-              <th>3rd</th>
-            </tr>
-          </thead>
-
-          <tbody id="periodComparisonBody"></tbody>
-
-        </table>
-
-      </div>
-
-    </div>
-
-  </section>
-
-  <section class="section">
-
-    <h2>Advanced Period Performance</h2>
-
-    <p class="section-subtitle">
-      How shot quality and performance changed throughout the game.
-    </p>
-
-    <div class="period-advanced">
-
-      <div class="panel chart-panel">
-        <div class="panel-title">Expected vs Actual SV%</div>
-        <canvas id="periodChart"></canvas>
-      </div>
-
-      <div class="panel chart-panel">
-        <div class="panel-title">Goals Saved Above Expected</div>
-        <canvas id="periodGsaxChart"></canvas>
-      </div>
-
-    </div>
-
-  </section>
-
-  <section class="section">
-    <div id="periodInsights" class="period-advanced"></div>
-  </section>
-
-</section>
-
-
-<!-- =========================================
-     SITUATIONAL
-     ========================================= -->
-
-<section id="situations" class="tab">
-
-  <h2>Situational Analytics</h2>
-
-  <p class="section-subtitle">
-    How performance changes depending on the type and context of the shot.
-  </p>
-
-  <div class="advanced-note">
-    Situational metrics only use shots where the corresponding field has
-    been tracked. This means the sample size shown beside each situation
-    is important when interpreting the result.
-  </div>
-
-  <section class="section">
-
-    <h2>Shot Danger</h2>
-
-    <div class="split-grid" id="dangerSplits"></div>
-
-  </section>
-
-  <section class="section">
-
-    <h2>Game Situation</h2>
-
-    <div class="split-grid" id="situationSplits"></div>
-
-  </section>
-
-  <section class="section">
-
-    <h2>Shot Characteristics</h2>
-
-    <div class="split-grid" id="shotTypeSplits"></div>
-
-  </section>
-
-  <section class="section">
-
-    <h2>Situational Save Percentage</h2>
-
-    <div class="panel chart-panel tall">
-      <canvas id="situationalChart"></canvas>
-    </div>
-
-  </section>
-
-</section>
-
-
-<!-- =========================================
-     REBOUND CONTROL
-     ========================================= -->
-
-<section id="rebound" class="tab">
-
-  <h2>Rebound Control</h2>
-
-  <p class="section-subtitle">
-    Evaluation of rebound quality using the <b>goalierebound_control</b>
-    field from the Shots table.
-  </p>
-
-  <div class="rebound-note">
-    This section evaluates <b>rebound control quality</b> separately from
-    the existing <b>rebound</b> field. Good and bad rebounds are compared
-    directly, while goal location is intentionally kept separate from this
-    analysis.
-  </div>
-
-  <section class="section">
-
-    <div class="rebound-summary" id="reboundSummary"></div>
-
-  </section>
-
-  <section class="section">
-
-    <h2>Good vs Bad Rebounds</h2>
-
-    <p class="section-subtitle">
-      Direct comparison of rebound-control outcomes.
-    </p>
-
-    <div class="rebound-comparison" id="reboundComparison"></div>
-
-  </section>
-
-  <section class="section">
-
-    <h2>Rebound Control Comparison</h2>
-
-    <div class="panel chart-panel tall">
-      <canvas id="reboundControlChart"></canvas>
-    </div>
-
-  </section>
-
-  <section class="section">
-
-    <h2>Rebound Control Breakdown</h2>
-
-    <div class="panel tablewrap">
-
-      <table class="rebound-table">
-
-        <thead>
-          <tr>
-            <th>Metric</th>
-            <th>Good Rebounds</th>
-            <th>Bad Rebounds</th>
-          </tr>
-        </thead>
-
-        <tbody id="reboundTableBody"></tbody>
-
-      </table>
-
-    </div>
-
-  </section>
-
-</section>
-
-
-<!-- =========================================
-     TRENDS
-     ========================================= -->
-
-<section id="incremental" class="tab">
-
-  <h2>Performance Trends</h2>
-
-  <p class="section-subtitle">
-    Rolling windows show how performance is changing over the season.
-  </p>
-
-  <div class="two-col" id="incrementalCards"></div>
-
-  <div id="rollingTrends" style="margin-top:30px;"></div>
-
-</section>
-
-
-<!-- =========================================
-     ABOUT
-     ========================================= -->
-
-<section id="about" class="tab">
-
-  <div class="about">
-
-    <h2>About Me</h2>
-
-    <p class="intro">
-      I'm Matias Baker, a goaltender focused on athleticism, positioning,
-      movement and competing through every situation.
-    </p>
-
-    <p>
-      My game is built around reading plays early, staying square to the puck
-      and using efficient movement and positioning to give myself the best
-      chance to make the save. I take pride in being competitive, composed
-      and continually improving the details of my game.
-    </p>
-
-    <p>
-      This website is my personal performance platform. It allows me to look
-      beyond traditional statistics and understand how I am performing,
-      where I am improving and which areas of my game need more attention.
-    </p>
-
-    <div class="about-profile">
-
-      <div class="profile-title">Player Profile</div>
-
-      <div class="profile-name">Matias Baker</div>
-
-      <div class="profile-meta">
-        Goaltender · 2008 · Pelham Panthers · 2026–27
-      </div>
-
     </div>
 
   </div>
 
-</section>
-
-</main>
-
-
-<script>
-
-/* ==========================================
-   SUPABASE
-   ========================================== */
-
-const URL='https://iiuqxxrrruvwvfehrzic.supabase.co';
-
-const KEY='sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ';
-
-const headers={
-  apikey:KEY,
-  Authorization:'Bearer '+KEY
-};
-
-
-/* ==========================================
-   BASIC HELPERS
-   ========================================== */
-
-const q=async table=>{
-
-  const r=await fetch(
-    `${URL}/rest/v1/${encodeURIComponent(table)}?select=*`,
-    {headers}
-  );
-
-  if(!r.ok){
-    throw new Error(
-      `${table}: ${r.status} ${await r.text()}`
-    );
-  }
-
-  return r.json();
-
-};
-
-
-const num=n=>{
-
-  if(n===null || n===undefined || n===''){
-    return 0;
-  }
-
-  const value=Number(n);
-
-  return Number.isFinite(value)
-    ? value
-    : 0;
-
-};
-
-
-const pct=(saves,shots)=>{
-
-  const s=num(saves);
-  const sa=num(shots);
-
-  return sa
-    ? ((s/sa)*100).toFixed(1)+'%'
-    : '—';
-
-};
-
-
-function card(label,value){
-
-  return `
-    <div class="card">
-      <div class="label">${label}</div>
-      <div class="value">${value}</div>
-    </div>
-  `;
-
-}
-
-
-function showTab(tab,button){
-
-  document.querySelectorAll('.tab')
-    .forEach(x=>x.classList.remove('active'));
-
-  document.getElementById(tab)
-    .classList.add('active');
-
-  document.querySelectorAll('nav button')
-    .forEach(x=>x.classList.remove('active'));
-
-  button.classList.add('active');
-
-}
-
-
-function resultBadge(result){
-
-  if(!result){
-    return '—';
-  }
-
-  const r=String(result).toUpperCase();
-
-  let cls='';
-
-  if(r==='W')cls='win';
-  else if(r==='L')cls='loss';
-  else if(r==='OTL')cls='otl';
-
-  return `<span class="badge ${cls}">${result}</span>`;
-
-}
-
-
-function isShutout(value){
-
-  return (
-    value===true ||
-    value===1 ||
-    String(value).toLowerCase()==='true' ||
-    String(value)==='1'
-  );
-
-}
-
-
-/* ==========================================
-   SHOT HELPERS
-   ========================================== */
-
-function shotBoolean(value){
-
-  return (
-    value===true ||
-    value===1 ||
-    String(value).toLowerCase().trim()==='true' ||
-    String(value).trim()==='1' ||
-    String(value).toLowerCase().trim()==='yes'
-  );
-
-}
-
-
-function normalize(value){
-
-  return String(value ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/[_-]/g,' ');
-
-}
-
-
-function normalizePeriod(value){
-
-  const p=normalize(value);
-
-  if(
-    p==='1' ||
-    p==='1st' ||
-    p==='1st period' ||
-    p==='first'
-  )return '1st';
-
-  if(
-    p==='2' ||
-    p==='2nd' ||
-    p==='2nd period' ||
-    p==='second'
-  )return '2nd';
-
-  if(
-    p==='3' ||
-    p==='3rd' ||
-    p==='3rd period' ||
-    p==='third'
-  )return '3rd';
-
-  return p;
-
-}
-
-
-function isGoal(shot){
-
-  const o=normalize(shot.outcome);
-
-  return (
-    o==='goal' ||
-    o==='goals' ||
-    o==='g'
-  );
-
-}
-
-
-/* ==========================================
-   REBOUND CONTROL
-   ========================================== */
-
-/*
-  Reads the exact Supabase field:
-  goalierebound_control
-
-  This deliberately does NOT use the existing
-  "rebound" field.
-*/
-
-function reboundControlType(shot){
-
-  const value=normalize(
-    shot.goalierebound_control
-  );
-
-  if(!value){
-    return null;
-  }
-
-  /*
-    Supports common values such as:
-    Good
-    Good Rebound
-    Controlled
-    Controlled Rebound
-
-    Bad
-    Bad Rebound
-    Poor
-    Poor Rebound
-    Uncontrolled
-    Uncontrolled Rebound
-  */
-
-  if(
-    value==='good' ||
-    value.includes('good rebound') ||
-    value==='controlled' ||
-    value.includes('controlled rebound')
-  ){
-    return 'good';
-  }
-
-  if(
-    value==='bad' ||
-    value.includes('bad rebound') ||
-    value==='poor' ||
-    value.includes('poor rebound') ||
-    value==='uncontrolled' ||
-    value.includes('uncontrolled rebound')
-  ){
-    return 'bad';
-  }
-
-  return null;
-
-}
-
-
-function calculateReboundControl(shots){
-
-  const tracked=shots.filter(
-    shot=>reboundControlType(shot)!==null
-  );
-
-  const good=tracked.filter(
-    shot=>reboundControlType(shot)==='good'
-  );
-
-  const bad=tracked.filter(
-    shot=>reboundControlType(shot)==='bad'
-  );
-
-  function stats(list){
-
-    const shotsCount=list.length;
-
-    const goals=list.filter(
-      shot=>isGoal(shot)
-    ).length;
-
-    const saves=shotsCount-goals;
-
-    return {
-
-      shots:shotsCount,
-      goals,
-      saves,
-
-      sv:
-        shotsCount
-          ? saves/shotsCount*100
-          : null,
-
-      share:
-        tracked.length
-          ? shotsCount/tracked.length*100
-          : null
-
-    };
-
-  }
-
-  return {
-    tracked:tracked.length,
-    good:stats(good),
-    bad:stats(bad)
-  };
-
-}
-
-
-/* ==========================================
-   xG MODEL
-   ========================================== */
-
-function calculateShotXG(shot){
-
-  const distance=num(shot.distance);
-
-  let base;
-
-  if(distance<=6)base=.24;
-  else if(distance<=12)base=.14;
-  else if(distance<=20)base=.065;
-  else if(distance<=30)base=.030;
-  else if(distance<=40)base=.015;
-  else base=.008;
-
-  const location=normalize(shot.location);
-
-  let locationMultiplier=1;
-
-  if(location.includes('crease'))locationMultiplier=1.15;
-  else if(location.includes('slot'))locationMultiplier=1.10;
-  else if(location.includes('circle'))locationMultiplier=1.00;
-  else if(location.includes('point'))locationMultiplier=.75;
-
-  const type=normalize(shot.shot_type);
-
-  let typeMultiplier=1;
-
-  if(
-    type.includes('one timer') ||
-    type.includes('onetimer')
-  ){
-    typeMultiplier=1.18;
-  }
-  else if(type.includes('backhand')){
-    typeMultiplier=1.06;
-  }
-  else if(type.includes('slap')){
-    typeMultiplier=1.04;
-  }
-
-  let xg=
-    base*
-    locationMultiplier*
-    typeMultiplier;
-
-  if(shotBoolean(shot.rush))xg*=1.08;
-  if(shotBoolean(shot.rebound))xg*=1.25;
-  if(shotBoolean(shot.screened))xg*=1.10;
-  if(shotBoolean(shot.breakaway))xg*=1.75;
-  if(shotBoolean(shot.cross_ice))xg*=1.15;
-
-  xg=Math.max(
-    .003,
-    Math.min(.75,xg)
-  );
-
-  return xg;
-
-}
-
-
-function getShotGrade(xg){
-
-  if(xg>=.25)return 'A+';
-  if(xg>=.12)return 'A';
-  if(xg>=.045)return 'B';
-
-  return 'C';
-
-}
-
-
-function dangerLevel(xg){
-
-  if(xg>=.25)return 'High';
-  if(xg>=.12)return 'Medium-High';
-  if(xg>=.045)return 'Medium';
-
-  return 'Low';
-
-}
-
-
-/* ==========================================
-   ADVANCED CALCULATIONS
-   ========================================== */
-
-function calculateAdvancedForShots(shots){
-
-  const totalShots=shots.length;
-
-  const goals=shots.filter(
-    shot=>isGoal(shot)
-  ).length;
-
-  const xGA=shots.reduce(
-    (total,shot)=>
-      total+calculateShotXG(shot),
-    0
-  );
-
-  const actualSV=totalShots
-    ? (totalShots-goals)/totalShots
-    : null;
-
-  const expectedSV=totalShots
-    ? 1-(xGA/totalShots)
-    : null;
-
-  const gsax=xGA-goals;
-
-  const grades={
-    'A+':0,
-    'A':0,
-    'B':0,
-    'C':0
-  };
-
-  shots.forEach(shot=>{
-    const xg=calculateShotXG(shot);
-    grades[getShotGrade(xg)]++;
-  });
-
-  return {
-    shots:totalShots,
-    goals,
-    xGA,
-    actualSV,
-    expectedSV,
-    gsax,
-    grades
-  };
-
-}
-
-
-function calculatePer60(value,minutes){
-
-  return minutes
-    ? value/minutes*60
-    : null;
-
-}
-
-
-/* ==========================================
-   CHARTS
-   ========================================== */
-
-const charts={};
-
-function makeChart(id,config){
-
-  if(charts[id]){
-    charts[id].destroy();
-  }
-
-  const element=document.getElementById(id);
-
-  if(!element)return null;
-
-  charts[id]=new Chart(
-    element,
-    config
-  );
-
-  return charts[id];
-
-}
-
-
-function chartOptions(){
-
-  return {
-
-    responsive:true,
-    maintainAspectRatio:false,
-
-    plugins:{
-      legend:{
-        labels:{
-          color:'#b9d0bf'
-        }
-      }
-    },
-
-    scales:{
-      x:{
-        ticks:{color:'#8faf9a'},
-        grid:{color:'#173b27'}
-      },
-
-      y:{
-        ticks:{color:'#8faf9a'},
-        grid:{color:'#173b27'}
-      }
-    }
-
-  };
-
-}
-
-
-function percentageScale(values){
-
-  const valid=values.filter(
-    v=>v!==null && Number.isFinite(v)
-  );
-
-  if(!valid.length){
-    return {min:80,max:100};
-  }
-
-  const minValue=Math.min(...valid);
-  const maxValue=Math.max(...valid);
-
-  let min=Math.floor(
-    Math.min(80,minValue-2)/5
-  )*5;
-
-  let max=Math.ceil(
-    Math.max(100,maxValue+2)/5
-  )*5;
-
-  min=Math.max(50,min);
-  max=Math.min(100,max);
-
-  if(max-min<10){
-    min=Math.max(50,max-10);
-  }
-
-  return {min,max};
-
-}
-
-
-function countScale(values){
-
-  const valid=values.filter(
-    v=>v!==null && Number.isFinite(v)
-  );
-
-  const maxValue=
-    valid.length
-      ? Math.max(...valid)
-      : 0;
-
-  return {
-
-    min:0,
-
-    max:Math.max(
-      3,
-      maxValue+1
-    ),
-
-    ticks:{
-      stepSize:1,
-      precision:0,
-      color:'#8faf9a'
-    }
-
-  };
-
-}
-
-
-function gsaxScale(values){
-
-  const valid=values.filter(
-    v=>v!==null && Number.isFinite(v)
-  );
-
-  const maxAbs=
-    valid.length
-      ? Math.max(
-          ...valid.map(v=>Math.abs(v))
-        )
-      : 1;
-
-  const range=Math.max(
-    1,
-    Math.ceil((maxAbs+.5)*2)/2
-  );
-
-  return {
-
-    min:-range,
-    max:range,
-
-    ticks:{
-      color:'#8faf9a',
-      stepSize:
-        range<=2
-          ? .5
-          : 1
-    }
-
-  };
-
-}
-
-
-/* ==========================================
-   TRADITIONAL STATS
-   ========================================== */
-
-function calculateStats(games){
-
-  const SA=games.reduce(
-    (total,g)=>total+num(g.shots_against),
-    0
-  );
-
-  const S=games.reduce(
-    (total,g)=>total+num(g.saves),
-    0
-  );
-
-  const GA=games.reduce(
-    (total,g)=>total+num(g.goals_against),
-    0
-  );
-
-  const MIN=games.reduce(
-    (total,g)=>total+num(g.minutes_played),
-    0
-  );
-
-  const wins=games.filter(
-    g=>String(g.result).toUpperCase()==='W'
-  ).length;
-
-  const losses=games.filter(
-    g=>String(g.result).toUpperCase()==='L'
-  ).length;
-
-  const otls=games.filter(
-    g=>String(g.result).toUpperCase()==='OTL'
-  ).length;
-
-  const shutouts=games.filter(
-    g=>isShutout(g.shutout)
-  ).length;
-
-  return {
-
-    GP:games.length,
-    SA,
-    S,
-    GA,
-    MIN,
-    wins,
-    losses,
-    otls,
-    shutouts,
-
-    sv:SA
-      ? (S/SA*100).toFixed(1)+'%'
-      : '—',
-
-    gaa:MIN
-      ? (GA/MIN*60).toFixed(2)
-      : '—',
-
-    shots60:MIN
-      ? (SA/MIN*60).toFixed(1)
-      : '—'
-
-  };
-
-}
-
-
-/* ==========================================
-   OVERVIEW
-   ========================================== */
-
-function renderOverview(games,shots){
-
-  const s=calculateStats(games);
-
-  document.getElementById(
-    'overviewCards'
-  ).innerHTML=[
-
-    card('GP',s.GP),
-    card('SV%',s.sv),
-    card('GAA',s.gaa),
-
-    card(
-      'Record',
-      `${s.wins}-${s.losses}-${s.otls}`
-    ),
-
-    card('Shots Against',s.SA),
-    card('Saves',s.S),
-    card('Goals Against',s.GA),
-    card('Shots Against / 60',s.shots60)
-
-  ].join('');
-
-  const advanced=
-    calculateAdvancedForShots(shots);
-
-  document.getElementById(
-    'heroGsax'
-  ).textContent=
-    advanced.shots
-      ? advanced.gsax.toFixed(2)
-      : '—';
-
-  document.getElementById(
-    'heroExpectedSV'
-  ).textContent=
-    advanced.shots
-      ? (advanced.expectedSV*100).toFixed(1)+'%'
-      : '—';
-
-  document.getElementById(
-    'heroGsax60'
-  ).textContent=
-    advanced.shots && s.MIN
-      ? calculatePer60(
-          advanced.gsax,
-          s.MIN
-        ).toFixed(2)
-      : '—';
-
-  renderAdvancedOverview(games,shots);
-  renderPerformanceSummary(games,shots);
-  renderPerformanceDistribution(games,shots);
-  renderOverviewCharts(games,shots);
-  renderRecentGames(games,shots);
-
-}
-
-
-/* ==========================================
-   ADVANCED OVERVIEW
-   ========================================== */
-
-function renderAdvancedOverview(games,shots){
-
-  const advanced=
-    calculateAdvancedForShots(shots);
-
-  const stats=calculateStats(games);
-
-  const gsax60=
-    stats.MIN
-      ? advanced.gsax/stats.MIN*60
-      : null;
-
-  const xga60=
-    stats.MIN
-      ? advanced.xGA/stats.MIN*60
-      : null;
-
-  document.getElementById(
-    'advancedOverviewCards'
-  ).innerHTML=[
-
-    card(
-      'xGA',
-      advanced.shots
-        ? advanced.xGA.toFixed(2)
-        : '—'
-    ),
-
-    card(
-      'Expected SV%',
-      advanced.shots
-        ? (advanced.expectedSV*100).toFixed(1)+'%'
-        : '—'
-    ),
-
-    card(
-      'GSAx',
-      advanced.shots
-        ? advanced.gsax.toFixed(2)
-        : '—'
-    ),
-
-    card(
-      'GSAx / 60',
-      gsax60!==null
-        ? gsax60.toFixed(2)
-        : '—'
-    ),
-
-    card(
-      'xGA / 60',
-      xga60!==null
-        ? xga60.toFixed(2)
-        : '—'
-    ),
-
-    card(
-      'Tracked Shots',
-      advanced.shots
-    ),
-
-    card(
-      'High-Danger Shots',
-      advanced.grades['A+']
-    ),
-
-    card(
-      'Goals on Tracked Shots',
-      advanced.goals
-    )
-
-  ].join('');
-
-  const grades=advanced.grades;
-
-  document.getElementById(
-    'gradeDistribution'
-  ).innerHTML=[
-
-    ['A+','Very High Danger',grades['A+']],
-    ['A','High Danger',grades['A']],
-    ['B','Moderate Danger',grades['B']],
-    ['C','Lower Danger',grades['C']]
-
-  ].map(item=>`
-
-    <div class="grade-card">
-
-      <div class="grade">${item[0]}</div>
-
-      <div class="grade-count">
-        ${item[2]}
+  <div class="section-title">Performance Trends</div>
+
+  <div class="split-grid">
+    <div class="panel">
+      <h3>SV%</h3>
+      <div class="chart-wrap">
+        <canvas id="svTrendChart"></canvas>
       </div>
-
-      <div class="grade-label">
-        ${item[1]}
-      </div>
-
     </div>
 
-  `).join('');
-
-}
-
-
-/* ==========================================
-   PERFORMANCE DISTRIBUTION
-   ========================================== */
-
-function renderPerformanceDistribution(games,shots){
-
-  const svBuckets=[
-    {label:'< .850',count:0},
-    {label:'.850–.880',count:0},
-    {label:'.880–.900',count:0},
-    {label:'.900–.920',count:0},
-    {label:'.920–.940',count:0},
-    {label:'> .940',count:0}
-  ];
-
-  games.forEach(game=>{
-
-    const sa=num(game.shots_against);
-    const saves=num(game.saves);
-
-    if(!sa)return;
-
-    const sv=saves/sa;
-
-    if(sv<.850)svBuckets[0].count++;
-    else if(sv<.880)svBuckets[1].count++;
-    else if(sv<.900)svBuckets[2].count++;
-    else if(sv<.920)svBuckets[3].count++;
-    else if(sv<=.940)svBuckets[4].count++;
-    else svBuckets[5].count++;
-
-  });
-
-  const svDistributionValues=
-    svBuckets.map(x=>x.count);
-
-  makeChart(
-    'svDistributionChart',
-    {
-      type:'bar',
-
-      data:{
-        labels:svBuckets.map(x=>x.label),
-
-        datasets:[{
-          label:'Games',
-          data:svDistributionValues
-        }]
-      },
-
-      options:{
-        ...chartOptions(),
-
-        plugins:{
-          legend:{display:false}
-        },
-
-        scales:{
-          x:chartOptions().scales.x,
-
-          y:countScale(
-            svDistributionValues
-          )
-        }
-      }
-    }
-  );
-
-
-  const goalsByGrade={
-    'A+':0,
-    'A':0,
-    'B':0,
-    'C':0
-  };
-
-  shots.forEach(shot=>{
-
-    if(!isGoal(shot))return;
-
-    const grade=
-      getShotGrade(
-        calculateShotXG(shot)
-      );
-
-    goalsByGrade[grade]++;
-
-  });
-
-  const gradeValues=[
-    goalsByGrade['A+'],
-    goalsByGrade['A'],
-    goalsByGrade['B'],
-    goalsByGrade['C']
-  ];
-
-  makeChart(
-    'goalsByGradeChart',
-    {
-      type:'bar',
-
-      data:{
-        labels:['A+','A','B','C'],
-
-        datasets:[{
-          label:'Goals Allowed',
-          data:gradeValues
-        }]
-      },
-
-      options:{
-        ...chartOptions(),
-
-        plugins:{
-          legend:{display:false}
-        },
-
-        scales:{
-          x:chartOptions().scales.x,
-
-          y:countScale(
-            gradeValues
-          )
-        }
-      }
-    }
-  );
-
-
-  const gaBuckets=[
-    {label:'0 GA',count:0},
-    {label:'1 GA',count:0},
-    {label:'2 GA',count:0},
-    {label:'3 GA',count:0},
-    {label:'4 GA',count:0},
-    {label:'5+ GA',count:0}
-  ];
-
-  games.forEach(game=>{
-
-    const ga=num(
-      game.goals_against
-    );
-
-    if(ga<=0)gaBuckets[0].count++;
-    else if(ga===1)gaBuckets[1].count++;
-    else if(ga===2)gaBuckets[2].count++;
-    else if(ga===3)gaBuckets[3].count++;
-    else if(ga===4)gaBuckets[4].count++;
-    else gaBuckets[5].count++;
-
-  });
-
-  const gaDistributionValues=
-    gaBuckets.map(x=>x.count);
-
-  makeChart(
-    'gaDistributionChart',
-    {
-      type:'bar',
-
-      data:{
-        labels:gaBuckets.map(x=>x.label),
-
-        datasets:[{
-          label:'Games',
-          data:gaDistributionValues
-        }]
-      },
-
-      options:{
-        ...chartOptions(),
-
-        plugins:{
-          legend:{display:false}
-        },
-
-        scales:{
-          x:chartOptions().scales.x,
-
-          y:countScale(
-            gaDistributionValues
-          )
-        }
-      }
-    }
-  );
-
-
-  const homeGames=games.filter(
-    g=>{
-      const value=normalize(g.home_away);
-
-      return value==='home'||value==='h';
-    }
-  );
-
-  const awayGames=games.filter(
-    g=>{
-      const value=normalize(g.home_away);
-
-      return value==='away'||value==='a';
-    }
-  );
-
-
-  function splitStats(splitGames){
-
-    const SA=splitGames.reduce(
-      (total,g)=>
-        total+num(g.shots_against),
-      0
-    );
-
-    const saves=splitGames.reduce(
-      (total,g)=>
-        total+num(g.saves),
-      0
-    );
-
-    const GA=splitGames.reduce(
-      (total,g)=>
-        total+num(g.goals_against),
-      0
-    );
-
-    const MIN=splitGames.reduce(
-      (total,g)=>
-        total+num(g.minutes_played),
-      0
-    );
-
-    const wins=splitGames.filter(
-      g=>String(g.result||'')
-        .trim()
-        .toUpperCase()==='W'
-    ).length;
-
-    const losses=splitGames.filter(
-      g=>String(g.result||'')
-        .trim()
-        .toUpperCase()==='L'
-    ).length;
-
-    const otls=splitGames.filter(
-      g=>String(g.result||'')
-        .trim()
-        .toUpperCase()==='OTL'
-    ).length;
-
-    return {
-
-      games:splitGames.length,
-
-      sv:SA
-        ? (saves/SA*100).toFixed(1)+'%'
-        : '—',
-
-      gaa:MIN
-        ? (GA/MIN*60).toFixed(2)
-        : '—',
-
-      record:`${wins}-${losses}-${otls}`
-
-    };
-
-  }
-
-
-  function homeAwayCard(title,splitGames){
-
-    const s=splitStats(splitGames);
-
-    return `
-
-      <div class="home-away-card">
-
-        <div class="home-away-title">
-          ${title}
-        </div>
-
-        <div class="home-away-games">
-          ${s.games} game${s.games===1?'':'s'}
-        </div>
-
-        <div class="home-away-stat">
-          <span>SV%</span>
-          <strong>${s.sv}</strong>
-        </div>
-
-        <div class="home-away-stat">
-          <span>GAA</span>
-          <strong>${s.gaa}</strong>
-        </div>
-
-        <div class="home-away-stat">
-          <span>Record</span>
-          <strong>${s.record}</strong>
-        </div>
-
+    <div class="panel">
+      <h3>GAA</h3>
+      <div class="chart-wrap">
+        <canvas id="gaaTrendChart"></canvas>
       </div>
-
-    `;
-
-  }
-
-
-  document.getElementById(
-    'homeAwaySplit'
-  ).innerHTML=
-
-    homeAwayCard(
-      'Home',
-      homeGames
-    )+
-
-    homeAwayCard(
-      'Away',
-      awayGames
-    );
-
-}
-
-
-/* ==========================================
-   OVERVIEW CHARTS
-   ========================================== */
-
-function renderOverviewCharts(games,shots){
-
-  const labels=games.map((g,i)=>
-    g.opponent
-      ? `vs ${g.opponent}`
-      : `Game ${i+1}`
-  );
-
-  const sv=games.map(g=>{
-
-    const sa=num(g.shots_against);
-    const saves=num(g.saves);
-
-    return sa
-      ? saves/sa*100
-      : null;
-
-  });
-
-  const gaa=games.map(g=>{
-
-    const min=num(g.minutes_played);
-    const ga=num(g.goals_against);
-
-    return min
-      ? ga/min*60
-      : null;
-
-  });
-
-  const xga=[];
-  const gsax=[];
-
-  games.forEach(game=>{
-
-    const gameShots=shots.filter(
-      shot=>
-        String(shot.game_id)===
-        String(game.id)
-    );
-
-    if(!gameShots.length){
-
-      xga.push(null);
-      gsax.push(null);
-
-      return;
-
-    }
-
-    const advanced=
-      calculateAdvancedForShots(gameShots);
-
-    xga.push(
-      Number(
-        advanced.xGA.toFixed(2)
-      )
-    );
-
-    gsax.push(
-      Number(
-        advanced.gsax.toFixed(2)
-      )
-    );
-
-  });
-
-
-  const svScale=percentageScale(sv);
-
-  makeChart(
-    'svChart',
-    {
-
-      type:'line',
-
-      data:{
-        labels,
-
-        datasets:[{
-          label:'SV%',
-          data:sv,
-          tension:.3,
-          spanGaps:true
-        }]
-      },
-
-      options:{
-        ...chartOptions(),
-
-        scales:{
-          x:chartOptions().scales.x,
-
-          y:{
-            min:svScale.min,
-            max:svScale.max,
-
-            ticks:{
-              color:'#8faf9a',
-              callback:value=>value+'%'
-            },
-
-            grid:{
-              color:'#173b27'
-            }
-          }
-        }
-      }
-    }
-  );
-
-
-  const gaaValues=gaa.filter(
-    v=>v!==null
-  );
-
-  const gaaMax=gaaValues.length
-    ? Math.ceil(
-        Math.max(...gaaValues)+.5
-      )
-    : 4;
-
-  makeChart(
-    'gaaChart',
-    {
-
-      type:'line',
-
-      data:{
-        labels,
-
-        datasets:[{
-          label:'GAA',
-          data:gaa,
-          tension:.3,
-          spanGaps:true
-        }]
-      },
-
-      options:{
-        ...chartOptions(),
-
-        scales:{
-          x:chartOptions().scales.x,
-
-          y:{
-            beginAtZero:true,
-            max:Math.max(3,gaaMax),
-
-            ticks:{
-              color:'#8faf9a'
-            },
-
-            grid:{
-              color:'#173b27'
-            }
-          }
-        }
-      }
-    }
-  );
-
-
-  const xgaValues=xga.filter(
-    v=>v!==null
-  );
-
-  const xgaMax=xgaValues.length
-    ? Math.ceil(
-        Math.max(...xgaValues)+.5
-      )
-    : 5;
-
-  makeChart(
-    'xgaChart',
-    {
-
-      type:'line',
-
-      data:{
-        labels,
-
-        datasets:[{
-          label:'xGA',
-          data:xga,
-          tension:.3,
-          spanGaps:true
-        }]
-      },
-
-      options:{
-        ...chartOptions(),
-
-        scales:{
-          x:chartOptions().scales.x,
-
-          y:{
-            beginAtZero:true,
-            max:Math.max(3,xgaMax),
-
-            ticks:{
-              color:'#8faf9a'
-            },
-
-            grid:{
-              color:'#173b27'
-            }
-          }
-        }
-      }
-    }
-  );
-
-
-  makeChart(
-    'gsaxChart',
-    {
-
-      type:'line',
-
-      data:{
-        labels,
-
-        datasets:[{
-          label:'GSAx',
-          data:gsax,
-          tension:.3,
-          spanGaps:true
-        }]
-      },
-
-      options:{
-        ...chartOptions(),
-
-        scales:{
-          x:chartOptions().scales.x,
-
-          y:{
-            ...gsaxScale(gsax),
-
-            grid:{
-              color:'#173b27'
-            }
-          }
-        }
-      }
-    }
-  );
-
-}
-
-
-/* ==========================================
-   PERFORMANCE SUMMARY
-   ========================================== */
-
-function renderPerformanceSummary(games,shots){
-
-  const stats=calculateStats(games);
-
-  const advanced=
-    calculateAdvancedForShots(shots);
-
-  const gsax60=
-    stats.MIN
-      ? advanced.gsax/stats.MIN*60
-      : null;
-
-  const actualSV=advanced.actualSV;
-  const expectedSV=advanced.expectedSV;
-
-  let overallTitle='Neutral';
-
-  if(advanced.gsax>0.5){
-    overallTitle='Above Expected';
-  }
-  else if(advanced.gsax<-0.5){
-    overallTitle='Below Expected';
-  }
-
-  const workload=
-    stats.MIN
-      ? stats.SA/stats.MIN*60
-      : null;
-
-  document.getElementById(
-    'performanceSummary'
-  ).innerHTML=`
-
-    <div class="analysis-card">
-
-      <h3>Overall Performance</h3>
-
-      <div class="analysis-value ${
-        advanced.gsax>0
-          ? 'positive'
-          : advanced.gsax<0
-            ? 'negative'
-            : 'neutral'
-      }">
-
-        ${overallTitle}
-
+    </div>
+  </div>
+
+  <div class="section-title">Advanced Trends</div>
+
+  <div class="split-grid">
+    <div class="panel">
+      <h3>xGA</h3>
+      <div class="chart-wrap">
+        <canvas id="xgaTrendChart"></canvas>
       </div>
-
-      <p>
-        ${
-          advanced.shots
-            ? `The current shot sample shows ${advanced.gsax.toFixed(2)}
-               goals saved above expected.`
-            : 'Not enough tracked shots yet.'
-        }
-      </p>
-
     </div>
 
-    <div class="analysis-card">
-
-      <h3>Shot Quality</h3>
-
-      <div class="analysis-value">
-        ${
-          advanced.shots
-            ? advanced.xGA.toFixed(2)
-            : '—'
-        }
+    <div class="panel">
+      <h3>GSAx</h3>
+      <div class="chart-wrap">
+        <canvas id="gsaxTrendChart"></canvas>
       </div>
-
-      <p>
-        Expected goals against from all tracked shots.
-      </p>
-
     </div>
+  </div>
 
-    <div class="analysis-card">
+  <div class="section-title">Performance Summary</div>
+  <div id="performanceSummary" class="insight-grid"></div>
 
-      <h3>Workload</h3>
-
-      <div class="analysis-value">
-        ${
-          workload!==null
-            ? workload.toFixed(1)
-            : '—'
-        }
-      </div>
-
-      <p>
-        Shots against per 60 minutes. This measures workload rather than
-        goaltending quality by itself.
-      </p>
-
-    </div>
-
-    <div class="analysis-card">
-
-      <h3>Expected vs Actual SV%</h3>
-
-      <div class="analysis-value">
-        ${
-          actualSV!==null &&
-          expectedSV!==null
-            ? ((actualSV-expectedSV)*100).toFixed(1)+' pts'
-            : '—'
-        }
-      </div>
-
-      <p>
-        Difference between actual save percentage and the save percentage
-        expected from tracked shot quality.
-      </p>
-
-    </div>
-
-    <div class="analysis-card">
-
-      <h3>GSAx / 60</h3>
-
-      <div class="analysis-value">
-        ${
-          gsax60!==null
-            ? gsax60.toFixed(2)
-            : '—'
-        }
-      </div>
-
-      <p>
-        A normalized measure of goals saved above expected.
-      </p>
-
-    </div>
-
-    <div class="analysis-card">
-
-      <h3>Tracked Shot Sample</h3>
-
-      <div class="analysis-value">
-        ${advanced.shots}
-      </div>
-
-      <p>
-        Individual shots currently available for advanced analysis.
-      </p>
-
-    </div>
-
-  `;
-
-}
-
-
-/* ==========================================
-   RECENT GAMES
-   ========================================== */
-
-function renderRecentGames(games,shots){
-
-  const recent=games
-    .slice(-5)
-    .reverse();
-
-  if(!recent.length){
-
-    document.getElementById(
-      'recentGames'
-    ).innerHTML='No games entered yet.';
-
-    return;
-
-  }
-
-  document.getElementById(
-    'recentGames'
-  ).innerHTML=`
-
-    <table class="table">
-
+  <div class="section-title">Recent Games</div>
+  <div class="panel table-wrap">
+    <table>
       <thead>
-
         <tr>
           <th>Game</th>
           <th>Opponent</th>
@@ -2967,123 +452,26 @@ function renderRecentGames(games,shots){
           <th>SV%</th>
           <th>xGA</th>
           <th>GSAx</th>
-          <th>GSAx / 60</th>
+          <th>GSAx/60</th>
         </tr>
-
       </thead>
-
-      <tbody>
-
-        ${recent.map(g=>{
-
-          const sa=num(g.shots_against);
-          const saves=num(g.saves);
-          const ga=num(g.goals_against);
-          const min=num(g.minutes_played);
-
-          const gameShots=shots.filter(
-            shot=>
-              String(shot.game_id)===
-              String(g.id)
-          );
-
-          const advanced=
-            calculateAdvancedForShots(gameShots);
-
-          const xga=gameShots.length
-            ? advanced.xGA.toFixed(2)
-            : '—';
-
-          const gsax=gameShots.length
-            ? advanced.gsax.toFixed(2)
-            : '—';
-
-          const gsax60=
-            gameShots.length&&min
-              ? (advanced.gsax/min*60).toFixed(2)
-              : '—';
-
-          return `
-
-            <tr>
-
-              <td>
-                Game ${games.indexOf(g)+1}
-              </td>
-
-              <td>
-                ${g.opponent||'—'}
-              </td>
-
-              <td>
-                ${resultBadge(g.result)}
-              </td>
-
-              <td>
-                ${g.team_goals??'—'} -
-                ${g.opponent_goals??'—'}
-              </td>
-
-              <td>${sa}</td>
-              <td>${ga}</td>
-              <td>${pct(saves,sa)}</td>
-              <td>${xga}</td>
-
-              <td class="${
-                gameShots.length
-                  ? advanced.gsax>=0
-                    ? 'positive'
-                    : 'negative'
-                  : ''
-              }">
-
-                ${gsax}
-
-              </td>
-
-              <td>${gsax60}</td>
-
-            </tr>
-
-          `;
-
-        }).join('')}
-
-      </tbody>
-
+      <tbody id="recentGames"></tbody>
     </table>
+  </div>
 
-  `;
-
-}
+</section>
 
 
-/* ==========================================
-   GAME LOG
-   ========================================== */
+<!-- ================= GAME LOG ================= -->
 
-function renderGameLog(games,shots){
+<section id="gamelog" class="tab">
 
-  if(!games.length){
+  <div class="section-title">Game Log</div>
 
-    document.getElementById(
-      'gameLog'
-    ).innerHTML='No games entered yet.';
-
-    return;
-
-  }
-
-  document.getElementById(
-    'gameLog'
-  ).innerHTML=`
-
-    <table class="table">
-
+  <div class="panel table-wrap">
+    <table>
       <thead>
-
         <tr>
-
           <th>Game</th>
           <th>Opponent</th>
           <th>H/A</th>
@@ -3100,1956 +488,3327 @@ function renderGameLog(games,shots){
           <th>GSAx/60</th>
           <th>MIN</th>
           <th>SO</th>
-
         </tr>
-
       </thead>
-
-      <tbody>
-
-        ${games.map((g,i)=>{
-
-          const sa=num(g.shots_against);
-          const saves=num(g.saves);
-          const ga=num(g.goals_against);
-          const min=num(g.minutes_played);
-
-          const gaa=min
-            ? (ga/min*60).toFixed(2)
-            : '—';
-
-          const gameShots=shots.filter(
-            shot=>
-              String(shot.game_id)===
-              String(g.id)
-          );
-
-          const advanced=
-            calculateAdvancedForShots(gameShots);
-
-          const xga=gameShots.length
-            ? advanced.xGA.toFixed(2)
-            : '—';
-
-          const expectedSV=gameShots.length
-            ? (advanced.expectedSV*100).toFixed(1)+'%'
-            : '—';
-
-          const gsax=gameShots.length
-            ? advanced.gsax.toFixed(2)
-            : '—';
-
-          const gsax60=
-            gameShots.length&&min
-              ? (advanced.gsax/min*60).toFixed(2)
-              : '—';
-
-          return `
-
-            <tr>
-
-              <td>Game ${i+1}</td>
-              <td>${g.opponent||'—'}</td>
-              <td>${g.home_away||'—'}</td>
-              <td>${resultBadge(g.result)}</td>
-
-              <td>
-                ${g.team_goals??'—'} -
-                ${g.opponent_goals??'—'}
-              </td>
-
-              <td>${sa}</td>
-              <td>${saves}</td>
-              <td>${ga}</td>
-              <td>${pct(saves,sa)}</td>
-              <td>${gaa}</td>
-              <td>${xga}</td>
-              <td>${expectedSV}</td>
-
-              <td class="${
-                gameShots.length
-                  ? advanced.gsax>=0
-                    ? 'positive'
-                    : 'negative'
-                  : ''
-              }">
-
-                ${gsax}
-
-              </td>
-
-              <td>${gsax60}</td>
-              <td>${min}</td>
-
-              <td>
-                ${isShutout(g.shutout)?'✓':'—'}
-              </td>
-
-            </tr>
-
-          `;
-
-        }).join('')}
-
-      </tbody>
-
+      <tbody id="gameLog"></tbody>
     </table>
+  </div>
 
-  `;
+</section>
 
+
+<!-- ================= PERIODS ================= -->
+
+<section id="periods" class="tab">
+
+  <div class="section-title">Period Breakdown</div>
+
+  <div id="periodCards" class="grid"></div>
+
+  <div class="section-title">Period Comparison</div>
+
+  <div class="panel table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Period</th>
+          <th>Shots Against</th>
+          <th>Saves</th>
+          <th>Goals Against</th>
+          <th>SV%</th>
+          <th>GAA</th>
+          <th>Shots/60</th>
+          <th>Tracked Shots</th>
+          <th>xGA</th>
+          <th>Expected SV%</th>
+          <th>GSAx</th>
+        </tr>
+      </thead>
+      <tbody id="periodTable"></tbody>
+    </table>
+  </div>
+
+  <div class="section-title">Advanced Period Charts</div>
+
+  <div class="split-grid">
+
+    <div class="panel">
+      <h3>Expected vs Actual SV%</h3>
+      <div class="chart-wrap">
+        <canvas id="periodExpectedChart"></canvas>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>GSAx by Period</h3>
+      <div class="chart-wrap">
+        <canvas id="periodGsaxChart"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="section-title">Period Insights</div>
+  <div id="periodInsights" class="insight-grid"></div>
+
+</section>
+
+
+<!-- ================= SITUATIONAL ================= -->
+
+<section id="situational" class="tab">
+
+  <div class="section-title">Danger Splits</div>
+  <div id="dangerCards" class="grid"></div>
+
+  <div class="section-title">Game Situation</div>
+  <div id="situationCards" class="grid"></div>
+
+  <div class="section-title">Shot Characteristics</div>
+  <div id="characteristicCards" class="grid"></div>
+
+  <div class="section-title">Situational SV%</div>
+
+  <div class="panel">
+    <div class="chart-wrap">
+      <canvas id="situationalChart"></canvas>
+    </div>
+  </div>
+
+</section>
+
+
+<!-- ================= CONTROL ================= -->
+
+<section id="control" class="tab">
+
+  <div class="section-title">Rebound Control</div>
+
+  <div id="controlOverview" class="hero-grid"></div>
+
+  <div class="section-title">Rebound Control by Direction</div>
+
+  <div id="controlCards" class="control-grid"></div>
+
+  <div class="section-title">Good vs Bad Rebounds</div>
+
+  <div class="split-grid">
+
+    <div class="panel">
+      <h3>Good vs Bad Rebound Events</h3>
+      <div class="chart-wrap">
+        <canvas id="goodBadChart"></canvas>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Goals Allowed After Rebound Events</h3>
+      <div class="chart-wrap">
+        <canvas id="controlGoalsChart"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="section-title">Good vs Bad Performance</div>
+
+  <div class="panel table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Control</th>
+          <th>Events</th>
+          <th>Share</th>
+          <th>Goals Allowed</th>
+          <th>SV%</th>
+        </tr>
+      </thead>
+      <tbody id="controlComparison"></tbody>
+    </table>
+  </div>
+
+  <div class="section-title">Goal Location</div>
+
+  <div class="panel">
+    <p class="about">
+      Goal-location analysis is kept separate from rebound-control quality.
+      This prevents goal location from being mixed into the direct
+      <strong>Good vs Bad rebound</strong> comparison.
+    </p>
+
+    <div class="chart-wrap">
+      <canvas id="goalLocationChart"></canvas>
+    </div>
+  </div>
+
+</section>
+
+
+<!-- ================= TRENDS ================= -->
+
+<section id="trends" class="tab">
+
+  <div class="section-title">Incremental Performance</div>
+
+  <div id="incrementalCards" class="grid"></div>
+
+  <div class="section-title">Rolling SV%</div>
+
+  <div class="split-grid">
+    <div class="panel">
+      <h3>5-Game Rolling SV%</h3>
+      <div class="chart-wrap">
+        <canvas id="rolling5sv"></canvas>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>10-Game Rolling SV%</h3>
+      <div class="chart-wrap">
+        <canvas id="rolling10sv"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Rolling GAA</div>
+
+  <div class="split-grid">
+    <div class="panel">
+      <h3>5-Game Rolling GAA</h3>
+      <div class="chart-wrap">
+        <canvas id="rolling5gaa"></canvas>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>10-Game Rolling GAA</h3>
+      <div class="chart-wrap">
+        <canvas id="rolling10gaa"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Rolling Workload</div>
+
+  <div class="split-grid">
+    <div class="panel">
+      <h3>5-Game Rolling Shots Against / 60</h3>
+      <div class="chart-wrap">
+        <canvas id="rolling5sa60"></canvas>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>10-Game Rolling Shots Against / 60</h3>
+      <div class="chart-wrap">
+        <canvas id="rolling10sa60"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Rolling Expected Goals</div>
+
+  <div class="split-grid">
+    <div class="panel">
+      <h3>5-Game Rolling xGA</h3>
+      <div class="chart-wrap">
+        <canvas id="rolling5xga"></canvas>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>10-Game Rolling xGA</h3>
+      <div class="chart-wrap">
+        <canvas id="rolling10xga"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Rolling GSAx</div>
+
+  <div class="split-grid">
+    <div class="panel">
+      <h3>5-Game Rolling GSAx</h3>
+      <div class="chart-wrap">
+        <canvas id="rolling5gsax"></canvas>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>10-Game Rolling GSAx</h3>
+      <div class="chart-wrap">
+        <canvas id="rolling10gsax"></canvas>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+
+<!-- ================= ABOUT ================= -->
+
+<section id="about" class="tab">
+
+  <div class="section-title">About Me</div>
+
+  <div class="panel about">
+
+    <h2>Matias Baker</h2>
+
+    <p>
+      I'm Matias Baker, a goaltender focused on athleticism, positioning,
+      movement and competing through every situation.
+    </p>
+
+    <p>
+      My game is built around reading plays early, staying square to the puck,
+      using efficient movement and positioning, and competing through every
+      situation.
+    </p>
+
+    <p>
+      I place a major emphasis on continuously improving my game and
+      understanding exactly where those improvements need to come from.
+    </p>
+
+    <p>
+      This website is my personal performance platform. Instead of relying
+      only on traditional statistics, it tracks shot quality, expected goals,
+      rebound control, situational performance, workload and performance trends
+      to give me a much deeper understanding of my game.
+    </p>
+
+    <h3>Player Profile</h3>
+
+    <p>
+      <strong>Matias Baker</strong><br>
+      Goaltender · 2008 · Pelham Panthers · 2026–27
+    </p>
+
+  </div>
+
+</section>
+
+</main>
+
+
+<script>
+
+/* =========================================================
+   SUPABASE
+========================================================= */
+
+const SUPABASE_URL =
+  "https://iiuqxxrrruvwvfehrzic.supabase.co";
+
+const SUPABASE_KEY =
+  "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
+
+
+/* =========================================================
+   IMPORTANT:
+   CANONICAL CURRENT SEASON
+========================================================= */
+
+const CURRENT_SEASON = "2026 preseason";
+
+
+/* =========================================================
+   DATA
+========================================================= */
+
+let games = [];
+let shots = [];
+let periods = [];
+
+let gameMap = {};
+let seasonGames = [];
+let seasonShots = [];
+let seasonPeriods = [];
+
+let charts = {};
+
+
+/* =========================================================
+   FETCH
+========================================================= */
+
+async function q(table){
+
+  const response = await fetch(
+    `${SUPABASE_URL}/rest/v1/${encodeURIComponent(table)}?select=*`,
+    {
+      headers:{
+        apikey:SUPABASE_KEY,
+        Authorization:`Bearer ${SUPABASE_KEY}`
+      }
+    }
+  );
+
+  if(!response.ok){
+    throw new Error(
+      `Supabase error ${response.status}: ${table}`
+    );
+  }
+
+  return await response.json();
 }
 
 
-/* ==========================================
-   PERIOD BREAKDOWN
-   ========================================== */
+/* =========================================================
+   HELPERS
+========================================================= */
 
-function renderPeriods(periods,shots,seasonGameIds){
+function num(value){
 
-  const seasonPeriods=periods.filter(
-    row=>seasonGameIds.has(
-      String(row.game_id)
-    )
+  const n = Number(value);
+
+  return Number.isFinite(n) ? n : 0;
+}
+
+
+function pct(saves, shots){
+
+  shots = num(shots);
+  saves = num(saves);
+
+  if(shots <= 0) return "—";
+
+  return `${((saves / shots) * 100).toFixed(1)}%`;
+}
+
+
+function pctNum(saves, shots){
+
+  shots = num(shots);
+  saves = num(saves);
+
+  if(shots <= 0) return 0;
+
+  return (saves / shots) * 100;
+}
+
+
+function card(label,value){
+
+  return `
+    <div class="card">
+      <div class="label">${label}</div>
+      <div class="value">${value}</div>
+    </div>
+  `;
+}
+
+
+function showTab(tab,button){
+
+  document.querySelectorAll(".tab")
+    .forEach(x=>x.classList.remove("active"));
+
+  document.querySelectorAll(".nav button")
+    .forEach(x=>x.classList.remove("active"));
+
+  document.getElementById(tab)
+    .classList.add("active");
+
+  if(button){
+    button.classList.add("active");
+  }
+}
+
+
+function resultBadge(result){
+
+  const r = String(result || "").toUpperCase();
+
+  if(r === "W" || r.includes("WIN")){
+    return `<span class="badge win">W</span>`;
+  }
+
+  if(r === "OTL" || r.includes("OT")){
+    return `<span class="badge otl">OTL</span>`;
+  }
+
+  if(r === "L" || r.includes("LOSS")){
+    return `<span class="badge loss">L</span>`;
+  }
+
+  return result || "—";
+}
+
+
+function isShutout(value){
+
+  return value === true ||
+         value === 1 ||
+         String(value).toLowerCase() === "true" ||
+         String(value).toLowerCase() === "yes";
+}
+
+
+function shotBoolean(value){
+
+  if(value === true || value === 1) return true;
+
+  const v = String(value ?? "")
+    .trim()
+    .toLowerCase();
+
+  return [
+    "true",
+    "1",
+    "yes",
+    "y",
+    "x"
+  ].includes(v);
+}
+
+
+function normalize(value){
+
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]/g," ")
+    .replace(/\s+/g," ");
+}
+
+
+function normalizePeriod(value){
+
+  const v = normalize(value);
+
+  if(
+    v === "1" ||
+    v === "1st" ||
+    v === "1st period" ||
+    v === "first" ||
+    v === "first period"
+  ) return "1st";
+
+  if(
+    v === "2" ||
+    v === "2nd" ||
+    v === "2nd period" ||
+    v === "second" ||
+    v === "second period"
+  ) return "2nd";
+
+  if(
+    v === "3" ||
+    v === "3rd" ||
+    v === "3rd period" ||
+    v === "third" ||
+    v === "third period"
+  ) return "3rd";
+
+  return String(value || "");
+}
+
+
+function isGoal(shot){
+
+  const v = normalize(
+    shot.outcome ??
+    shot.result ??
+    shot.shot_result ??
+    shot.event
   );
 
-  const data=['1st','2nd','3rd'].map(p=>{
+  return [
+    "goal",
+    "goals",
+    "g"
+  ].includes(v);
+}
 
-    const rows=seasonPeriods.filter(
-      x=>normalizePeriod(x.period)===p
-    );
 
-    const periodShots=shots.filter(
-      shot=>
-        seasonGameIds.has(String(shot.game_id)) &&
-        normalizePeriod(shot.period)===p
-    );
+function calculatePer60(value,minutes){
 
-    const sa=rows.reduce(
-      (total,g)=>total+num(g.shots_against),
-      0
-    );
+  value = num(value);
+  minutes = num(minutes);
 
-    const saves=rows.reduce(
-      (total,g)=>total+num(g.saves),
-      0
-    );
+  if(minutes <= 0) return 0;
 
-    const ga=rows.reduce(
-      (total,g)=>total+num(g.goals_against),
-      0
-    );
+  return value * 60 / minutes;
+}
 
-    const min=rows.reduce(
-      (total,g)=>total+num(g.minutes_played),
-      0
-    );
 
-    const advanced=
-      calculateAdvancedForShots(periodShots);
+function shotIsRebound(shot){
 
+  return shotBoolean(
+    shot.rebound ??
+    shot.is_rebound ??
+    shot.rebound_shot
+  );
+}
+
+
+/* =========================================================
+   SEASON NORMALIZATION
+========================================================= */
+
+function normalizeSeason(value){
+
+  return normalize(value)
+    .replace(/[–—]/g,"-")
+    .replace(/\s+/g," ")
+    .trim();
+}
+
+
+function isCurrentSeason(value){
+
+  const v = normalizeSeason(value);
+
+  if(v === "2026 preseason"){
+    return true;
+  }
+
+  if(v === "2026 pre season"){
+    return true;
+  }
+
+  if(v === "2026 pre-season"){
+    return true;
+  }
+
+  if(v === "2026-27"){
+    return true;
+  }
+
+  if(v === "2026/27"){
+    return true;
+  }
+
+  if(v === "2026-2027"){
+    return true;
+  }
+
+  return false;
+}
+
+
+/* =========================================================
+   XG MODEL
+========================================================= */
+
+function calculateShotXG(shot){
+
+  const distance = num(
+    shot.distance ??
+    shot.distance_m ??
+    shot.shot_distance
+  );
+
+  let xg;
+
+  if(distance <= 6){
+    xg = .24;
+  }
+  else if(distance <= 12){
+    xg = .14;
+  }
+  else if(distance <= 20){
+    xg = .065;
+  }
+  else if(distance <= 30){
+    xg = .030;
+  }
+  else if(distance <= 40){
+    xg = .015;
+  }
+  else{
+    xg = .008;
+  }
+
+
+  const location = normalize(
+    shot.location ??
+    shot.shot_location ??
+    shot.zone ??
+    shot.goal_location
+  );
+
+
+  const locationMultiplier =
+    location.includes("crease") ? 1.15 :
+    location.includes("slot") ? 1.10 :
+    location.includes("circle") ? 1.00 :
+    location.includes("point") ? .75 :
+    1;
+
+
+  xg *= locationMultiplier;
+
+
+  const type = normalize(
+    shot.shot_type ??
+    shot.type
+  );
+
+
+  if(type.includes("one timer") ||
+     type.includes("onetimer")){
+    xg *= 1.18;
+  }
+
+  if(type.includes("backhand")){
+    xg *= 1.06;
+  }
+
+  if(type.includes("slap")){
+    xg *= 1.04;
+  }
+
+
+  if(
+    shotBoolean(shot.rush) ||
+    normalize(shot.situation).includes("rush")
+  ){
+    xg *= 1.08;
+  }
+
+
+  if(shotIsRebound(shot)){
+    xg *= 1.25;
+  }
+
+
+  if(
+    shotBoolean(shot.screened) ||
+    shotBoolean(shot.screen)
+  ){
+    xg *= 1.10;
+  }
+
+
+  if(
+    shotBoolean(shot.breakaway) ||
+    normalize(shot.situation).includes("breakaway")
+  ){
+    xg *= 1.75;
+  }
+
+
+  if(shotBoolean(shot.cross_ice)){
+    xg *= 1.15;
+  }
+
+
+  return Math.max(
+    .003,
+    Math.min(.75,xg)
+  );
+}
+
+
+function shotGrade(xg){
+
+  if(xg >= .25) return "A+";
+  if(xg >= .12) return "A";
+  if(xg >= .045) return "B";
+
+  return "C";
+}
+
+
+function shotDanger(xg){
+
+  if(xg >= .25) return "High";
+  if(xg >= .12) return "Medium-High";
+  if(xg >= .045) return "Medium";
+
+  return "Low";
+}
+
+
+function calculateAdvancedForShots(list){
+
+  let totalXG = 0;
+  let goals = 0;
+
+  const grades = {
+    "A+":0,
+    "A":0,
+    "B":0,
+    "C":0
+  };
+
+  list.forEach(shot=>{
+
+    const xg = calculateShotXG(shot);
+
+    totalXG += xg;
+
+    if(isGoal(shot)){
+      goals++;
+    }
+
+    grades[shotGrade(xg)]++;
+
+  });
+
+
+  const shotsCount = list.length;
+  const saves = shotsCount - goals;
+
+  const actualSV =
+    shotsCount > 0
+      ? saves / shotsCount
+      : 0;
+
+  const expectedSV =
+    shotsCount > 0
+      ? 1 - totalXG / shotsCount
+      : 0;
+
+
+  return {
+    shots:shotsCount,
+    goals,
+    saves,
+    xGA:totalXG,
+    actualSV,
+    expectedSV,
+    gsax:totalXG-goals,
+    grades
+  };
+}
+
+
+/* =========================================================
+   CHART HELPERS
+========================================================= */
+
+function makeChart(id,config){
+
+  if(charts[id]){
+    charts[id].destroy();
+  }
+
+  const canvas = document.getElementById(id);
+
+  if(!canvas) return;
+
+  charts[id] = new Chart(
+    canvas.getContext("2d"),
+    config
+  );
+}
+
+
+function chartOptions(){
+
+  return {
+    responsive:true,
+    maintainAspectRatio:false,
+
+    plugins:{
+      legend:{
+        labels:{
+          color:"#a9c4b3"
+        }
+      }
+    },
+
+    scales:{
+      x:{
+        ticks:{
+          color:"#8fa99a"
+        },
+        grid:{
+          color:"rgba(80,130,100,.12)"
+        }
+      },
+
+      y:{
+        ticks:{
+          color:"#8fa99a"
+        },
+        grid:{
+          color:"rgba(80,130,100,.12)"
+        }
+      }
+    }
+  };
+}
+
+
+function percentageScale(values){
+
+  const clean = values
+    .map(Number)
+    .filter(Number.isFinite);
+
+  if(!clean.length){
     return {
-      p,
-      sa,
-      saves,
-      ga,
-      min,
-      advanced
+      min:50,
+      max:100
+    };
+  }
+
+  const min =
+    Math.floor(Math.min(...clean)-3);
+
+  const max =
+    Math.ceil(Math.max(...clean)+3);
+
+  return {
+    min:Math.max(50,min),
+    max:Math.min(100,max)
+  };
+}
+
+
+function countScale(values){
+
+  const clean = values
+    .map(Number)
+    .filter(Number.isFinite);
+
+  const max =
+    clean.length
+      ? Math.max(...clean)
+      : 3;
+
+  return {
+    min:0,
+    max:Math.max(3,Math.ceil(max+1)),
+    ticks:{
+      stepSize:1
+    }
+  };
+}
+
+
+function gsaxScale(values){
+
+  const clean = values
+    .map(Number)
+    .filter(Number.isFinite);
+
+  const largest =
+    clean.length
+      ? Math.max(...clean.map(Math.abs))
+      : 1;
+
+  const bound =
+    Math.max(1,Math.ceil(largest+1));
+
+  return {
+    min:-bound,
+    max:bound
+  };
+}
+
+
+/* =========================================================
+   GAME HELPERS
+========================================================= */
+
+function gameDate(game){
+
+  return (
+    game.date ??
+    game.game_date ??
+    game.gameDate ??
+    ""
+  );
+}
+
+
+function gameOpponent(game){
+
+  return (
+    game.opponent ??
+    game.opponent_name ??
+    game.team ??
+    "Opponent"
+  );
+}
+
+
+function gameResult(game){
+
+  return (
+    game.result ??
+    game.outcome ??
+    ""
+  );
+}
+
+
+function gameMinutes(game){
+
+  return num(
+    game.minutes ??
+    game.min ??
+    game.time ??
+    60
+  );
+}
+
+
+function gameShots(game){
+
+  return num(
+    game.shots_against ??
+    game.shotsAgainst ??
+    game.sa ??
+    game.shots
+  );
+}
+
+
+function gameGoals(game){
+
+  return num(
+    game.goals_against ??
+    game.goalsAgainst ??
+    game.ga ??
+    game.goals
+  );
+}
+
+
+function gameSaves(game){
+
+  const saves =
+    game.saves ??
+    game.sv ??
+    game.saves_made;
+
+  if(saves !== undefined && saves !== null){
+    return num(saves);
+  }
+
+  return Math.max(
+    0,
+    gameShots(game)-gameGoals(game)
+  );
+}
+
+
+function gameId(game){
+
+  return game.id;
+}
+
+
+/* =========================================================
+   REBOUND CONTROL
+========================================================= */
+
+/*
+  IMPORTANT:
+
+  These are the ACTUAL Supabase columns.
+
+  Glove:
+    glove_caught
+    glove_rebound
+    glove_goal
+
+  Blocker:
+    blocker_good
+    blocker_bad
+    blocker_goal
+
+  Body:
+    midsection_good
+    midsection_bad
+    midsection_goal
+
+  Pad / Stick:
+    pad_stick_good
+    pad_stick_bad
+    pad_stick_goal
+
+  Good vs Bad is based ONLY on these control columns.
+  Goal location is NOT mixed into this comparison.
+*/
+
+
+function controlNumber(value){
+
+  if(value === null || value === undefined){
+    return 0;
+  }
+
+  if(typeof value === "number"){
+    return value;
+  }
+
+  const v = normalize(value);
+
+  if(
+    v === "" ||
+    v === "false" ||
+    v === "no" ||
+    v === "n"
+  ){
+    return 0;
+  }
+
+  if(
+    v === "true" ||
+    v === "yes" ||
+    v === "y"
+  ){
+    return 1;
+  }
+
+  const n = Number(value);
+
+  if(Number.isFinite(n)){
+    return n;
+  }
+
+  return 0;
+}
+
+
+function controlData(){
+
+  const directions = [
+
+    {
+      name:"Glove",
+      caught:"glove_caught",
+      good:"glove_caught",
+      bad:"glove_rebound",
+      goal:"glove_goal"
+    },
+
+    {
+      name:"Blocker",
+      good:"blocker_good",
+      bad:"blocker_bad",
+      goal:"blocker_goal"
+    },
+
+    {
+      name:"Body",
+      good:"midsection_good",
+      bad:"midsection_bad",
+      goal:"midsection_goal"
+    },
+
+    {
+      name:"Pad / Stick",
+      good:"pad_stick_good",
+      bad:"pad_stick_bad",
+      goal:"pad_stick_goal"
+    }
+
+  ];
+
+
+  const output = {};
+
+
+  directions.forEach(direction=>{
+
+    let good = 0;
+    let bad = 0;
+    let goals = 0;
+
+    seasonShots.forEach(shot=>{
+
+      const goodValue =
+        controlNumber(shot[direction.good]);
+
+      const badValue =
+        controlNumber(shot[direction.bad]);
+
+      const goalValue =
+        controlNumber(shot[direction.goal]);
+
+
+      good += goodValue;
+      bad += badValue;
+      goals += goalValue;
+
+    });
+
+
+    const events = good + bad;
+
+    output[direction.name] = {
+      good,
+      bad,
+      events,
+      goals
     };
 
   });
 
-  const validPeriods=data.filter(
-    x=>x.sa>0
-  );
 
-  let bestPeriod=null;
+  return output;
+}
 
-  if(validPeriods.length){
 
-    bestPeriod=[...validPeriods].sort(
-      (a,b)=>{
+function renderControl(){
 
-        const aScore=
-          (a.saves/a.sa*100)+
-          (a.advanced.gsax*5);
+  const data = controlData();
 
-        const bScore=
-          (b.saves/b.sa*100)+
-          (b.advanced.gsax*5);
 
-        return bScore-aScore;
+  let totalGood = 0;
+  let totalBad = 0;
+  let totalGoals = 0;
 
-      }
-    )[0];
 
-  }
+  Object.values(data).forEach(x=>{
 
-  document.getElementById(
-    'periodOverview'
-  ).innerHTML=
+    totalGood += x.good;
+    totalBad += x.bad;
+    totalGoals += x.goals;
 
-    data.map(x=>{
+  });
 
-      const sv=
-        x.sa
-          ? x.saves/x.sa*100
-          : null;
 
-      const isBest=
-        bestPeriod &&
-        bestPeriod.p===x.p;
+  const totalEvents =
+    totalGood + totalBad;
+
+
+  const goodPct =
+    totalEvents > 0
+      ? totalGood / totalEvents * 100
+      : 0;
+
+
+  const badPct =
+    totalEvents > 0
+      ? totalBad / totalEvents * 100
+      : 0;
+
+
+  document.getElementById("controlOverview").innerHTML = `
+
+    <div class="hero">
+      <div class="label">Total Rebound-Control Events</div>
+      <div class="value">${totalEvents}</div>
+    </div>
+
+    <div class="hero">
+      <div class="label">Good Rebound %</div>
+      <div class="value">${goodPct.toFixed(1)}%</div>
+    </div>
+
+    <div class="hero">
+      <div class="label">Bad Rebound %</div>
+      <div class="value">${badPct.toFixed(1)}%</div>
+    </div>
+
+  `;
+
+
+  document.getElementById("controlCards").innerHTML =
+    Object.entries(data).map(([name,x])=>{
+
+      const goodPercent =
+        x.events > 0
+          ? x.good/x.events*100
+          : 0;
+
+      const badPercent =
+        x.events > 0
+          ? x.bad/x.events*100
+          : 0;
 
       return `
 
-        <div class="period-hero ${isBest?'best':''}">
+        <div class="control-card">
 
-          ${
-            isBest
-              ? `<div class="best-label">Best Period</div>`
-              : ''
-          }
+          <h3>${name}</h3>
 
-          <div class="period-number">
-            Period
+          <div class="control-row">
+            <span class="control-label">Good</span>
+            <span class="control-value good">${x.good}</span>
           </div>
 
-          <div class="period-name">
-            ${x.p}
+          <div class="control-row">
+            <span class="control-label">Bad</span>
+            <span class="control-value bad">${x.bad}</span>
           </div>
 
-          <div class="period-main-stat">
-            ${sv!==null?sv.toFixed(1)+'%':'—'}
+          <div class="control-row">
+            <span class="control-label">Total Events</span>
+            <span class="control-value">${x.events}</span>
           </div>
 
-          <div class="period-main-label">
-            Save Percentage
+          <div class="control-row">
+            <span class="control-label">Good %</span>
+            <span class="control-value">${goodPercent.toFixed(1)}%</span>
           </div>
 
-          <div class="period-mini-stats">
+          <div class="control-row">
+            <span class="control-label">Bad %</span>
+            <span class="control-value">${badPercent.toFixed(1)}%</span>
+          </div>
 
-            <div class="period-mini-stat">
-              <span>Shots</span>
-              <strong>${x.sa}</strong>
-            </div>
-
-            <div class="period-mini-stat">
-              <span>Goals</span>
-              <strong>${x.ga}</strong>
-            </div>
-
-            <div class="period-mini-stat">
-              <span>xGA</span>
-              <strong>
-                ${
-                  x.advanced.shots
-                    ? x.advanced.xGA.toFixed(2)
-                    : '—'
-                }
-              </strong>
-            </div>
-
-            <div class="period-mini-stat">
-              <span>GSAx</span>
-              <strong class="${
-                x.advanced.shots
-                  ? x.advanced.gsax>=0
-                    ? 'positive'
-                    : 'negative'
-                  : ''
-              }">
-
-                ${
-                  x.advanced.shots
-                    ? x.advanced.gsax.toFixed(2)
-                    : '—'
-                }
-
-              </strong>
-            </div>
-
+          <div class="control-row">
+            <span class="control-label">Goals</span>
+            <span class="control-value">${x.goals}</span>
           </div>
 
         </div>
 
       `;
 
-    }).join('');
+    }).join("");
 
 
-  const metrics=[
+  document.getElementById("controlComparison").innerHTML = `
 
-    {
-      label:'Shots Against',
-      values:data.map(x=>x.sa),
-      better:'low'
+    <tr>
+      <td><strong>Good</strong></td>
+      <td>${totalGood}</td>
+      <td>${goodPct.toFixed(1)}%</td>
+      <td>—</td>
+      <td>—</td>
+    </tr>
+
+    <tr>
+      <td><strong>Bad</strong></td>
+      <td>${totalBad}</td>
+      <td>${badPct.toFixed(1)}%</td>
+      <td>—</td>
+      <td>—</td>
+    </tr>
+
+  `;
+
+
+  makeChart("goodBadChart",{
+
+    type:"bar",
+
+    data:{
+      labels:["Good Rebounds","Bad Rebounds"],
+
+      datasets:[{
+        label:"Rebound Events",
+        data:[totalGood,totalBad],
+        borderWidth:1
+      }]
     },
 
-    {
-      label:'Saves',
-      values:data.map(x=>x.saves),
-      better:'high'
-    },
+    options:{
+      ...chartOptions(),
 
-    {
-      label:'Goals Against',
-      values:data.map(x=>x.ga),
-      better:'low'
-    },
+      scales:{
+        ...chartOptions().scales,
 
-    {
-      label:'SV%',
-      values:data.map(x=>
-        x.sa
-          ? x.saves/x.sa*100
-          : null
-      ),
-      better:'high',
-      suffix:'%'
-    },
-
-    {
-      label:'GAA',
-      values:data.map(x=>
-        x.min
-          ? x.ga/x.min*60
-          : null
-      ),
-      better:'low'
-    },
-
-    {
-      label:'Shots / 60',
-      values:data.map(x=>
-        x.min
-          ? x.sa/x.min*60
-          : null
-      ),
-      better:'low'
-    },
-
-    {
-      label:'Tracked Shots',
-      values:data.map(x=>x.advanced.shots),
-      better:'neutral'
-    },
-
-    {
-      label:'xGA',
-      values:data.map(x=>
-        x.advanced.shots
-          ? x.advanced.xGA
-          : null
-      ),
-      better:'low'
-    },
-
-    {
-      label:'Expected SV%',
-      values:data.map(x=>
-        x.advanced.shots
-          ? x.advanced.expectedSV*100
-          : null
-      ),
-      better:'high',
-      suffix:'%'
-    },
-
-    {
-      label:'GSAx',
-      values:data.map(x=>
-        x.advanced.shots
-          ? x.advanced.gsax
-          : null
-      ),
-      better:'high'
+        y:countScale([
+          totalGood,
+          totalBad
+        ])
+      }
     }
 
-  ];
+  });
 
-  document.getElementById(
-    'periodComparisonBody'
-  ).innerHTML=
 
-    metrics.map(metric=>{
+  const directionLabels =
+    Object.keys(data);
 
-      const valid=metric.values.filter(
-        v=>v!==null
-      );
+  const goodValues =
+    directionLabels.map(x=>data[x].good);
 
-      let best=null;
+  const badValues =
+    directionLabels.map(x=>data[x].bad);
 
-      if(
-        metric.better!=='neutral' &&
-        valid.length
-      ){
 
-        best=
-          metric.better==='high'
-            ? Math.max(...valid)
-            : Math.min(...valid);
+  makeChart("controlGoalsChart",{
 
+    type:"bar",
+
+    data:{
+      labels:directionLabels,
+
+      datasets:[
+        {
+          label:"Good",
+          data:goodValues,
+          borderWidth:1
+        },
+        {
+          label:"Bad",
+          data:badValues,
+          borderWidth:1
+        }
+      ]
+    },
+
+    options:{
+      ...chartOptions(),
+
+      scales:{
+        ...chartOptions().scales,
+
+        y:countScale([
+          ...goodValues,
+          ...badValues
+        ])
       }
+    }
+
+  });
+
+
+  /*
+    Goal-location section remains independent.
+
+    We intentionally do NOT pull goal-location values
+    into the Good vs Bad comparison.
+  */
+
+  renderGoalLocation();
+
+}
+
+
+/* =========================================================
+   GOAL LOCATION
+========================================================= */
+
+function renderGoalLocation(){
+
+  /*
+    The exact goal-location column was not part of the
+    confirmed Supabase schema, so this safely checks common
+    existing names instead of inventing one.
+  */
+
+  const locationCounts = {};
+
+
+  seasonShots.forEach(shot=>{
+
+    const location =
+      shot.goal_location ??
+      shot.goalLocation ??
+      shot.location ??
+      shot.shot_location ??
+      null;
+
+
+    if(!location) return;
+
+    const key = String(location).trim();
+
+    if(!key) return;
+
+    if(isGoal(shot)){
+
+      locationCounts[key] =
+        (locationCounts[key] || 0) + 1;
+
+    }
+
+  });
+
+
+  const labels =
+    Object.keys(locationCounts);
+
+  const values =
+    labels.map(x=>locationCounts[x]);
+
+
+  makeChart("goalLocationChart",{
+
+    type:"bar",
+
+    data:{
+      labels,
+
+      datasets:[{
+        label:"Goals",
+        data:values,
+        borderWidth:1
+      }]
+    },
+
+    options:{
+      ...chartOptions(),
+
+      scales:{
+        ...chartOptions().scales,
+
+        y:countScale(values)
+      }
+    }
+
+  });
+
+}
+
+
+/* =========================================================
+   OVERVIEW
+========================================================= */
+
+function seasonStats(){
+
+  const gp = seasonGames.length;
+
+  const sa =
+    seasonGames.reduce(
+      (a,g)=>a+gameShots(g),0
+    );
+
+  const ga =
+    seasonGames.reduce(
+      (a,g)=>a+gameGoals(g),0
+    );
+
+  const saves =
+    seasonGames.reduce(
+      (a,g)=>a+gameSaves(g),0
+    );
+
+  const minutes =
+    seasonGames.reduce(
+      (a,g)=>a+gameMinutes(g),0
+    );
+
+
+  const wins =
+    seasonGames.filter(g=>
+      normalize(gameResult(g)) === "w"
+    ).length;
+
+
+  const losses =
+    seasonGames.filter(g=>
+      normalize(gameResult(g)) === "l"
+    ).length;
+
+
+  const otl =
+    seasonGames.filter(g=>
+      normalize(gameResult(g)) === "otl"
+    ).length;
+
+
+  const advanced =
+    calculateAdvancedForShots(seasonShots);
+
+
+  return {
+    gp,
+    sa,
+    ga,
+    saves,
+    minutes,
+    wins,
+    losses,
+    otl,
+    advanced
+  };
+}
+
+
+function renderOverview(){
+
+  const s = seasonStats();
+
+
+  document.getElementById("overviewCards").innerHTML = `
+
+    ${card("GP",s.gp)}
+
+    ${card("SV%",pct(s.saves,s.sa))}
+
+    ${card(
+      "GAA",
+      s.minutes > 0
+        ? (s.ga*60/s.minutes).toFixed(2)
+        : "—"
+    )}
+
+    ${card(
+      "Record",
+      `${s.wins}-${s.losses}-${s.otl}`
+    )}
+
+    ${card("Shots Against",s.sa)}
+
+    ${card("Saves",s.saves)}
+
+    ${card("Goals Against",s.ga)}
+
+    ${card(
+      "Shots Against / 60",
+      s.minutes > 0
+        ? calculatePer60(s.sa,s.minutes).toFixed(1)
+        : "—"
+    )}
+
+  `;
+
+
+  const a = s.advanced;
+
+
+  document.getElementById("heroMetrics").innerHTML = `
+
+    <div class="hero">
+      <div class="label">Goals Saved Above Expected</div>
+      <div class="value">${a.gsax.toFixed(2)}</div>
+    </div>
+
+    <div class="hero">
+      <div class="label">Expected Save Percentage</div>
+      <div class="value">${(a.expectedSV*100).toFixed(1)}%</div>
+    </div>
+
+    <div class="hero">
+      <div class="label">GSAx / 60</div>
+      <div class="value">${
+        s.minutes > 0
+          ? calculatePer60(a.gsax,s.minutes).toFixed(2)
+          : "—"
+      }</div>
+    </div>
+
+  `;
+
+
+  document.getElementById("advancedCards").innerHTML = `
+
+    ${card("xGA",a.xGA.toFixed(2))}
+
+    ${card(
+      "Expected SV%",
+      `${(a.expectedSV*100).toFixed(1)}%`
+    )}
+
+    ${card("GSAx",a.gsax.toFixed(2))}
+
+    ${card(
+      "GSAx / 60",
+      s.minutes > 0
+        ? calculatePer60(a.gsax,s.minutes).toFixed(2)
+        : "—"
+    )}
+
+    ${card(
+      "xGA / 60",
+      s.minutes > 0
+        ? calculatePer60(a.xGA,s.minutes).toFixed(2)
+        : "—"
+    )}
+
+    ${card("Tracked Shots",a.shots)}
+
+    ${card(
+      "High-Danger Shots",
+      a.grades["A+"] + a.grades["A"]
+    )}
+
+    ${card("Goals on Tracked Shots",a.goals)}
+
+  `;
+
+
+  renderOverviewCharts(s);
+  renderRecentGames();
+}
+
+
+function renderOverviewCharts(s){
+
+  const grades =
+    ["A+","A","B","C"];
+
+
+  makeChart("gradeChart",{
+
+    type:"bar",
+
+    data:{
+      labels:grades,
+
+      datasets:[{
+        label:"Shots",
+        data:grades.map(
+          g=>s.advanced.grades[g]
+        ),
+        borderWidth:1
+      }]
+    },
+
+    options:{
+      ...chartOptions(),
+
+      scales:{
+        ...chartOptions().scales,
+
+        y:countScale(
+          grades.map(g=>s.advanced.grades[g])
+        )
+      }
+    }
+
+  });
+
+
+  const gameSv =
+    seasonGames.map(g=>
+      pctNum(
+        gameSaves(g),
+        gameShots(g)
+      )
+    );
+
+
+  makeChart("svDistributionChart",{
+
+    type:"bar",
+
+    data:{
+      labels:seasonGames.map(
+        (_,i)=>`Game ${i+1}`
+      ),
+
+      datasets:[{
+        label:"SV%",
+        data:gameSv,
+        borderWidth:1
+      }]
+    },
+
+    options:{
+      ...chartOptions(),
+
+      scales:{
+        ...chartOptions().scales,
+
+        y:{
+          ...percentageScale(gameSv),
+          ticks:{
+            color:"#8fa99a",
+            callback:value=>`${value}%`
+          }
+        }
+      }
+    }
+
+  });
+
+
+  const goalGrades =
+    grades.map(g=>
+      seasonShots.filter(
+        shot =>
+          isGoal(shot) &&
+          shotGrade(calculateShotXG(shot)) === g
+      ).length
+    );
+
+
+  makeChart("goalsGradeChart",{
+
+    type:"bar",
+
+    data:{
+      labels:grades,
+
+      datasets:[{
+        label:"Goals",
+        data:goalGrades,
+        borderWidth:1
+      }]
+    },
+
+    options:{
+      ...chartOptions(),
+
+      scales:{
+        ...chartOptions().scales,
+
+        y:countScale(goalGrades)
+      }
+    }
+
+  });
+
+
+  const gaaValues =
+    seasonGames.map(g=>{
+      const mins = gameMinutes(g);
+
+      return mins > 0
+        ? gameGoals(g)*60/mins
+        : 0;
+    });
+
+
+  makeChart("gaaDistributionChart",{
+
+    type:"bar",
+
+    data:{
+      labels:seasonGames.map(
+        (_,i)=>`Game ${i+1}`
+      ),
+
+      datasets:[{
+        label:"GAA",
+        data:gaaValues,
+        borderWidth:1
+      }]
+    },
+
+    options:chartOptions()
+
+  });
+
+
+  let homeShots=0;
+  let homeSaves=0;
+  let awayShots=0;
+  let awaySaves=0;
+
+
+  seasonGames.forEach(g=>{
+
+    const ha = normalize(
+      g.home_away ??
+      g.homeaway ??
+      g.ha ??
+      ""
+    );
+
+    if(
+      ha === "home" ||
+      ha === "h"
+    ){
+      homeShots += gameShots(g);
+      homeSaves += gameSaves(g);
+    }
+    else{
+      awayShots += gameShots(g);
+      awaySaves += gameSaves(g);
+    }
+
+  });
+
+
+  makeChart("homeAwayChart",{
+
+    type:"bar",
+
+    data:{
+      labels:["Home","Away"],
+
+      datasets:[{
+        label:"SV%",
+        data:[
+          pctNum(homeSaves,homeShots),
+          pctNum(awaySaves,awayShots)
+        ],
+        borderWidth:1
+      }]
+    },
+
+    options:{
+      ...chartOptions(),
+
+      scales:{
+        ...chartOptions().scales,
+
+        y:{
+          ...percentageScale([
+            pctNum(homeSaves,homeShots),
+            pctNum(awaySaves,awayShots)
+          ]),
+          ticks:{
+            color:"#8fa99a",
+            callback:value=>`${value}%`
+          }
+        }
+      }
+    }
+
+  });
+
+
+  const labels =
+    seasonGames.map(
+      (_,i)=>`Game ${i+1}`
+    );
+
+
+  const svValues =
+    seasonGames.map(g=>
+      pctNum(
+        gameSaves(g),
+        gameShots(g)
+      )
+    );
+
+
+  const gaa =
+    seasonGames.map(g=>
+      gameMinutes(g) > 0
+        ? gameGoals(g)*60/gameMinutes(g)
+        : 0
+    );
+
+
+  makeChart("svTrendChart",{
+
+    type:"line",
+
+    data:{
+      labels,
+
+      datasets:[{
+        label:"SV%",
+        data:svValues,
+        tension:.25,
+        borderWidth:2
+      }]
+    },
+
+    options:{
+      ...chartOptions(),
+
+      scales:{
+        ...chartOptions().scales,
+
+        y:{
+          ...percentageScale(svValues),
+          ticks:{
+            color:"#8fa99a",
+            callback:value=>`${value}%`
+          }
+        }
+      }
+    }
+
+  });
+
+
+  makeChart("gaaTrendChart",{
+
+    type:"line",
+
+    data:{
+      labels,
+
+      datasets:[{
+        label:"GAA",
+        data:gaa,
+        tension:.25,
+        borderWidth:2
+      }]
+    },
+
+    options:chartOptions()
+
+  });
+
+
+  const xgaValues =
+    seasonGames.map(g=>{
+
+      const rows =
+        seasonShots.filter(
+          s=>String(s.game_id) === String(g.id)
+        );
+
+      return calculateAdvancedForShots(rows).xGA;
+
+    });
+
+
+  const gsaxValues =
+    seasonGames.map(g=>{
+
+      const rows =
+        seasonShots.filter(
+          s=>String(s.game_id) === String(g.id)
+        );
+
+      return calculateAdvancedForShots(rows).gsax;
+
+    });
+
+
+  makeChart("xgaTrendChart",{
+
+    type:"line",
+
+    data:{
+      labels,
+
+      datasets:[{
+        label:"xGA",
+        data:xgaValues,
+        tension:.25,
+        borderWidth:2
+      }]
+    },
+
+    options:chartOptions()
+
+  });
+
+
+  makeChart("gsaxTrendChart",{
+
+    type:"bar",
+
+    data:{
+      labels,
+
+      datasets:[{
+        label:"GSAx",
+        data:gsaxValues,
+        borderWidth:1
+      }]
+    },
+
+    options:{
+      ...chartOptions(),
+
+      scales:{
+        ...chartOptions().scales,
+
+        y:gsaxScale(gsaxValues)
+      }
+    }
+
+  });
+
+
+  const overallSV =
+    pctNum(s.saves,s.sa);
+
+
+  const expected =
+    s.advanced.expectedSV*100;
+
+
+  document.getElementById("performanceSummary").innerHTML = `
+
+    <div class="insight">
+      <h3>Overall Performance</h3>
+      <p>
+        Current save percentage is
+        <strong>${overallSV.toFixed(1)}%</strong>
+        across ${s.sa} shots.
+      </p>
+    </div>
+
+    <div class="insight">
+      <h3>Shot Quality</h3>
+      <p>
+        The tracked sample has an expected save percentage of
+        <strong>${expected.toFixed(1)}%</strong>.
+      </p>
+    </div>
+
+    <div class="insight">
+      <h3>Workload</h3>
+      <p>
+        Average workload is
+        <strong>${
+          s.minutes > 0
+            ? calculatePer60(s.sa,s.minutes).toFixed(1)
+            : "—"
+        }</strong>
+        shots against per 60 minutes.
+      </p>
+    </div>
+
+    <div class="insight">
+      <h3>Expected vs Actual SV%</h3>
+      <p>
+        Actual SV% is
+        <strong>${overallSV.toFixed(1)}%</strong>
+        compared with
+        <strong>${expected.toFixed(1)}%</strong>
+        expected.
+      </p>
+    </div>
+
+  `;
+}
+
+
+/* =========================================================
+   RECENT GAMES
+========================================================= */
+
+function renderRecentGames(){
+
+  const recent =
+    seasonGames.slice(-5).reverse();
+
+
+  document.getElementById("recentGames").innerHTML =
+    recent.map(g=>{
+
+      const rows =
+        seasonShots.filter(
+          s=>String(s.game_id) === String(g.id)
+        );
+
+      const a =
+        calculateAdvancedForShots(rows);
+
+      const mins =
+        gameMinutes(g);
 
       return `
 
         <tr>
 
-          <td>${metric.label}</td>
+          <td>${gameDate(g) || "Game"}</td>
 
-          ${metric.values.map(v=>{
+          <td>${gameOpponent(g)}</td>
 
-            if(v===null){
-              return '<td>—</td>';
-            }
+          <td>${resultBadge(gameResult(g))}</td>
 
-            const display=
-              metric.suffix
-                ? v.toFixed(1)+metric.suffix
-                : metric.label==='GAA'
-                  ? v.toFixed(2)
-                  : metric.label==='Shots / 60'
-                    ? v.toFixed(1)
-                    : metric.label==='xGA'
-                      ? v.toFixed(2)
-                      : metric.label==='GSAx'
-                        ? v.toFixed(2)
-                        : v;
+          <td>${gameGoals(g)} GA</td>
 
-            const isBest=
-              metric.better!=='neutral' &&
-              Math.abs(v-best)<0.0001;
+          <td>${gameShots(g)}</td>
 
-            return `
+          <td>${gameGoals(g)}</td>
 
-              <td class="${
-                isBest
-                  ? 'best-cell'
-                  : ''
-              }">
+          <td>${pct(
+            gameSaves(g),
+            gameShots(g)
+          )}</td>
 
-                ${display}
+          <td>${a.xGA.toFixed(2)}</td>
 
-              </td>
+          <td>${a.gsax.toFixed(2)}</td>
 
-            `;
-
-          }).join('')}
+          <td>${
+            mins > 0
+              ? calculatePer60(a.gsax,mins).toFixed(2)
+              : "—"
+          }</td>
 
         </tr>
 
       `;
 
-    }).join('');
-
-
-  const expectedSVData=
-    data.map(x=>
-      x.advanced.shots
-        ? Number(
-            (
-              x.advanced.expectedSV*100
-            ).toFixed(1)
-          )
-        : null
-    );
-
-  const actualSVData=
-    data.map(x=>
-      x.sa
-        ? Number(
-            (
-              x.saves/x.sa*100
-            ).toFixed(1)
-          )
-        : null
-    );
-
-  const periodSVScale=
-    percentageScale([
-      ...expectedSVData,
-      ...actualSVData
-    ]);
-
-  makeChart(
-    'periodChart',
-    {
-
-      type:'line',
-
-      data:{
-
-        labels:[
-          '1st Period',
-          '2nd Period',
-          '3rd Period'
-        ],
-
-        datasets:[
-
-          {
-            label:'Expected SV%',
-            data:expectedSVData,
-            tension:.3,
-            spanGaps:true
-          },
-
-          {
-            label:'Actual SV%',
-            data:actualSVData,
-            tension:.3,
-            spanGaps:true
-          }
-
-        ]
-
-      },
-
-      options:{
-
-        ...chartOptions(),
-
-        scales:{
-
-          x:chartOptions().scales.x,
-
-          y:{
-
-            min:periodSVScale.min,
-            max:periodSVScale.max,
-
-            ticks:{
-              color:'#8faf9a',
-              callback:value=>value+'%'
-            },
-
-            grid:{
-              color:'#173b27'
-            }
-
-          }
-
-        }
-
-      }
-
-    }
-
-  );
-
-
-  const periodGsaxValues=
-    data.map(x=>
-      x.advanced.shots
-        ? Number(
-            x.advanced.gsax.toFixed(2)
-          )
-        : null
-    );
-
-  makeChart(
-    'periodGsaxChart',
-    {
-
-      type:'bar',
-
-      data:{
-
-        labels:[
-          '1st Period',
-          '2nd Period',
-          '3rd Period'
-        ],
-
-        datasets:[{
-          label:'GSAx',
-          data:periodGsaxValues
-        }]
-
-      },
-
-      options:{
-
-        ...chartOptions(),
-
-        plugins:{
-          legend:{display:false}
-        },
-
-        scales:{
-
-          x:chartOptions().scales.x,
-
-          y:{
-            ...gsaxScale(periodGsaxValues),
-
-            grid:{
-              color:'#173b27'
-            }
-          }
-
-        }
-
-      }
-
-    }
-
-  );
-
-
-  const highestWorkload=
-    [...data]
-      .filter(x=>x.sa>0)
-      .sort((a,b)=>b.sa-a.sa)[0];
-
-  const bestSV=
-    [...data]
-      .filter(x=>x.sa>0)
-      .sort(
-        (a,b)=>
-          (b.saves/b.sa)-
-          (a.saves/a.sa)
-      )[0];
-
-  const bestGSAx=
-    [...data]
-      .filter(x=>x.advanced.shots)
-      .sort(
-        (a,b)=>
-          b.advanced.gsax-
-          a.advanced.gsax
-      )[0];
-
-  document.getElementById(
-    'periodInsights'
-  ).innerHTML=`
-
-    <div class="period-insight">
-
-      <h3>Workload</h3>
-
-      <p>
-        ${
-          highestWorkload
-            ? `The highest shot volume came in the
-               <strong>${highestWorkload.p}</strong> period with
-               <strong>${highestWorkload.sa}</strong> shots against.`
-            : 'Not enough period data yet.'
-        }
-      </p>
-
-    </div>
-
-    <div class="period-insight">
-
-      <h3>Efficiency</h3>
-
-      <p>
-        ${
-          bestSV
-            ? `The strongest traditional save percentage came in the
-               <strong>${bestSV.p}</strong> period at
-               <strong>${(bestSV.saves/bestSV.sa*100).toFixed(1)}%</strong>.`
-            : 'Not enough period data yet.'
-        }
-      </p>
-
-    </div>
-
-    <div class="period-insight">
-
-      <h3>Shot-Quality Performance</h3>
-
-      <p>
-        ${
-          bestGSAx
-            ? `The strongest performance relative to shot quality came in
-               the <strong>${bestGSAx.p}</strong> period with
-               <strong>${bestGSAx.advanced.gsax.toFixed(2)} GSAx</strong>.`
-            : 'Not enough tracked shot data yet.'
-        }
-      </p>
-
-    </div>
-
-    <div class="period-insight">
-
-      <h3>Reading the Data</h3>
-
-      <p>
-        Period statistics are most useful when viewed together. A high
-        workload does not necessarily indicate poor performance, while a
-        lower SV% can sometimes reflect a period with significantly more
-        dangerous chances.
-      </p>
-
-    </div>
-
-  `;
-
+    }).join("");
 }
 
 
-/* ==========================================
-   SITUATIONAL HELPERS
-   ========================================== */
+/* =========================================================
+   GAME LOG
+========================================================= */
 
-function situationStats(shots){
+function renderGameLog(){
 
-  const advanced=
-    calculateAdvancedForShots(shots);
+  document.getElementById("gameLog").innerHTML =
+    seasonGames.map(g=>{
 
-  return {
+      const rows =
+        seasonShots.filter(
+          s=>String(s.game_id) === String(g.id)
+        );
 
-    shots:advanced.shots,
+      const a =
+        calculateAdvancedForShots(rows);
 
-    saves:
-      advanced.shots-
-      advanced.goals,
+      const mins =
+        gameMinutes(g);
 
-    goals:advanced.goals,
+      const sv =
+        gameSaves(g);
 
-    sv:
-      advanced.actualSV!==null
-        ? (advanced.actualSV*100).toFixed(1)+'%'
-        : '—',
+      const sa =
+        gameShots(g);
 
-    xGA:
-      advanced.shots
-        ? advanced.xGA.toFixed(2)
-        : '—',
+      const ga =
+        gameGoals(g);
 
-    expectedSV:
-      advanced.shots
-        ? (advanced.expectedSV*100).toFixed(1)+'%'
-        : '—',
-
-    gsax:
-      advanced.shots
-        ? advanced.gsax.toFixed(2)
-        : '—'
-
-  };
-
-}
-
-
-function splitCard(title,shots){
-
-  const s=situationStats(shots);
-
-  return `
-
-    <div class="split-card">
-
-      <h3>${title}</h3>
-
-      <div class="split-stat">
-        <span>Shots</span>
-        <b>${s.shots}</b>
-      </div>
-
-      <div class="split-stat">
-        <span>SV%</span>
-        <b>${s.sv}</b>
-      </div>
-
-      <div class="split-stat">
-        <span>xGA</span>
-        <b>${s.xGA}</b>
-      </div>
-
-      <div class="split-stat">
-        <span>Expected SV%</span>
-        <b>${s.expectedSV}</b>
-      </div>
-
-      <div class="split-stat">
-
-        <span>GSAx</span>
-
-        <b class="${
-          s.shots
-            ? s.gsax>=0
-              ? 'positive'
-              : 'negative'
-            : ''
-        }">
-
-          ${s.gsax}
-
-        </b>
-
-      </div>
-
-    </div>
-
-  `;
-
-}
-
-
-function renderSituational(shots){
-
-  const dangerHigh=shots.filter(
-    s=>getShotGrade(
-      calculateShotXG(s)
-    )==='A+'
-  );
-
-  const dangerA=shots.filter(
-    s=>getShotGrade(
-      calculateShotXG(s)
-    )==='A'
-  );
-
-  const dangerB=shots.filter(
-    s=>getShotGrade(
-      calculateShotXG(s)
-    )==='B'
-  );
-
-  const rush=shots.filter(
-    s=>shotBoolean(s.rush)
-  );
-
-  const setShots=shots.filter(
-    s=>!shotBoolean(s.rush)
-  );
-
-  const rebound=shots.filter(
-    s=>shotBoolean(s.rebound)
-  );
-
-  const screened=shots.filter(
-    s=>shotBoolean(s.screened)
-  );
-
-  const crossIce=shots.filter(
-    s=>shotBoolean(s.cross_ice)
-  );
-
-  const breakaway=shots.filter(
-    s=>shotBoolean(s.breakaway)
-  );
-
-  const oneTimer=shots.filter(
-    s=>{
-
-      const t=normalize(s.shot_type);
-
-      return (
-        t.includes('one timer') ||
-        t.includes('onetimer')
-      );
-
-    }
-  );
-
-  document.getElementById(
-    'dangerSplits'
-  ).innerHTML=
-
-    splitCard(
-      'A+ · Very High Danger',
-      dangerHigh
-    )+
-
-    splitCard(
-      'A · High Danger',
-      dangerA
-    )+
-
-    splitCard(
-      'B · Moderate Danger',
-      dangerB
-    );
-
-
-  document.getElementById(
-    'situationSplits'
-  ).innerHTML=
-
-    splitCard(
-      'Rush Shots',
-      rush
-    )+
-
-    splitCard(
-      'Set / Non-Rush Shots',
-      setShots
-    )+
-
-    splitCard(
-      'Rebound Shots',
-      rebound
-    );
-
-
-  document.getElementById(
-    'shotTypeSplits'
-  ).innerHTML=
-
-    splitCard(
-      'Screened Shots',
-      screened
-    )+
-
-    splitCard(
-      'Cross-Ice Shots',
-      crossIce
-    )+
-
-    splitCard(
-      'Breakaways',
-      breakaway
-    );
-
-
-  const categories=[
-    ['Rush',rush],
-    ['Set',setShots],
-    ['Rebound',rebound],
-    ['Screened',screened],
-    ['Cross-Ice',crossIce],
-    ['Breakaway',breakaway],
-    ['One-Timer',oneTimer]
-  ];
-
-  const situationalValues=
-    categories.map(x=>{
-
-      const s=
-        situationStats(x[1]);
-
-      return s.shots
-        ? Number(
-            s.sv.replace('%','')
-          )
-        : null;
-
-    });
-
-  const situationScale=
-    percentageScale(
-      situationalValues
-    );
-
-  makeChart(
-    'situationalChart',
-    {
-
-      type:'bar',
-
-      data:{
-
-        labels:categories.map(
-          x=>x[0]
-        ),
-
-        datasets:[{
-          label:'SV%',
-          data:situationalValues
-        }]
-
-      },
-
-      options:{
-
-        ...chartOptions(),
-
-        plugins:{
-          legend:{display:false}
-        },
-
-        scales:{
-
-          x:chartOptions().scales.x,
-
-          y:{
-
-            min:situationScale.min,
-            max:situationScale.max,
-
-            ticks:{
-              color:'#8faf9a',
-              callback:value=>value+'%'
-            },
-
-            grid:{
-              color:'#173b27'
-            }
-
-          }
-
-        }
-
-      }
-
-    }
-  );
-
-}
-
-
-/* ==========================================
-   REBOUND CONTROL RENDERING
-   ========================================== */
-
-function renderReboundControl(shots){
-
-  const data=
-    calculateReboundControl(shots);
-
-  const good=data.good;
-  const bad=data.bad;
-
-  const goodPct=
-    good.share!==null
-      ? good.share.toFixed(1)+'%'
-      : '—';
-
-  const badPct=
-    bad.share!==null
-      ? bad.share.toFixed(1)+'%'
-      : '—';
-
-  const controlPct=
-    data.tracked
-      ? good.shots/data.tracked*100
-      : null;
-
-  const badControlPct=
-    data.tracked
-      ? bad.shots/data.tracked*100
-      : null;
-
-
-  /* ========================================
-     SUMMARY CARDS
-     ======================================== */
-
-  document.getElementById(
-    'reboundSummary'
-  ).innerHTML=`
-
-    <div class="rebound-card">
-
-      <div class="rebound-label">
-        Total Rebound Events
-      </div>
-
-      <div class="rebound-number">
-        ${data.tracked}
-      </div>
-
-      <div class="rebound-description">
-        Shots with a recorded goalierebound_control value.
-      </div>
-
-    </div>
-
-    <div class="rebound-card good">
-
-      <div class="rebound-label">
-        Good Rebounds
-      </div>
-
-      <div class="rebound-number positive">
-        ${good.shots}
-      </div>
-
-      <div class="rebound-description">
-        ${goodPct} of tracked rebound-control events.
-      </div>
-
-    </div>
-
-    <div class="rebound-card bad">
-
-      <div class="rebound-label">
-        Bad Rebounds
-      </div>
-
-      <div class="rebound-number negative">
-        ${bad.shots}
-      </div>
-
-      <div class="rebound-description">
-        ${badPct} of tracked rebound-control events.
-      </div>
-
-    </div>
-
-    <div class="rebound-card">
-
-      <div class="rebound-label">
-        Good Rebound %
-      </div>
-
-      <div class="rebound-number">
-        ${
-          controlPct!==null
-            ? controlPct.toFixed(1)+'%'
-            : '—'
-        }
-      </div>
-
-      <div class="rebound-description">
-        Percentage of recorded rebound-control events classified as good.
-      </div>
-
-    </div>
-
-  `;
-
-
-  /* ========================================
-     GOOD VS BAD DETAIL CARDS
-     ======================================== */
-
-  document.getElementById(
-    'reboundComparison'
-  ).innerHTML=`
-
-    <div class="rebound-detail good">
-
-      <h3>Good Rebounds</h3>
-
-      <div class="rebound-stat">
-        <span>Rebounds</span>
-        <strong>${good.shots}</strong>
-      </div>
-
-      <div class="rebound-stat">
-        <span>Share of Events</span>
-        <strong>
-          ${
-            good.share!==null
-              ? good.share.toFixed(1)+'%'
-              : '—'
-          }
-        </strong>
-      </div>
-
-      <div class="rebound-stat">
-        <span>Goals Allowed</span>
-        <strong>${good.goals}</strong>
-      </div>
-
-      <div class="rebound-stat">
-        <span>SV% on These Shots</span>
-        <strong>${good.sv!==null ? good.sv.toFixed(1)+'%' : '—'}</strong>
-      </div>
-
-      <div class="rebound-stat">
-        <span>Saves</span>
-        <strong>${good.saves}</strong>
-      </div>
-
-    </div>
-
-
-    <div class="rebound-detail bad">
-
-      <h3>Bad Rebounds</h3>
-
-      <div class="rebound-stat">
-        <span>Rebounds</span>
-        <strong>${bad.shots}</strong>
-      </div>
-
-      <div class="rebound-stat">
-        <span>Share of Events</span>
-        <strong>
-          ${
-            bad.share!==null
-              ? bad.share.toFixed(1)+'%'
-              : '—'
-          }
-        </strong>
-      </div>
-
-      <div class="rebound-stat">
-        <span>Goals Allowed</span>
-        <strong>${bad.goals}</strong>
-      </div>
-
-      <div class="rebound-stat">
-        <span>SV% on These Shots</span>
-        <strong>${bad.sv!==null ? bad.sv.toFixed(1)+'%' : '—'}</strong>
-      </div>
-
-      <div class="rebound-stat">
-        <span>Saves</span>
-        <strong>${bad.saves}</strong>
-      </div>
-
-    </div>
-
-  `;
-
-
-  /* ========================================
-     COMPARISON TABLE
-     ======================================== */
-
-  document.getElementById(
-    'reboundTableBody'
-  ).innerHTML=`
-
-    <tr>
-      <td>Rebound Events</td>
-      <td>${good.shots}</td>
-      <td>${bad.shots}</td>
-    </tr>
-
-    <tr>
-      <td>Share of Events</td>
-      <td>
-        ${
-          good.share!==null
-            ? good.share.toFixed(1)+'%'
-            : '—'
-        }
-      </td>
-      <td>
-        ${
-          bad.share!==null
-            ? bad.share.toFixed(1)+'%'
-            : '—'
-        }
-      </td>
-    </tr>
-
-    <tr>
-      <td>Goals Allowed</td>
-      <td>${good.goals}</td>
-      <td>${bad.goals}</td>
-    </tr>
-
-    <tr>
-      <td>Saves</td>
-      <td>${good.saves}</td>
-      <td>${bad.saves}</td>
-    </tr>
-
-    <tr>
-      <td>SV%</td>
-
-      <td class="${
-        good.sv!==null
-          ? 'positive'
-          : ''
-      }">
-
-        ${
-          good.sv!==null
-            ? good.sv.toFixed(1)+'%'
-            : '—'
-        }
-
-      </td>
-
-      <td class="${
-        bad.sv!==null
-          ? 'negative'
-          : ''
-      }">
-
-        ${
-          bad.sv!==null
-            ? bad.sv.toFixed(1)+'%'
-            : '—'
-        }
-
-      </td>
-
-    </tr>
-
-  `;
-
-
-  /* ========================================
-     GOOD VS BAD CHART
-     ======================================== */
-
-  const chartValues=[
-
-    good.shots,
-    bad.shots
-
-  ];
-
-  makeChart(
-    'reboundControlChart',
-    {
-
-      type:'bar',
-
-      data:{
-
-        labels:[
-          'Good Rebounds',
-          'Bad Rebounds'
-        ],
-
-        datasets:[
-
-          {
-            label:'Rebound Events',
-            data:chartValues
-          }
-
-        ]
-
-      },
-
-      options:{
-
-        ...chartOptions(),
-
-        plugins:{
-
-          legend:{
-            display:false
-          }
-
-        },
-
-        scales:{
-
-          x:{
-
-            ticks:{
-              color:'#8faf9a'
-            },
-
-            grid:{
-              color:'#173b27'
-            }
-
-          },
-
-          y:countScale(
-            chartValues
-          )
-
-        }
-
-      }
-
-    }
-
-  );
-
-}
-
-
-/* ==========================================
-   INCREMENTAL STATS
-   ========================================== */
-
-function renderIncremental(games){
-
-  const sortedGames=[...games];
-
-  const last5=sortedGames.slice(-5);
-  const last10=sortedGames.slice(-10);
-
-  function getStats(windowGames){
-
-    const SA=windowGames.reduce(
-      (total,g)=>
-        total+num(g.shots_against),
-      0
-    );
-
-    const S=windowGames.reduce(
-      (total,g)=>
-        total+num(g.saves),
-      0
-    );
-
-    const GA=windowGames.reduce(
-      (total,g)=>
-        total+num(g.goals_against),
-      0
-    );
-
-    const MIN=windowGames.reduce(
-      (total,g)=>
-        total+num(g.minutes_played),
-      0
-    );
-
-    const wins=windowGames.filter(
-      g=>
-        String(g.result||'')
-          .trim()
-          .toUpperCase()==='W'
-    ).length;
-
-    const losses=windowGames.filter(
-      g=>
-        String(g.result||'')
-          .trim()
-          .toUpperCase()==='L'
-    ).length;
-
-    const otl=windowGames.filter(
-      g=>
-        String(g.result||'')
-          .trim()
-          .toUpperCase()==='OTL'
-    ).length;
-
-    return {
-
-      svPct:SA
-        ? (S/SA*100).toFixed(1)+'%'
-        : '—',
-
-      gaa:MIN
-        ? (GA/MIN*60).toFixed(2)
-        : '—',
-
-      shotsPer60:MIN
-        ? (SA/MIN*60).toFixed(1)
-        : '—',
-
-      record:`${wins}-${losses}-${otl}`
-
-    };
-
-  }
-
-  function makeCard(title,windowGames){
-
-    if(windowGames.length===0){
 
       return `
 
-        <div class="metric-card">
+        <tr>
 
-          <h3>${title}</h3>
+          <td>${gameDate(g) || "Game"}</td>
 
-          <p>No games available</p>
+          <td>${gameOpponent(g)}</td>
 
-        </div>
+          <td>${
+            normalize(
+              g.home_away ??
+              g.homeaway ??
+              g.ha ??
+              ""
+            ) === "away"
+              ? "A"
+              : "H"
+          }</td>
+
+          <td>${resultBadge(gameResult(g))}</td>
+
+          <td>${ga} GA</td>
+
+          <td>${sa}</td>
+
+          <td>${sv}</td>
+
+          <td>${ga}</td>
+
+          <td>${pct(sv,sa)}</td>
+
+          <td>${
+            mins > 0
+              ? (ga*60/mins).toFixed(2)
+              : "—"
+          }</td>
+
+          <td>${a.xGA.toFixed(2)}</td>
+
+          <td>${(a.expectedSV*100).toFixed(1)}%</td>
+
+          <td>${a.gsax.toFixed(2)}</td>
+
+          <td>${
+            mins > 0
+              ? calculatePer60(a.gsax,mins).toFixed(2)
+              : "—"
+          }</td>
+
+          <td>${mins.toFixed(1)}</td>
+
+          <td>${
+            isShutout(
+              g.shutout ??
+              g.so
+            )
+              ? "SO"
+              : "—"
+          }</td>
+
+        </tr>
 
       `;
 
-    }
-
-    const s=getStats(windowGames);
-
-    return `
-
-      <div class="metric-card">
-
-        <h3>${title}</h3>
-
-        <p>${s.svPct}</p>
-        <small>SV%</small>
-
-        <p>${s.gaa}</p>
-        <small>GAA</small>
-
-        <p>${s.shotsPer60}</p>
-        <small>Shots Against / 60</small>
-
-        <p>${s.record}</p>
-        <small>Record</small>
-
-      </div>
-
-    `;
-
-  }
-
-  document.getElementById(
-    'incrementalCards'
-  ).innerHTML=`
-
-    ${makeCard(
-      'Last 5 Games',
-      last5
-    )}
-
-    ${makeCard(
-      'Last 10 Games',
-      last10
-    )}
-
-  `;
-
+    }).join("");
 }
 
 
-/* ==========================================
-   ROLLING TRENDS
-   ========================================== */
+/* =========================================================
+   PERIOD BREAKDOWN
+========================================================= */
 
-function renderRollingTrends(games,shots){
+function renderPeriods(){
 
-  const container=
-    document.getElementById('rollingTrends');
+  const names =
+    ["1st","2nd","3rd"];
 
-  if(!games.length){
 
-    container.innerHTML='';
+  const data = {};
 
-    return;
 
-  }
+  names.forEach(name=>{
 
-  function getSV(windowGames){
+    const rows =
+      seasonPeriods.filter(
+        p=>normalizePeriod(
+          p.period ??
+          p.period_name
+        ) === name
+      );
 
-    const SA=windowGames.reduce(
-      (total,g)=>
-        total+num(g.shots_against),
-      0
-    );
 
-    const S=windowGames.reduce(
-      (total,g)=>
-        total+num(g.saves),
-      0
-    );
+    const shotsAgainst =
+      rows.reduce(
+        (a,p)=>a+num(
+          p.shots_against ??
+          p.shots ??
+          p.sa
+        ),0
+      );
 
-    return SA
-      ? S/SA*100
-      : null;
 
-  }
+    const ga =
+      rows.reduce(
+        (a,p)=>a+num(
+          p.goals_against ??
+          p.goals ??
+          p.ga
+        ),0
+      );
 
-  function getGAA(windowGames){
 
-    const GA=windowGames.reduce(
-      (total,g)=>
-        total+num(g.goals_against),
-      0
-    );
+    const saves =
+      rows.reduce(
+        (a,p)=>a+num(
+          p.saves ??
+          p.saves_made
+        ),0
+      );
 
-    const MIN=windowGames.reduce(
-      (total,g)=>
-        total+num(g.minutes_played),
-      0
-    );
 
-    return MIN
-      ? GA/MIN*60
-      : null;
+    const minutes =
+      rows.reduce(
+        (a,p)=>a+num(
+          p.minutes ??
+          p.min
+        ),0
+      );
 
-  }
 
-  function getShots60(windowGames){
+    const shotRows =
+      seasonShots.filter(shot=>{
 
-    const SA=windowGames.reduce(
-      (total,g)=>
-        total+num(g.shots_against),
-      0
-    );
+        const gamePeriod =
+          normalizePeriod(
+            shot.period ??
+            shot.period_name
+          );
 
-    const MIN=windowGames.reduce(
-      (total,g)=>
-        total+num(g.minutes_played),
-      0
-    );
+        return gamePeriod === name;
 
-    return MIN
-      ? SA/MIN*60
-      : null;
+      });
 
-  }
 
-  function getAdvanced(windowGames){
+    const advanced =
+      calculateAdvancedForShots(shotRows);
 
-    const ids=new Set(
-      windowGames.map(
-        g=>String(g.id)
-      )
-    );
 
-    const windowShots=shots.filter(
-      shot=>
-        ids.has(
-          String(shot.game_id)
-        )
-    );
-
-    return calculateAdvancedForShots(
-      windowShots
-    );
-
-  }
-
-  const labels=games.map((g,i)=>
-    g.opponent
-      ? `vs ${g.opponent}`
-      : `Game ${i+1}`
-  );
-
-  const sv5=[];
-  const sv10=[];
-  const gaa5=[];
-  const gaa10=[];
-  const shots605=[];
-  const shots6010=[];
-  const xga5=[];
-  const xga10=[];
-  const gsax5=[];
-  const gsax10=[];
-
-  games.forEach((g,i)=>{
-
-    const window5=games.slice(
-      Math.max(0,i-4),
-      i+1
-    );
-
-    const window10=games.slice(
-      Math.max(0,i-9),
-      i+1
-    );
-
-    sv5.push(getSV(window5));
-    sv10.push(getSV(window10));
-
-    gaa5.push(getGAA(window5));
-    gaa10.push(getGAA(window10));
-
-    shots605.push(
-      getShots60(window5)
-    );
-
-    shots6010.push(
-      getShots60(window10)
-    );
-
-    const advanced5=
-      getAdvanced(window5);
-
-    const advanced10=
-      getAdvanced(window10);
-
-    xga5.push(
-      advanced5.shots
-        ? Number(
-            advanced5.xGA.toFixed(2)
-          )
-        : null
-    );
-
-    xga10.push(
-      advanced10.shots
-        ? Number(
-            advanced10.xGA.toFixed(2)
-          )
-        : null
-    );
-
-    gsax5.push(
-      advanced5.shots
-        ? Number(
-            advanced5.gsax.toFixed(2)
-          )
-        : null
-    );
-
-    gsax10.push(
-      advanced10.shots
-        ? Number(
-            advanced10.gsax.toFixed(2)
-          )
-        : null
-    );
+    data[name] = {
+      shots:shotsAgainst,
+      saves,
+      ga,
+      minutes,
+      advanced
+    };
 
   });
 
-  container.innerHTML=`
 
-    <div class="charts">
+  document.getElementById("periodCards").innerHTML =
+    names.map(name=>{
 
-      <div class="panel chart-panel">
-        <div class="panel-title">5-Game Rolling SV%</div>
-        <canvas id="incrementalSV5"></canvas>
-      </div>
+      const p = data[name];
 
-      <div class="panel chart-panel">
-        <div class="panel-title">10-Game Rolling SV%</div>
-        <canvas id="incrementalSV10"></canvas>
-      </div>
+      return card(
+        `${name} Period SV%`,
+        pct(p.saves,p.shots)
+      );
 
-      <div class="panel chart-panel">
-        <div class="panel-title">5-Game Rolling GAA</div>
-        <canvas id="incrementalGAA5"></canvas>
-      </div>
+    }).join("");
 
-      <div class="panel chart-panel">
-        <div class="panel-title">10-Game Rolling GAA</div>
-        <canvas id="incrementalGAA10"></canvas>
-      </div>
 
-      <div class="panel chart-panel">
-        <div class="panel-title">
-          5-Game Rolling Shots Against / 60
-        </div>
-        <canvas id="incrementalSA605"></canvas>
-      </div>
+  document.getElementById("periodTable").innerHTML =
+    names.map(name=>{
 
-      <div class="panel chart-panel">
-        <div class="panel-title">
-          10-Game Rolling Shots Against / 60
-        </div>
-        <canvas id="incrementalSA6010"></canvas>
-      </div>
+      const p = data[name];
 
-      <div class="panel chart-panel">
-        <div class="panel-title">5-Game Rolling xGA</div>
-        <canvas id="incrementalXGA5"></canvas>
-      </div>
+      return `
 
-      <div class="panel chart-panel">
-        <div class="panel-title">10-Game Rolling xGA</div>
-        <canvas id="incrementalXGA10"></canvas>
-      </div>
+        <tr>
 
-      <div class="panel chart-panel">
-        <div class="panel-title">5-Game Rolling GSAx</div>
-        <canvas id="incrementalGSAx5"></canvas>
-      </div>
+          <td><strong>${name}</strong></td>
 
-      <div class="panel chart-panel">
-        <div class="panel-title">10-Game Rolling GSAx</div>
-        <canvas id="incrementalGSAx10"></canvas>
-      </div>
+          <td>${p.shots}</td>
 
+          <td>${p.saves}</td>
+
+          <td>${p.ga}</td>
+
+          <td>${pct(p.saves,p.shots)}</td>
+
+          <td>${
+            p.minutes > 0
+              ? (p.ga*60/p.minutes).toFixed(2)
+              : "—"
+          }</td>
+
+          <td>${
+            p.minutes > 0
+              ? calculatePer60(p.shots,p.minutes).toFixed(1)
+              : "—"
+          }</td>
+
+          <td>${p.advanced.shots}</td>
+
+          <td>${p.advanced.xGA.toFixed(2)}</td>
+
+          <td>${(
+            p.advanced.expectedSV*100
+          ).toFixed(1)}%</td>
+
+          <td>${p.advanced.gsax.toFixed(2)}</td>
+
+        </tr>
+
+      `;
+
+    }).join("");
+
+
+  const actual =
+    names.map(name=>
+      pctNum(
+        data[name].saves,
+        data[name].shots
+      )
+    );
+
+
+  const expected =
+    names.map(name=>
+      data[name].advanced.expectedSV*100
+    );
+
+
+  const gsax =
+    names.map(name=>
+      data[name].advanced.gsax
+    );
+
+
+  makeChart("periodExpectedChart",{
+
+    type:"line",
+
+    data:{
+      labels:names,
+
+      datasets:[
+        {
+          label:"Actual SV%",
+          data:actual,
+          tension:.2,
+          borderWidth:2
+        },
+        {
+          label:"Expected SV%",
+          data:expected,
+          tension:.2,
+          borderWidth:2
+        }
+      ]
+    },
+
+    options:{
+      ...chartOptions(),
+
+      scales:{
+        ...chartOptions().scales,
+
+        y:{
+          ...percentageScale([
+            ...actual,
+            ...expected
+          ]),
+          ticks:{
+            color:"#8fa99a",
+            callback:value=>`${value}%`
+          }
+        }
+      }
+    }
+
+  });
+
+
+  makeChart("periodGsaxChart",{
+
+    type:"bar",
+
+    data:{
+      labels:names,
+
+      datasets:[{
+        label:"GSAx",
+        data:gsax,
+        borderWidth:1
+      }]
+    },
+
+    options:{
+      ...chartOptions(),
+
+      scales:{
+        ...chartOptions().scales,
+
+        y:gsaxScale(gsax)
+      }
+    }
+
+  });
+
+
+  const bestIndex =
+    actual.indexOf(
+      Math.max(...actual)
+    );
+
+
+  document.getElementById("periodInsights").innerHTML = `
+
+    <div class="insight">
+      <h3>Workload</h3>
+      <p>
+        ${names.map(name=>
+          `${name}: ${data[name].shots} shots`
+        ).join(" · ")}
+      </p>
+    </div>
+
+    <div class="insight">
+      <h3>Efficiency</h3>
+      <p>
+        Best period by SV%:
+        <strong>${names[bestIndex]}</strong>
+        at
+        <strong>${actual[bestIndex].toFixed(1)}%</strong>.
+      </p>
+    </div>
+
+    <div class="insight">
+      <h3>Shot-Quality Performance</h3>
+      <p>
+        GSAx by period:
+        ${names.map(name=>
+          `${name}: ${data[name].advanced.gsax.toFixed(2)}`
+        ).join(" · ")}
+      </p>
+    </div>
+
+    <div class="insight">
+      <h3>Reading the Data</h3>
+      <p>
+        Positive GSAx indicates performance above the expected
+        result from the tracked shot quality.
+      </p>
     </div>
 
   `;
 
-  const chartPairs=[
+}
 
-    ['incrementalSV5','SV%',sv5],
-    ['incrementalSV10','SV%',sv10],
-    ['incrementalGAA5','GAA',gaa5],
-    ['incrementalGAA10','GAA',gaa10],
-    ['incrementalSA605','Shots Against / 60',shots605],
-    ['incrementalSA6010','Shots Against / 60',shots6010],
-    ['incrementalXGA5','xGA',xga5],
-    ['incrementalXGA10','xGA',xga10],
-    ['incrementalGSAx5','GSAx',gsax5],
-    ['incrementalGSAx10','GSAx',gsax10]
+
+/* =========================================================
+   SITUATIONAL
+========================================================= */
+
+function filteredSituation(predicate){
+
+  return seasonShots.filter(predicate);
+}
+
+
+function renderSituational(){
+
+  const categories = [
+
+    {
+      name:"A+ Very High Danger",
+      filter:s=>shotGrade(calculateShotXG(s))==="A+"
+    },
+
+    {
+      name:"A High Danger",
+      filter:s=>shotGrade(calculateShotXG(s))==="A"
+    },
+
+    {
+      name:"B Moderate Danger",
+      filter:s=>shotGrade(calculateShotXG(s))==="B"
+    },
+
+    {
+      name:"C Lower Danger",
+      filter:s=>shotGrade(calculateShotXG(s))==="C"
+    }
 
   ];
 
-  chartPairs.forEach(item=>{
 
-    let options={
+  document.getElementById("dangerCards").innerHTML =
+    categories.map(c=>{
+
+      const rows =
+        filteredSituation(c.filter);
+
+      const a =
+        calculateAdvancedForShots(rows);
+
+      return card(
+        c.name,
+        pct(a.saves,a.shots)
+      );
+
+    }).join("");
+
+
+  const situations = [
+
+    {
+      name:"Rush Shots",
+      filter:s=>
+        shotBoolean(s.rush) ||
+        normalize(s.situation).includes("rush")
+    },
+
+    {
+      name:"Set / Non-Rush Shots",
+      filter:s=>
+        !(
+          shotBoolean(s.rush) ||
+          normalize(s.situation).includes("rush")
+        )
+    },
+
+    {
+      name:"Rebound Shots",
+      filter:s=>shotIsRebound(s)
+    }
+
+  ];
+
+
+  document.getElementById("situationCards").innerHTML =
+    situations.map(c=>{
+
+      const a =
+        calculateAdvancedForShots(
+          filteredSituation(c.filter)
+        );
+
+      return card(
+        c.name,
+        pct(a.saves,a.shots)
+      );
+
+    }).join("");
+
+
+  const characteristics = [
+
+    {
+      name:"Screened Shots",
+      filter:s=>
+        shotBoolean(s.screened) ||
+        shotBoolean(s.screen)
+    },
+
+    {
+      name:"Cross-Ice Shots",
+      filter:s=>
+        shotBoolean(s.cross_ice)
+    },
+
+    {
+      name:"Breakaways",
+      filter:s=>
+        shotBoolean(s.breakaway)
+    }
+
+  ];
+
+
+  document.getElementById("characteristicCards").innerHTML =
+    characteristics.map(c=>{
+
+      const a =
+        calculateAdvancedForShots(
+          filteredSituation(c.filter)
+        );
+
+      return card(
+        c.name,
+        pct(a.saves,a.shots)
+      );
+
+    }).join("");
+
+
+  const chartCategories = [
+
+    {
+      name:"Rush",
+      filter:s=>
+        shotBoolean(s.rush) ||
+        normalize(s.situation).includes("rush")
+    },
+
+    {
+      name:"Set",
+      filter:s=>
+        !(
+          shotBoolean(s.rush) ||
+          normalize(s.situation).includes("rush")
+        )
+    },
+
+    {
+      name:"Rebound",
+      filter:s=>shotIsRebound(s)
+    },
+
+    {
+      name:"Screened",
+      filter:s=>
+        shotBoolean(s.screened) ||
+        shotBoolean(s.screen)
+    },
+
+    {
+      name:"Cross-Ice",
+      filter:s=>
+        shotBoolean(s.cross_ice)
+    },
+
+    {
+      name:"Breakaway",
+      filter:s=>
+        shotBoolean(s.breakaway)
+    },
+
+    {
+      name:"One-Timer",
+      filter:s=>
+        normalize(
+          s.shot_type ??
+          s.type
+        ).includes("one timer")
+    }
+
+  ];
+
+
+  const values =
+    chartCategories.map(c=>{
+
+      const a =
+        calculateAdvancedForShots(
+          filteredSituation(c.filter)
+        );
+
+      return pctNum(a.saves,a.shots);
+
+    });
+
+
+  makeChart("situationalChart",{
+
+    type:"bar",
+
+    data:{
+      labels:chartCategories.map(c=>c.name),
+
+      datasets:[{
+        label:"SV%",
+        data:values,
+        borderWidth:1
+      }]
+    },
+
+    options:{
       ...chartOptions(),
+
       scales:{
-        ...chartOptions().scales
-      }
-    };
+        ...chartOptions().scales,
 
-    if(item[1]==='SV%'){
-
-      const scale=
-        percentageScale(item[2]);
-
-      options.scales.y={
-
-        min:scale.min,
-        max:scale.max,
-
-        ticks:{
-          color:'#8faf9a',
-          callback:value=>value+'%'
-        },
-
-        grid:{
-          color:'#173b27'
+        y:{
+          ...percentageScale(values),
+          ticks:{
+            color:"#8fa99a",
+            callback:value=>`${value}%`
+          }
         }
-
-      };
-
-    }
-    else if(item[1]==='GSAx'){
-
-      options.scales.y={
-
-        ...gsaxScale(item[2]),
-
-        grid:{
-          color:'#173b27'
-        }
-
-      };
-
-    }
-
-    makeChart(
-      item[0],
-      {
-
-        type:'line',
-
-        data:{
-
-          labels,
-
-          datasets:[{
-
-            label:item[1],
-            data:item[2],
-            tension:.3,
-            spanGaps:true
-
-          }]
-
-        },
-
-        options
-
       }
-
-    );
+    }
 
   });
 
 }
 
 
-/* ==========================================
-   LOAD DATA
-   ========================================== */
+/* =========================================================
+   TRENDS
+========================================================= */
 
-(async()=>{
+function rollingAverage(array,window){
+
+  return array.map((_,index)=>{
+
+    const start =
+      Math.max(0,index-window+1);
+
+    const values =
+      array.slice(start,index+1);
+
+    return values.reduce(
+      (a,b)=>a+b,0
+    ) / values.length;
+
+  });
+
+}
+
+
+function gameMetrics(){
+
+  return seasonGames.map(g=>{
+
+    const rows =
+      seasonShots.filter(
+        s=>String(s.game_id) === String(g.id)
+      );
+
+    const a =
+      calculateAdvancedForShots(rows);
+
+    const mins =
+      gameMinutes(g);
+
+    const sa =
+      gameShots(g);
+
+    const saves =
+      gameSaves(g);
+
+    return {
+
+      sv:pctNum(saves,sa),
+
+      gaa:
+        mins > 0
+          ? gameGoals(g)*60/mins
+          : 0,
+
+      sa60:
+        mins > 0
+          ? calculatePer60(sa,mins)
+          : 0,
+
+      xga:a.xGA,
+
+      gsax:a.gsax
+
+    };
+
+  });
+
+}
+
+
+function renderRollingChart(
+  id,
+  values,
+  window,
+  label,
+  scaleType="normal"
+){
+
+  const rolled =
+    rollingAverage(values,window);
+
+
+  const labels =
+    seasonGames.map(
+      (_,i)=>`Game ${i+1}`
+    );
+
+
+  const options = chartOptions();
+
+
+  if(scaleType === "percent"){
+
+    options.scales = {
+
+      ...options.scales,
+
+      y:{
+        ...percentageScale(rolled),
+        ticks:{
+          color:"#8fa99a",
+          callback:value=>`${value}%`
+        }
+      }
+
+    };
+
+  }
+
+
+  if(scaleType === "gsax"){
+
+    options.scales = {
+
+      ...options.scales,
+
+      y:gsaxScale(rolled)
+
+    };
+
+  }
+
+
+  makeChart(id,{
+
+    type:"line",
+
+    data:{
+      labels,
+
+      datasets:[{
+        label,
+        data:rolled,
+        tension:.25,
+        borderWidth:2
+      }]
+    },
+
+    options
+
+  });
+
+}
+
+
+function renderTrends(){
+
+  const metrics =
+    gameMetrics();
+
+
+  const lastN = n => {
+
+    const rows =
+      metrics.slice(-n);
+
+    const gamesN =
+      seasonGames.slice(-n);
+
+    const shotsN =
+      gamesN.reduce(
+        (a,g)=>a+gameShots(g),0
+      );
+
+    const savesN =
+      gamesN.reduce(
+        (a,g)=>a+gameSaves(g),0
+      );
+
+    const goalsN =
+      gamesN.reduce(
+        (a,g)=>a+gameGoals(g),0
+      );
+
+    const minsN =
+      gamesN.reduce(
+        (a,g)=>a+gameMinutes(g),0
+      );
+
+    const winsN =
+      gamesN.filter(g=>
+        normalize(gameResult(g))==="w"
+      ).length;
+
+    const lossesN =
+      gamesN.filter(g=>
+        normalize(gameResult(g))==="l"
+      ).length;
+
+    const otlN =
+      gamesN.filter(g=>
+        normalize(gameResult(g))==="otl"
+      ).length;
+
+
+    return {
+
+      sv:pct(savesN,shotsN),
+
+      gaa:
+        minsN > 0
+          ? (goalsN*60/minsN).toFixed(2)
+          : "—",
+
+      sa60:
+        minsN > 0
+          ? calculatePer60(
+              shotsN,
+              minsN
+            ).toFixed(1)
+          : "—",
+
+      record:
+        `${winsN}-${lossesN}-${otlN}`
+
+    };
+
+  };
+
+
+  const five =
+    lastN(5);
+
+  const ten =
+    lastN(10);
+
+
+  document.getElementById("incrementalCards").innerHTML = `
+
+    <div class="card">
+      <div class="label">Last 5 Games · SV%</div>
+      <div class="value">${five.sv}</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Last 5 Games · GAA</div>
+      <div class="value">${five.gaa}</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Last 5 · SA/60</div>
+      <div class="value">${five.sa60}</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Last 5 · Record</div>
+      <div class="value">${five.record}</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Last 10 Games · SV%</div>
+      <div class="value">${ten.sv}</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Last 10 Games · GAA</div>
+      <div class="value">${ten.gaa}</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Last 10 · SA/60</div>
+      <div class="value">${ten.sa60}</div>
+    </div>
+
+    <div class="card">
+      <div class="label">Last 10 · Record</div>
+      <div class="value">${ten.record}</div>
+    </div>
+
+  `;
+
+
+  renderRollingChart(
+    "rolling5sv",
+    metrics.map(x=>x.sv),
+    5,
+    "5-Game Rolling SV%",
+    "percent"
+  );
+
+
+  renderRollingChart(
+    "rolling10sv",
+    metrics.map(x=>x.sv),
+    10,
+    "10-Game Rolling SV%",
+    "percent"
+  );
+
+
+  renderRollingChart(
+    "rolling5gaa",
+    metrics.map(x=>x.gaa),
+    5,
+    "5-Game Rolling GAA"
+  );
+
+
+  renderRollingChart(
+    "rolling10gaa",
+    metrics.map(x=>x.gaa),
+    10,
+    "10-Game Rolling GAA"
+  );
+
+
+  renderRollingChart(
+    "rolling5sa60",
+    metrics.map(x=>x.sa60),
+    5,
+    "5-Game Rolling SA/60"
+  );
+
+
+  renderRollingChart(
+    "rolling10sa60",
+    metrics.map(x=>x.sa60),
+    10,
+    "10-Game Rolling SA/60"
+  );
+
+
+  renderRollingChart(
+    "rolling5xga",
+    metrics.map(x=>x.xga),
+    5,
+    "5-Game Rolling xGA"
+  );
+
+
+  renderRollingChart(
+    "rolling10xga",
+    metrics.map(x=>x.xga),
+    10,
+    "10-Game Rolling xGA"
+  );
+
+
+  renderRollingChart(
+    "rolling5gsax",
+    metrics.map(x=>x.gsax),
+    5,
+    "5-Game Rolling GSAx",
+    "gsax"
+  );
+
+
+  renderRollingChart(
+    "rolling10gsax",
+    metrics.map(x=>x.gsax),
+    10,
+    "10-Game Rolling GSAx",
+    "gsax"
+  );
+
+}
+
+
+/* =========================================================
+   DEBUG INFORMATION
+========================================================= */
+
+function debugControlData(){
+
+  console.log(
+    "CURRENT SEASON:",
+    CURRENT_SEASON
+  );
+
+  console.log(
+    "Season games:",
+    seasonGames.length
+  );
+
+  console.log(
+    "Season shots:",
+    seasonShots.length
+  );
+
+  console.log(
+    "Season periods:",
+    seasonPeriods.length
+  );
+
+
+  const reboundColumns = [
+
+    "glove_caught",
+    "glove_rebound",
+    "glove_goal",
+
+    "blocker_good",
+    "blocker_bad",
+    "blocker_goal",
+
+    "midsection_good",
+    "midsection_bad",
+    "midsection_goal",
+
+    "pad_stick_good",
+    "pad_stick_bad",
+    "pad_stick_goal"
+
+  ];
+
+
+  const counts = {};
+
+
+  reboundColumns.forEach(column=>{
+
+    counts[column] =
+      seasonShots.filter(
+        shot =>
+          shot[column] !== null &&
+          shot[column] !== undefined &&
+          String(shot[column]).trim() !== ""
+      ).length;
+
+  });
+
+
+  console.log(
+    "Rebound control populated rows:",
+    counts
+  );
+
+}
+
+
+/* =========================================================
+   LOAD
+========================================================= */
+
+async function load(){
 
   try{
 
     const [
-      games,
-      periods,
-      shots
-    ]=await Promise.all([
+      gameData,
+      periodData,
+      shotData
+    ] = await Promise.all([
 
-      q('Games'),
-      q('Period Stats'),
-      q('Shots')
+      q("Games"),
+      q("Period Stats"),
+      q("Shots")
 
     ]);
 
-    const seasonGames=games
 
-      .filter(g=>{
+    games = Array.isArray(gameData)
+      ? gameData
+      : [];
 
-        const season=
-          String(g.season||'')
-            .trim();
 
-        return (
+    periods = Array.isArray(periodData)
+      ? periodData
+      : [];
 
-          season==='2026 Pre-Season' ||
 
-          season==='2026 Preseason' ||
+    shots = Array.isArray(shotData)
+      ? shotData
+      : [];
 
-          season==='2026 Pre Season' ||
 
-          season==='2026-27' ||
+    games.sort(
+      (a,b)=>num(a.id)-num(b.id)
+    );
 
-          season==='2026/27' ||
 
-          season==='2026–27' ||
+    /*
+      THIS IS THE IMPORTANT SEASON FILTER.
 
-          season==='2026-2027'
+      Canonical value:
+      2026 preseason
 
-        );
+      The aliases below simply prevent the dashboard
+      from breaking if Supabase contains a formatting
+      variation.
+    */
 
-      })
-
-      .sort((a,b)=>
-        num(a.id)-num(b.id)
+    seasonGames =
+      games.filter(g=>
+        isCurrentSeason(
+          g.season
+        )
       );
 
-    const seasonGameIds=new Set(
-      seasonGames.map(
-        g=>String(g.id)
-      )
-    );
 
-    const seasonShots=shots.filter(
-      shot=>
-        seasonGameIds.has(
-          String(shot.game_id)
+    const seasonGameIds =
+      new Set(
+        seasonGames.map(
+          g=>String(g.id)
         )
-    );
+      );
 
-    const seasonPeriods=periods.filter(
-      row=>
+
+    seasonShots =
+      shots.filter(s=>
         seasonGameIds.has(
-          String(row.game_id)
+          String(s.game_id)
         )
+      );
+
+
+    seasonPeriods =
+      periods.filter(p=>
+        seasonGameIds.has(
+          String(p.game_id)
+        )
+      );
+
+
+    gameMap = {};
+
+    seasonGames.forEach(g=>{
+      gameMap[String(g.id)] = g;
+    });
+
+
+    console.log(
+      `Loaded ${seasonGames.length} games for ${CURRENT_SEASON}`
+    );
+
+    console.log(
+      `Loaded ${seasonShots.length} shots for ${CURRENT_SEASON}`
     );
 
 
-    renderOverview(
-      seasonGames,
-      seasonShots
-    );
+    debugControlData();
 
-    renderGameLog(
-      seasonGames,
-      seasonShots
-    );
 
-    renderPeriods(
-      seasonPeriods,
-      seasonShots,
-      seasonGameIds
-    );
+    renderOverview();
 
-    renderSituational(
-      seasonShots
-    );
+    renderGameLog();
 
-    renderReboundControl(
-      seasonShots
-    );
+    renderPeriods();
 
-    renderIncremental(
-      seasonGames
-    );
+    renderSituational();
 
-    renderRollingTrends(
-      seasonGames,
-      seasonShots
+    renderControl();
+
+    renderTrends();
+
+
+  }
+  catch(error){
+
+    console.error(error);
+
+    document.body.insertAdjacentHTML(
+      "afterbegin",
+      `
+        <div style="
+          background:#42191d;
+          color:#ffd8dc;
+          padding:15px;
+          font-family:Arial;
+          border-bottom:1px solid #8a3942;
+        ">
+          <strong>Dashboard Error:</strong>
+          ${error.message}
+        </div>
+      `
     );
 
   }
 
-  catch(e){
+}
 
-    document.getElementById(
-      'status'
-    ).innerHTML=`
 
-      <div class="error">
-
-        <b>Supabase connection error</b>
-
-        <br><br>
-
-        ${e.message}
-
-      </div>
-
-    `;
-
-  }
-
-})();
+load();
 
 </script>
 
