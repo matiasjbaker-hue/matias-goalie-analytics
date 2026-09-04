@@ -9,9 +9,7 @@
 
 <style>
 
-*{
-  box-sizing:border-box;
-}
+*{box-sizing:border-box}
 
 body{
   margin:0;
@@ -25,15 +23,11 @@ body{
 
 header{
   padding:34px 5vw 24px;
-  background:
-    linear-gradient(135deg,#071b11,#0b3020);
+  background:linear-gradient(135deg,#071b11,#0b3020);
   border-bottom:1px solid #1d4d32;
 }
 
-.header-inner{
-  max-width:1400px;
-  margin:auto;
-}
+.header-inner{max-width:1400px;margin:auto}
 
 h1{
   margin:0;
@@ -88,13 +82,8 @@ nav button.active{
   padding:28px 5vw 70px;
 }
 
-.tab{
-  display:none;
-}
-
-.tab.active{
-  display:block;
-}
+.tab{display:none}
+.tab.active{display:block}
 
 .grid{
   display:grid;
@@ -102,19 +91,13 @@ nav button.active{
   gap:14px;
 }
 
-.card,
-.panel,
-.period,
-.analysis-card,
-.split-card{
+.card,.panel,.period,.analysis-card,.split-card{
   background:#0a2115;
   border:1px solid #19442c;
   border-radius:14px;
 }
 
-.card{
-  padding:20px;
-}
+.card{padding:20px}
 
 .label{
   color:#8faf9a;
@@ -129,13 +112,9 @@ nav button.active{
   margin-top:6px;
 }
 
-.value.small{
-  font-size:25px;
-}
+.value.small{font-size:25px}
 
-.section{
-  margin-top:32px;
-}
+.section{margin-top:32px}
 
 .section h2{
   font-size:19px;
@@ -154,21 +133,11 @@ nav button.active{
   gap:14px;
 }
 
-.panel{
-  padding:20px;
-}
+.panel{padding:20px}
 
-.chart-panel{
-  height:350px;
-}
-
-.chart-panel.tall{
-  height:390px;
-}
-
-.chart-panel.compact{
-  height:330px;
-}
+.chart-panel{height:350px}
+.chart-panel.tall{height:390px}
+.chart-panel.compact{height:330px}
 
 .panel-title{
   font-size:15px;
@@ -176,9 +145,7 @@ nav button.active{
   margin:0 0 15px;
 }
 
-.tablewrap{
-  overflow:auto;
-}
+.tablewrap{overflow:auto}
 
 .table{
   width:100%;
@@ -186,8 +153,7 @@ nav button.active{
   min-width:1050px;
 }
 
-.table th,
-.table td{
+.table th,.table td{
   text-align:left;
   padding:13px;
   border-bottom:1px solid #19442c;
@@ -200,13 +166,9 @@ nav button.active{
   letter-spacing:.05em;
 }
 
-.table td{
-  color:#dcebe1;
-}
+.table td{color:#dcebe1}
 
-.table tr:hover td{
-  background:#0e2c1b;
-}
+.table tr:hover td{background:#0e2c1b}
 
 .badge{
   display:inline-block;
@@ -216,20 +178,9 @@ nav button.active{
   font-weight:800;
 }
 
-.badge.win{
-  background:#123c27;
-  color:#78dfa2;
-}
-
-.badge.loss{
-  background:#422126;
-  color:#ff9d9d;
-}
-
-.badge.otl{
-  background:#3d3518;
-  color:#f1d875;
-}
+.badge.win{background:#123c27;color:#78dfa2}
+.badge.loss{background:#422126;color:#ff9d9d}
+.badge.otl{background:#3d3518;color:#f1d875}
 
 .empty{
   padding:30px;
@@ -245,13 +196,7 @@ nav button.active{
   margin-bottom:20px;
 }
 
-/* ==========================================
-   ABOUT
-   ========================================== */
-
-.about{
-  max-width:850px;
-}
+.about{max-width:850px}
 
 .about h2{
   margin-top:0;
@@ -274,8 +219,7 @@ nav button.active{
 .about-profile{
   margin-top:28px;
   padding:22px 24px;
-  background:
-    linear-gradient(135deg,#103621,#0a2115);
+  background:linear-gradient(135deg,#103621,#0a2115);
   border:1px solid #2c6844;
   border-radius:14px;
 }
@@ -298,10 +242,6 @@ nav button.active{
   color:#8faf9a;
   font-size:13px;
 }
-
-/* ==========================================
-   GENERAL ANALYTICS
-   ========================================== */
 
 .highlight{
   padding:20px;
@@ -400,9 +340,7 @@ nav button.active{
   gap:14px;
 }
 
-.analysis-card{
-  padding:20px;
-}
+.analysis-card{padding:20px}
 
 .analysis-card h3{
   margin:0 0 9px;
@@ -428,9 +366,7 @@ nav button.active{
   gap:14px;
 }
 
-.split-card{
-  padding:20px;
-}
+.split-card{padding:20px}
 
 .split-card h3{
   margin:0 0 14px;
@@ -444,33 +380,20 @@ nav button.active{
   color:#9fbea9;
 }
 
-.split-stat b{
-  color:#eef7f1;
-}
+.split-stat b{color:#eef7f1}
 
-.positive{
-  color:#75e0a0 !important;
-}
-
-.negative{
-  color:#ff9d9d !important;
-}
-
-.neutral{
-  color:#f1d875 !important;
-}
+.positive{color:#75e0a0!important}
+.negative{color:#ff9d9d!important}
+.neutral{color:#f1d875!important}
 
 .hero-metric{
-  background:
-    linear-gradient(135deg,#103621,#0a2115);
+  background:linear-gradient(135deg,#103621,#0a2115);
   border:1px solid #2c6844;
   border-radius:16px;
   padding:24px;
 }
 
-.hero-metric .label{
-  font-size:11px;
-}
+.hero-metric .label{font-size:11px}
 
 .hero-metric .big{
   font-size:42px;
@@ -496,19 +419,13 @@ nav button.active{
   border-top:1px solid #19442c;
 }
 
-/* ==========================================
-   NEW PERFORMANCE DISTRIBUTION
-   ========================================== */
-
 .distribution-grid{
   display:grid;
   grid-template-columns:1fr 1fr;
   gap:14px;
 }
 
-.distribution-panel{
-  height:360px;
-}
+.distribution-panel{height:360px}
 
 .home-away-grid{
   display:grid;
@@ -518,8 +435,7 @@ nav button.active{
 
 .home-away-card{
   padding:22px;
-  background:
-    linear-gradient(145deg,#103621,#0a2115);
+  background:linear-gradient(145deg,#103621,#0a2115);
   border:1px solid #245339;
   border-radius:14px;
 }
@@ -563,10 +479,6 @@ nav button.active{
   margin-top:12px;
 }
 
-/* ==========================================
-   PERIOD BREAKDOWN
-   ========================================== */
-
 .period-overview{
   display:grid;
   grid-template-columns:repeat(3,1fr);
@@ -577,8 +489,7 @@ nav button.active{
 .period-hero{
   position:relative;
   padding:24px;
-  background:
-    linear-gradient(145deg,#103621,#0a2115);
+  background:linear-gradient(145deg,#103621,#0a2115);
   border:1px solid #245339;
   border-radius:16px;
   overflow:hidden;
@@ -684,8 +595,7 @@ nav button.active{
   min-width:650px;
 }
 
-.period-table th,
-.period-table td{
+.period-table th,.period-table td{
   padding:15px 20px;
   border-bottom:1px solid #19442c;
 }
@@ -699,9 +609,7 @@ nav button.active{
 }
 
 .period-table th:first-child,
-.period-table td:first-child{
-  text-align:left;
-}
+.period-table td:first-child{text-align:left}
 
 .period-table td{
   text-align:right;
@@ -714,9 +622,7 @@ nav button.active{
   color:#eef7f1;
 }
 
-.period-table tr:last-child td{
-  border-bottom:none;
-}
+.period-table tr:last-child td{border-bottom:none}
 
 .period-table .best-cell{
   color:#75e0a0;
@@ -749,87 +655,186 @@ nav button.active{
 }
 
 /* ==========================================
+   REBOUND CONTROL
+   ========================================== */
+
+.rebound-summary{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:14px;
+}
+
+.rebound-card{
+  padding:22px;
+  background:linear-gradient(145deg,#103621,#0a2115);
+  border:1px solid #245339;
+  border-radius:14px;
+}
+
+.rebound-card.good{
+  border-color:#2c6844;
+}
+
+.rebound-card.bad{
+  border-color:#63313a;
+}
+
+.rebound-card .rebound-label{
+  color:#8faf9a;
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.1em;
+}
+
+.rebound-card .rebound-number{
+  font-size:34px;
+  font-weight:900;
+  margin-top:7px;
+}
+
+.rebound-card .rebound-description{
+  color:#8faf9a;
+  font-size:11px;
+  line-height:1.5;
+  margin-top:5px;
+}
+
+.rebound-comparison{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:14px;
+}
+
+.rebound-detail{
+  padding:24px;
+  background:#0a2115;
+  border:1px solid #19442c;
+  border-radius:14px;
+}
+
+.rebound-detail.good{
+  border-color:#2c6844;
+}
+
+.rebound-detail.bad{
+  border-color:#63313a;
+}
+
+.rebound-detail h3{
+  margin:0 0 18px;
+  font-size:19px;
+}
+
+.rebound-detail.good h3{
+  color:#75e0a0;
+}
+
+.rebound-detail.bad h3{
+  color:#ff9d9d;
+}
+
+.rebound-stat{
+  display:flex;
+  justify-content:space-between;
+  padding:13px 0;
+  border-top:1px solid #19442c;
+}
+
+.rebound-stat span{
+  color:#8faf9a;
+  font-size:12px;
+}
+
+.rebound-stat strong{
+  color:#eef7f1;
+  font-size:17px;
+}
+
+.rebound-table{
+  width:100%;
+  border-collapse:collapse;
+}
+
+.rebound-table th,
+.rebound-table td{
+  padding:14px 18px;
+  border-bottom:1px solid #19442c;
+}
+
+.rebound-table th{
+  color:#8faf9a;
+  font-size:10px;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  text-align:right;
+}
+
+.rebound-table th:first-child,
+.rebound-table td:first-child{
+  text-align:left;
+}
+
+.rebound-table td{
+  color:#dcebe1;
+  text-align:right;
+}
+
+.rebound-table td:first-child{
+  font-weight:800;
+  color:#eef7f1;
+}
+
+.rebound-table tr:last-child td{
+  border-bottom:none;
+}
+
+.rebound-note{
+  padding:16px 18px;
+  background:#0e2c1b;
+  border:1px solid #245339;
+  border-radius:10px;
+  color:#8faf9a;
+  font-size:12px;
+  line-height:1.6;
+}
+
+/* ==========================================
    MOBILE
    ========================================== */
 
 @media(max-width:1000px){
 
-  .grid{
-    grid-template-columns:repeat(2,1fr);
-  }
+  .grid{grid-template-columns:repeat(2,1fr)}
 
-  .charts,
-  .distribution-grid{
+  .charts,.distribution-grid{
     grid-template-columns:1fr;
   }
 
-  .analysis-grid{
-    grid-template-columns:1fr 1fr;
-  }
-
-  .split-grid{
-    grid-template-columns:1fr 1fr;
-  }
-
-  .three-col{
-    grid-template-columns:1fr 1fr;
-  }
-
-  .mini-grid{
-    grid-template-columns:1fr 1fr;
-  }
-
-  .period-overview{
-    grid-template-columns:1fr 1fr;
-  }
-
-  .period-advanced{
-    grid-template-columns:1fr;
-  }
+  .analysis-grid{grid-template-columns:1fr 1fr}
+  .split-grid{grid-template-columns:1fr 1fr}
+  .three-col{grid-template-columns:1fr 1fr}
+  .mini-grid{grid-template-columns:1fr 1fr}
+  .period-overview{grid-template-columns:1fr 1fr}
+  .period-advanced{grid-template-columns:1fr}
+  .rebound-summary{grid-template-columns:1fr 1fr}
 
 }
 
 @media(max-width:650px){
 
-  .grid{
-    grid-template-columns:1fr 1fr;
-  }
+  .grid{grid-template-columns:1fr 1fr}
+  .analysis-grid{grid-template-columns:1fr}
+  .split-grid{grid-template-columns:1fr}
+  .three-col{grid-template-columns:1fr}
+  .grade-grid{grid-template-columns:1fr 1fr}
+  .mini-grid{grid-template-columns:1fr 1fr}
+  .period-overview{grid-template-columns:1fr}
+  .home-away-grid{grid-template-columns:1fr}
+  .rebound-summary{grid-template-columns:1fr 1fr}
+  .rebound-comparison{grid-template-columns:1fr}
 
-  .analysis-grid{
-    grid-template-columns:1fr;
-  }
-
-  .split-grid{
-    grid-template-columns:1fr;
-  }
-
-  .three-col{
-    grid-template-columns:1fr;
-  }
-
-  .grade-grid{
-    grid-template-columns:1fr 1fr;
-  }
-
-  .mini-grid{
-    grid-template-columns:1fr 1fr;
-  }
-
-  .period-overview{
-    grid-template-columns:1fr;
-  }
-
-  .home-away-grid{
-    grid-template-columns:1fr;
-  }
-
-  .hero-metric .big{
-    font-size:34px;
-  }
-
-  .period-main-stat{
-    font-size:34px;
-  }
+  .hero-metric .big{font-size:34px}
+  .period-main-stat{font-size:34px}
 
 }
 
@@ -850,6 +855,7 @@ nav button.active{
   <button onclick="showTab('games',this)">Game Log</button>
   <button onclick="showTab('periods',this)">Period Breakdown</button>
   <button onclick="showTab('situations',this)">Situational</button>
+  <button onclick="showTab('rebound',this)">Rebound Control</button>
   <button onclick="showTab('incremental',this)">Trends</button>
   <button onclick="showTab('about',this)">About</button>
 </nav>
@@ -871,45 +877,27 @@ nav button.active{
     <div class="three-col">
 
       <div class="hero-metric">
-
-        <div class="label">
-          Goals Saved Above Expected
-        </div>
-
+        <div class="label">Goals Saved Above Expected</div>
         <div class="big" id="heroGsax">—</div>
-
         <div class="description">
           Difference between expected goals against and actual goals allowed.
         </div>
-
       </div>
 
       <div class="hero-metric">
-
-        <div class="label">
-          Expected Save Percentage
-        </div>
-
+        <div class="label">Expected Save Percentage</div>
         <div class="big" id="heroExpectedSV">—</div>
-
         <div class="description">
           Estimated save percentage based on tracked shot quality.
         </div>
-
       </div>
 
       <div class="hero-metric">
-
-        <div class="label">
-          GSAx / 60
-        </div>
-
+        <div class="label">GSAx / 60</div>
         <div class="big" id="heroGsax60">—</div>
-
         <div class="description">
           Goals saved above expected normalized to a 60-minute game.
         </div>
-
       </div>
 
     </div>
@@ -947,11 +935,6 @@ nav button.active{
 
   </section>
 
-
-  <!-- =========================================
-       PERFORMANCE DISTRIBUTION
-       ========================================= -->
-
   <section class="section">
 
     <h2>Performance Distribution</h2>
@@ -963,30 +946,23 @@ nav button.active{
     <div class="distribution-grid">
 
       <div class="panel distribution-panel">
-        <div class="panel-title">
-          SV% Distribution
-        </div>
+        <div class="panel-title">SV% Distribution</div>
         <canvas id="svDistributionChart"></canvas>
       </div>
 
       <div class="panel distribution-panel">
-        <div class="panel-title">
-          Goals Allowed by Shot Grade
-        </div>
+        <div class="panel-title">Goals Allowed by Shot Grade</div>
         <canvas id="goalsByGradeChart"></canvas>
       </div>
 
       <div class="panel distribution-panel">
-        <div class="panel-title">
-          Goals Allowed per Game
-        </div>
+        <div class="panel-title">Goals Allowed per Game</div>
         <canvas id="gaDistributionChart"></canvas>
       </div>
 
       <div class="panel">
-        <div class="panel-title">
-          Home vs Away
-        </div>
+
+        <div class="panel-title">Home vs Away</div>
 
         <div class="home-away-grid" id="homeAwaySplit"></div>
 
@@ -1000,7 +976,6 @@ nav button.active{
     </div>
 
   </section>
-
 
   <section class="section">
 
@@ -1055,9 +1030,7 @@ nav button.active{
     <h2>Recent Games</h2>
 
     <div class="panel tablewrap">
-      <div id="recentGames" class="empty">
-        Loading games…
-      </div>
+      <div id="recentGames" class="empty">Loading games…</div>
     </div>
 
   </section>
@@ -1078,11 +1051,7 @@ nav button.active{
   </p>
 
   <div class="panel tablewrap">
-
-    <div id="gameLog" class="empty">
-      Loading games…
-    </div>
-
+    <div id="gameLog" class="empty">Loading games…</div>
   </div>
 
 </section>
@@ -1107,13 +1076,10 @@ nav button.active{
     <div class="period-comparison">
 
       <div class="comparison-header">
-
         <h3>Period Comparison</h3>
-
         <p>
           Traditional and advanced performance across all three periods.
         </p>
-
       </div>
 
       <div class="tablewrap">
@@ -1121,14 +1087,12 @@ nav button.active{
         <table class="period-table">
 
           <thead>
-
             <tr>
               <th>Metric</th>
               <th>1st</th>
               <th>2nd</th>
               <th>3rd</th>
             </tr>
-
           </thead>
 
           <tbody id="periodComparisonBody"></tbody>
@@ -1166,9 +1130,7 @@ nav button.active{
   </section>
 
   <section class="section">
-
     <div id="periodInsights" class="period-advanced"></div>
-
   </section>
 
 </section>
@@ -1230,6 +1192,81 @@ nav button.active{
 
 
 <!-- =========================================
+     REBOUND CONTROL
+     ========================================= -->
+
+<section id="rebound" class="tab">
+
+  <h2>Rebound Control</h2>
+
+  <p class="section-subtitle">
+    Evaluation of rebound quality using the <b>goalierebound_control</b>
+    field from the Shots table.
+  </p>
+
+  <div class="rebound-note">
+    This section evaluates <b>rebound control quality</b> separately from
+    the existing <b>rebound</b> field. Good and bad rebounds are compared
+    directly, while goal location is intentionally kept separate from this
+    analysis.
+  </div>
+
+  <section class="section">
+
+    <div class="rebound-summary" id="reboundSummary"></div>
+
+  </section>
+
+  <section class="section">
+
+    <h2>Good vs Bad Rebounds</h2>
+
+    <p class="section-subtitle">
+      Direct comparison of rebound-control outcomes.
+    </p>
+
+    <div class="rebound-comparison" id="reboundComparison"></div>
+
+  </section>
+
+  <section class="section">
+
+    <h2>Rebound Control Comparison</h2>
+
+    <div class="panel chart-panel tall">
+      <canvas id="reboundControlChart"></canvas>
+    </div>
+
+  </section>
+
+  <section class="section">
+
+    <h2>Rebound Control Breakdown</h2>
+
+    <div class="panel tablewrap">
+
+      <table class="rebound-table">
+
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Good Rebounds</th>
+            <th>Bad Rebounds</th>
+          </tr>
+        </thead>
+
+        <tbody id="reboundTableBody"></tbody>
+
+      </table>
+
+    </div>
+
+  </section>
+
+</section>
+
+
+<!-- =========================================
      TRENDS
      ========================================= -->
 
@@ -1278,13 +1315,9 @@ nav button.active{
 
     <div class="about-profile">
 
-      <div class="profile-title">
-        Player Profile
-      </div>
+      <div class="profile-title">Player Profile</div>
 
-      <div class="profile-name">
-        Matias Baker
-      </div>
+      <div class="profile-name">Matias Baker</div>
 
       <div class="profile-meta">
         Goaltender · 2008 · Pelham Panthers · 2026–27
@@ -1327,11 +1360,9 @@ const q=async table=>{
   );
 
   if(!r.ok){
-
     throw new Error(
       `${table}: ${r.status} ${await r.text()}`
     );
-
   }
 
   return r.json();
@@ -1369,19 +1400,10 @@ const pct=(saves,shots)=>{
 function card(label,value){
 
   return `
-
     <div class="card">
-
-      <div class="label">
-        ${label}
-      </div>
-
-      <div class="value">
-        ${value}
-      </div>
-
+      <div class="label">${label}</div>
+      <div class="value">${value}</div>
     </div>
-
   `;
 
 }
@@ -1413,23 +1435,11 @@ function resultBadge(result){
 
   let cls='';
 
-  if(r==='W'){
-    cls='win';
-  }
-  else if(r==='L'){
-    cls='loss';
-  }
-  else if(r==='OTL'){
-    cls='otl';
-  }
+  if(r==='W')cls='win';
+  else if(r==='L')cls='loss';
+  else if(r==='OTL')cls='otl';
 
-  return `
-
-    <span class="badge ${cls}">
-      ${result}
-    </span>
-
-  `;
+  return `<span class="badge ${cls}">${result}</span>`;
 
 }
 
@@ -1437,12 +1447,10 @@ function resultBadge(result){
 function isShutout(value){
 
   return (
-
     value===true ||
     value===1 ||
     String(value).toLowerCase()==='true' ||
     String(value)==='1'
-
   );
 
 }
@@ -1455,13 +1463,11 @@ function isShutout(value){
 function shotBoolean(value){
 
   return (
-
     value===true ||
     value===1 ||
     String(value).toLowerCase().trim()==='true' ||
     String(value).trim()==='1' ||
     String(value).toLowerCase().trim()==='yes'
-
   );
 
 }
@@ -1486,27 +1492,21 @@ function normalizePeriod(value){
     p==='1st' ||
     p==='1st period' ||
     p==='first'
-  ){
-    return '1st';
-  }
+  )return '1st';
 
   if(
     p==='2' ||
     p==='2nd' ||
     p==='2nd period' ||
     p==='second'
-  ){
-    return '2nd';
-  }
+  )return '2nd';
 
   if(
     p==='3' ||
     p==='3rd' ||
     p==='3rd period' ||
     p==='third'
-  ){
-    return '3rd';
-  }
+  )return '3rd';
 
   return p;
 
@@ -1527,6 +1527,121 @@ function isGoal(shot){
 
 
 /* ==========================================
+   REBOUND CONTROL
+   ========================================== */
+
+/*
+  Reads the exact Supabase field:
+  goalierebound_control
+
+  This deliberately does NOT use the existing
+  "rebound" field.
+*/
+
+function reboundControlType(shot){
+
+  const value=normalize(
+    shot.goalierebound_control
+  );
+
+  if(!value){
+    return null;
+  }
+
+  /*
+    Supports common values such as:
+    Good
+    Good Rebound
+    Controlled
+    Controlled Rebound
+
+    Bad
+    Bad Rebound
+    Poor
+    Poor Rebound
+    Uncontrolled
+    Uncontrolled Rebound
+  */
+
+  if(
+    value==='good' ||
+    value.includes('good rebound') ||
+    value==='controlled' ||
+    value.includes('controlled rebound')
+  ){
+    return 'good';
+  }
+
+  if(
+    value==='bad' ||
+    value.includes('bad rebound') ||
+    value==='poor' ||
+    value.includes('poor rebound') ||
+    value==='uncontrolled' ||
+    value.includes('uncontrolled rebound')
+  ){
+    return 'bad';
+  }
+
+  return null;
+
+}
+
+
+function calculateReboundControl(shots){
+
+  const tracked=shots.filter(
+    shot=>reboundControlType(shot)!==null
+  );
+
+  const good=tracked.filter(
+    shot=>reboundControlType(shot)==='good'
+  );
+
+  const bad=tracked.filter(
+    shot=>reboundControlType(shot)==='bad'
+  );
+
+  function stats(list){
+
+    const shotsCount=list.length;
+
+    const goals=list.filter(
+      shot=>isGoal(shot)
+    ).length;
+
+    const saves=shotsCount-goals;
+
+    return {
+
+      shots:shotsCount,
+      goals,
+      saves,
+
+      sv:
+        shotsCount
+          ? saves/shotsCount*100
+          : null,
+
+      share:
+        tracked.length
+          ? shotsCount/tracked.length*100
+          : null
+
+    };
+
+  }
+
+  return {
+    tracked:tracked.length,
+    good:stats(good),
+    bad:stats(bad)
+  };
+
+}
+
+
+/* ==========================================
    xG MODEL
    ========================================== */
 
@@ -1536,41 +1651,21 @@ function calculateShotXG(shot){
 
   let base;
 
-  if(distance<=6){
-    base=.24;
-  }
-  else if(distance<=12){
-    base=.14;
-  }
-  else if(distance<=20){
-    base=.065;
-  }
-  else if(distance<=30){
-    base=.030;
-  }
-  else if(distance<=40){
-    base=.015;
-  }
-  else{
-    base=.008;
-  }
+  if(distance<=6)base=.24;
+  else if(distance<=12)base=.14;
+  else if(distance<=20)base=.065;
+  else if(distance<=30)base=.030;
+  else if(distance<=40)base=.015;
+  else base=.008;
 
   const location=normalize(shot.location);
 
   let locationMultiplier=1;
 
-  if(location.includes('crease')){
-    locationMultiplier=1.15;
-  }
-  else if(location.includes('slot')){
-    locationMultiplier=1.10;
-  }
-  else if(location.includes('circle')){
-    locationMultiplier=1.00;
-  }
-  else if(location.includes('point')){
-    locationMultiplier=.75;
-  }
+  if(location.includes('crease'))locationMultiplier=1.15;
+  else if(location.includes('slot'))locationMultiplier=1.10;
+  else if(location.includes('circle'))locationMultiplier=1.00;
+  else if(location.includes('point'))locationMultiplier=.75;
 
   const type=normalize(shot.shot_type);
 
@@ -1590,29 +1685,15 @@ function calculateShotXG(shot){
   }
 
   let xg=
-    base *
-    locationMultiplier *
+    base*
+    locationMultiplier*
     typeMultiplier;
 
-  if(shotBoolean(shot.rush)){
-    xg*=1.08;
-  }
-
-  if(shotBoolean(shot.rebound)){
-    xg*=1.25;
-  }
-
-  if(shotBoolean(shot.screened)){
-    xg*=1.10;
-  }
-
-  if(shotBoolean(shot.breakaway)){
-    xg*=1.75;
-  }
-
-  if(shotBoolean(shot.cross_ice)){
-    xg*=1.15;
-  }
+  if(shotBoolean(shot.rush))xg*=1.08;
+  if(shotBoolean(shot.rebound))xg*=1.25;
+  if(shotBoolean(shot.screened))xg*=1.10;
+  if(shotBoolean(shot.breakaway))xg*=1.75;
+  if(shotBoolean(shot.cross_ice))xg*=1.15;
 
   xg=Math.max(
     .003,
@@ -1626,17 +1707,9 @@ function calculateShotXG(shot){
 
 function getShotGrade(xg){
 
-  if(xg>=.25){
-    return 'A+';
-  }
-
-  if(xg>=.12){
-    return 'A';
-  }
-
-  if(xg>=.045){
-    return 'B';
-  }
+  if(xg>=.25)return 'A+';
+  if(xg>=.12)return 'A';
+  if(xg>=.045)return 'B';
 
   return 'C';
 
@@ -1645,17 +1718,9 @@ function getShotGrade(xg){
 
 function dangerLevel(xg){
 
-  if(xg>=.25){
-    return 'High';
-  }
-
-  if(xg>=.12){
-    return 'Medium-High';
-  }
-
-  if(xg>=.045){
-    return 'Medium';
-  }
+  if(xg>=.25)return 'High';
+  if(xg>=.12)return 'Medium-High';
+  if(xg>=.045)return 'Medium';
 
   return 'Low';
 
@@ -1698,15 +1763,11 @@ function calculateAdvancedForShots(shots){
   };
 
   shots.forEach(shot=>{
-
     const xg=calculateShotXG(shot);
-
     grades[getShotGrade(xg)]++;
-
   });
 
   return {
-
     shots:totalShots,
     goals,
     xGA,
@@ -1714,7 +1775,6 @@ function calculateAdvancedForShots(shots){
     expectedSV,
     gsax,
     grades
-
   };
 
 }
@@ -1735,7 +1795,6 @@ function calculatePer60(value,minutes){
 
 const charts={};
 
-
 function makeChart(id,config){
 
   if(charts[id]){
@@ -1744,9 +1803,7 @@ function makeChart(id,config){
 
   const element=document.getElementById(id);
 
-  if(!element){
-    return null;
-  }
+  if(!element)return null;
 
   charts[id]=new Chart(
     element,
@@ -1758,56 +1815,31 @@ function makeChart(id,config){
 }
 
 
-/* ==========================================
-   BASE CHART OPTIONS
-   ========================================== */
-
 function chartOptions(){
 
   return {
 
     responsive:true,
-
     maintainAspectRatio:false,
 
     plugins:{
-
       legend:{
-
         labels:{
           color:'#b9d0bf'
         }
-
       }
-
     },
 
     scales:{
-
       x:{
-
-        ticks:{
-          color:'#8faf9a'
-        },
-
-        grid:{
-          color:'#173b27'
-        }
-
+        ticks:{color:'#8faf9a'},
+        grid:{color:'#173b27'}
       },
 
       y:{
-
-        ticks:{
-          color:'#8faf9a'
-        },
-
-        grid:{
-          color:'#173b27'
-        }
-
+        ticks:{color:'#8faf9a'},
+        grid:{color:'#173b27'}
       }
-
     }
 
   };
@@ -1815,42 +1847,25 @@ function chartOptions(){
 }
 
 
-/*
-  Dynamic percentage scale.
-
-  Keeps goalie percentages visually useful without
-  forcing the graph to run from 0 to 100.
-*/
-
 function percentageScale(values){
 
-  const valid=values
-    .filter(v=>v!==null && Number.isFinite(v));
+  const valid=values.filter(
+    v=>v!==null && Number.isFinite(v)
+  );
 
   if(!valid.length){
-
-    return {
-      min:80,
-      max:100
-    };
-
+    return {min:80,max:100};
   }
 
   const minValue=Math.min(...valid);
   const maxValue=Math.max(...valid);
 
   let min=Math.floor(
-    Math.min(
-      80,
-      minValue-2
-    )/5
+    Math.min(80,minValue-2)/5
   )*5;
 
   let max=Math.ceil(
-    Math.max(
-      100,
-      maxValue+2
-    )/5
+    Math.max(100,maxValue+2)/5
   )*5;
 
   min=Math.max(50,min);
@@ -1860,25 +1875,16 @@ function percentageScale(values){
     min=Math.max(50,max-10);
   }
 
-  return {
-    min,
-    max
-  };
+  return {min,max};
 
 }
 
 
-/*
-  Dynamic count scale.
-
-  Gives distribution charts enough headroom without
-  creating a giant empty axis.
-*/
-
 function countScale(values){
 
-  const valid=values
-    .filter(v=>v!==null && Number.isFinite(v));
+  const valid=values.filter(
+    v=>v!==null && Number.isFinite(v)
+  );
 
   const maxValue=
     valid.length
@@ -1905,14 +1911,11 @@ function countScale(values){
 }
 
 
-/*
-  Symmetric GSAx scale around zero.
-*/
-
 function gsaxScale(values){
 
-  const valid=values
-    .filter(v=>v!==null && Number.isFinite(v));
+  const valid=values.filter(
+    v=>v!==null && Number.isFinite(v)
+  );
 
   const maxAbs=
     valid.length
@@ -1923,9 +1926,7 @@ function gsaxScale(values){
 
   const range=Math.max(
     1,
-    Math.ceil(
-      (maxAbs+.5)*2
-    )/2
+    Math.ceil((maxAbs+.5)*2)/2
   );
 
   return {
@@ -2072,30 +2073,11 @@ function renderOverview(games,shots){
         ).toFixed(2)
       : '—';
 
-  renderAdvancedOverview(
-    games,
-    shots
-  );
-
-  renderPerformanceSummary(
-    games,
-    shots
-  );
-
-  renderPerformanceDistribution(
-    games,
-    shots
-  );
-
-  renderOverviewCharts(
-    games,
-    shots
-  );
-
-  renderRecentGames(
-    games,
-    shots
-  );
+  renderAdvancedOverview(games,shots);
+  renderPerformanceSummary(games,shots);
+  renderPerformanceDistribution(games,shots);
+  renderOverviewCharts(games,shots);
+  renderRecentGames(games,shots);
 
 }
 
@@ -2192,9 +2174,7 @@ function renderAdvancedOverview(games,shots){
 
     <div class="grade-card">
 
-      <div class="grade">
-        ${item[0]}
-      </div>
+      <div class="grade">${item[0]}</div>
 
       <div class="grade-count">
         ${item[2]}
@@ -2217,35 +2197,13 @@ function renderAdvancedOverview(games,shots){
 
 function renderPerformanceDistribution(games,shots){
 
-  /*
-    SV% DISTRIBUTION
-  */
-
   const svBuckets=[
-    {
-      label:'< .850',
-      count:0
-    },
-    {
-      label:'.850–.880',
-      count:0
-    },
-    {
-      label:'.880–.900',
-      count:0
-    },
-    {
-      label:'.900–.920',
-      count:0
-    },
-    {
-      label:'.920–.940',
-      count:0
-    },
-    {
-      label:'> .940',
-      count:0
-    }
+    {label:'< .850',count:0},
+    {label:'.850–.880',count:0},
+    {label:'.880–.900',count:0},
+    {label:'.900–.920',count:0},
+    {label:'.920–.940',count:0},
+    {label:'> .940',count:0}
   ];
 
   games.forEach(game=>{
@@ -2253,30 +2211,16 @@ function renderPerformanceDistribution(games,shots){
     const sa=num(game.shots_against);
     const saves=num(game.saves);
 
-    if(!sa){
-      return;
-    }
+    if(!sa)return;
 
     const sv=saves/sa;
 
-    if(sv<.850){
-      svBuckets[0].count++;
-    }
-    else if(sv<.880){
-      svBuckets[1].count++;
-    }
-    else if(sv<.900){
-      svBuckets[2].count++;
-    }
-    else if(sv<.920){
-      svBuckets[3].count++;
-    }
-    else if(sv<=.940){
-      svBuckets[4].count++;
-    }
-    else{
-      svBuckets[5].count++;
-    }
+    if(sv<.850)svBuckets[0].count++;
+    else if(sv<.880)svBuckets[1].count++;
+    else if(sv<.900)svBuckets[2].count++;
+    else if(sv<.920)svBuckets[3].count++;
+    else if(sv<=.940)svBuckets[4].count++;
+    else svBuckets[5].count++;
 
   });
 
@@ -2286,68 +2230,35 @@ function renderPerformanceDistribution(games,shots){
   makeChart(
     'svDistributionChart',
     {
-
       type:'bar',
 
       data:{
+        labels:svBuckets.map(x=>x.label),
 
-        labels:svBuckets.map(
-          x=>x.label
-        ),
-
-        datasets:[
-
-          {
-            label:'Games',
-            data:svDistributionValues
-          }
-
-        ]
-
+        datasets:[{
+          label:'Games',
+          data:svDistributionValues
+        }]
       },
 
       options:{
-
         ...chartOptions(),
 
         plugins:{
-
-          legend:{
-            display:false
-          }
-
+          legend:{display:false}
         },
 
         scales:{
-
-          x:{
-
-            ticks:{
-              color:'#8faf9a'
-            },
-
-            grid:{
-              color:'#173b27'
-            }
-
-          },
+          x:chartOptions().scales.x,
 
           y:countScale(
             svDistributionValues
           )
-
         }
-
       }
-
     }
-
   );
 
-
-  /*
-    GOALS ALLOWED BY SHOT GRADE
-  */
 
   const goalsByGrade={
     'A+':0,
@@ -2358,13 +2269,12 @@ function renderPerformanceDistribution(games,shots){
 
   shots.forEach(shot=>{
 
-    if(!isGoal(shot)){
-      return;
-    }
+    if(!isGoal(shot))return;
 
-    const xg=calculateShotXG(shot);
-
-    const grade=getShotGrade(xg);
+    const grade=
+      getShotGrade(
+        calculateShotXG(shot)
+      );
 
     goalsByGrade[grade]++;
 
@@ -2380,97 +2290,43 @@ function renderPerformanceDistribution(games,shots){
   makeChart(
     'goalsByGradeChart',
     {
-
       type:'bar',
 
       data:{
+        labels:['A+','A','B','C'],
 
-        labels:[
-          'A+',
-          'A',
-          'B',
-          'C'
-        ],
-
-        datasets:[
-
-          {
-            label:'Goals Allowed',
-            data:gradeValues
-          }
-
-        ]
-
+        datasets:[{
+          label:'Goals Allowed',
+          data:gradeValues
+        }]
       },
 
       options:{
-
         ...chartOptions(),
 
         plugins:{
-
-          legend:{
-            display:false
-          }
-
+          legend:{display:false}
         },
 
         scales:{
-
-          x:{
-
-            ticks:{
-              color:'#8faf9a'
-            },
-
-            grid:{
-              color:'#173b27'
-            }
-
-          },
+          x:chartOptions().scales.x,
 
           y:countScale(
             gradeValues
           )
-
         }
-
       }
-
     }
-
   );
 
 
-  /*
-    GOALS ALLOWED DISTRIBUTION
-  */
-
   const gaBuckets=[
-    {
-      label:'0 GA',
-      count:0
-    },
-    {
-      label:'1 GA',
-      count:0
-    },
-    {
-      label:'2 GA',
-      count:0
-    },
-    {
-      label:'3 GA',
-      count:0
-    },
-    {
-      label:'4 GA',
-      count:0
-    },
-    {
-      label:'5+ GA',
-      count:0
-    }
+    {label:'0 GA',count:0},
+    {label:'1 GA',count:0},
+    {label:'2 GA',count:0},
+    {label:'3 GA',count:0},
+    {label:'4 GA',count:0},
+    {label:'5+ GA',count:0}
   ];
 
   games.forEach(game=>{
@@ -2479,24 +2335,12 @@ function renderPerformanceDistribution(games,shots){
       game.goals_against
     );
 
-    if(ga<=0){
-      gaBuckets[0].count++;
-    }
-    else if(ga===1){
-      gaBuckets[1].count++;
-    }
-    else if(ga===2){
-      gaBuckets[2].count++;
-    }
-    else if(ga===3){
-      gaBuckets[3].count++;
-    }
-    else if(ga===4){
-      gaBuckets[4].count++;
-    }
-    else{
-      gaBuckets[5].count++;
-    }
+    if(ga<=0)gaBuckets[0].count++;
+    else if(ga===1)gaBuckets[1].count++;
+    else if(ga===2)gaBuckets[2].count++;
+    else if(ga===3)gaBuckets[3].count++;
+    else if(ga===4)gaBuckets[4].count++;
+    else gaBuckets[5].count++;
 
   });
 
@@ -2506,94 +2350,49 @@ function renderPerformanceDistribution(games,shots){
   makeChart(
     'gaDistributionChart',
     {
-
       type:'bar',
 
       data:{
+        labels:gaBuckets.map(x=>x.label),
 
-        labels:gaBuckets.map(
-          x=>x.label
-        ),
-
-        datasets:[
-
-          {
-            label:'Games',
-            data:gaDistributionValues
-          }
-
-        ]
-
+        datasets:[{
+          label:'Games',
+          data:gaDistributionValues
+        }]
       },
 
       options:{
-
         ...chartOptions(),
 
         plugins:{
-
-          legend:{
-            display:false
-          }
-
+          legend:{display:false}
         },
 
         scales:{
-
-          x:{
-
-            ticks:{
-              color:'#8faf9a'
-            },
-
-            grid:{
-              color:'#173b27'
-            }
-
-          },
+          x:chartOptions().scales.x,
 
           y:countScale(
             gaDistributionValues
           )
-
         }
-
       }
-
     }
-
   );
 
 
-  /*
-    HOME / AWAY SPLIT
-  */
-
   const homeGames=games.filter(
     g=>{
+      const value=normalize(g.home_away);
 
-      const value=
-        normalize(g.home_away);
-
-      return (
-        value==='home' ||
-        value==='h'
-      );
-
+      return value==='home'||value==='h';
     }
   );
 
   const awayGames=games.filter(
     g=>{
+      const value=normalize(g.home_away);
 
-      const value=
-        normalize(g.home_away);
-
-      return (
-        value==='away' ||
-        value==='a'
-      );
-
+      return value==='away'||value==='a';
     }
   );
 
@@ -2625,56 +2424,45 @@ function renderPerformanceDistribution(games,shots){
     );
 
     const wins=splitGames.filter(
-      g=>
-        String(g.result || '')
-          .trim()
-          .toUpperCase()==='W'
+      g=>String(g.result||'')
+        .trim()
+        .toUpperCase()==='W'
     ).length;
 
     const losses=splitGames.filter(
-      g=>
-        String(g.result || '')
-          .trim()
-          .toUpperCase()==='L'
+      g=>String(g.result||'')
+        .trim()
+        .toUpperCase()==='L'
     ).length;
 
     const otls=splitGames.filter(
-      g=>
-        String(g.result || '')
-          .trim()
-          .toUpperCase()==='OTL'
+      g=>String(g.result||'')
+        .trim()
+        .toUpperCase()==='OTL'
     ).length;
 
     return {
 
       games:splitGames.length,
 
-      sv:
-        SA
-          ? (saves/SA*100).toFixed(1)+'%'
-          : '—',
+      sv:SA
+        ? (saves/SA*100).toFixed(1)+'%'
+        : '—',
 
-      gaa:
-        MIN
-          ? (GA/MIN*60).toFixed(2)
-          : '—',
+      gaa:MIN
+        ? (GA/MIN*60).toFixed(2)
+        : '—',
 
-      record:
-        `${wins}-${losses}-${otls}`
+      record:`${wins}-${losses}-${otls}`
 
     };
 
   }
 
 
-  function homeAwayCard(
-    title,
-    splitGames
-  ){
+  function homeAwayCard(title,splitGames){
 
-    const s=splitStats(
-      splitGames
-    );
+    const s=splitStats(splitGames);
 
     return `
 
@@ -2685,37 +2473,22 @@ function renderPerformanceDistribution(games,shots){
         </div>
 
         <div class="home-away-games">
-          ${s.games} game${s.games===1 ? '' : 's'}
+          ${s.games} game${s.games===1?'':'s'}
         </div>
 
         <div class="home-away-stat">
-
           <span>SV%</span>
-
-          <strong>
-            ${s.sv}
-          </strong>
-
+          <strong>${s.sv}</strong>
         </div>
 
         <div class="home-away-stat">
-
           <span>GAA</span>
-
-          <strong>
-            ${s.gaa}
-          </strong>
-
+          <strong>${s.gaa}</strong>
         </div>
 
         <div class="home-away-stat">
-
           <span>Record</span>
-
-          <strong>
-            ${s.record}
-          </strong>
-
+          <strong>${s.record}</strong>
         </div>
 
       </div>
@@ -2800,18 +2573,21 @@ function renderOverviewCharts(games,shots){
       calculateAdvancedForShots(gameShots);
 
     xga.push(
-      Number(advanced.xGA.toFixed(2))
+      Number(
+        advanced.xGA.toFixed(2)
+      )
     );
 
     gsax.push(
-      Number(advanced.gsax.toFixed(2))
+      Number(
+        advanced.gsax.toFixed(2)
+      )
     );
 
   });
 
 
-  const svScale=
-    percentageScale(sv);
+  const svScale=percentageScale(sv);
 
   makeChart(
     'svChart',
@@ -2822,29 +2598,21 @@ function renderOverviewCharts(games,shots){
       data:{
         labels,
 
-        datasets:[
-
-          {
-            label:'SV%',
-            data:sv,
-            tension:.3,
-            spanGaps:true
-          }
-
-        ]
-
+        datasets:[{
+          label:'SV%',
+          data:sv,
+          tension:.3,
+          spanGaps:true
+        }]
       },
 
       options:{
-
         ...chartOptions(),
 
         scales:{
-
           x:chartOptions().scales.x,
 
           y:{
-
             min:svScale.min,
             max:svScale.max,
 
@@ -2856,28 +2624,22 @@ function renderOverviewCharts(games,shots){
             grid:{
               color:'#173b27'
             }
-
           }
-
         }
-
       }
-
     }
   );
 
 
-  const gaaValues=
-    gaa.filter(
-      v=>v!==null
-    );
+  const gaaValues=gaa.filter(
+    v=>v!==null
+  );
 
-  const gaaMax=
-    gaaValues.length
-      ? Math.ceil(
-          Math.max(...gaaValues)+.5
-        )
-      : 4;
+  const gaaMax=gaaValues.length
+    ? Math.ceil(
+        Math.max(...gaaValues)+.5
+      )
+    : 4;
 
   makeChart(
     'gaaChart',
@@ -2888,29 +2650,21 @@ function renderOverviewCharts(games,shots){
       data:{
         labels,
 
-        datasets:[
-
-          {
-            label:'GAA',
-            data:gaa,
-            tension:.3,
-            spanGaps:true
-          }
-
-        ]
-
+        datasets:[{
+          label:'GAA',
+          data:gaa,
+          tension:.3,
+          spanGaps:true
+        }]
       },
 
       options:{
-
         ...chartOptions(),
 
         scales:{
-
           x:chartOptions().scales.x,
 
           y:{
-
             beginAtZero:true,
             max:Math.max(3,gaaMax),
 
@@ -2921,28 +2675,22 @@ function renderOverviewCharts(games,shots){
             grid:{
               color:'#173b27'
             }
-
           }
-
         }
-
       }
-
     }
   );
 
 
-  const xgaValues=
-    xga.filter(
-      v=>v!==null
-    );
+  const xgaValues=xga.filter(
+    v=>v!==null
+  );
 
-  const xgaMax=
-    xgaValues.length
-      ? Math.ceil(
-          Math.max(...xgaValues)+.5
-        )
-      : 5;
+  const xgaMax=xgaValues.length
+    ? Math.ceil(
+        Math.max(...xgaValues)+.5
+      )
+    : 5;
 
   makeChart(
     'xgaChart',
@@ -2953,29 +2701,21 @@ function renderOverviewCharts(games,shots){
       data:{
         labels,
 
-        datasets:[
-
-          {
-            label:'xGA',
-            data:xga,
-            tension:.3,
-            spanGaps:true
-          }
-
-        ]
-
+        datasets:[{
+          label:'xGA',
+          data:xga,
+          tension:.3,
+          spanGaps:true
+        }]
       },
 
       options:{
-
         ...chartOptions(),
 
         scales:{
-
           x:chartOptions().scales.x,
 
           y:{
-
             beginAtZero:true,
             max:Math.max(3,xgaMax),
 
@@ -2986,13 +2726,9 @@ function renderOverviewCharts(games,shots){
             grid:{
               color:'#173b27'
             }
-
           }
-
         }
-
       }
-
     }
   );
 
@@ -3006,41 +2742,29 @@ function renderOverviewCharts(games,shots){
       data:{
         labels,
 
-        datasets:[
-
-          {
-            label:'GSAx',
-            data:gsax,
-            tension:.3,
-            spanGaps:true
-          }
-
-        ]
-
+        datasets:[{
+          label:'GSAx',
+          data:gsax,
+          tension:.3,
+          spanGaps:true
+        }]
       },
 
       options:{
-
         ...chartOptions(),
 
         scales:{
-
           x:chartOptions().scales.x,
 
           y:{
-
             ...gsaxScale(gsax),
 
             grid:{
               color:'#173b27'
             }
-
           }
-
         }
-
       }
-
     }
   );
 
@@ -3116,13 +2840,11 @@ function renderPerformanceSummary(games,shots){
       <h3>Shot Quality</h3>
 
       <div class="analysis-value">
-
         ${
           advanced.shots
             ? advanced.xGA.toFixed(2)
             : '—'
         }
-
       </div>
 
       <p>
@@ -3136,13 +2858,11 @@ function renderPerformanceSummary(games,shots){
       <h3>Workload</h3>
 
       <div class="analysis-value">
-
         ${
           workload!==null
             ? workload.toFixed(1)
             : '—'
         }
-
       </div>
 
       <p>
@@ -3157,14 +2877,12 @@ function renderPerformanceSummary(games,shots){
       <h3>Expected vs Actual SV%</h3>
 
       <div class="analysis-value">
-
         ${
           actualSV!==null &&
           expectedSV!==null
             ? ((actualSV-expectedSV)*100).toFixed(1)+' pts'
             : '—'
         }
-
       </div>
 
       <p>
@@ -3179,13 +2897,11 @@ function renderPerformanceSummary(games,shots){
       <h3>GSAx / 60</h3>
 
       <div class="analysis-value">
-
         ${
           gsax60!==null
             ? gsax60.toFixed(2)
             : '—'
         }
-
       </div>
 
       <p>
@@ -3199,9 +2915,7 @@ function renderPerformanceSummary(games,shots){
       <h3>Tracked Shot Sample</h3>
 
       <div class="analysis-value">
-
         ${advanced.shots}
-
       </div>
 
       <p>
@@ -3229,8 +2943,7 @@ function renderRecentGames(games,shots){
 
     document.getElementById(
       'recentGames'
-    ).innerHTML=
-      'No games entered yet.';
+    ).innerHTML='No games entered yet.';
 
     return;
 
@@ -3245,7 +2958,6 @@ function renderRecentGames(games,shots){
       <thead>
 
         <tr>
-
           <th>Game</th>
           <th>Opponent</th>
           <th>Result</th>
@@ -3256,7 +2968,6 @@ function renderRecentGames(games,shots){
           <th>xGA</th>
           <th>GSAx</th>
           <th>GSAx / 60</th>
-
         </tr>
 
       </thead>
@@ -3288,7 +2999,7 @@ function renderRecentGames(games,shots){
             : '—';
 
           const gsax60=
-            gameShots.length && min
+            gameShots.length&&min
               ? (advanced.gsax/min*60).toFixed(2)
               : '—';
 
@@ -3301,7 +3012,7 @@ function renderRecentGames(games,shots){
               </td>
 
               <td>
-                ${g.opponent || '—'}
+                ${g.opponent||'—'}
               </td>
 
               <td>
@@ -3309,18 +3020,13 @@ function renderRecentGames(games,shots){
               </td>
 
               <td>
-                ${g.team_goals ?? '—'} -
-                ${g.opponent_goals ?? '—'}
+                ${g.team_goals??'—'} -
+                ${g.opponent_goals??'—'}
               </td>
 
               <td>${sa}</td>
-
               <td>${ga}</td>
-
-              <td>
-                ${pct(saves,sa)}
-              </td>
-
+              <td>${pct(saves,sa)}</td>
               <td>${xga}</td>
 
               <td class="${
@@ -3362,8 +3068,7 @@ function renderGameLog(games,shots){
 
     document.getElementById(
       'gameLog'
-    ).innerHTML=
-      'No games entered yet.';
+    ).innerHTML='No games entered yet.';
 
     return;
 
@@ -3435,7 +3140,7 @@ function renderGameLog(games,shots){
             : '—';
 
           const gsax60=
-            gameShots.length && min
+            gameShots.length&&min
               ? (advanced.gsax/min*60).toFixed(2)
               : '—';
 
@@ -3444,36 +3149,21 @@ function renderGameLog(games,shots){
             <tr>
 
               <td>Game ${i+1}</td>
+              <td>${g.opponent||'—'}</td>
+              <td>${g.home_away||'—'}</td>
+              <td>${resultBadge(g.result)}</td>
 
               <td>
-                ${g.opponent || '—'}
-              </td>
-
-              <td>
-                ${g.home_away || '—'}
-              </td>
-
-              <td>
-                ${resultBadge(g.result)}
-              </td>
-
-              <td>
-                ${g.team_goals ?? '—'} -
-                ${g.opponent_goals ?? '—'}
+                ${g.team_goals??'—'} -
+                ${g.opponent_goals??'—'}
               </td>
 
               <td>${sa}</td>
               <td>${saves}</td>
               <td>${ga}</td>
-
-              <td>
-                ${pct(saves,sa)}
-              </td>
-
+              <td>${pct(saves,sa)}</td>
               <td>${gaa}</td>
-
               <td>${xga}</td>
-
               <td>${expectedSV}</td>
 
               <td class="${
@@ -3489,11 +3179,10 @@ function renderGameLog(games,shots){
               </td>
 
               <td>${gsax60}</td>
-
               <td>${min}</td>
 
               <td>
-                ${isShutout(g.shutout) ? '✓' : '—'}
+                ${isShutout(g.shutout)?'✓':'—'}
               </td>
 
             </tr>
@@ -3581,11 +3270,11 @@ function renderPeriods(periods,shots,seasonGameIds){
       (a,b)=>{
 
         const aScore=
-          (a.saves/a.sa*100) +
+          (a.saves/a.sa*100)+
           (a.advanced.gsax*5);
 
         const bScore=
-          (b.saves/b.sa*100) +
+          (b.saves/b.sa*100)+
           (b.advanced.gsax*5);
 
         return bScore-aScore;
@@ -3612,7 +3301,7 @@ function renderPeriods(periods,shots,seasonGameIds){
 
       return `
 
-        <div class="period-hero ${isBest ? 'best' : ''}">
+        <div class="period-hero ${isBest?'best':''}">
 
           ${
             isBest
@@ -3629,7 +3318,7 @@ function renderPeriods(periods,shots,seasonGameIds){
           </div>
 
           <div class="period-main-stat">
-            ${sv!==null ? sv.toFixed(1)+'%' : '—'}
+            ${sv!==null?sv.toFixed(1)+'%':'—'}
           </div>
 
           <div class="period-main-label">
@@ -3639,41 +3328,28 @@ function renderPeriods(periods,shots,seasonGameIds){
           <div class="period-mini-stats">
 
             <div class="period-mini-stat">
-
               <span>Shots</span>
-
-              <strong>
-                ${x.sa}
-              </strong>
-
+              <strong>${x.sa}</strong>
             </div>
 
             <div class="period-mini-stat">
-
               <span>Goals</span>
-
-              <strong>
-                ${x.ga}
-              </strong>
-
+              <strong>${x.ga}</strong>
             </div>
 
             <div class="period-mini-stat">
-
               <span>xGA</span>
-
               <strong>
-                ${x.advanced.shots
-                  ? x.advanced.xGA.toFixed(2)
-                  : '—'}
+                ${
+                  x.advanced.shots
+                    ? x.advanced.xGA.toFixed(2)
+                    : '—'
+                }
               </strong>
-
             </div>
 
             <div class="period-mini-stat">
-
               <span>GSAx</span>
-
               <strong class="${
                 x.advanced.shots
                   ? x.advanced.gsax>=0
@@ -3689,7 +3365,6 @@ function renderPeriods(periods,shots,seasonGameIds){
                 }
 
               </strong>
-
             </div>
 
           </div>
@@ -3819,16 +3494,12 @@ function renderPeriods(periods,shots,seasonGameIds){
 
         <tr>
 
-          <td>
-            ${metric.label}
-          </td>
+          <td>${metric.label}</td>
 
           ${metric.values.map(v=>{
 
             if(v===null){
-
-              return `<td>—</td>`;
-
+              return '<td>—</td>';
             }
 
             const display=
@@ -3871,14 +3542,6 @@ function renderPeriods(periods,shots,seasonGameIds){
     }).join('');
 
 
-  /*
-    EXPECTED VS ACTUAL SV%
-
-    This replaces the old Expected SV% bar chart.
-    A line graph is more appropriate because the periods
-    are ordered chronologically.
-  */
-
   const expectedSVData=
     data.map(x=>
       x.advanced.shots
@@ -3901,15 +3564,11 @@ function renderPeriods(periods,shots,seasonGameIds){
         : null
     );
 
-  const combinedSVValues=[
-    ...expectedSVData,
-    ...actualSVData
-  ];
-
   const periodSVScale=
-    percentageScale(
-      combinedSVValues
-    );
+    percentageScale([
+      ...expectedSVData,
+      ...actualSVData
+    ]);
 
   makeChart(
     'periodChart',
@@ -3951,17 +3610,7 @@ function renderPeriods(periods,shots,seasonGameIds){
 
         scales:{
 
-          x:{
-
-            ticks:{
-              color:'#8faf9a'
-            },
-
-            grid:{
-              color:'#173b27'
-            }
-
-          },
+          x:chartOptions().scales.x,
 
           y:{
 
@@ -3988,13 +3637,6 @@ function renderPeriods(periods,shots,seasonGameIds){
   );
 
 
-  /*
-    GSAx BY PERIOD
-
-    Centered around zero so the chart clearly shows
-    whether each period was above or below expected.
-  */
-
   const periodGsaxValues=
     data.map(x=>
       x.advanced.shots
@@ -4018,14 +3660,10 @@ function renderPeriods(periods,shots,seasonGameIds){
           '3rd Period'
         ],
 
-        datasets:[
-
-          {
-            label:'GSAx',
-            data:periodGsaxValues
-          }
-
-        ]
+        datasets:[{
+          label:'GSAx',
+          data:periodGsaxValues
+        }]
 
       },
 
@@ -4034,37 +3672,19 @@ function renderPeriods(periods,shots,seasonGameIds){
         ...chartOptions(),
 
         plugins:{
-
-          legend:{
-            display:false
-          }
-
+          legend:{display:false}
         },
 
         scales:{
 
-          x:{
-
-            ticks:{
-              color:'#8faf9a'
-            },
-
-            grid:{
-              color:'#173b27'
-            }
-
-          },
+          x:chartOptions().scales.x,
 
           y:{
-
-            ...gsaxScale(
-              periodGsaxValues
-            ),
+            ...gsaxScale(periodGsaxValues),
 
             grid:{
               color:'#173b27'
             }
-
           }
 
         }
@@ -4108,7 +3728,6 @@ function renderPeriods(periods,shots,seasonGameIds){
       <h3>Workload</h3>
 
       <p>
-
         ${
           highestWorkload
             ? `The highest shot volume came in the
@@ -4116,7 +3735,6 @@ function renderPeriods(periods,shots,seasonGameIds){
                <strong>${highestWorkload.sa}</strong> shots against.`
             : 'Not enough period data yet.'
         }
-
       </p>
 
     </div>
@@ -4126,7 +3744,6 @@ function renderPeriods(periods,shots,seasonGameIds){
       <h3>Efficiency</h3>
 
       <p>
-
         ${
           bestSV
             ? `The strongest traditional save percentage came in the
@@ -4134,7 +3751,6 @@ function renderPeriods(periods,shots,seasonGameIds){
                <strong>${(bestSV.saves/bestSV.sa*100).toFixed(1)}%</strong>.`
             : 'Not enough period data yet.'
         }
-
       </p>
 
     </div>
@@ -4144,7 +3760,6 @@ function renderPeriods(periods,shots,seasonGameIds){
       <h3>Shot-Quality Performance</h3>
 
       <p>
-
         ${
           bestGSAx
             ? `The strongest performance relative to shot quality came in
@@ -4152,7 +3767,6 @@ function renderPeriods(periods,shots,seasonGameIds){
                <strong>${bestGSAx.advanced.gsax.toFixed(2)} GSAx</strong>.`
             : 'Not enough tracked shot data yet.'
         }
-
       </p>
 
     </div>
@@ -4294,32 +3908,6 @@ function renderSituational(shots){
     )==='B'
   );
 
-  const dangerC=shots.filter(
-    s=>getShotGrade(
-      calculateShotXG(s)
-    )==='C'
-  );
-
-  document.getElementById(
-    'dangerSplits'
-  ).innerHTML=
-
-    splitCard(
-      'A+ · Very High Danger',
-      dangerHigh
-    )+
-
-    splitCard(
-      'A · High Danger',
-      dangerA
-    )+
-
-    splitCard(
-      'B · Moderate Danger',
-      dangerB
-    );
-
-
   const rush=shots.filter(
     s=>shotBoolean(s.rush)
   );
@@ -4358,12 +3946,43 @@ function renderSituational(shots){
   );
 
   document.getElementById(
+    'dangerSplits'
+  ).innerHTML=
+
+    splitCard(
+      'A+ · Very High Danger',
+      dangerHigh
+    )+
+
+    splitCard(
+      'A · High Danger',
+      dangerA
+    )+
+
+    splitCard(
+      'B · Moderate Danger',
+      dangerB
+    );
+
+
+  document.getElementById(
     'situationSplits'
   ).innerHTML=
 
-    splitCard('Rush Shots',rush)+
-    splitCard('Set / Non-Rush Shots',setShots)+
-    splitCard('Rebound Shots',rebound);
+    splitCard(
+      'Rush Shots',
+      rush
+    )+
+
+    splitCard(
+      'Set / Non-Rush Shots',
+      setShots
+    )+
+
+    splitCard(
+      'Rebound Shots',
+      rebound
+    );
 
 
   document.getElementById(
@@ -4423,15 +4042,362 @@ function renderSituational(shots){
 
       data:{
 
-        labels:categories.map(x=>x[0]),
+        labels:categories.map(
+          x=>x[0]
+        ),
+
+        datasets:[{
+          label:'SV%',
+          data:situationalValues
+        }]
+
+      },
+
+      options:{
+
+        ...chartOptions(),
+
+        plugins:{
+          legend:{display:false}
+        },
+
+        scales:{
+
+          x:chartOptions().scales.x,
+
+          y:{
+
+            min:situationScale.min,
+            max:situationScale.max,
+
+            ticks:{
+              color:'#8faf9a',
+              callback:value=>value+'%'
+            },
+
+            grid:{
+              color:'#173b27'
+            }
+
+          }
+
+        }
+
+      }
+
+    }
+  );
+
+}
+
+
+/* ==========================================
+   REBOUND CONTROL RENDERING
+   ========================================== */
+
+function renderReboundControl(shots){
+
+  const data=
+    calculateReboundControl(shots);
+
+  const good=data.good;
+  const bad=data.bad;
+
+  const goodPct=
+    good.share!==null
+      ? good.share.toFixed(1)+'%'
+      : '—';
+
+  const badPct=
+    bad.share!==null
+      ? bad.share.toFixed(1)+'%'
+      : '—';
+
+  const controlPct=
+    data.tracked
+      ? good.shots/data.tracked*100
+      : null;
+
+  const badControlPct=
+    data.tracked
+      ? bad.shots/data.tracked*100
+      : null;
+
+
+  /* ========================================
+     SUMMARY CARDS
+     ======================================== */
+
+  document.getElementById(
+    'reboundSummary'
+  ).innerHTML=`
+
+    <div class="rebound-card">
+
+      <div class="rebound-label">
+        Total Rebound Events
+      </div>
+
+      <div class="rebound-number">
+        ${data.tracked}
+      </div>
+
+      <div class="rebound-description">
+        Shots with a recorded goalierebound_control value.
+      </div>
+
+    </div>
+
+    <div class="rebound-card good">
+
+      <div class="rebound-label">
+        Good Rebounds
+      </div>
+
+      <div class="rebound-number positive">
+        ${good.shots}
+      </div>
+
+      <div class="rebound-description">
+        ${goodPct} of tracked rebound-control events.
+      </div>
+
+    </div>
+
+    <div class="rebound-card bad">
+
+      <div class="rebound-label">
+        Bad Rebounds
+      </div>
+
+      <div class="rebound-number negative">
+        ${bad.shots}
+      </div>
+
+      <div class="rebound-description">
+        ${badPct} of tracked rebound-control events.
+      </div>
+
+    </div>
+
+    <div class="rebound-card">
+
+      <div class="rebound-label">
+        Good Rebound %
+      </div>
+
+      <div class="rebound-number">
+        ${
+          controlPct!==null
+            ? controlPct.toFixed(1)+'%'
+            : '—'
+        }
+      </div>
+
+      <div class="rebound-description">
+        Percentage of recorded rebound-control events classified as good.
+      </div>
+
+    </div>
+
+  `;
+
+
+  /* ========================================
+     GOOD VS BAD DETAIL CARDS
+     ======================================== */
+
+  document.getElementById(
+    'reboundComparison'
+  ).innerHTML=`
+
+    <div class="rebound-detail good">
+
+      <h3>Good Rebounds</h3>
+
+      <div class="rebound-stat">
+        <span>Rebounds</span>
+        <strong>${good.shots}</strong>
+      </div>
+
+      <div class="rebound-stat">
+        <span>Share of Events</span>
+        <strong>
+          ${
+            good.share!==null
+              ? good.share.toFixed(1)+'%'
+              : '—'
+          }
+        </strong>
+      </div>
+
+      <div class="rebound-stat">
+        <span>Goals Allowed</span>
+        <strong>${good.goals}</strong>
+      </div>
+
+      <div class="rebound-stat">
+        <span>SV% on These Shots</span>
+        <strong>${good.sv!==null ? good.sv.toFixed(1)+'%' : '—'}</strong>
+      </div>
+
+      <div class="rebound-stat">
+        <span>Saves</span>
+        <strong>${good.saves}</strong>
+      </div>
+
+    </div>
+
+
+    <div class="rebound-detail bad">
+
+      <h3>Bad Rebounds</h3>
+
+      <div class="rebound-stat">
+        <span>Rebounds</span>
+        <strong>${bad.shots}</strong>
+      </div>
+
+      <div class="rebound-stat">
+        <span>Share of Events</span>
+        <strong>
+          ${
+            bad.share!==null
+              ? bad.share.toFixed(1)+'%'
+              : '—'
+          }
+        </strong>
+      </div>
+
+      <div class="rebound-stat">
+        <span>Goals Allowed</span>
+        <strong>${bad.goals}</strong>
+      </div>
+
+      <div class="rebound-stat">
+        <span>SV% on These Shots</span>
+        <strong>${bad.sv!==null ? bad.sv.toFixed(1)+'%' : '—'}</strong>
+      </div>
+
+      <div class="rebound-stat">
+        <span>Saves</span>
+        <strong>${bad.saves}</strong>
+      </div>
+
+    </div>
+
+  `;
+
+
+  /* ========================================
+     COMPARISON TABLE
+     ======================================== */
+
+  document.getElementById(
+    'reboundTableBody'
+  ).innerHTML=`
+
+    <tr>
+      <td>Rebound Events</td>
+      <td>${good.shots}</td>
+      <td>${bad.shots}</td>
+    </tr>
+
+    <tr>
+      <td>Share of Events</td>
+      <td>
+        ${
+          good.share!==null
+            ? good.share.toFixed(1)+'%'
+            : '—'
+        }
+      </td>
+      <td>
+        ${
+          bad.share!==null
+            ? bad.share.toFixed(1)+'%'
+            : '—'
+        }
+      </td>
+    </tr>
+
+    <tr>
+      <td>Goals Allowed</td>
+      <td>${good.goals}</td>
+      <td>${bad.goals}</td>
+    </tr>
+
+    <tr>
+      <td>Saves</td>
+      <td>${good.saves}</td>
+      <td>${bad.saves}</td>
+    </tr>
+
+    <tr>
+      <td>SV%</td>
+
+      <td class="${
+        good.sv!==null
+          ? 'positive'
+          : ''
+      }">
+
+        ${
+          good.sv!==null
+            ? good.sv.toFixed(1)+'%'
+            : '—'
+        }
+
+      </td>
+
+      <td class="${
+        bad.sv!==null
+          ? 'negative'
+          : ''
+      }">
+
+        ${
+          bad.sv!==null
+            ? bad.sv.toFixed(1)+'%'
+            : '—'
+        }
+
+      </td>
+
+    </tr>
+
+  `;
+
+
+  /* ========================================
+     GOOD VS BAD CHART
+     ======================================== */
+
+  const chartValues=[
+
+    good.shots,
+    bad.shots
+
+  ];
+
+  makeChart(
+    'reboundControlChart',
+    {
+
+      type:'bar',
+
+      data:{
+
+        labels:[
+          'Good Rebounds',
+          'Bad Rebounds'
+        ],
 
         datasets:[
 
           {
-            label:'SV%',
-
-            data:situationalValues
-
+            label:'Rebound Events',
+            data:chartValues
           }
 
         ]
@@ -4464,27 +4430,16 @@ function renderSituational(shots){
 
           },
 
-          y:{
-
-            min:situationScale.min,
-            max:situationScale.max,
-
-            ticks:{
-              color:'#8faf9a',
-              callback:value=>value+'%'
-            },
-
-            grid:{
-              color:'#173b27'
-            }
-
-          }
+          y:countScale(
+            chartValues
+          )
 
         }
 
       }
 
     }
+
   );
 
 }
@@ -4529,21 +4484,21 @@ function renderIncremental(games){
 
     const wins=windowGames.filter(
       g=>
-        String(g.result || '')
+        String(g.result||'')
           .trim()
           .toUpperCase()==='W'
     ).length;
 
     const losses=windowGames.filter(
       g=>
-        String(g.result || '')
+        String(g.result||'')
           .trim()
           .toUpperCase()==='L'
     ).length;
 
     const otl=windowGames.filter(
       g=>
-        String(g.result || '')
+        String(g.result||'')
           .trim()
           .toUpperCase()==='OTL'
     ).length;
@@ -4758,21 +4713,11 @@ function renderRollingTrends(games,shots){
       i+1
     );
 
-    sv5.push(
-      getSV(window5)
-    );
+    sv5.push(getSV(window5));
+    sv10.push(getSV(window10));
 
-    sv10.push(
-      getSV(window10)
-    );
-
-    gaa5.push(
-      getGAA(window5)
-    );
-
-    gaa10.push(
-      getGAA(window10)
-    );
+    gaa5.push(getGAA(window5));
+    gaa10.push(getGAA(window10));
 
     shots605.push(
       getShots60(window5)
@@ -4827,30 +4772,22 @@ function renderRollingTrends(games,shots){
     <div class="charts">
 
       <div class="panel chart-panel">
-        <div class="panel-title">
-          5-Game Rolling SV%
-        </div>
+        <div class="panel-title">5-Game Rolling SV%</div>
         <canvas id="incrementalSV5"></canvas>
       </div>
 
       <div class="panel chart-panel">
-        <div class="panel-title">
-          10-Game Rolling SV%
-        </div>
+        <div class="panel-title">10-Game Rolling SV%</div>
         <canvas id="incrementalSV10"></canvas>
       </div>
 
       <div class="panel chart-panel">
-        <div class="panel-title">
-          5-Game Rolling GAA
-        </div>
+        <div class="panel-title">5-Game Rolling GAA</div>
         <canvas id="incrementalGAA5"></canvas>
       </div>
 
       <div class="panel chart-panel">
-        <div class="panel-title">
-          10-Game Rolling GAA
-        </div>
+        <div class="panel-title">10-Game Rolling GAA</div>
         <canvas id="incrementalGAA10"></canvas>
       </div>
 
@@ -4869,30 +4806,22 @@ function renderRollingTrends(games,shots){
       </div>
 
       <div class="panel chart-panel">
-        <div class="panel-title">
-          5-Game Rolling xGA
-        </div>
+        <div class="panel-title">5-Game Rolling xGA</div>
         <canvas id="incrementalXGA5"></canvas>
       </div>
 
       <div class="panel chart-panel">
-        <div class="panel-title">
-          10-Game Rolling xGA
-        </div>
+        <div class="panel-title">10-Game Rolling xGA</div>
         <canvas id="incrementalXGA10"></canvas>
       </div>
 
       <div class="panel chart-panel">
-        <div class="panel-title">
-          5-Game Rolling GSAx
-        </div>
+        <div class="panel-title">5-Game Rolling GSAx</div>
         <canvas id="incrementalGSAx5"></canvas>
       </div>
 
       <div class="panel chart-panel">
-        <div class="panel-title">
-          10-Game Rolling GSAx
-        </div>
+        <div class="panel-title">10-Game Rolling GSAx</div>
         <canvas id="incrementalGSAx10"></canvas>
       </div>
 
@@ -4918,17 +4847,11 @@ function renderRollingTrends(games,shots){
   chartPairs.forEach(item=>{
 
     let options={
-
       ...chartOptions(),
-
       scales:{
-
         ...chartOptions().scales
-
       }
-
     };
-
 
     if(item[1]==='SV%'){
 
@@ -4952,8 +4875,6 @@ function renderRollingTrends(games,shots){
       };
 
     }
-
-
     else if(item[1]==='GSAx'){
 
       options.scales.y={
@@ -4968,7 +4889,6 @@ function renderRollingTrends(games,shots){
 
     }
 
-
     makeChart(
       item[0],
       {
@@ -4979,16 +4899,14 @@ function renderRollingTrends(games,shots){
 
           labels,
 
-          datasets:[
+          datasets:[{
 
-            {
-              label:item[1],
-              data:item[2],
-              tension:.3,
-              spanGaps:true
-            }
+            label:item[1],
+            data:item[2],
+            tension:.3,
+            spanGaps:true
 
-          ]
+          }]
 
         },
 
@@ -5028,7 +4946,7 @@ function renderRollingTrends(games,shots){
       .filter(g=>{
 
         const season=
-          String(g.season || '')
+          String(g.season||'')
             .trim();
 
         return (
@@ -5075,6 +4993,7 @@ function renderRollingTrends(games,shots){
         )
     );
 
+
     renderOverview(
       seasonGames,
       seasonShots
@@ -5092,6 +5011,10 @@ function renderRollingTrends(games,shots){
     );
 
     renderSituational(
+      seasonShots
+    );
+
+    renderReboundControl(
       seasonShots
     );
 
