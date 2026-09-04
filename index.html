@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -337,6 +336,7 @@ nav button.active{
 }
 
 @media(max-width:800px){
+
   .grid{
     grid-template-columns:repeat(2,1fr);
   }
@@ -356,9 +356,11 @@ nav button.active{
   .grade-grid{
     grid-template-columns:repeat(2,1fr);
   }
+
 }
 
 @media(max-width:500px){
+
   .grid{
     grid-template-columns:1fr 1fr;
   }
@@ -374,9 +376,9 @@ nav button.active{
   .grade-grid{
     grid-template-columns:1fr 1fr;
   }
+
 }
 </style>
-
 </head>
 
 <body>
@@ -407,82 +409,78 @@ nav button.active{
   <div class="grid" id="overviewCards"></div>
 
   <section class="section">
+
     <h2>Advanced Goaltending</h2>
 
-```
-<div class="advanced-note">
-  Advanced metrics are calculated from individual shot characteristics.
-  xG is currently based on a transparent starter model using distance,
-  location, shot type, rush, rebounds, screens, breakaways and cross-ice
-  passes. The model can be calibrated with a larger shot dataset later.
-</div>
+    <div class="advanced-note">
+      Advanced metrics are calculated from individual shot characteristics.
+      xG uses a conservative starter model based on distance, location,
+      shot type, rush, rebounds, screens, breakaways and cross-ice passes.
+      The model can be calibrated with a larger shot dataset later.
+    </div>
 
-<div class="grid" id="advancedOverviewCards"></div>
-```
+    <div class="grid" id="advancedOverviewCards"></div>
 
   </section>
 
   <section class="section">
+
     <h2>Shot Grade Distribution</h2>
 
-```
-<div class="grade-grid" id="gradeDistribution"></div>
-```
+    <div class="grade-grid" id="gradeDistribution"></div>
 
   </section>
 
   <section class="section">
+
     <h2>Performance Trends</h2>
 
-```
-<div class="charts">
+    <div class="charts">
 
-  <div class="panel chart-panel">
-    <canvas id="svChart"></canvas>
-  </div>
+      <div class="panel chart-panel">
+        <canvas id="svChart"></canvas>
+      </div>
 
-  <div class="panel chart-panel">
-    <canvas id="gaaChart"></canvas>
-  </div>
+      <div class="panel chart-panel">
+        <canvas id="gaaChart"></canvas>
+      </div>
 
-</div>
-```
+    </div>
 
   </section>
 
   <section class="section">
+
     <h2>Advanced Trends</h2>
 
-```
-<div class="charts">
+    <div class="charts">
 
-  <div class="panel chart-panel">
-    <canvas id="xgaChart"></canvas>
-  </div>
+      <div class="panel chart-panel">
+        <canvas id="xgaChart"></canvas>
+      </div>
 
-  <div class="panel chart-panel">
-    <canvas id="gsaxChart"></canvas>
-  </div>
+      <div class="panel chart-panel">
+        <canvas id="gsaxChart"></canvas>
+      </div>
 
-</div>
-```
+    </div>
 
   </section>
 
   <section class="section">
+
     <h2>Recent Games</h2>
 
-```
-<div class="panel tablewrap">
-  <div id="recentGames" class="empty">
-    Loading games…
-  </div>
-</div>
-```
+    <div class="panel tablewrap">
+      <div id="recentGames" class="empty">
+        Loading games…
+      </div>
+    </div>
 
   </section>
 
 </section>
+
 
 <!-- GAME LOG -->
 
@@ -496,15 +494,14 @@ nav button.active{
 
   <div class="panel tablewrap">
 
-```
-<div id="gameLog" class="empty">
-  Loading games…
-</div>
-```
+    <div id="gameLog" class="empty">
+      Loading games…
+    </div>
 
   </div>
 
 </section>
+
 
 <!-- PERIOD BREAKDOWN -->
 
@@ -520,27 +517,24 @@ nav button.active{
 
   <section class="section">
 
-```
-<h2>Period Advanced Analytics</h2>
+    <h2>Period Advanced Analytics</h2>
 
-<div class="periods" id="advancedPeriodCards"></div>
-```
+    <div class="periods" id="advancedPeriodCards"></div>
 
   </section>
 
   <section class="section">
 
-```
-<h2>Period Comparison</h2>
+    <h2>Period Comparison</h2>
 
-<div class="panel chart-panel">
-  <canvas id="periodChart"></canvas>
-</div>
-```
+    <div class="panel chart-panel">
+      <canvas id="periodChart"></canvas>
+    </div>
 
   </section>
 
 </section>
+
 
 <!-- INCREMENTAL STATS -->
 
@@ -558,49 +552,49 @@ nav button.active{
 
 </section>
 
+
 <!-- ABOUT -->
 
 <section id="about" class="tab">
 
   <div class="about">
 
-```
-<h2>About</h2>
+    <h2>About</h2>
 
-<p>
-  Matias Baker Goalie Analytics is a personal performance platform
-  designed to track and analyze goaltending performance throughout
-  the 2026–27 season with the Pelham Panthers.
-</p>
+    <p>
+      Matias Baker Goalie Analytics is a personal performance platform
+      designed to track and analyze goaltending performance throughout
+      the 2026–27 season with the Pelham Panthers.
+    </p>
 
-<p>
-  The platform goes beyond traditional statistics by breaking down
-  performance by game and by period, allowing trends and areas for
-  improvement to be identified throughout the season.
-</p>
+    <p>
+      The platform goes beyond traditional statistics by breaking down
+      performance by game and by period, allowing trends and areas for
+      improvement to be identified throughout the season.
+    </p>
 
-<p>
-  Advanced shot analytics use individual shot characteristics to
-  estimate shot danger and evaluate goaltending performance beyond
-  traditional save percentage.
-</p>
+    <p>
+      Advanced shot analytics use individual shot characteristics to
+      estimate shot danger and evaluate goaltending performance beyond
+      traditional save percentage.
+    </p>
 
-<div class="highlight">
+    <div class="highlight">
 
-  <strong>2026 Pre-Season</strong>
+      <strong>2026 Pre-Season</strong>
 
-  <p>
-    Pelham Panthers · Goaltender · 2008
-  </p>
+      <p>
+        Pelham Panthers · Goaltender · 2008
+      </p>
 
-</div>
-```
+    </div>
 
   </div>
 
 </section>
 
 </main>
+
 
 <script>
 
@@ -626,12 +620,15 @@ const q=async table=>{
   );
 
   if(!r.ok){
+
     throw new Error(
       `${table}: ${r.status} ${await r.text()}`
     );
+
   }
 
   return r.json();
+
 };
 
 
@@ -643,7 +640,10 @@ const num=n=>{
 
   const value=Number(n);
 
-  return Number.isFinite(value) ? value : 0;
+  return Number.isFinite(value)
+    ? value
+    : 0;
+
 };
 
 
@@ -655,12 +655,14 @@ const pct=(saves,shots)=>{
   return sa
     ? ((s/sa)*100).toFixed(1)+'%'
     : '—';
+
 };
 
 
 function card(label,value){
 
   return `
+
     <div class="card">
 
       <div class="label">
@@ -672,6 +674,7 @@ function card(label,value){
       </div>
 
     </div>
+
   `;
 
 }
@@ -714,9 +717,11 @@ function resultBadge(result){
   }
 
   return `
+
     <span class="badge ${cls}">
       ${result}
     </span>
+
   `;
 
 }
@@ -725,27 +730,31 @@ function resultBadge(result){
 function isShutout(value){
 
   return (
+
     value===true ||
     value===1 ||
     String(value).toLowerCase()==='true' ||
     String(value)==='1'
+
   );
 
 }
 
 
 /* ==========================================
-   SHOT-LEVEL xG MODEL
+   SHOT HELPERS
    ========================================== */
 
 function shotBoolean(value){
 
   return (
+
     value===true ||
     value===1 ||
     String(value).toLowerCase().trim()==='true' ||
     String(value).trim()==='1' ||
     String(value).toLowerCase().trim()==='yes'
+
   );
 
 }
@@ -757,6 +766,7 @@ function normalize(value){
     .trim()
     .toLowerCase()
     .replace(/[_-]/g,' ');
+
 }
 
 
@@ -792,6 +802,7 @@ function normalizePeriod(value){
   }
 
   return p;
+
 }
 
 
@@ -800,57 +811,81 @@ function isGoal(shot){
   const o=normalize(shot.outcome);
 
   return (
+
     o==='goal' ||
     o==='goals' ||
     o==='g'
+
   );
 
 }
 
 
+/* ==========================================
+   CONSERVATIVE SHOT-LEVEL xG MODEL
+   ========================================== */
+
 function calculateShotXG(shot){
 
   const distance=num(shot.distance);
 
+  /*
+    Distance is still the primary factor,
+    but these values are much more conservative
+    than the previous model.
+  */
+
   let base;
 
   if(distance<=6){
-    base=.35;
+    base=.24;
   }
   else if(distance<=12){
-    base=.20;
+    base=.14;
   }
   else if(distance<=20){
-    base=.10;
+    base=.065;
   }
   else if(distance<=30){
-    base=.05;
+    base=.030;
   }
   else if(distance<=40){
-    base=.025;
+    base=.015;
   }
   else{
-    base=.01;
+    base=.008;
   }
 
+
+  /*
+    LOCATION
+
+    Only modest adjustments.
+  */
 
   const location=normalize(shot.location);
 
   let locationMultiplier=1;
 
   if(location.includes('crease')){
-    locationMultiplier=1.45;
+    locationMultiplier=1.15;
   }
   else if(location.includes('slot')){
-    locationMultiplier=1.30;
+    locationMultiplier=1.10;
   }
   else if(location.includes('circle')){
     locationMultiplier=1.00;
   }
   else if(location.includes('point')){
-    locationMultiplier=.55;
+    locationMultiplier=.75;
   }
 
+
+  /*
+    SHOT TYPE
+
+    Small adjustments.
+  */
 
   const type=normalize(shot.shot_type);
 
@@ -860,13 +895,13 @@ function calculateShotXG(shot){
     type.includes('one timer') ||
     type.includes('onetimer')
   ){
-    typeMultiplier=1.45;
+    typeMultiplier=1.18;
   }
   else if(type.includes('backhand')){
-    typeMultiplier=1.10;
+    typeMultiplier=1.06;
   }
   else if(type.includes('slap')){
-    typeMultiplier=1.05;
+    typeMultiplier=1.04;
   }
 
 
@@ -876,46 +911,95 @@ function calculateShotXG(shot){
     typeMultiplier;
 
 
+  /*
+    RUSH
+  */
+
   if(shotBoolean(shot.rush)){
-    xg*=1.20;
+    xg*=1.08;
   }
+
+
+  /*
+    REBOUND
+
+    More significant because rebound shots
+    generally create a much more dangerous chance.
+  */
 
   if(shotBoolean(shot.rebound)){
-    xg*=1.45;
+    xg*=1.25;
   }
+
+
+  /*
+    SCREEN
+
+    Important, but deliberately modest.
+  */
 
   if(shotBoolean(shot.screened)){
-    xg*=1.20;
+    xg*=1.10;
   }
+
+
+  /*
+    BREAKAWAY
+
+    One of the strongest danger modifiers.
+  */
 
   if(shotBoolean(shot.breakaway)){
-    xg*=2.00;
+    xg*=1.75;
   }
+
+
+  /*
+    CROSS-ICE
+
+    Moderate increase for lateral movement.
+    It should not turn an ordinary shot into
+    an enormous xG value.
+  */
 
   if(shotBoolean(shot.cross_ice)){
-    xg*=1.50;
+    xg*=1.15;
   }
 
 
-  return Math.max(
-    .001,
-    Math.min(.95,xg)
+  /*
+    FINAL SAFETY LIMIT
+
+    Prevents stacked modifiers from producing
+    ridiculous individual shot values.
+  */
+
+  xg=Math.max(
+    .003,
+    Math.min(.75,xg)
   );
+
+
+  return xg;
 
 }
 
 
+/* ==========================================
+   SHOT GRADES
+   ========================================== */
+
 function getShotGrade(xg){
 
-  if(xg>=.35){
+  if(xg>=.25){
     return 'A+';
   }
 
-  if(xg>=.20){
+  if(xg>=.12){
     return 'A';
   }
 
-  if(xg>=.07){
+  if(xg>=.045){
     return 'B';
   }
 
@@ -923,6 +1007,10 @@ function getShotGrade(xg){
 
 }
 
+
+/* ==========================================
+   ADVANCED CALCULATIONS
+   ========================================== */
 
 function calculateAdvancedForShots(shots){
 
@@ -932,19 +1020,30 @@ function calculateAdvancedForShots(shots){
     shot=>isGoal(shot)
   ).length;
 
+
   const xGA=shots.reduce(
     (total,shot)=>
       total+calculateShotXG(shot),
     0
   );
 
+
   const actualSV=totalShots
     ? (totalShots-goals)/totalShots
     : null;
 
+
   const expectedSV=totalShots
     ? 1-(xGA/totalShots)
     : null;
+
+
+  /*
+    Goals Saved Above Expected
+
+    Positive = saved more goals than expected.
+    Negative = allowed more goals than expected.
+  */
 
   const gsax=xGA-goals;
 
@@ -969,13 +1068,21 @@ function calculateAdvancedForShots(shots){
 
 
   return {
+
     shots:totalShots,
+
     goals,
+
     xGA,
+
     actualSV,
+
     expectedSV,
+
     gsax,
+
     grades
+
   };
 
 }
@@ -986,6 +1093,7 @@ function calculateAdvancedForShots(shots){
    ========================================== */
 
 const charts={};
+
 
 function makeChart(id,config){
 
@@ -1018,16 +1126,21 @@ function chartOptions(){
     maintainAspectRatio:false,
 
     plugins:{
+
       legend:{
+
         labels:{
           color:'#b9c9d9'
         }
+
       }
+
     },
 
     scales:{
 
       x:{
+
         ticks:{
           color:'#91a9c1'
         },
@@ -1035,9 +1148,11 @@ function chartOptions(){
         grid:{
           color:'#1e344c'
         }
+
       },
 
       y:{
+
         ticks:{
           color:'#91a9c1'
         },
@@ -1045,6 +1160,7 @@ function chartOptions(){
         grid:{
           color:'#1e344c'
         }
+
       }
 
     }
@@ -1065,36 +1181,44 @@ function calculateStats(games){
     0
   );
 
+
   const S=games.reduce(
     (total,g)=>total+num(g.saves),
     0
   );
+
 
   const GA=games.reduce(
     (total,g)=>total+num(g.goals_against),
     0
   );
 
+
   const MIN=games.reduce(
     (total,g)=>total+num(g.minutes_played),
     0
   );
 
+
   const wins=games.filter(
     g=>String(g.result).toUpperCase()==='W'
   ).length;
+
 
   const losses=games.filter(
     g=>String(g.result).toUpperCase()==='L'
   ).length;
 
+
   const otls=games.filter(
     g=>String(g.result).toUpperCase()==='OTL'
   ).length;
 
+
   const shutouts=games.filter(
     g=>isShutout(g.shutout)
   ).length;
+
 
   return {
 
@@ -1224,6 +1348,10 @@ function renderAdvancedOverview(games,shots){
 }
 
 
+/* ==========================================
+   ADVANCED OVERVIEW CHARTS
+   ========================================== */
+
 function renderAdvancedOverviewCharts(games,shots){
 
   const labels=games.map((g,i)=>
@@ -1244,6 +1372,7 @@ function renderAdvancedOverviewCharts(games,shots){
       shot=>String(shot.game_id)===String(game.id)
     );
 
+
     if(!gameShots.length){
 
       xgaData.push(null);
@@ -1254,14 +1383,14 @@ function renderAdvancedOverviewCharts(games,shots){
     }
 
 
-    const advanced=calculateAdvancedForShots(
-      gameShots
-    );
+    const advanced=
+      calculateAdvancedForShots(gameShots);
 
 
     xgaData.push(
       Number(advanced.xGA.toFixed(2))
     );
+
 
     gsaxData.push(
       Number(advanced.gsax.toFixed(2))
@@ -1273,22 +1402,28 @@ function renderAdvancedOverviewCharts(games,shots){
   makeChart(
     'xgaChart',
     {
+
       type:'line',
 
       data:{
+
         labels,
 
         datasets:[
+
           {
             label:'xGA',
             data:xgaData,
             tension:.3,
             spanGaps:true
           }
+
         ]
+
       },
 
       options:chartOptions()
+
     }
   );
 
@@ -1296,22 +1431,28 @@ function renderAdvancedOverviewCharts(games,shots){
   makeChart(
     'gsaxChart',
     {
+
       type:'line',
 
       data:{
+
         labels,
 
         datasets:[
+
           {
             label:'GSAx',
             data:gsaxData,
             tension:.3,
             spanGaps:true
           }
+
         ]
+
       },
 
       options:chartOptions()
+
     }
   );
 
@@ -1326,7 +1467,10 @@ function renderOverview(games,shots){
 
   const s=calculateStats(games);
 
-  document.getElementById('overviewCards').innerHTML=[
+
+  document.getElementById(
+    'overviewCards'
+  ).innerHTML=[
 
     card('GP',s.GP),
     card('SV%',s.sv),
@@ -1381,21 +1525,27 @@ function renderOverview(games,shots){
   makeChart(
     'svChart',
     {
+
       type:'line',
 
       data:{
+
         labels,
 
         datasets:[
+
           {
             label:'SV%',
             data:sv,
             tension:.3
           }
+
         ]
+
       },
 
       options:chartOptions()
+
     }
   );
 
@@ -1403,21 +1553,27 @@ function renderOverview(games,shots){
   makeChart(
     'gaaChart',
     {
+
       type:'line',
 
       data:{
+
         labels,
 
         datasets:[
+
           {
             label:'GAA',
             data:gaa,
             tension:.3
           }
+
         ]
+
       },
 
       options:chartOptions()
+
     }
   );
 
@@ -1426,6 +1582,7 @@ function renderOverview(games,shots){
     games,
     shots
   );
+
 
   renderAdvancedOverview(
     games,
@@ -1448,7 +1605,9 @@ function renderRecentGames(games,shots){
 
   if(!recent.length){
 
-    document.getElementById('recentGames').innerHTML=
+    document.getElementById(
+      'recentGames'
+    ).innerHTML=
       'No games entered yet.';
 
     return;
@@ -1456,13 +1615,16 @@ function renderRecentGames(games,shots){
   }
 
 
-  document.getElementById('recentGames').innerHTML=`
+  document.getElementById(
+    'recentGames'
+  ).innerHTML=`
 
     <table class="table">
 
       <thead>
 
         <tr>
+
           <th>Game</th>
           <th>Opponent</th>
           <th>Result</th>
@@ -1472,28 +1634,33 @@ function renderRecentGames(games,shots){
           <th>SV%</th>
           <th>xGA</th>
           <th>GSAx</th>
+
         </tr>
 
       </thead>
 
       <tbody>
 
-        ${recent.map((g)=>{
+        ${recent.map(g=>{
 
           const sa=num(g.shots_against);
           const saves=num(g.saves);
           const ga=num(g.goals_against);
 
+
           const gameShots=shots.filter(
             shot=>String(shot.game_id)===String(g.id)
           );
 
+
           const advanced=
             calculateAdvancedForShots(gameShots);
+
 
           const xga=gameShots.length
             ? advanced.xGA.toFixed(2)
             : '—';
+
 
           const gsax=gameShots.length
             ? advanced.gsax.toFixed(2)
@@ -1522,6 +1689,7 @@ function renderRecentGames(games,shots){
               </td>
 
               <td>${sa}</td>
+
               <td>${ga}</td>
 
               <td>
@@ -1529,6 +1697,7 @@ function renderRecentGames(games,shots){
               </td>
 
               <td>${xga}</td>
+
               <td>${gsax}</td>
 
             </tr>
@@ -1554,7 +1723,9 @@ function renderGameLog(games,shots){
 
   if(!games.length){
 
-    document.getElementById('gameLog').innerHTML=
+    document.getElementById(
+      'gameLog'
+    ).innerHTML=
       'No games entered yet.';
 
     return;
@@ -1562,7 +1733,9 @@ function renderGameLog(games,shots){
   }
 
 
-  document.getElementById('gameLog').innerHTML=`
+  document.getElementById(
+    'gameLog'
+  ).innerHTML=`
 
     <table class="table">
 
@@ -1599,9 +1772,11 @@ function renderGameLog(games,shots){
           const ga=num(g.goals_against);
           const min=num(g.minutes_played);
 
+
           const gaa=min
             ? (ga/min*60).toFixed(2)
             : '—';
+
 
           const so=isShutout(g.shutout)
             ? '✓'
@@ -1638,11 +1813,17 @@ function renderGameLog(games,shots){
 
               <td>Game ${i+1}</td>
 
-              <td>${g.opponent || '—'}</td>
+              <td>
+                ${g.opponent || '—'}
+              </td>
 
-              <td>${g.home_away || '—'}</td>
+              <td>
+                ${g.home_away || '—'}
+              </td>
 
-              <td>${resultBadge(g.result)}</td>
+              <td>
+                ${resultBadge(g.result)}
+              </td>
 
               <td>
                 ${g.team_goals ?? '—'} -
@@ -1653,7 +1834,9 @@ function renderGameLog(games,shots){
               <td>${saves}</td>
               <td>${ga}</td>
 
-              <td>${pct(saves,sa)}</td>
+              <td>
+                ${pct(saves,sa)}
+              </td>
 
               <td>${gaa}</td>
 
@@ -1668,7 +1851,9 @@ function renderGameLog(games,shots){
                     : 'negative'
                   : ''
               }">
+
                 ${gsax}
+
               </td>
 
               <td>${min}</td>
@@ -1714,17 +1899,20 @@ function renderPeriods(periods,shots,seasonGameIds){
       0
     );
 
+
     const saves=rows.reduce(
       (total,g)=>
         total+num(g.saves),
       0
     );
 
+
     const ga=rows.reduce(
       (total,g)=>
         total+num(g.goals_against),
       0
     );
+
 
     const min=rows.reduce(
       (total,g)=>
@@ -1744,7 +1932,9 @@ function renderPeriods(periods,shots,seasonGameIds){
   });
 
 
-  document.getElementById('periodCards').innerHTML=
+  document.getElementById(
+    'periodCards'
+  ).innerHTML=
 
     data.map(x=>`
 
@@ -1778,7 +1968,9 @@ function renderPeriods(periods,shots,seasonGameIds){
         </div>
 
         <div class="statline">
+
           <span>GAA</span>
+
           <b>
             ${
               x.min
@@ -1786,6 +1978,7 @@ function renderPeriods(periods,shots,seasonGameIds){
                 : '—'
             }
           </b>
+
         </div>
 
       </div>
@@ -1802,9 +1995,11 @@ function renderPeriods(periods,shots,seasonGameIds){
   makeChart(
     'periodChart',
     {
+
       type:'bar',
 
       data:{
+
         labels:[
           '1st Period',
           '2nd Period',
@@ -1812,6 +2007,7 @@ function renderPeriods(periods,shots,seasonGameIds){
         ],
 
         datasets:[
+
           {
             label:'SV%',
 
@@ -1820,11 +2016,15 @@ function renderPeriods(periods,shots,seasonGameIds){
                 ? x.saves/x.sa*100
                 : null
             )
+
           }
+
         ]
+
       },
 
       options:chartOptions()
+
     }
   );
 
@@ -1850,8 +2050,13 @@ function renderAdvancedPeriods(shots,seasonGameIds){
 
 
     return {
+
       period,
-      ...calculateAdvancedForShots(periodShots)
+
+      ...calculateAdvancedForShots(
+        periodShots
+      )
+
     };
 
   });
@@ -1859,56 +2064,73 @@ function renderAdvancedPeriods(shots,seasonGameIds){
 
   document.getElementById(
     'advancedPeriodCards'
-  ).innerHTML=data.map(x=>`
+  ).innerHTML=
 
-    <div class="period">
+    data.map(x=>`
 
-      <strong>${x.period} Period</strong>
+      <div class="period">
 
-      <div class="statline">
-        <span>Tracked Shots</span>
-        <b>${x.shots}</b>
-      </div>
+        <strong>${x.period} Period</strong>
 
-      <div class="statline">
-        <span>xGA</span>
-        <b>${x.shots ? x.xGA.toFixed(2) : '—'}</b>
-      </div>
+        <div class="statline">
+          <span>Tracked Shots</span>
+          <b>${x.shots}</b>
+        </div>
 
-      <div class="statline">
-        <span>Expected SV%</span>
-        <b>
-          ${
+        <div class="statline">
+          <span>xGA</span>
+          <b>
+            ${x.shots ? x.xGA.toFixed(2) : '—'}
+          </b>
+        </div>
+
+        <div class="statline">
+
+          <span>Expected SV%</span>
+
+          <b>
+            ${
+              x.shots
+                ? (x.expectedSV*100).toFixed(1)+'%'
+                : '—'
+            }
+          </b>
+
+        </div>
+
+        <div class="statline">
+
+          <span>GSAx</span>
+
+          <b class="${
             x.shots
-              ? (x.expectedSV*100).toFixed(1)+'%'
-              : '—'
-          }
-        </b>
+              ? x.gsax>=0
+                ? 'positive'
+                : 'negative'
+              : ''
+          }">
+
+            ${x.shots
+              ? x.gsax.toFixed(2)
+              : '—'}
+
+          </b>
+
+        </div>
+
+        <div class="statline">
+
+          <span>Goals</span>
+
+          <b>
+            ${x.shots ? x.goals : '—'}
+          </b>
+
+        </div>
+
       </div>
 
-      <div class="statline">
-        <span>GSAx</span>
-
-        <b class="${
-          x.shots
-            ? x.gsax>=0
-              ? 'positive'
-              : 'negative'
-            : ''
-        }">
-          ${x.shots ? x.gsax.toFixed(2) : '—'}
-        </b>
-
-      </div>
-
-      <div class="statline">
-        <span>Goals</span>
-        <b>${x.shots ? x.goals : '—'}</b>
-      </div>
-
-    </div>
-
-  `).join('');
+    `).join('');
 
 }
 
@@ -1928,38 +2150,73 @@ function renderIncremental(games){
   function getStats(windowGames){
 
     const SA=windowGames.reduce(
-      (total,g)=>total+Number(g.shots_against || 0),0
+      (total,g)=>
+        total+Number(g.shots_against || 0),
+      0
     );
+
 
     const S=windowGames.reduce(
-      (total,g)=>total+Number(g.saves || 0),0
+      (total,g)=>
+        total+Number(g.saves || 0),
+      0
     );
+
 
     const GA=windowGames.reduce(
-      (total,g)=>total+Number(g.goals_against || 0),0
+      (total,g)=>
+        total+Number(g.goals_against || 0),
+      0
     );
+
 
     const MIN=windowGames.reduce(
-      (total,g)=>total+Number(g.minutes_played || 0),0
+      (total,g)=>
+        total+Number(g.minutes_played || 0),
+      0
     );
 
+
     const wins=windowGames.filter(
-      g=>String(g.result || '').trim().toUpperCase()==='W'
+      g=>
+        String(g.result || '')
+          .trim()
+          .toUpperCase()==='W'
     ).length;
+
 
     const losses=windowGames.filter(
-      g=>String(g.result || '').trim().toUpperCase()==='L'
+      g=>
+        String(g.result || '')
+          .trim()
+          .toUpperCase()==='L'
     ).length;
+
 
     const otl=windowGames.filter(
-      g=>String(g.result || '').trim().toUpperCase()==='OTL'
+      g=>
+        String(g.result || '')
+          .trim()
+          .toUpperCase()==='OTL'
     ).length;
 
+
     return {
-      svPct:SA ? (S/SA*100).toFixed(1)+'%' : '—',
-      gaa:MIN ? (GA/MIN*60).toFixed(2) : '—',
-      shotsPer60:MIN ? (SA/MIN*60).toFixed(1) : '—',
+
+      svPct:SA
+        ? (S/SA*100).toFixed(1)+'%'
+        : '—',
+
+      gaa:MIN
+        ? (GA/MIN*60).toFixed(2)
+        : '—',
+
+      shotsPer60:MIN
+        ? (SA/MIN*60).toFixed(1)
+        : '—',
+
       record:`${wins}-${losses}-${otl}`
+
     };
 
   }
@@ -1970,10 +2227,15 @@ function renderIncremental(games){
     if(windowGames.length===0){
 
       return `
+
         <div class="metric-card">
+
           <h3>${title}</h3>
+
           <p>No games available</p>
+
         </div>
+
       `;
 
     }
@@ -1983,6 +2245,7 @@ function renderIncremental(games){
 
 
     return `
+
       <div class="metric-card">
 
         <h3>${title}</h3>
@@ -2000,16 +2263,25 @@ function renderIncremental(games){
         <small>Record</small>
 
       </div>
+
     `;
 
   }
 
 
-  document.getElementById('incrementalCards').innerHTML=`
+  document.getElementById(
+    'incrementalCards'
+  ).innerHTML=`
 
-    ${makeCard('Last 5 Games',last5)}
+    ${makeCard(
+      'Last 5 Games',
+      last5
+    )}
 
-    ${makeCard('Last 10 Games',last10)}
+    ${makeCard(
+      'Last 10 Games',
+      last10
+    )}
 
   `;
 
@@ -2022,7 +2294,9 @@ function renderIncremental(games){
 
 function renderRollingTrends(games,shots){
 
-  const container=document.getElementById('rollingTrends');
+  const container=
+    document.getElementById('rollingTrends');
+
 
   if(!games.length){
 
@@ -2036,14 +2310,18 @@ function renderRollingTrends(games,shots){
   function getSV(windowGames){
 
     const SA=windowGames.reduce(
-      (total,g)=>total+Number(g.shots_against || 0),
+      (total,g)=>
+        total+Number(g.shots_against || 0),
       0
     );
 
+
     const S=windowGames.reduce(
-      (total,g)=>total+Number(g.saves || 0),
+      (total,g)=>
+        total+Number(g.saves || 0),
       0
     );
+
 
     return SA
       ? (S/SA*100)
@@ -2055,14 +2333,18 @@ function renderRollingTrends(games,shots){
   function getGAA(windowGames){
 
     const GA=windowGames.reduce(
-      (total,g)=>total+Number(g.goals_against || 0),
+      (total,g)=>
+        total+Number(g.goals_against || 0),
       0
     );
 
+
     const MIN=windowGames.reduce(
-      (total,g)=>total+Number(g.minutes_played || 0),
+      (total,g)=>
+        total+Number(g.minutes_played || 0),
       0
     );
+
 
     return MIN
       ? (GA/MIN*60)
@@ -2074,14 +2356,18 @@ function renderRollingTrends(games,shots){
   function getShots60(windowGames){
 
     const SA=windowGames.reduce(
-      (total,g)=>total+Number(g.shots_against || 0),
+      (total,g)=>
+        total+Number(g.shots_against || 0),
       0
     );
 
+
     const MIN=windowGames.reduce(
-      (total,g)=>total+Number(g.minutes_played || 0),
+      (total,g)=>
+        total+Number(g.minutes_played || 0),
       0
     );
+
 
     return MIN
       ? (SA/MIN*60)
@@ -2096,9 +2382,11 @@ function renderRollingTrends(games,shots){
       windowGames.map(g=>String(g.id))
     );
 
+
     const windowShots=shots.filter(
       shot=>ids.has(String(shot.game_id))
     );
+
 
     return calculateAdvancedForShots(
       windowShots
@@ -2121,6 +2409,7 @@ function renderRollingTrends(games,shots){
   const shots605=[];
   const shots6010=[];
 
+
   const xga5=[];
   const xga10=[];
   const gsax5=[];
@@ -2134,48 +2423,92 @@ function renderRollingTrends(games,shots){
       i+1
     );
 
+
     const window10=games.slice(
       Math.max(0,i-9),
       i+1
     );
 
 
-    sv5.push(getSV(window5));
-    gaa5.push(getGAA(window5));
-
-    sv10.push(getSV(window10));
-    gaa10.push(getGAA(window10));
-
-    shots605.push(getShots60(window5));
-    shots6010.push(getShots60(window10));
+    sv5.push(
+      getSV(window5)
+    );
 
 
-    const advanced5=getAdvanced(window5);
-    const advanced10=getAdvanced(window10);
+    gaa5.push(
+      getGAA(window5)
+    );
+
+
+    sv10.push(
+      getSV(window10)
+    );
+
+
+    gaa10.push(
+      getGAA(window10)
+    );
+
+
+    shots605.push(
+      getShots60(window5)
+    );
+
+
+    shots6010.push(
+      getShots60(window10)
+    );
+
+
+    const advanced5=
+      getAdvanced(window5);
+
+
+    const advanced10=
+      getAdvanced(window10);
 
 
     xga5.push(
+
       advanced5.shots
-        ? Number(advanced5.xGA.toFixed(2))
+        ? Number(
+            advanced5.xGA.toFixed(2)
+          )
         : null
+
     );
+
 
     xga10.push(
+
       advanced10.shots
-        ? Number(advanced10.xGA.toFixed(2))
+        ? Number(
+            advanced10.xGA.toFixed(2)
+          )
         : null
+
     );
+
 
     gsax5.push(
+
       advanced5.shots
-        ? Number(advanced5.gsax.toFixed(2))
+        ? Number(
+            advanced5.gsax.toFixed(2)
+          )
         : null
+
     );
 
+
     gsax10.push(
+
       advanced10.shots
-        ? Number(advanced10.gsax.toFixed(2))
+        ? Number(
+            advanced10.gsax.toFixed(2)
+          )
         : null
+
     );
 
   });
@@ -2186,73 +2519,112 @@ function renderRollingTrends(games,shots){
     <div class="charts">
 
       <div class="panel chart-panel">
+
         <h3 style="margin-top:0;">
           5-Game Rolling SV%
         </h3>
+
         <canvas id="incrementalSV5"></canvas>
+
       </div>
 
+
       <div class="panel chart-panel">
+
         <h3 style="margin-top:0;">
           10-Game Rolling SV%
         </h3>
+
         <canvas id="incrementalSV10"></canvas>
+
       </div>
 
+
       <div class="panel chart-panel">
+
         <h3 style="margin-top:0;">
           5-Game Rolling GAA
         </h3>
+
         <canvas id="incrementalGAA5"></canvas>
+
       </div>
 
+
       <div class="panel chart-panel">
+
         <h3 style="margin-top:0;">
           10-Game Rolling GAA
         </h3>
+
         <canvas id="incrementalGAA10"></canvas>
+
       </div>
 
+
       <div class="panel chart-panel">
+
         <h3 style="margin-top:0;">
           5-Game Rolling Shots Against / 60
         </h3>
+
         <canvas id="incrementalSA605"></canvas>
+
       </div>
 
+
       <div class="panel chart-panel">
+
         <h3 style="margin-top:0;">
           10-Game Rolling Shots Against / 60
         </h3>
+
         <canvas id="incrementalSA6010"></canvas>
+
       </div>
 
+
       <div class="panel chart-panel">
+
         <h3 style="margin-top:0;">
           5-Game Rolling xGA
         </h3>
+
         <canvas id="incrementalXGA5"></canvas>
+
       </div>
 
+
       <div class="panel chart-panel">
+
         <h3 style="margin-top:0;">
           10-Game Rolling xGA
         </h3>
+
         <canvas id="incrementalXGA10"></canvas>
+
       </div>
 
+
       <div class="panel chart-panel">
+
         <h3 style="margin-top:0;">
           5-Game Rolling GSAx
         </h3>
+
         <canvas id="incrementalGSAx5"></canvas>
+
       </div>
 
+
       <div class="panel chart-panel">
+
         <h3 style="margin-top:0;">
           10-Game Rolling GSAx
         </h3>
+
         <canvas id="incrementalGSAx10"></canvas>
+
       </div>
 
     </div>
@@ -2263,19 +2635,27 @@ function renderRollingTrends(games,shots){
   makeChart(
     'incrementalSV5',
     {
+
       type:'line',
+
       data:{
         labels,
+
         datasets:[
+
           {
             label:'SV%',
             data:sv5,
             tension:.3,
             spanGaps:true
           }
+
         ]
+
       },
+
       options:chartOptions()
+
     }
   );
 
@@ -2283,19 +2663,27 @@ function renderRollingTrends(games,shots){
   makeChart(
     'incrementalSV10',
     {
+
       type:'line',
+
       data:{
         labels,
+
         datasets:[
+
           {
             label:'SV%',
             data:sv10,
             tension:.3,
             spanGaps:true
           }
+
         ]
+
       },
+
       options:chartOptions()
+
     }
   );
 
@@ -2303,19 +2691,27 @@ function renderRollingTrends(games,shots){
   makeChart(
     'incrementalGAA5',
     {
+
       type:'line',
+
       data:{
         labels,
+
         datasets:[
+
           {
             label:'GAA',
             data:gaa5,
             tension:.3,
             spanGaps:true
           }
+
         ]
+
       },
+
       options:chartOptions()
+
     }
   );
 
@@ -2323,19 +2719,27 @@ function renderRollingTrends(games,shots){
   makeChart(
     'incrementalGAA10',
     {
+
       type:'line',
+
       data:{
         labels,
+
         datasets:[
+
           {
             label:'GAA',
             data:gaa10,
             tension:.3,
             spanGaps:true
           }
+
         ]
+
       },
+
       options:chartOptions()
+
     }
   );
 
@@ -2343,19 +2747,27 @@ function renderRollingTrends(games,shots){
   makeChart(
     'incrementalSA605',
     {
+
       type:'line',
+
       data:{
         labels,
+
         datasets:[
+
           {
             label:'Shots Against / 60',
             data:shots605,
             tension:.3,
             spanGaps:true
           }
+
         ]
+
       },
+
       options:chartOptions()
+
     }
   );
 
@@ -2363,19 +2775,27 @@ function renderRollingTrends(games,shots){
   makeChart(
     'incrementalSA6010',
     {
+
       type:'line',
+
       data:{
         labels,
+
         datasets:[
+
           {
             label:'Shots Against / 60',
             data:shots6010,
             tension:.3,
             spanGaps:true
           }
+
         ]
+
       },
+
       options:chartOptions()
+
     }
   );
 
@@ -2383,19 +2803,27 @@ function renderRollingTrends(games,shots){
   makeChart(
     'incrementalXGA5',
     {
+
       type:'line',
+
       data:{
         labels,
+
         datasets:[
+
           {
             label:'xGA',
             data:xga5,
             tension:.3,
             spanGaps:true
           }
+
         ]
+
       },
+
       options:chartOptions()
+
     }
   );
 
@@ -2403,19 +2831,27 @@ function renderRollingTrends(games,shots){
   makeChart(
     'incrementalXGA10',
     {
+
       type:'line',
+
       data:{
         labels,
+
         datasets:[
+
           {
             label:'xGA',
             data:xga10,
             tension:.3,
             spanGaps:true
           }
+
         ]
+
       },
+
       options:chartOptions()
+
     }
   );
 
@@ -2423,19 +2859,27 @@ function renderRollingTrends(games,shots){
   makeChart(
     'incrementalGSAx5',
     {
+
       type:'line',
+
       data:{
         labels,
+
         datasets:[
+
           {
             label:'GSAx',
             data:gsax5,
             tension:.3,
             spanGaps:true
           }
+
         ]
+
       },
+
       options:chartOptions()
+
     }
   );
 
@@ -2443,19 +2887,27 @@ function renderRollingTrends(games,shots){
   makeChart(
     'incrementalGSAx10',
     {
+
       type:'line',
+
       data:{
         labels,
+
         datasets:[
+
           {
             label:'GSAx',
             data:gsax10,
             tension:.3,
             spanGaps:true
           }
+
         ]
+
       },
+
       options:chartOptions()
+
     }
   );
 
@@ -2470,7 +2922,11 @@ function renderRollingTrends(games,shots){
 
   try{
 
-    const [games,periods,shots]=await Promise.all([
+    const [
+      games,
+      periods,
+      shots
+    ]=await Promise.all([
 
       q('Games'),
 
@@ -2482,20 +2938,22 @@ function renderRollingTrends(games,shots){
 
 
     /*
-      CURRENT SEASON:
-      2026 PRE-SEASON
+      CURRENT SEASON
 
-      2026-27 is also accepted so that
-      the site automatically continues working
-      once regular season games are entered.
+      2026 Pre-Season is the current season.
+
+      2026-27 variations are also accepted so
+      regular-season games automatically appear.
     */
 
     const seasonGames=games
 
       .filter(g=>{
 
-        const season=String(g.season || '')
-          .trim();
+        const season=
+          String(g.season || '')
+            .trim();
+
 
         return (
 
@@ -2527,18 +2985,23 @@ function renderRollingTrends(games,shots){
       });
 
 
+    /*
+      ONLY USE SHOTS BELONGING TO
+      THE CURRENT SEASON'S GAMES.
+    */
+
     const seasonGameIds=new Set(
-      seasonGames.map(g=>String(g.id))
+      seasonGames.map(
+        g=>String(g.id)
+      )
     );
 
 
-    /*
-      ONLY USE SHOTS BELONGING TO THE
-      CURRENT SEASON'S GAMES.
-    */
-
     const seasonShots=shots.filter(
-      shot=>seasonGameIds.has(String(shot.game_id))
+      shot=>
+        seasonGameIds.has(
+          String(shot.game_id)
+        )
     );
 
 
@@ -2548,7 +3011,10 @@ function renderRollingTrends(games,shots){
     */
 
     const seasonPeriods=periods.filter(
-      row=>seasonGameIds.has(String(row.game_id))
+      row=>
+        seasonGameIds.has(
+          String(row.game_id)
+        )
     );
 
 
@@ -2586,7 +3052,9 @@ function renderRollingTrends(games,shots){
 
   catch(e){
 
-    document.getElementById('status').innerHTML=`
+    document.getElementById(
+      'status'
+    ).innerHTML=`
 
       <div class="error">
 
