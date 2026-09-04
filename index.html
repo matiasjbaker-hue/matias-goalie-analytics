@@ -16,14 +16,18 @@
 body{
   margin:0;
   font-family:Inter,Arial,sans-serif;
-  background:#07111f;
-  color:#eef4ff;
+  background:
+    radial-gradient(circle at 15% 0%,rgba(38,130,75,.16),transparent 30%),
+    radial-gradient(circle at 90% 100%,rgba(20,100,55,.12),transparent 32%),
+    #06120c;
+  color:#eef7f1;
 }
 
 header{
   padding:34px 5vw 24px;
-  background:linear-gradient(135deg,#0b1b30,#102a45);
-  border-bottom:1px solid #223b55;
+  background:
+    linear-gradient(135deg,#071b11,#0b3020);
+  border-bottom:1px solid #1d4d32;
 }
 
 .header-inner{
@@ -39,7 +43,7 @@ h1{
 
 header p{
   margin:7px 0 0;
-  color:#a9bdd3;
+  color:#9fbea9;
   font-size:13px;
   letter-spacing:.12em;
   text-transform:uppercase;
@@ -52,13 +56,14 @@ nav{
   display:flex;
   gap:8px;
   overflow-x:auto;
-  border-bottom:1px solid #1e344c;
+  border-bottom:1px solid #173b27;
+  background:#07170f;
 }
 
 nav button{
-  border:1px solid #29435d;
-  background:#0c1a2b;
-  color:#a9bdd3;
+  border:1px solid #245339;
+  background:#0a2115;
+  color:#9fbea9;
   padding:11px 17px;
   border-radius:9px;
   cursor:pointer;
@@ -67,14 +72,14 @@ nav button{
 }
 
 nav button:hover{
-  background:#132942;
+  background:#10351f;
   color:#fff;
 }
 
 nav button.active{
-  background:#173653;
+  background:#155b32;
   color:#fff;
-  border-color:#47749b;
+  border-color:#4b9b68;
 }
 
 .wrap{
@@ -102,8 +107,8 @@ nav button.active{
 .period,
 .analysis-card,
 .split-card{
-  background:#0c1a2b;
-  border:1px solid #1e344c;
+  background:#0a2115;
+  border:1px solid #19442c;
   border-radius:14px;
 }
 
@@ -112,7 +117,7 @@ nav button.active{
 }
 
 .label{
-  color:#91a9c1;
+  color:#8faf9a;
   font-size:11px;
   text-transform:uppercase;
   letter-spacing:.12em;
@@ -138,7 +143,7 @@ nav button.active{
 }
 
 .section-subtitle{
-  color:#91a9c1;
+  color:#8faf9a;
   margin:0 0 18px;
   font-size:13px;
 }
@@ -181,22 +186,22 @@ nav button.active{
 .table td{
   text-align:left;
   padding:13px;
-  border-bottom:1px solid #1e344c;
+  border-bottom:1px solid #19442c;
 }
 
 .table th{
-  color:#91a9c1;
+  color:#8faf9a;
   font-size:11px;
   text-transform:uppercase;
   letter-spacing:.05em;
 }
 
 .table td{
-  color:#dce7f3;
+  color:#dcebe1;
 }
 
 .table tr:hover td{
-  background:#10243a;
+  background:#0e2c1b;
 }
 
 .badge{
@@ -208,8 +213,8 @@ nav button.active{
 }
 
 .badge.win{
-  background:#123c2b;
-  color:#7ee2ad;
+  background:#123c27;
+  color:#78dfa2;
 }
 
 .badge.loss{
@@ -225,7 +230,7 @@ nav button.active{
 .empty{
   padding:30px;
   text-align:center;
-  color:#91a9c1;
+  color:#8faf9a;
 }
 
 .error{
@@ -253,11 +258,11 @@ nav button.active{
 .about .intro{
   font-size:18px;
   line-height:1.7;
-  color:#dce7f3;
+  color:#dcebe1;
 }
 
 .about p{
-  color:#aebfd0;
+  color:#a9c2b2;
   line-height:1.75;
   font-size:14px;
 }
@@ -265,13 +270,14 @@ nav button.active{
 .about-profile{
   margin-top:28px;
   padding:22px 24px;
-  background:linear-gradient(135deg,#102943,#0c1a2b);
-  border:1px solid #29435d;
+  background:
+    linear-gradient(135deg,#103621,#0a2115);
+  border:1px solid #2c6844;
   border-radius:14px;
 }
 
 .about-profile .profile-title{
-  color:#91a9c1;
+  color:#8faf9a;
   font-size:11px;
   text-transform:uppercase;
   letter-spacing:.12em;
@@ -285,7 +291,7 @@ nav button.active{
 }
 
 .about-profile .profile-meta{
-  color:#91a9c1;
+  color:#8faf9a;
   font-size:13px;
 }
 
@@ -296,8 +302,8 @@ nav button.active{
 .highlight{
   padding:20px;
   margin-top:20px;
-  background:#10243a;
-  border:1px solid #29435d;
+  background:#0e2c1b;
+  border:1px solid #245339;
   border-radius:12px;
 }
 
@@ -315,8 +321,8 @@ nav button.active{
 
 .metric-card{
   padding:20px;
-  background:#0c1a2b;
-  border:1px solid #1e344c;
+  background:#0a2115;
+  border:1px solid #19442c;
   border-radius:14px;
 }
 
@@ -327,14 +333,14 @@ nav button.active{
 
 .metric-card p{
   margin:0;
-  color:#eef4ff;
+  color:#eef7f1;
   font-size:19px;
   font-weight:800;
   line-height:1.5;
 }
 
 .metric-card small{
-  color:#91a9c1;
+  color:#8faf9a;
   font-size:11px;
   text-transform:uppercase;
   letter-spacing:.08em;
@@ -343,10 +349,10 @@ nav button.active{
 .advanced-note{
   padding:14px 16px;
   margin-bottom:18px;
-  background:#10243a;
-  border:1px solid #29435d;
+  background:#0e2c1b;
+  border:1px solid #245339;
   border-radius:10px;
-  color:#91a9c1;
+  color:#8faf9a;
   font-size:12px;
   line-height:1.6;
 }
@@ -359,8 +365,8 @@ nav button.active{
 
 .grade-card{
   padding:20px;
-  background:#0c1a2b;
-  border:1px solid #1e344c;
+  background:#0a2115;
+  border:1px solid #19442c;
   border-radius:14px;
   text-align:center;
 }
@@ -377,7 +383,7 @@ nav button.active{
 }
 
 .grade-card .grade-label{
-  color:#91a9c1;
+  color:#8faf9a;
   font-size:11px;
   text-transform:uppercase;
   letter-spacing:.1em;
@@ -406,7 +412,7 @@ nav button.active{
 }
 
 .analysis-card p{
-  color:#91a9c1;
+  color:#8faf9a;
   font-size:12px;
   line-height:1.6;
   margin:0;
@@ -431,15 +437,15 @@ nav button.active{
   display:flex;
   justify-content:space-between;
   margin-top:12px;
-  color:#a9bdd3;
+  color:#9fbea9;
 }
 
 .split-stat b{
-  color:#eef4ff;
+  color:#eef7f1;
 }
 
 .positive{
-  color:#7ee2ad !important;
+  color:#75e0a0 !important;
 }
 
 .negative{
@@ -451,8 +457,9 @@ nav button.active{
 }
 
 .hero-metric{
-  background:linear-gradient(135deg,#102943,#0c1a2b);
-  border:1px solid #315472;
+  background:
+    linear-gradient(135deg,#103621,#0a2115);
+  border:1px solid #2c6844;
   border-radius:16px;
   padding:24px;
 }
@@ -468,7 +475,7 @@ nav button.active{
 }
 
 .hero-metric .description{
-  color:#91a9c1;
+  color:#8faf9a;
   font-size:12px;
   line-height:1.5;
   margin-top:5px;
@@ -482,11 +489,11 @@ nav button.active{
 
 .section-divider{
   margin:34px 0 0;
-  border-top:1px solid #1e344c;
+  border-top:1px solid #19442c;
 }
 
 /* ==========================================
-   NEW PERIOD BREAKDOWN
+   PERIOD BREAKDOWN
    ========================================== */
 
 .period-overview{
@@ -499,19 +506,20 @@ nav button.active{
 .period-hero{
   position:relative;
   padding:24px;
-  background:linear-gradient(145deg,#102943,#0c1a2b);
-  border:1px solid #29435d;
+  background:
+    linear-gradient(145deg,#103621,#0a2115);
+  border:1px solid #245339;
   border-radius:16px;
   overflow:hidden;
 }
 
 .period-hero.best{
-  border-color:#47749b;
-  box-shadow:0 0 0 1px rgba(71,116,155,.15);
+  border-color:#4b9b68;
+  box-shadow:0 0 0 1px rgba(75,155,104,.15);
 }
 
 .period-number{
-  color:#91a9c1;
+  color:#8faf9a;
   font-size:11px;
   text-transform:uppercase;
   letter-spacing:.14em;
@@ -531,7 +539,7 @@ nav button.active{
 }
 
 .period-main-label{
-  color:#91a9c1;
+  color:#8faf9a;
   font-size:11px;
   text-transform:uppercase;
   letter-spacing:.1em;
@@ -544,12 +552,12 @@ nav button.active{
   gap:12px;
   margin-top:22px;
   padding-top:17px;
-  border-top:1px solid #29435d;
+  border-top:1px solid #245339;
 }
 
 .period-mini-stat span{
   display:block;
-  color:#91a9c1;
+  color:#8faf9a;
   font-size:10px;
   text-transform:uppercase;
   letter-spacing:.08em;
@@ -567,9 +575,9 @@ nav button.active{
   right:18px;
   padding:5px 9px;
   border-radius:20px;
-  background:#173653;
-  border:1px solid #47749b;
-  color:#cfe4f7;
+  background:#155b32;
+  border:1px solid #4b9b68;
+  color:#d7f3e1;
   font-size:10px;
   text-transform:uppercase;
   letter-spacing:.08em;
@@ -577,15 +585,15 @@ nav button.active{
 }
 
 .period-comparison{
-  background:#0c1a2b;
-  border:1px solid #1e344c;
+  background:#0a2115;
+  border:1px solid #19442c;
   border-radius:16px;
   overflow:hidden;
 }
 
 .comparison-header{
   padding:19px 22px;
-  border-bottom:1px solid #1e344c;
+  border-bottom:1px solid #19442c;
 }
 
 .comparison-header h3{
@@ -595,7 +603,7 @@ nav button.active{
 
 .comparison-header p{
   margin:5px 0 0;
-  color:#91a9c1;
+  color:#8faf9a;
   font-size:12px;
 }
 
@@ -608,11 +616,11 @@ nav button.active{
 .period-table th,
 .period-table td{
   padding:15px 20px;
-  border-bottom:1px solid #1e344c;
+  border-bottom:1px solid #19442c;
 }
 
 .period-table th{
-  color:#91a9c1;
+  color:#8faf9a;
   font-size:10px;
   text-transform:uppercase;
   letter-spacing:.09em;
@@ -626,13 +634,13 @@ nav button.active{
 
 .period-table td{
   text-align:right;
-  color:#dce7f3;
+  color:#dcebe1;
   font-size:13px;
 }
 
 .period-table td:first-child{
   font-weight:800;
-  color:#eef4ff;
+  color:#eef7f1;
 }
 
 .period-table tr:last-child td{
@@ -640,7 +648,7 @@ nav button.active{
 }
 
 .period-table .best-cell{
-  color:#7ee2ad;
+  color:#75e0a0;
   font-weight:900;
 }
 
@@ -652,8 +660,8 @@ nav button.active{
 
 .period-insight{
   padding:20px 22px;
-  background:#0c1a2b;
-  border:1px solid #1e344c;
+  background:#0a2115;
+  border:1px solid #19442c;
   border-radius:14px;
 }
 
@@ -664,10 +672,14 @@ nav button.active{
 
 .period-insight p{
   margin:0;
-  color:#91a9c1;
+  color:#8faf9a;
   font-size:12px;
   line-height:1.65;
 }
+
+/* ==========================================
+   MOBILE
+   ========================================== */
 
 @media(max-width:1000px){
 
@@ -1116,27 +1128,21 @@ nav button.active{
     <h2>About Me</h2>
 
     <p class="intro">
-      I'm Matias Baker, a goaltender with a focus on athleticism, movement
-      and competing through every situation.
+      I'm Matias Baker, a goaltender focused on athleticism, positioning,
+      movement and competing through every situation.
     </p>
 
     <p>
-      My game is built around reading plays early, staying square to the
-      puck and using my skating and positioning to give myself the best
-      chance to make the save. I take pride in being competitive and
-      continually improving the details of my game.
+      My game is built around reading plays early, staying square to the puck
+      and using efficient movement and positioning to give myself the best
+      chance to make the save. I take pride in being competitive, composed
+      and continually improving the details of my game.
     </p>
 
     <p>
-      This website is my personal performance platform. I use it to track
-      my games beyond traditional statistics and better understand how I
-      am performing, where I am improving and which areas of my game need
-      more attention.
-    </p>
-
-    <p>
-      The goal is simple: use every game as an opportunity to learn,
-      measure progress and become a better goaltender.
+      This website is my personal performance platform. It allows me to look
+      beyond traditional statistics and understand how I am performing,
+      where I am improving and which areas of my game need more attention.
     </p>
 
     <div class="about-profile">
@@ -1634,7 +1640,7 @@ function chartOptions(){
       legend:{
 
         labels:{
-          color:'#b9c9d9'
+          color:'#b9d0bf'
         }
 
       }
@@ -1646,11 +1652,11 @@ function chartOptions(){
       x:{
 
         ticks:{
-          color:'#91a9c1'
+          color:'#8faf9a'
         },
 
         grid:{
-          color:'#1e344c'
+          color:'#173b27'
         }
 
       },
@@ -1658,11 +1664,11 @@ function chartOptions(){
       y:{
 
         ticks:{
-          color:'#91a9c1'
+          color:'#8faf9a'
         },
 
         grid:{
-          color:'#1e344c'
+          color:'#173b27'
         }
 
       }
@@ -2577,7 +2583,7 @@ function renderGameLog(games,shots){
 
 
 /* ==========================================
-   NEW PERIOD BREAKDOWN
+   PERIOD BREAKDOWN
    ========================================== */
 
 function renderPeriods(periods,shots,seasonGameIds){
@@ -2634,8 +2640,6 @@ function renderPeriods(periods,shots,seasonGameIds){
 
   });
 
-  /* Determine best period */
-
   const validPeriods=data.filter(
     x=>x.sa>0
   );
@@ -2661,8 +2665,6 @@ function renderPeriods(periods,shots,seasonGameIds){
     )[0];
 
   }
-
-  /* Top period cards */
 
   document.getElementById(
     'periodOverview'
@@ -2769,8 +2771,6 @@ function renderPeriods(periods,shots,seasonGameIds){
 
     }).join('');
 
-
-  /* Comparison table */
 
   const metrics=[
 
@@ -2942,8 +2942,6 @@ function renderPeriods(periods,shots,seasonGameIds){
     }).join('');
 
 
-  /* Period charts */
-
   makeChart(
     'periodChart',
     {
@@ -3019,8 +3017,6 @@ function renderPeriods(periods,shots,seasonGameIds){
     }
   );
 
-
-  /* Insights */
 
   const highestWorkload=
     [...data]
