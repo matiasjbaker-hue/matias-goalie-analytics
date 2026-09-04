@@ -1502,11 +1502,26 @@ function renderIncremental(games){
     g.opponent ? `vs ${g.opponent}` : `Game ${i+1}`
   );
 
+   function getShots60(windowGames){
 
-  const sv5=[];
-  const gaa5=[];
-  const sv10=[];
-  const gaa10=[];
+  const SA=windowGames.reduce(
+    (total,g)=>total+Number(g.shots_against || 0),0
+  );
+
+  const MIN=windowGames.reduce(
+    (total,g)=>total+Number(g.minutes_played || 0),0
+  );
+
+  return MIN ? (SA/MIN*60) : null;
+
+}
+
+const sv5=[];
+const gaa5=[];
+const sv10=[];
+const gaa10=[];
+const shots605=[];
+const shots6010=[];
 
 
   games.forEach((g,i)=>{
@@ -1522,12 +1537,14 @@ function renderIncremental(games){
     );
 
 
-    sv5.push(getSV(window5));
-    gaa5.push(getGAA(window5));
+   sv5.push(getSV(window5));
+gaa5.push(getGAA(window5));
 
-    sv10.push(getSV(window10));
-    gaa10.push(getGAA(window10));
+sv10.push(getSV(window10));
+gaa10.push(getGAA(window10));
 
+shots605.push(getShots60(window5));
+shots6010.push(getShots60(window10));
   });
 
 
