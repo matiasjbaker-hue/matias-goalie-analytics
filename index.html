@@ -949,7 +949,7 @@ nav button.active{
 
 
   <!-- =========================================
-       NEW ANALYTICS
+       PERFORMANCE DISTRIBUTION
        ========================================= -->
 
   <section class="section">
@@ -1152,7 +1152,7 @@ nav button.active{
     <div class="period-advanced">
 
       <div class="panel chart-panel">
-        <div class="panel-title">Expected Save Percentage</div>
+        <div class="panel-title">Expected vs Actual SV%</div>
         <canvas id="periodChart"></canvas>
       </div>
 
@@ -1758,6 +1758,10 @@ function makeChart(id,config){
 }
 
 
+/* ==========================================
+   BASE CHART OPTIONS
+   ========================================== */
+
 function chartOptions(){
 
   return {
@@ -1804,6 +1808,137 @@ function chartOptions(){
 
       }
 
+    }
+
+  };
+
+}
+
+
+/*
+  Dynamic percentage scale.
+
+  Keeps goalie percentages visually useful without
+  forcing the graph to run from 0 to 100.
+*/
+
+function percentageScale(values){
+
+  const valid=values
+    .filter(v=>v!==null && Number.isFinite(v));
+
+  if(!valid.length){
+
+    return {
+      min:80,
+      max:100
+    };
+
+  }
+
+  const minValue=Math.min(...valid);
+  const maxValue=Math.max(...valid);
+
+  let min=Math.floor(
+    Math.min(
+      80,
+      minValue-2
+    )/5
+  )*5;
+
+  let max=Math.ceil(
+    Math.max(
+      100,
+      maxValue+2
+    )/5
+  )*5;
+
+  min=Math.max(50,min);
+  max=Math.min(100,max);
+
+  if(max-min<10){
+    min=Math.max(50,max-10);
+  }
+
+  return {
+    min,
+    max
+  };
+
+}
+
+
+/*
+  Dynamic count scale.
+
+  Gives distribution charts enough headroom without
+  creating a giant empty axis.
+*/
+
+function countScale(values){
+
+  const valid=values
+    .filter(v=>v!==null && Number.isFinite(v));
+
+  const maxValue=
+    valid.length
+      ? Math.max(...valid)
+      : 0;
+
+  return {
+
+    min:0,
+
+    max:Math.max(
+      3,
+      maxValue+1
+    ),
+
+    ticks:{
+      stepSize:1,
+      precision:0,
+      color:'#8faf9a'
+    }
+
+  };
+
+}
+
+
+/*
+  Symmetric GSAx scale around zero.
+*/
+
+function gsaxScale(values){
+
+  const valid=values
+    .filter(v=>v!==null && Number.isFinite(v));
+
+  const maxAbs=
+    valid.length
+      ? Math.max(
+          ...valid.map(v=>Math.abs(v))
+        )
+      : 1;
+
+  const range=Math.max(
+    1,
+    Math.ceil(
+      (maxAbs+.5)*2
+    )/2
+  );
+
+  return {
+
+    min:-range,
+    max:range,
+
+    ticks:{
+      color:'#8faf9a',
+      stepSize:
+        range<=2
+          ? .5
+          : 1
     }
 
   };
@@ -2084,13 +2219,6 @@ function renderPerformanceDistribution(games,shots){
 
   /*
     SV% DISTRIBUTION
-
-    < .850
-    .850 - .880
-    .880 - .900
-    .900 - .920
-    .920 - .940
-    > .940
   */
 
   const svBuckets=[
@@ -2152,6 +2280,8 @@ function renderPerformanceDistribution(games,shots){
 
   });
 
+  const svDistributionValues=
+    svBuckets.map(x=>x.count);
 
   makeChart(
     'svDistributionChart',
@@ -2169,9 +2299,7 @@ function renderPerformanceDistribution(games,shots){
 
           {
             label:'Games',
-            data:svBuckets.map(
-              x=>x.count
-            )
+            data:svDistributionValues
           }
 
         ]
@@ -2204,21 +2332,9 @@ function renderPerformanceDistribution(games,shots){
 
           },
 
-          y:{
-
-            beginAtZero:true,
-
-            ticks:{
-              color:'#8faf9a',
-              precision:0,
-              stepSize:1
-            },
-
-            grid:{
-              color:'#173b27'
-            }
-
-          }
+          y:countScale(
+            svDistributionValues
+          )
 
         }
 
@@ -2254,6 +2370,12 @@ function renderPerformanceDistribution(games,shots){
 
   });
 
+  const gradeValues=[
+    goalsByGrade['A+'],
+    goalsByGrade['A'],
+    goalsByGrade['B'],
+    goalsByGrade['C']
+  ];
 
   makeChart(
     'goalsByGradeChart',
@@ -2274,12 +2396,7 @@ function renderPerformanceDistribution(games,shots){
 
           {
             label:'Goals Allowed',
-            data:[
-              goalsByGrade['A+'],
-              goalsByGrade['A'],
-              goalsByGrade['B'],
-              goalsByGrade['C']
-            ]
+            data:gradeValues
           }
 
         ]
@@ -2312,21 +2429,9 @@ function renderPerformanceDistribution(games,shots){
 
           },
 
-          y:{
-
-            beginAtZero:true,
-
-            ticks:{
-              color:'#8faf9a',
-              precision:0,
-              stepSize:1
-            },
-
-            grid:{
-              color:'#173b27'
-            }
-
-          }
+          y:countScale(
+            gradeValues
+          )
 
         }
 
@@ -2368,7 +2473,6 @@ function renderPerformanceDistribution(games,shots){
     }
   ];
 
-
   games.forEach(game=>{
 
     const ga=num(
@@ -2396,6 +2500,8 @@ function renderPerformanceDistribution(games,shots){
 
   });
 
+  const gaDistributionValues=
+    gaBuckets.map(x=>x.count);
 
   makeChart(
     'gaDistributionChart',
@@ -2413,9 +2519,7 @@ function renderPerformanceDistribution(games,shots){
 
           {
             label:'Games',
-            data:gaBuckets.map(
-              x=>x.count
-            )
+            data:gaDistributionValues
           }
 
         ]
@@ -2448,21 +2552,9 @@ function renderPerformanceDistribution(games,shots){
 
           },
 
-          y:{
-
-            beginAtZero:true,
-
-            ticks:{
-              color:'#8faf9a',
-              precision:0,
-              stepSize:1
-            },
-
-            grid:{
-              color:'#173b27'
-            }
-
-          }
+          y:countScale(
+            gaDistributionValues
+          )
 
         }
 
@@ -2490,7 +2582,6 @@ function renderPerformanceDistribution(games,shots){
 
     }
   );
-
 
   const awayGames=games.filter(
     g=>{
@@ -2718,6 +2809,10 @@ function renderOverviewCharts(games,shots){
 
   });
 
+
+  const svScale=
+    percentageScale(sv);
+
   makeChart(
     'svChart',
     {
@@ -2740,10 +2835,49 @@ function renderOverviewCharts(games,shots){
 
       },
 
-      options:chartOptions()
+      options:{
+
+        ...chartOptions(),
+
+        scales:{
+
+          x:chartOptions().scales.x,
+
+          y:{
+
+            min:svScale.min,
+            max:svScale.max,
+
+            ticks:{
+              color:'#8faf9a',
+              callback:value=>value+'%'
+            },
+
+            grid:{
+              color:'#173b27'
+            }
+
+          }
+
+        }
+
+      }
 
     }
   );
+
+
+  const gaaValues=
+    gaa.filter(
+      v=>v!==null
+    );
+
+  const gaaMax=
+    gaaValues.length
+      ? Math.ceil(
+          Math.max(...gaaValues)+.5
+        )
+      : 4;
 
   makeChart(
     'gaaChart',
@@ -2767,10 +2901,48 @@ function renderOverviewCharts(games,shots){
 
       },
 
-      options:chartOptions()
+      options:{
+
+        ...chartOptions(),
+
+        scales:{
+
+          x:chartOptions().scales.x,
+
+          y:{
+
+            beginAtZero:true,
+            max:Math.max(3,gaaMax),
+
+            ticks:{
+              color:'#8faf9a'
+            },
+
+            grid:{
+              color:'#173b27'
+            }
+
+          }
+
+        }
+
+      }
 
     }
   );
+
+
+  const xgaValues=
+    xga.filter(
+      v=>v!==null
+    );
+
+  const xgaMax=
+    xgaValues.length
+      ? Math.ceil(
+          Math.max(...xgaValues)+.5
+        )
+      : 5;
 
   makeChart(
     'xgaChart',
@@ -2794,10 +2966,36 @@ function renderOverviewCharts(games,shots){
 
       },
 
-      options:chartOptions()
+      options:{
+
+        ...chartOptions(),
+
+        scales:{
+
+          x:chartOptions().scales.x,
+
+          y:{
+
+            beginAtZero:true,
+            max:Math.max(3,xgaMax),
+
+            ticks:{
+              color:'#8faf9a'
+            },
+
+            grid:{
+              color:'#173b27'
+            }
+
+          }
+
+        }
+
+      }
 
     }
   );
+
 
   makeChart(
     'gsaxChart',
@@ -2821,7 +3019,27 @@ function renderOverviewCharts(games,shots){
 
       },
 
-      options:chartOptions()
+      options:{
+
+        ...chartOptions(),
+
+        scales:{
+
+          x:chartOptions().scales.x,
+
+          y:{
+
+            ...gsaxScale(gsax),
+
+            grid:{
+              color:'#173b27'
+            }
+
+          }
+
+        }
+
+      }
 
     }
   );
@@ -3653,11 +3871,51 @@ function renderPeriods(periods,shots,seasonGameIds){
     }).join('');
 
 
+  /*
+    EXPECTED VS ACTUAL SV%
+
+    This replaces the old Expected SV% bar chart.
+    A line graph is more appropriate because the periods
+    are ordered chronologically.
+  */
+
+  const expectedSVData=
+    data.map(x=>
+      x.advanced.shots
+        ? Number(
+            (
+              x.advanced.expectedSV*100
+            ).toFixed(1)
+          )
+        : null
+    );
+
+  const actualSVData=
+    data.map(x=>
+      x.sa
+        ? Number(
+            (
+              x.saves/x.sa*100
+            ).toFixed(1)
+          )
+        : null
+    );
+
+  const combinedSVValues=[
+    ...expectedSVData,
+    ...actualSVData
+  ];
+
+  const periodSVScale=
+    percentageScale(
+      combinedSVValues
+    );
+
   makeChart(
     'periodChart',
     {
 
-      type:'bar',
+      type:'line',
 
       data:{
 
@@ -3671,26 +3929,80 @@ function renderPeriods(periods,shots,seasonGameIds){
 
           {
             label:'Expected SV%',
-            data:data.map(x=>
-              x.advanced.shots
-                ? Number(
-                    (
-                      x.advanced.expectedSV*100
-                    ).toFixed(1)
-                  )
-                : null
-            )
+            data:expectedSVData,
+            tension:.3,
+            spanGaps:true
+          },
+
+          {
+            label:'Actual SV%',
+            data:actualSVData,
+            tension:.3,
+            spanGaps:true
           }
 
         ]
 
       },
 
-      options:chartOptions()
+      options:{
+
+        ...chartOptions(),
+
+        scales:{
+
+          x:{
+
+            ticks:{
+              color:'#8faf9a'
+            },
+
+            grid:{
+              color:'#173b27'
+            }
+
+          },
+
+          y:{
+
+            min:periodSVScale.min,
+            max:periodSVScale.max,
+
+            ticks:{
+              color:'#8faf9a',
+              callback:value=>value+'%'
+            },
+
+            grid:{
+              color:'#173b27'
+            }
+
+          }
+
+        }
+
+      }
 
     }
+
   );
 
+
+  /*
+    GSAx BY PERIOD
+
+    Centered around zero so the chart clearly shows
+    whether each period was above or below expected.
+  */
+
+  const periodGsaxValues=
+    data.map(x=>
+      x.advanced.shots
+        ? Number(
+            x.advanced.gsax.toFixed(2)
+          )
+        : null
+    );
 
   makeChart(
     'periodGsaxChart',
@@ -3710,22 +4022,57 @@ function renderPeriods(periods,shots,seasonGameIds){
 
           {
             label:'GSAx',
-            data:data.map(x=>
-              x.advanced.shots
-                ? Number(
-                    x.advanced.gsax.toFixed(2)
-                  )
-                : null
-            )
+            data:periodGsaxValues
           }
 
         ]
 
       },
 
-      options:chartOptions()
+      options:{
+
+        ...chartOptions(),
+
+        plugins:{
+
+          legend:{
+            display:false
+          }
+
+        },
+
+        scales:{
+
+          x:{
+
+            ticks:{
+              color:'#8faf9a'
+            },
+
+            grid:{
+              color:'#173b27'
+            }
+
+          },
+
+          y:{
+
+            ...gsaxScale(
+              periodGsaxValues
+            ),
+
+            grid:{
+              color:'#173b27'
+            }
+
+          }
+
+        }
+
+      }
 
     }
+
   );
 
 
@@ -4049,6 +4396,25 @@ function renderSituational(shots){
     ['One-Timer',oneTimer]
   ];
 
+  const situationalValues=
+    categories.map(x=>{
+
+      const s=
+        situationStats(x[1]);
+
+      return s.shots
+        ? Number(
+            s.sv.replace('%','')
+          )
+        : null;
+
+    });
+
+  const situationScale=
+    percentageScale(
+      situationalValues
+    );
+
   makeChart(
     'situationalChart',
     {
@@ -4064,18 +4430,7 @@ function renderSituational(shots){
           {
             label:'SV%',
 
-            data:categories.map(x=>{
-
-              const s=
-                situationStats(x[1]);
-
-              return s.shots
-                ? Number(
-                    s.sv.replace('%','')
-                  )
-                : null;
-
-            })
+            data:situationalValues
 
           }
 
@@ -4083,7 +4438,51 @@ function renderSituational(shots){
 
       },
 
-      options:chartOptions()
+      options:{
+
+        ...chartOptions(),
+
+        plugins:{
+
+          legend:{
+            display:false
+          }
+
+        },
+
+        scales:{
+
+          x:{
+
+            ticks:{
+              color:'#8faf9a'
+            },
+
+            grid:{
+              color:'#173b27'
+            }
+
+          },
+
+          y:{
+
+            min:situationScale.min,
+            max:situationScale.max,
+
+            ticks:{
+              color:'#8faf9a',
+              callback:value=>value+'%'
+            },
+
+            grid:{
+              color:'#173b27'
+            }
+
+          }
+
+        }
+
+      }
 
     }
   );
@@ -4518,6 +4917,58 @@ function renderRollingTrends(games,shots){
 
   chartPairs.forEach(item=>{
 
+    let options={
+
+      ...chartOptions(),
+
+      scales:{
+
+        ...chartOptions().scales
+
+      }
+
+    };
+
+
+    if(item[1]==='SV%'){
+
+      const scale=
+        percentageScale(item[2]);
+
+      options.scales.y={
+
+        min:scale.min,
+        max:scale.max,
+
+        ticks:{
+          color:'#8faf9a',
+          callback:value=>value+'%'
+        },
+
+        grid:{
+          color:'#173b27'
+        }
+
+      };
+
+    }
+
+
+    else if(item[1]==='GSAx'){
+
+      options.scales.y={
+
+        ...gsaxScale(item[2]),
+
+        grid:{
+          color:'#173b27'
+        }
+
+      };
+
+    }
+
+
     makeChart(
       item[0],
       {
@@ -4541,9 +4992,10 @@ function renderRollingTrends(games,shots){
 
         },
 
-        options:chartOptions()
+        options
 
       }
+
     );
 
   });
