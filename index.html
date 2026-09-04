@@ -1458,217 +1458,294 @@ function renderIncremental(games){
 })();
   
 
-function renderRollingTrends(games){
 
-  const last5=[...games].slice(-5);
 
-  if(last5.length===0){
+
+ function renderRollingTrends(games){
+
+  const container=document.getElementById('rollingTrends');
+
+  if(!games.length){
+    container.innerHTML='';
     return;
   }
 
+  function getSV(windowGames){
 
-  function getSV(game){
+    const SA=windowGames.reduce(
+      (total,g)=>total+Number(g.shots_against || 0),0
+    );
 
-    const shots=Number(game.shots_against || 0);
-    const saves=Number(game.saves || 0);
+    const S=windowGames.reduce(
+      (total,g)=>total+Number(g.saves || 0),0
+    );
 
-    return shots ? (saves/shots*100) : 0;
-
+    return SA ? (S/SA*100) : null;
   }
 
 
-  function getGAA(game){
+  function getGAA(windowGames){
 
-    const goals=Number(game.goals_against || 0);
-    const minutes=Number(game.minutes_played || 0);
+    const GA=windowGames.reduce(
+      (total,g)=>total+Number(g.goals_against || 0),0
+    );
 
-    return minutes ? (goals/minutes*60) : 0;
+    const MIN=windowGames.reduce(
+      (total,g)=>total+Number(g.minutes_played || 0),0
+    );
 
+    return MIN ? (GA/MIN*60) : null;
   }
 
 
-  const svValues=last5.map(getSV);
-  const gaaValues=last5.map(getGAA);
+  const labels=games.map((g,i)=>
+    g.opponent ? `vs ${g.opponent}` : `Game ${i+1}`
+  );
 
 
-  function makeBarGraph(values,type){
-
-    let min=Math.min(...values);
-    let max=Math.max(...values);
-
-    if(min===max){
-      min=min-1;
-      max=max+1;
-    }
+  const sv5=[];
+  const gaa5=[];
+  const sv10=[];
+  const gaa10=[];
 
 
-    return values.map((value,index)=>{
+  games.forEach((g,i)=>{
 
-      let percentage;
+    const window5=games.slice(
+      Math.max(0,i-4),
+      i+1
+    );
 
-      if(type==='sv'){
-
-        percentage=((value-min)/(max-min))*100;
-
-      }else{
-
-        // Lower GAA is better, so reverse the bars
-        percentage=((max-value)/(max-min))*100;
-
-      }
+    const window10=games.slice(
+      Math.max(0,i-9),
+      i+1
+    );
 
 
-      percentage=Math.max(10,percentage);
+    sv5.push(getSV(window5));
+    gaa5.push(getGAA(window5));
+
+    sv10.push(getSV(window10));
+    gaa10.push(getGAA(window10));
+
+  });
 
 
-      const displayValue=
-        type==='sv'
-        ? value.toFixed(1)+'%'
-        : value.toFixed(2);
+  container.innerHTML=`
 
+    <div class="charts">
 
-      return `
+      <div class="panel chart-panel">
 
-        <div style="
-          flex:1;
-          display:flex;
-          flex-direction:column;
-          align-items:center;
-          justify-content:flex-end;
-          min-width:45px;
-        ">
+        <h3 style="margin-top:0;">
+          5-Game Rolling SV%
+        </h3>
 
-          <div style="
-            font-size:12px;
-            margin-bottom:6px;
-            text-align:center;
-          ">
-            ${displayValue}
-          </div>
-
-
-          <div style="
-            width:100%;
-            max-width:55px;
-            height:${percentage * 1.4}px;
-            min-height:20px;
-            background:#3b82f6;
-            border-radius:6px 6px 0 0;
-          ">
-          </div>
-
-
-          <div style="
-            font-size:12px;
-            margin-top:8px;
-          ">
-            Game ${index+1}
-          </div>
-
-        </div>
-
-      `;
-
-    }).join('');
-
-  }
-
-
-  const latestSV=svValues[svValues.length-1];
-  const latestGAA=gaaValues[gaaValues.length-1];
-
-
-  document.getElementById('rollingTrends').innerHTML=`
-
-    <div class="two-col">
-
-
-      <!-- SV% GRAPH -->
-
-      <div class="metric-card">
-
-        <h3>5-Game SV% Trend</h3>
-
-        <p style="font-size:28px;">
-          ${latestSV.toFixed(1)}%
-        </p>
-
-        <small>
-          Latest SV%
-        </small>
-
-
-        <div style="
-          margin-top:25px;
-          height:230px;
-          display:flex;
-          align-items:flex-end;
-          gap:12px;
-          border-bottom:1px solid rgba(128,128,128,0.4);
-          padding:0 10px;
-        ">
-
-          ${makeBarGraph(svValues,'sv')}
-
-        </div>
-
-
-        <p style="
-          font-size:12px;
-          margin-top:12px;
-          opacity:0.7;
-        ">
-          Higher bar = better SV%
-        </p>
+        <canvas id="incrementalSV5"></canvas>
 
       </div>
 
 
+      <div class="panel chart-panel">
 
-      <!-- GAA GRAPH -->
+        <h3 style="margin-top:0;">
+          10-Game Rolling SV%
+        </h3>
 
-      <div class="metric-card">
-
-        <h3>5-Game GAA Trend</h3>
-
-        <p style="font-size:28px;">
-          ${latestGAA.toFixed(2)}
-        </p>
-
-        <small>
-          Latest GAA
-        </small>
-
-
-        <div style="
-          margin-top:25px;
-          height:230px;
-          display:flex;
-          align-items:flex-end;
-          gap:12px;
-          border-bottom:1px solid rgba(128,128,128,0.4);
-          padding:0 10px;
-        ">
-
-          ${makeBarGraph(gaaValues,'gaa')}
-
-        </div>
-
-
-        <p style="
-          font-size:12px;
-          margin-top:12px;
-          opacity:0.7;
-        ">
-          Higher bar = better (lower GAA)
-        </p>
+        <canvas id="incrementalSV10"></canvas>
 
       </div>
 
+
+      <div class="panel chart-panel">
+
+        <h3 style="margin-top:0;">
+          5-Game Rolling GAA
+        </h3>
+
+        <canvas id="incrementalGAA5"></canvas>
+
+      </div>
+
+
+      <div class="panel chart-panel">
+
+        <h3 style="margin-top:0;">
+          10-Game Rolling GAA
+        </h3>
+
+        <canvas id="incrementalGAA10"></canvas>
+
+      </div>
 
     </div>
 
   `;
+
+
+  function chartOptions(){
+
+    return {
+
+      responsive:true,
+
+      maintainAspectRatio:false,
+
+      plugins:{
+        legend:{
+          labels:{
+            color:'#b9c9d9'
+          }
+        }
+      },
+
+      scales:{
+
+        x:{
+          ticks:{
+            color:'#91a9c1'
+          },
+
+          grid:{
+            color:'#1e344c'
+          }
+        },
+
+        y:{
+          ticks:{
+            color:'#91a9c1'
+          },
+
+          grid:{
+            color:'#1e344c'
+          }
+        }
+
+      }
+
+    };
+
+  }
+
+
+  new Chart(
+    document.getElementById('incrementalSV5'),
+    {
+
+      type:'line',
+
+      data:{
+
+        labels,
+
+        datasets:[
+
+          {
+            label:'SV%',
+            data:sv5,
+            tension:.3,
+            spanGaps:true
+          }
+
+        ]
+
+      },
+
+      options:chartOptions()
+
+    }
+
+  );
+
+
+  new Chart(
+    document.getElementById('incrementalSV10'),
+    {
+
+      type:'line',
+
+      data:{
+
+        labels,
+
+        datasets:[
+
+          {
+            label:'SV%',
+            data:sv10,
+            tension:.3,
+            spanGaps:true
+          }
+
+        ]
+
+      },
+
+      options:chartOptions()
+
+    }
+
+  );
+
+
+  new Chart(
+    document.getElementById('incrementalGAA5'),
+    {
+
+      type:'line',
+
+      data:{
+
+        labels,
+
+        datasets:[
+
+          {
+            label:'GAA',
+            data:gaa5,
+            tension:.3,
+            spanGaps:true
+          }
+
+        ]
+
+      },
+
+      options:chartOptions()
+
+    }
+
+  );
+
+
+  new Chart(
+    document.getElementById('incrementalGAA10'),
+    {
+
+      type:'line',
+
+      data:{
+
+        labels,
+
+        datasets:[
+
+          {
+            label:'GAA',
+            data:gaa10,
+            tension:.3,
+            spanGaps:true
+          }
+
+        ]
+
+      },
+
+      options:chartOptions()
+
+    }
+
+  );
 
 }
   
