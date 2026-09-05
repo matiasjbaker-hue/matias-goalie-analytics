@@ -720,7 +720,7 @@ tr:hover td{
 
       <div class="insight">
         Each game is placed into a <strong>.020 SV%</strong> performance band,
-        beginning at <strong>.880</strong> and extending through <strong>.950+</strong>.
+        beginning at <strong>.880</strong> and extending through <strong>.960+</strong>.
       </div>
 
     </div>
@@ -2004,55 +2004,12 @@ function isHighDanger(shot){
    CONSERVATIVE NHL-STYLE XG MODEL
 ============================================================ */
 
-/*
-  IMPORTANT:
-
-  This is designed to behave like a conservative,
-  NHL-calibrated-style goaltending xG model.
-
-  It is NOT intended to reproduce the proprietary
-  NHL internal model.
-
-  Design principles:
-  - Conservative base probabilities
-  - Smaller contextual adjustments
-  - Prevent multiplier stacking from exploding xG
-  - Shrink extreme individual-shot probabilities
-  - Keep GSAx mathematically standard
-
-  GSAx:
-    xGA - actual goals
-
-  Expected SV%:
-    1 - xGA / shots
-*/
-
-
 function calculateShotXG(shot){
 
   const distance =
     shotDistance(shot);
 
   let baseXG;
-
-
-  /*
-    ------------------------------------------------------------
-    BASE SHOT PROBABILITY
-
-    These are intentionally conservative.
-
-    Approximate interpretation:
-
-      0-6 ft       = very dangerous
-      6-12 ft      = dangerous
-      12-20 ft     = moderate
-      20-30 ft     = lower danger
-      30-40 ft     = low danger
-      40+ ft       = very low danger
-
-    The old model was too aggressive here.
-  */
 
   if(distance > 0 && distance <= 6){
 
@@ -2086,22 +2043,10 @@ function calculateShotXG(shot){
   }
   else{
 
-    /*
-      If distance is missing, use a conservative
-      league-average-ish starting probability.
-    */
-
     baseXG = 0.080;
 
   }
 
-
-  /*
-    ------------------------------------------------------------
-    CONTEXTUAL ADJUSTMENTS
-
-    These are intentionally MUCH smaller than before.
-  */
 
   let multiplier = 1.0;
 
@@ -2109,10 +2054,6 @@ function calculateShotXG(shot){
   const location =
     shotLocation(shot);
 
-
-  /*
-    Location
-  */
 
   if(location === "crease"){
 
@@ -2130,10 +2071,6 @@ function calculateShotXG(shot){
 
   }
 
-
-  /*
-    Shot type
-  */
 
   const type =
     shotType(shot);
@@ -2156,10 +2093,6 @@ function calculateShotXG(shot){
   }
 
 
-  /*
-    Slap shots receive only a very small increase.
-  */
-
   if(
     type === "slap shot" ||
     type === "slap"
@@ -2170,23 +2103,12 @@ function calculateShotXG(shot){
   }
 
 
-  /*
-    Rush
-  */
-
   if(isRushShot(shot)){
 
     multiplier *= 1.05;
 
   }
 
-
-  /*
-    Rebound
-
-    Rebounds are dangerous, but we don't want the model
-    to assume every rebound is automatically a huge chance.
-  */
 
   if(shotIsRebound(shot)){
 
@@ -2195,22 +2117,12 @@ function calculateShotXG(shot){
   }
 
 
-  /*
-    Screen
-  */
-
   if(isScreened(shot)){
 
     multiplier *= 1.08;
 
   }
 
-
-  /*
-    Breakaway
-
-    Still a major increase, but much lower than the old 1.75x.
-  */
 
   if(isBreakaway(shot)){
 
@@ -2219,31 +2131,12 @@ function calculateShotXG(shot){
   }
 
 
-  /*
-    Cross-ice
-
-    Smaller adjustment.
-  */
-
   if(shotBoolean(shot.cross_ice)){
 
     multiplier *= 1.10;
 
   }
 
-
-  /*
-    ------------------------------------------------------------
-    MULTIPLIER CEILING
-
-    Prevents combinations like:
-
-      breakaway + rebound + screen + cross-ice + one-timer
-
-    from producing ridiculous xG.
-
-    This is one of the most important changes.
-  */
 
   multiplier =
     Math.min(
@@ -2256,34 +2149,6 @@ function calculateShotXG(shot){
     baseXG *
     multiplier;
 
-
-  /*
-    ------------------------------------------------------------
-    NHL-LIKE SHRINKAGE
-
-    Pull extreme probabilities toward a conservative
-    league-average shot probability.
-
-    This prevents a small manually-tracked sample from
-    producing enormous xGA/GSAx swings.
-
-    Baseline:
-      0.10 expected goal probability per shot
-
-    Shrinkage:
-      55% of the raw shot signal
-      45% toward baseline
-
-    Example:
-
-      Raw xG = .30
-
-      Conservative:
-      (.30 × .55) + (.10 × .45)
-      = .210
-
-    This is much more stable.
-  */
 
   const leagueBaselineXG =
     0.100;
@@ -2301,18 +2166,6 @@ function calculateShotXG(shot){
       (1 - shrinkage)
     );
 
-
-  /*
-    ------------------------------------------------------------
-    FINAL SAFETY LIMITS
-
-    Floor:
-      prevents every shot from being effectively zero.
-
-    Ceiling:
-      prevents one manually classified shot from
-      becoming an absurd 60-70%+ chance.
-  */
 
   calibratedXG =
     Math.max(
@@ -2386,13 +2239,6 @@ function calculateAdvancedForShots(data){
     );
 
 
-  /*
-    Expected Goals Against
-
-    Every shot receives its conservative
-    calibrated probability.
-  */
-
   const xGA =
     data.reduce(
       (sum,shot) =>
@@ -2402,10 +2248,6 @@ function calculateAdvancedForShots(data){
     );
 
 
-  /*
-    Actual SV%
-  */
-
   const actualSV =
     totalShots
       ? saves /
@@ -2413,16 +2255,6 @@ function calculateAdvancedForShots(data){
         100
       : 0;
 
-
-  /*
-    Expected SV%
-
-    Standard relationship:
-
-      Expected SV% =
-      1 - Expected Goals / Shots
-
-  */
 
   const expectedSV =
     totalShots
@@ -2434,17 +2266,6 @@ function calculateAdvancedForShots(data){
         100
       : 0;
 
-
-  /*
-    STANDARD GSAx
-
-      GSAx =
-      Expected Goals Against -
-      Actual Goals Against
-
-    Positive = saved more than expected
-    Negative = allowed more than expected
-  */
 
   const gsax =
     xGA -
@@ -2491,6 +2312,7 @@ function calculateAdvancedForShots(data){
   };
 
 }
+
 
 /* ============================================================
    SUBSET STATS
@@ -2543,59 +2365,138 @@ function destroyChart(id){
 }
 
 
+/*
+  Percentage charts:
+
+  Instead of forcing the chart into a fixed 80-100 range,
+  the chart gets a sensible suggested range with some breathing
+  room around the actual values.
+
+  This prevents a 96% or 98% bar from visually slamming
+  against the ceiling.
+*/
+
 function percentageScale(){
 
   return {
+
     beginAtZero:false,
-    min:80,
-    max:100,
+
+    suggestedMin:85,
+
+    suggestedMax:100,
+
+    grace:"5%",
 
     ticks:{
+
       color:"#829f93",
+
       font:{
         size:10
       },
+
       padding:7,
 
       callback:value =>
         `${value}%`
+
     },
 
     grid:{
+
       color:"rgba(255,255,255,.035)",
+
       lineWidth:1
+
     },
 
     border:{
       display:false
     }
+
   };
 
 }
 
 
+/*
+  Distribution charts:
+
+  Begin at zero because these represent actual counts.
+
+  The 20% grace creates headroom above the tallest bar so
+  nothing looks like it is artificially hitting the top.
+*/
+
 function distributionScale(){
 
   return {
+
     beginAtZero:true,
 
+    grace:"20%",
+
     ticks:{
+
       color:"#829f93",
+
       precision:0,
+
       font:{
         size:10
       },
+
       padding:7
+
     },
 
     grid:{
+
       color:"rgba(255,255,255,.035)",
+
       lineWidth:1
+
     },
 
     border:{
       display:false
     }
+
+  };
+
+}
+
+
+/*
+  GLOBAL BAR DESIGN
+
+  This is the major visual change.
+
+  Bars are intentionally narrow and restrained rather than
+  taking up most of each category.
+*/
+
+function barDatasetDefaults(){
+
+  return {
+
+    backgroundColor:"rgba(105,221,160,.62)",
+
+    borderColor:"#69dda0",
+
+    borderWidth:0,
+
+    borderRadius:2,
+
+    borderSkipped:false,
+
+    barPercentage:.38,
+
+    categoryPercentage:.65,
+
+    maxBarThickness:20
+
   };
 
 }
@@ -2604,7 +2505,9 @@ function distributionScale(){
 function chartOptions(){
 
   return {
+
     responsive:true,
+
     maintainAspectRatio:false,
 
     animation:{
@@ -2617,16 +2520,23 @@ function chartOptions(){
     },
 
     plugins:{
+
       legend:{
         position:"top",
 
         labels:{
           color:"#a8beb4",
+
           boxWidth:9,
+
           boxHeight:9,
+
           padding:14,
+
           usePointStyle:true,
+
           pointStyle:"line",
+
           font:{
             size:11,
             weight:"600"
@@ -2635,12 +2545,19 @@ function chartOptions(){
       },
 
       tooltip:{
+
         backgroundColor:"rgba(6,23,16,.96)",
+
         borderColor:"#285640",
+
         borderWidth:1,
+
         titleColor:"#edf7f1",
+
         bodyColor:"#a8beb4",
+
         padding:10,
+
         cornerRadius:8,
 
         titleFont:{
@@ -2651,10 +2568,28 @@ function chartOptions(){
         bodyFont:{
           size:11
         }
+
       }
+
     },
 
+
+    /*
+      Chart.js dataset-specific defaults.
+
+      This applies to EVERY bar chart without needing to
+      repeat the styling inside every dataset.
+    */
+
+    datasets:{
+
+      bar:barDatasetDefaults()
+
+    },
+
+
     elements:{
+
       line:{
         borderWidth:2,
         tension:.35
@@ -2667,19 +2602,30 @@ function chartOptions(){
       },
 
       bar:{
-        borderRadius:5,
+
+        borderRadius:2,
+
         borderSkipped:false
+
       }
+
     },
 
+
     scales:{
+
       x:{
+
         ticks:{
+
           color:"#829f93",
+
           font:{
             size:10
           },
+
           padding:6
+
         },
 
         grid:{
@@ -2689,27 +2635,39 @@ function chartOptions(){
         border:{
           display:false
         }
+
       },
 
       y:{
+
         ticks:{
+
           color:"#829f93",
+
           font:{
             size:10
           },
+
           padding:7
+
         },
 
         grid:{
+
           color:"rgba(255,255,255,.035)",
+
           lineWidth:1
+
         },
 
         border:{
           display:false
         }
+
       }
+
     }
+
   };
 
 }
@@ -2727,6 +2685,7 @@ function showTab(id,button){
       tab.classList.remove("active")
     );
 
+
   document
     .querySelectorAll("nav button")
     .forEach(btn =>
@@ -2737,9 +2696,11 @@ function showTab(id,button){
   const target =
     document.getElementById(id);
 
+
   if(target){
     target.classList.add("active");
   }
+
 
   if(button){
     button.classList.add("active");
@@ -2834,6 +2795,7 @@ function renderOverview(){
       0
     );
 
+
   const totalGoals =
     seasonGames.reduce(
       (sum,g) =>
@@ -2841,12 +2803,14 @@ function renderOverview(){
       0
     );
 
+
   const totalSaves =
     seasonGames.reduce(
       (sum,g) =>
         sum + gameSaves(g),
       0
     );
+
 
   const totalMinutes =
     seasonGames.reduce(
@@ -2904,6 +2868,7 @@ function renderOverview(){
       normalize(
         gameResult(game)
       );
+
 
     if(
       result === "w" ||
@@ -3073,6 +3038,7 @@ function renderOverview(){
           game.game_id
         );
 
+
       const data =
         seasonShots.filter(
           shot =>
@@ -3081,10 +3047,12 @@ function renderOverview(){
             ) === gameId
         );
 
+
       const advancedGame =
         calculateAdvancedForShots(
           data
         );
+
 
       return advancedGame.shots
         ? advancedGame.expectedSV
@@ -3117,8 +3085,11 @@ function renderOverview(){
               data:actualGameSV,
 
               tension:.35,
+
               borderWidth:2,
+
               pointRadius:2.5,
+
               pointHoverRadius:5
             },
 
@@ -3128,9 +3099,13 @@ function renderOverview(){
               data:expectedGameSV,
 
               tension:.35,
+
               borderWidth:1.5,
+
               borderDash:[5,5],
+
               pointRadius:2,
+
               pointHoverRadius:4
             }
 
@@ -3144,8 +3119,11 @@ function renderOverview(){
             x:chartOptions().scales.x,
             y:percentageScale()
           }
+
         }
+
       }
+
     );
 
 
@@ -3182,12 +3160,15 @@ function renderOverview(){
     const saves =
       gameSaves(game);
 
+
     if(!s){
       return;
     }
 
+
     const pct =
       saves / s;
+
 
     const bucket =
       buckets.find(
@@ -3195,6 +3176,7 @@ function renderOverview(){
           pct >= b.min &&
           pct < b.max
       );
+
 
     if(bucket){
       bucket.count++;
@@ -3223,14 +3205,14 @@ function renderOverview(){
             ),
 
           datasets:[{
+
             label:"Games",
 
             data:
               buckets.map(
                 b => b.count
-              ),
+              )
 
-            borderWidth:1
           }]
         },
 
@@ -3241,8 +3223,11 @@ function renderOverview(){
             x:chartOptions().scales.x,
             y:distributionScale()
           }
+
         }
+
       }
+
     );
 
 
@@ -3297,11 +3282,11 @@ function renderOverview(){
             ),
 
           datasets:[{
+
             label:"Games",
 
-            data:gaCounts,
+            data:gaCounts
 
-            borderWidth:1
           }]
         },
 
@@ -3312,8 +3297,11 @@ function renderOverview(){
             x:chartOptions().scales.x,
             y:distributionScale()
           }
+
         }
+
       }
+
     );
 
 
@@ -3358,6 +3346,7 @@ function renderOverview(){
           ],
 
           datasets:[{
+
             label:"Goals Against",
 
             data:[
@@ -3365,9 +3354,8 @@ function renderOverview(){
               goalGrades["A"],
               goalGrades["B"],
               goalGrades["C"]
-            ],
+            ]
 
-            borderWidth:1
           }]
         },
 
@@ -3378,8 +3366,11 @@ function renderOverview(){
             x:chartOptions().scales.x,
             y:distributionScale()
           }
+
         }
+
       }
+
     );
 
 
@@ -3447,8 +3438,11 @@ function renderLast5(){
   last5.forEach(game => {
 
     shots += gameShots(game);
+
     saves += gameSaves(game);
+
     goals += gameGoals(game);
+
     minutes += gameMinutes(game);
 
 
@@ -3456,6 +3450,7 @@ function renderLast5(){
       normalize(
         gameResult(game)
       );
+
 
     if(r === "w" || r === "win"){
       wins++;
@@ -3555,6 +3550,7 @@ function renderGameLog(){
       "gameLogBody"
     );
 
+
   body.innerHTML = "";
 
 
@@ -3584,10 +3580,12 @@ function renderGameLog(){
     const minutes =
       gameMinutes(game);
 
+
     const sv =
       shots
         ? saves / shots * 100
         : 0;
+
 
     const gaa =
       minutes
@@ -3702,13 +3700,16 @@ function renderPeriods(){
       p = "1";
     }
 
+
     if(p === "2nd"){
       p = "2";
     }
 
+
     if(p === "3rd"){
       p = "3";
     }
+
 
     if(
       p === "overtime" ||
@@ -3733,6 +3734,7 @@ function renderPeriods(){
     const rows =
       periods[period];
 
+
     let shots = 0;
     let goals = 0;
     let saves = 0;
@@ -3746,11 +3748,13 @@ function renderPeriods(){
         row.shots_faced
       );
 
+
       goals += num(
         row.goals_against ||
         row.goals ||
         row.ga
       );
+
 
       saves += num(
         row.saves
@@ -3774,13 +3778,18 @@ function renderPeriods(){
 
 
     results[period] = {
+
       shots,
+
       goals,
+
       saves,
+
       sv:
         shots
           ? saves / shots * 100
           : 0
+
     };
 
   });
@@ -3839,6 +3848,7 @@ function renderPeriods(){
           labels,
 
           datasets:[{
+
             label:"SV%",
 
             data:[
@@ -3846,21 +3856,25 @@ function renderPeriods(){
               results["2"].sv,
               results["3"].sv,
               results["OT"].sv
-            ],
+            ]
 
-            borderWidth:1
           }]
+
         },
 
         options:{
+
           ...chartOptions(),
 
           scales:{
             x:chartOptions().scales.x,
             y:percentageScale()
           }
+
         }
+
       }
+
     );
 
 
@@ -3881,6 +3895,7 @@ function renderPeriods(){
           labels,
 
           datasets:[{
+
             label:"Goals Against",
 
             data:[
@@ -3888,21 +3903,25 @@ function renderPeriods(){
               results["2"].goals,
               results["3"].goals,
               results["OT"].goals
-            ],
+            ]
 
-            borderWidth:1
           }]
+
         },
 
         options:{
+
           ...chartOptions(),
 
           scales:{
             x:chartOptions().scales.x,
             y:distributionScale()
           }
+
         }
+
       }
+
     );
 
 
@@ -3910,6 +3929,7 @@ function renderPeriods(){
     document.getElementById(
       "periodTableBody"
     );
+
 
   body.innerHTML = "";
 
@@ -3920,6 +3940,7 @@ function renderPeriods(){
       const key =
         ["1","2","3","OT"][index];
 
+
       const r =
         results[key];
 
@@ -3929,8 +3950,11 @@ function renderPeriods(){
         <tr>
 
           <td>${label}</td>
+
           <td>${r.shots}</td>
+
           <td>${r.saves}</td>
+
           <td>${r.goals}</td>
 
           <td>
@@ -4042,26 +4066,31 @@ function renderSituational(){
           labels:locations,
 
           datasets:[{
+
             label:"Shots",
 
             data:
               locations.map(
                 l => locationCounts[l]
-              ),
+              )
 
-            borderWidth:1
           }]
+
         },
 
         options:{
+
           ...chartOptions(),
 
           scales:{
             x:chartOptions().scales.x,
             y:distributionScale()
           }
+
         }
+
       }
+
     );
 
 
@@ -4082,27 +4111,32 @@ function renderSituational(){
           labels:locations,
 
           datasets:[{
+
             label:"Goals",
 
             data:
               locations.map(
                 l =>
                   locationGoals[l] || 0
-              ),
+              )
 
-            borderWidth:1
           }]
+
         },
 
         options:{
+
           ...chartOptions(),
 
           scales:{
             x:chartOptions().scales.x,
             y:distributionScale()
           }
+
         }
+
       }
+
     );
 
 
@@ -4115,17 +4149,21 @@ function renderSituational(){
     const shotsCount =
       locationCounts[location];
 
+
     const goals =
       locationGoals[location] || 0;
+
 
     if(shotsCount >= 3){
 
       const rate =
         goals / shotsCount;
 
+
       if(rate > worstRate){
 
         worstRate = rate;
+
         worstLocation = location;
 
       }
@@ -4168,6 +4206,7 @@ function renderSituational(){
           ],
 
           datasets:[{
+
             label:"Shots",
 
             data:[
@@ -4175,21 +4214,25 @@ function renderSituational(){
               advanced.grades["A"],
               advanced.grades["B"],
               advanced.grades["C"]
-            ],
+            ]
 
-            borderWidth:1
           }]
+
         },
 
         options:{
+
           ...chartOptions(),
 
           scales:{
             x:chartOptions().scales.x,
             y:distributionScale()
           }
+
         }
+
       }
+
     );
 
 
@@ -4233,6 +4276,7 @@ function renderSituational(){
           ],
 
           datasets:[{
+
             label:"Goals Against",
 
             data:[
@@ -4240,21 +4284,25 @@ function renderSituational(){
               goalGrades["A"],
               goalGrades["B"],
               goalGrades["C"]
-            ],
+            ]
 
-            borderWidth:1
           }]
+
         },
 
         options:{
+
           ...chartOptions(),
 
           scales:{
             x:chartOptions().scales.x,
             y:distributionScale()
           }
+
         }
+
       }
+
     );
 
 
@@ -4291,11 +4339,13 @@ function renderSituational(){
       isRushShot
     );
 
+
   const breakaway =
     subsetStats(
       seasonShots,
       isBreakaway
     );
+
 
   const rebound =
     subsetStats(
@@ -4303,17 +4353,20 @@ function renderSituational(){
       shotIsRebound
     );
 
+
   const screened =
     subsetStats(
       seasonShots,
       isScreened
     );
 
+
   const oneTimer =
     subsetStats(
       seasonShots,
       isOneTimer
     );
+
 
   const highDanger =
     subsetStats(
@@ -4327,25 +4380,30 @@ function renderSituational(){
     rush
   );
 
+
   setSubset(
     "breakaway",
     breakaway
   );
+
 
   setSubset(
     "rebound",
     rebound
   );
 
+
   setSubset(
     "screen",
     screened
   );
 
+
   setSubset(
     "oneTimer",
     oneTimer
   );
+
 
   setSubset(
     "highDanger",
@@ -4354,31 +4412,37 @@ function renderSituational(){
 
 
   const candidates = [
+
     {
       name:"high-danger chances",
       value:highDanger.sv,
       shots:highDanger.shots
     },
+
     {
       name:"rush chances",
       value:rush.sv,
       shots:rush.shots
     },
+
     {
       name:"rebound shots",
       value:rebound.sv,
       shots:rebound.shots
     },
+
     {
       name:"screened shots",
       value:screened.sv,
       shots:screened.shots
     },
+
     {
       name:"one-timers",
       value:oneTimer.sv,
       shots:oneTimer.shots
     }
+
   ]
   .filter(
     x =>
@@ -4421,10 +4485,12 @@ function setSubset(prefix,data){
       prefix+"Shots"
     );
 
+
   const svEl =
     document.getElementById(
       prefix+"SV"
     );
+
 
   const goalsEl =
     document.getElementById(
@@ -4433,20 +4499,28 @@ function setSubset(prefix,data){
 
 
   if(shotsEl){
+
     shotsEl.textContent =
       data.shots;
+
   }
 
+
   if(svEl){
+
     svEl.textContent =
       data.sv !== null
         ? `${data.sv.toFixed(1)}%`
         : "—";
+
   }
 
+
   if(goalsEl){
+
     goalsEl.textContent =
       data.goals;
+
   }
 
 }
@@ -4486,13 +4560,18 @@ function getReboundTotals(){
 
 
   return {
+
     good,
+
     bad,
+
     total,
+
     goodPct:
       total
         ? good / total * 100
         : 0
+
   };
 
 }
@@ -4546,8 +4625,10 @@ function renderReboundControl(){
     const gloveGood =
       num(row.glove_caught);
 
+
     const gloveBad =
       num(row.glove_rebound);
+
 
     const gloveGoal =
       num(row.glove_goal);
@@ -4556,8 +4637,10 @@ function renderReboundControl(){
     const blockerGood =
       num(row.blocker_good);
 
+
     const blockerBad =
       num(row.blocker_bad);
+
 
     const blockerGoal =
       num(row.blocker_goal);
@@ -4566,8 +4649,10 @@ function renderReboundControl(){
     const bodyGood =
       num(row.midsection_good);
 
+
     const bodyBad =
       num(row.midsection_bad);
+
 
     const bodyGoal =
       num(row.midsection_goal);
@@ -4576,8 +4661,10 @@ function renderReboundControl(){
     const padGood =
       num(row.pad_stick_good);
 
+
     const padBad =
       num(row.pad_stick_bad);
+
 
     const padGoal =
       num(row.pad_stick_goal);
@@ -4586,8 +4673,10 @@ function renderReboundControl(){
     directions["Glove"].good +=
       gloveGood;
 
+
     directions["Glove"].bad +=
       gloveBad;
+
 
     directions["Glove"].goals +=
       gloveGoal;
@@ -4596,8 +4685,10 @@ function renderReboundControl(){
     directions["Blocker"].good +=
       blockerGood;
 
+
     directions["Blocker"].bad +=
       blockerBad;
+
 
     directions["Blocker"].goals +=
       blockerGoal;
@@ -4606,8 +4697,10 @@ function renderReboundControl(){
     directions["Body"].good +=
       bodyGood;
 
+
     directions["Body"].bad +=
       bodyBad;
+
 
     directions["Body"].goals +=
       bodyGoal;
@@ -4616,8 +4709,10 @@ function renderReboundControl(){
     directions["Pad / Stick"].good +=
       padGood;
 
+
     directions["Pad / Stick"].bad +=
       padBad;
+
 
     directions["Pad / Stick"].goals +=
       padGoal;
@@ -4697,12 +4792,14 @@ function renderReboundControl(){
         type:"bar",
 
         data:{
+
           labels:[
             "Good",
             "Bad"
           ],
 
           datasets:[{
+
             label:"Rebound Control Events",
 
             data:[
@@ -4710,19 +4807,35 @@ function renderReboundControl(){
               totalBad
             ],
 
-            borderWidth:1
+            backgroundColor:[
+              "rgba(105,221,160,.62)",
+              "rgba(255,133,133,.62)"
+            ],
+
+            borderColor:[
+              "#69dda0",
+              "#ff8585"
+            ],
+
+            borderWidth:0
+
           }]
+
         },
 
         options:{
+
           ...chartOptions(),
 
           scales:{
             x:chartOptions().scales.x,
             y:distributionScale()
           }
+
         }
+
       }
+
     );
 
 
@@ -4740,11 +4853,13 @@ function renderReboundControl(){
         type:"bar",
 
         data:{
+
           labels,
 
           datasets:[
 
             {
+
               label:"Good",
 
               data:
@@ -4753,10 +4868,18 @@ function renderReboundControl(){
                     directions[d].good
                 ),
 
-              borderWidth:1
+              backgroundColor:
+                "rgba(105,221,160,.62)",
+
+              borderColor:
+                "#69dda0",
+
+              borderWidth:0
+
             },
 
             {
+
               label:"Bad",
 
               data:
@@ -4765,21 +4888,33 @@ function renderReboundControl(){
                     directions[d].bad
                 ),
 
-              borderWidth:1
+              backgroundColor:
+                "rgba(255,133,133,.62)",
+
+              borderColor:
+                "#ff8585",
+
+              borderWidth:0
+
             }
 
           ]
+
         },
 
         options:{
+
           ...chartOptions(),
 
           scales:{
             x:chartOptions().scales.x,
             y:distributionScale()
           }
+
         }
+
       }
+
     );
 
 
@@ -4797,30 +4932,36 @@ function renderReboundControl(){
         type:"bar",
 
         data:{
+
           labels,
 
           datasets:[{
+
             label:"Goal-Associated Outcomes",
 
             data:
               labels.map(
                 d =>
                   directions[d].goals
-              ),
+              )
 
-            borderWidth:1
           }]
+
         },
 
         options:{
+
           ...chartOptions(),
 
           scales:{
             x:chartOptions().scales.x,
             y:distributionScale()
           }
+
         }
+
       }
+
     );
 
 
@@ -4838,9 +4979,11 @@ function renderReboundControl(){
     const data =
       directions[direction];
 
+
     const totalDirection =
       data.good +
       data.bad;
+
 
     const pct =
       totalDirection
@@ -5090,8 +5233,10 @@ function renderIncremental(){
   let runningShots = 0;
   let runningSaves = 0;
 
+
   const actualValues = [];
   const expectedValues = [];
+
 
   const labels =
     seasonGames.map(
@@ -5104,6 +5249,7 @@ function renderIncremental(){
 
     runningShots +=
       gameShots(game);
+
 
     runningSaves +=
       gameSaves(game);
@@ -5133,6 +5279,7 @@ function renderIncremental(){
                   shot.game_id
                 )
             );
+
 
           return (
             gameIndex >= 0 &&
@@ -5173,50 +5320,68 @@ function renderIncremental(){
         type:"line",
 
         data:{
+
           labels,
 
           datasets:[
 
             {
+
               label:"Cumulative SV%",
 
               data:actualValues,
 
               tension:.35,
+
               borderWidth:2,
+
               pointRadius:2.5,
+
               pointHoverRadius:5
+
             },
 
             {
+
               label:"Expected SV%",
 
               data:expectedValues,
 
               tension:.35,
+
               borderWidth:1.5,
+
               borderDash:[5,5],
+
               pointRadius:2,
+
               pointHoverRadius:4
+
             }
 
           ]
+
         },
 
         options:{
+
           ...chartOptions(),
 
           scales:{
             x:chartOptions().scales.x,
             y:percentageScale()
           }
+
         }
+
       }
+
     );
 
 
   let runningXGA = 0;
   let runningGoals = 0;
+
 
   const gsaxValues = [];
 
@@ -5248,6 +5413,7 @@ function renderIncremental(){
     runningXGA +=
       advancedGame.xGA;
 
+
     runningGoals +=
       advancedGame.goals;
 
@@ -5274,29 +5440,40 @@ function renderIncremental(){
         type:"line",
 
         data:{
+
           labels,
 
           datasets:[{
+
             label:"Cumulative GSAx",
 
             data:gsaxValues,
 
             tension:.35,
+
             borderWidth:2,
+
             pointRadius:2.5,
+
             pointHoverRadius:5
+
           }]
+
         },
 
         options:{
+
           ...chartOptions(),
 
           scales:{
             x:chartOptions().scales.x,
             y:chartOptions().scales.y
           }
+
         }
+
       }
+
     );
 
 
@@ -5556,15 +5733,18 @@ window.debugReboundControl =
       reboundControls
     );
 
+
     console.log(
       "Season rebound-control rows:",
       seasonReboundControls
     );
 
+
     console.log(
       "Games:",
       seasonGames
     );
+
 
     console.log(
       "Current season:",
