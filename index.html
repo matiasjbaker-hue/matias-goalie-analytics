@@ -2001,130 +2001,383 @@ function isHighDanger(shot){
 
 
 /* ============================================================
-   XG MODEL
+   CONSERVATIVE NHL-STYLE XG MODEL
 ============================================================ */
+
+/*
+  IMPORTANT:
+
+  This is designed to behave like a conservative,
+  NHL-calibrated-style goaltending xG model.
+
+  It is NOT intended to reproduce the proprietary
+  NHL internal model.
+
+  Design principles:
+  - Conservative base probabilities
+  - Smaller contextual adjustments
+  - Prevent multiplier stacking from exploding xG
+  - Shrink extreme individual-shot probabilities
+  - Keep GSAx mathematically standard
+
+  GSAx:
+    xGA - actual goals
+
+  Expected SV%:
+    1 - xGA / shots
+*/
+
 
 function calculateShotXG(shot){
 
   const distance =
     shotDistance(shot);
 
-  let xg;
+  let baseXG;
 
-  if(distance <= 6){
-    xg = .24;
+
+  /*
+    ------------------------------------------------------------
+    BASE SHOT PROBABILITY
+
+    These are intentionally conservative.
+
+    Approximate interpretation:
+
+      0-6 ft       = very dangerous
+      6-12 ft      = dangerous
+      12-20 ft     = moderate
+      20-30 ft     = lower danger
+      30-40 ft     = low danger
+      40+ ft       = very low danger
+
+    The old model was too aggressive here.
+  */
+
+  if(distance > 0 && distance <= 6){
+
+    baseXG = 0.120;
+
   }
-  else if(distance <= 12){
-    xg = .14;
+  else if(distance > 6 && distance <= 12){
+
+    baseXG = 0.075;
+
   }
-  else if(distance <= 20){
-    xg = .065;
+  else if(distance > 12 && distance <= 20){
+
+    baseXG = 0.038;
+
   }
-  else if(distance <= 30){
-    xg = .030;
+  else if(distance > 20 && distance <= 30){
+
+    baseXG = 0.018;
+
   }
-  else if(distance <= 40){
-    xg = .015;
+  else if(distance > 30 && distance <= 40){
+
+    baseXG = 0.008;
+
+  }
+  else if(distance > 40){
+
+    baseXG = 0.004;
+
   }
   else{
-    xg = .008;
+
+    /*
+      If distance is missing, use a conservative
+      league-average-ish starting probability.
+    */
+
+    baseXG = 0.080;
+
   }
+
+
+  /*
+    ------------------------------------------------------------
+    CONTEXTUAL ADJUSTMENTS
+
+    These are intentionally MUCH smaller than before.
+  */
+
+  let multiplier = 1.0;
 
 
   const location =
     shotLocation(shot);
 
+
+  /*
+    Location
+  */
+
   if(location === "crease"){
-    xg *= 1.15;
+
+    multiplier *= 1.20;
+
   }
   else if(location === "slot"){
-    xg *= 1.10;
+
+    multiplier *= 1.10;
+
   }
   else if(location === "point"){
-    xg *= .75;
+
+    multiplier *= 0.85;
+
   }
 
+
+  /*
+    Shot type
+  */
 
   const type =
     shotType(shot);
+
 
   if(
     type === "one timer" ||
     type === "one-timer"
   ){
-    xg *= 1.18;
+
+    multiplier *= 1.15;
+
   }
 
+
   if(type === "backhand"){
-    xg *= 1.06;
+
+    multiplier *= 1.05;
+
   }
+
+
+  /*
+    Slap shots receive only a very small increase.
+  */
 
   if(
     type === "slap shot" ||
     type === "slap"
   ){
-    xg *= 1.04;
+
+    multiplier *= 1.03;
+
   }
 
+
+  /*
+    Rush
+  */
 
   if(isRushShot(shot)){
-    xg *= 1.08;
+
+    multiplier *= 1.05;
+
   }
+
+
+  /*
+    Rebound
+
+    Rebounds are dangerous, but we don't want the model
+    to assume every rebound is automatically a huge chance.
+  */
 
   if(shotIsRebound(shot)){
-    xg *= 1.25;
+
+    multiplier *= 1.15;
+
   }
+
+
+  /*
+    Screen
+  */
 
   if(isScreened(shot)){
-    xg *= 1.10;
+
+    multiplier *= 1.08;
+
   }
+
+
+  /*
+    Breakaway
+
+    Still a major increase, but much lower than the old 1.75x.
+  */
 
   if(isBreakaway(shot)){
-    xg *= 1.75;
+
+    multiplier *= 1.45;
+
   }
+
+
+  /*
+    Cross-ice
+
+    Smaller adjustment.
+  */
 
   if(shotBoolean(shot.cross_ice)){
-    xg *= 1.15;
+
+    multiplier *= 1.10;
+
   }
 
 
-  return Math.max(
-    .003,
-    Math.min(.75,xg)
-  );
+  /*
+    ------------------------------------------------------------
+    MULTIPLIER CEILING
+
+    Prevents combinations like:
+
+      breakaway + rebound + screen + cross-ice + one-timer
+
+    from producing ridiculous xG.
+
+    This is one of the most important changes.
+  */
+
+  multiplier =
+    Math.min(
+      2.25,
+      multiplier
+    );
+
+
+  let rawXG =
+    baseXG *
+    multiplier;
+
+
+  /*
+    ------------------------------------------------------------
+    NHL-LIKE SHRINKAGE
+
+    Pull extreme probabilities toward a conservative
+    league-average shot probability.
+
+    This prevents a small manually-tracked sample from
+    producing enormous xGA/GSAx swings.
+
+    Baseline:
+      0.10 expected goal probability per shot
+
+    Shrinkage:
+      55% of the raw shot signal
+      45% toward baseline
+
+    Example:
+
+      Raw xG = .30
+
+      Conservative:
+      (.30 × .55) + (.10 × .45)
+      = .210
+
+    This is much more stable.
+  */
+
+  const leagueBaselineXG =
+    0.100;
+
+  const shrinkage =
+    0.55;
+
+
+  let calibratedXG =
+    (
+      rawXG * shrinkage
+    ) +
+    (
+      leagueBaselineXG *
+      (1 - shrinkage)
+    );
+
+
+  /*
+    ------------------------------------------------------------
+    FINAL SAFETY LIMITS
+
+    Floor:
+      prevents every shot from being effectively zero.
+
+    Ceiling:
+      prevents one manually classified shot from
+      becoming an absurd 60-70%+ chance.
+  */
+
+  calibratedXG =
+    Math.max(
+      0.003,
+      Math.min(
+        0.40,
+        calibratedXG
+      )
+    );
+
+
+  return calibratedXG;
 
 }
 
+
+/* ============================================================
+   SHOT GRADING
+============================================================ */
 
 function shotGrade(shot){
 
   const xg =
     calculateShotXG(shot);
 
-  if(xg >= .25){
+
+  if(xg >= 0.20){
+
     return "A+";
+
   }
 
-  if(xg >= .12){
+
+  if(xg >= 0.10){
+
     return "A";
+
   }
 
-  if(xg >= .045){
+
+  if(xg >= 0.040){
+
     return "B";
+
   }
+
 
   return "C";
 
 }
 
 
+/* ============================================================
+   ADVANCED SHOT STATS
+============================================================ */
+
 function calculateAdvancedForShots(data){
 
   const totalShots =
     data.length;
 
+
   const goals =
     data.filter(isGoal).length;
+
 
   const saves =
     Math.max(
@@ -2132,32 +2385,79 @@ function calculateAdvancedForShots(data){
       totalShots - goals
     );
 
+
+  /*
+    Expected Goals Against
+
+    Every shot receives its conservative
+    calibrated probability.
+  */
+
   const xGA =
     data.reduce(
       (sum,shot) =>
-        sum + calculateShotXG(shot),
+        sum +
+        calculateShotXG(shot),
       0
     );
 
+
+  /*
+    Actual SV%
+  */
+
   const actualSV =
     totalShots
-      ? saves / totalShots * 100
+      ? saves /
+        totalShots *
+        100
       : 0;
+
+
+  /*
+    Expected SV%
+
+    Standard relationship:
+
+      Expected SV% =
+      1 - Expected Goals / Shots
+
+  */
 
   const expectedSV =
     totalShots
-      ? (1 - xGA / totalShots) * 100
+      ? (
+          1 -
+          xGA /
+          totalShots
+        ) *
+        100
       : 0;
 
+
+  /*
+    STANDARD GSAx
+
+      GSAx =
+      Expected Goals Against -
+      Actual Goals Against
+
+    Positive = saved more than expected
+    Negative = allowed more than expected
+  */
+
   const gsax =
-    xGA - goals;
+    xGA -
+    goals;
 
 
   const grades = {
+
     "A+":0,
     "A":0,
     "B":0,
     "C":0
+
   };
 
 
@@ -2171,18 +2471,26 @@ function calculateAdvancedForShots(data){
 
 
   return {
+
     shots:totalShots,
+
     goals,
+
     saves,
+
     xGA,
+
     actualSV,
+
     expectedSV,
+
     gsax,
+
     grades
+
   };
 
 }
-
 
 /* ============================================================
    SUBSET STATS
