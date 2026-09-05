@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 
@@ -9,6 +10,10 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 
 <style>
+
+/* =========================================================
+   FOUNDATION
+========================================================= */
 
 *{
   box-sizing:border-box;
@@ -21,11 +26,14 @@
   --card2:#102d22;
   --border:#1d4434;
   --border2:#285640;
+
   --text:#edf7f1;
   --muted:#88a599;
   --muted2:#6f8c80;
+
   --green:#69dda0;
   --green2:#9be1bd;
+
   --red:#ff8585;
   --yellow:#e6d27a;
 }
@@ -38,7 +46,11 @@ body{
   margin:0;
   font-family:Inter,Arial,sans-serif;
   background:
-    radial-gradient(circle at top right,rgba(40,96,71,.14),transparent 30%),
+    radial-gradient(
+      circle at top right,
+      rgba(40,96,71,.14),
+      transparent 32%
+    ),
     var(--bg);
   color:var(--text);
 }
@@ -47,72 +59,108 @@ button{
   font:inherit;
 }
 
+
+/* =========================================================
+   HEADER
+========================================================= */
+
 header{
-  padding:30px 35px;
+  padding:28px 35px;
   background:
-    linear-gradient(135deg,#0b241a,#0a1e17);
+    linear-gradient(
+      135deg,
+      #0b241a,
+      #0a1e17
+    );
   border-bottom:1px solid var(--border);
 }
 
 .header-inner{
-  max-width:1500px;
+  max-width:1450px;
   margin:auto;
+
   display:flex;
   justify-content:space-between;
   align-items:center;
+
   gap:25px;
 }
 
 .brand h1{
   margin:0;
-  font-size:31px;
-  letter-spacing:-.5px;
+  font-size:30px;
+  letter-spacing:-.6px;
 }
 
 .brand p{
   margin:6px 0 0;
   color:var(--muted);
-  font-size:14px;
+  font-size:13px;
 }
 
 .header-right{
   display:flex;
   align-items:center;
-  gap:12px;
+  gap:10px;
 }
 
 .season-badge{
-  padding:9px 15px;
+  padding:8px 14px;
+
   border-radius:20px;
+
   background:#123c2b;
   border:1px solid #286047;
+
   color:var(--green2);
-  font-size:13px;
+
+  font-size:12px;
   font-weight:700;
+
+  letter-spacing:.3px;
 }
 
+
+/* =========================================================
+   NAVIGATION
+========================================================= */
+
 nav{
-  background:#081c15;
+  position:sticky;
+  top:0;
+  z-index:20;
+
+  background:rgba(8,28,21,.96);
+  backdrop-filter:blur(10px);
+
   border-bottom:1px solid var(--border);
-  overflow-x:auto;
 }
 
 .nav-inner{
-  max-width:1500px;
+  max-width:1450px;
   margin:auto;
+
   display:flex;
   gap:4px;
-  padding:9px 25px;
+
+  padding:8px 25px;
+
+  overflow-x:auto;
 }
 
 nav button{
   border:0;
   background:transparent;
+
   color:#8da99d;
-  padding:11px 15px;
+
+  padding:10px 15px;
+
   border-radius:7px;
+
   cursor:pointer;
   white-space:nowrap;
+
   transition:.15s;
 }
 
@@ -126,10 +174,16 @@ nav button.active{
   color:#fff;
 }
 
+
+/* =========================================================
+   MAIN
+========================================================= */
+
 main{
-  max-width:1500px;
+  max-width:1450px;
   margin:auto;
-  padding:30px 25px 70px;
+
+  padding:28px 25px 70px;
 }
 
 .tab{
@@ -141,43 +195,31 @@ main{
 }
 
 .page-title{
-  margin-bottom:24px;
+  margin-bottom:22px;
 }
 
 .page-title h2{
-  margin:0 0 6px;
-  font-size:26px;
-  letter-spacing:-.3px;
+  margin:0 0 5px;
+
+  font-size:25px;
+  letter-spacing:-.4px;
 }
 
 .page-title p{
   margin:0;
+
   color:var(--muted);
-  font-size:14px;
-}
-
-.section-space{
-  margin-top:20px;
-}
-
-.section-heading{
-  margin:30px 0 14px;
-}
-
-.section-heading h3{
-  margin:0 0 4px;
-  font-size:18px;
-}
-
-.section-heading p{
-  margin:0;
-  color:var(--muted2);
   font-size:13px;
 }
 
+
+/* =========================================================
+   GRID
+========================================================= */
+
 .grid{
   display:grid;
-  gap:18px;
+  gap:15px;
 }
 
 .grid-2{
@@ -192,52 +234,87 @@ main{
   grid-template-columns:repeat(4,minmax(0,1fr));
 }
 
+.section-space{
+  margin-top:18px;
+}
+
+
+/* =========================================================
+   CARDS
+========================================================= */
+
 .card{
   background:
-    linear-gradient(145deg,rgba(16,45,34,.96),rgba(10,31,23,.98));
+    linear-gradient(
+      145deg,
+      rgba(16,45,34,.96),
+      rgba(10,31,23,.98)
+    );
+
   border:1px solid var(--border);
-  border-radius:13px;
-  padding:19px;
-  box-shadow:0 10px 30px rgba(0,0,0,.13);
+
+  border-radius:12px;
+
+  padding:18px;
+
+  box-shadow:
+    0 8px 25px rgba(0,0,0,.12);
+
   min-width:0;
 }
 
 .card h3{
-  margin:0 0 14px;
+  margin:0 0 12px;
+
   font-size:14px;
   font-weight:700;
 }
 
+
+/* =========================================================
+   METRICS
+========================================================= */
+
 .metric-card{
-  min-height:128px;
+  min-height:120px;
+
   display:flex;
   flex-direction:column;
   justify-content:center;
 }
 
 .metric{
-  font-size:31px;
+  font-size:30px;
   line-height:1;
+
   font-weight:800;
+
   letter-spacing:-.5px;
 }
 
 .metric-large{
-  font-size:39px;
+  font-size:37px;
 }
 
 .metric-label{
-  color:var(--muted);
-  font-size:11px;
   margin-top:8px;
+
+  color:var(--muted);
+
+  font-size:10px;
+
   text-transform:uppercase;
-  letter-spacing:.7px;
+
+  letter-spacing:.75px;
 }
 
 .metric-context{
+  margin-top:7px;
+
   color:var(--muted2);
-  font-size:12px;
-  margin-top:8px;
+
+  font-size:11px;
+  line-height:1.4;
 }
 
 .good{
@@ -256,82 +333,204 @@ main{
   color:var(--yellow);
 }
 
+
+/* =========================================================
+   OVERVIEW HERO
+========================================================= */
+
+.hero-grid{
+  display:grid;
+
+  grid-template-columns:
+    1.15fr
+    1fr
+    1fr
+    1fr;
+
+  gap:15px;
+}
+
 .hero-card{
-  padding:24px;
   min-height:150px;
+  padding:21px;
+}
+
+.hero-card.primary{
+  background:
+    linear-gradient(
+      145deg,
+      #123a28,
+      #0b281c
+    );
+
+  border-color:#2c6548;
 }
 
 .hero-card .metric{
-  font-size:42px;
+  font-size:39px;
 }
 
 .hero-label{
+  margin-top:8px;
+
   color:var(--muted);
-  font-size:12px;
+
+  font-size:11px;
+
   text-transform:uppercase;
   letter-spacing:.7px;
-  margin-top:8px;
 }
 
 .hero-description{
-  margin-top:10px;
+  margin-top:8px;
+
+  color:#78988a;
+
+  font-size:11px;
+  line-height:1.45;
+}
+
+
+/* =========================================================
+   DEVELOPMENT SUMMARY
+========================================================= */
+
+.development-box{
+  padding:21px;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(20,67,47,.75),
+      rgba(12,38,27,.95)
+    );
+
+  border:1px solid #285640;
+
+  border-radius:12px;
+}
+
+.development-box h3{
+  margin:0 0 7px;
+
+  font-size:15px;
+}
+
+.development-box p{
+  margin:0;
+
+  color:#a9c8ba;
+
+  font-size:13px;
+  line-height:1.65;
+}
+
+.development-box strong{
+  color:#edf7f1;
+}
+
+
+/* =========================================================
+   SECTION HEADINGS
+========================================================= */
+
+.section-heading{
+  margin:28px 0 12px;
+}
+
+.section-heading h3{
+  margin:0 0 4px;
+
+  font-size:17px;
+}
+
+.section-heading p{
+  margin:0;
+
   color:var(--muted2);
+
   font-size:12px;
-  line-height:1.5;
 }
 
-.chart-card{
-  min-height:390px;
-}
 
-.chart-card.compact{
-  min-height:350px;
-}
-
-.chart-wrap{
-  position:relative;
-  width:100%;
-  height:300px;
-}
-
-.chart-card.compact .chart-wrap{
-  height:265px;
-}
-
-.chart-wrap canvas{
-  display:block !important;
-  width:100% !important;
-  height:100% !important;
-}
+/* =========================================================
+   INSIGHT BOXES
+========================================================= */
 
 .insight{
-  margin-top:13px;
-  padding:11px 13px;
+  margin-top:11px;
+
+  padding:10px 12px;
+
   border-left:3px solid var(--border2);
+
   background:rgba(255,255,255,.025);
+
   border-radius:5px;
+
   color:#a9beb5;
-  font-size:12px;
-  line-height:1.5;
+
+  font-size:11px;
+
+  line-height:1.55;
 }
 
 .insight strong{
   color:var(--text);
 }
 
+
+/* =========================================================
+   CHARTS
+========================================================= */
+
+.chart-card{
+  min-height:350px;
+}
+
+.chart-card.compact{
+  min-height:315px;
+}
+
+.chart-wrap{
+  position:relative;
+
+  width:100%;
+  height:260px;
+}
+
+.chart-card.compact .chart-wrap{
+  height:220px;
+}
+
+.chart-wrap canvas{
+  display:block !important;
+
+  width:100% !important;
+  height:100% !important;
+}
+
+
+/* =========================================================
+   SMALL STAT LISTS
+========================================================= */
+
 .stat-list{
   display:flex;
   flex-direction:column;
-  gap:0;
 }
 
 .stat-row{
   display:flex;
+
   justify-content:space-between;
   align-items:center;
+
   gap:15px;
-  padding:11px 0;
-  border-bottom:1px solid rgba(255,255,255,.06);
+
+  padding:9px 0;
+
+  border-bottom:1px solid rgba(255,255,255,.055);
 }
 
 .stat-row:last-child{
@@ -340,20 +539,18 @@ main{
 
 .stat-name{
   color:#9eb4aa;
-  font-size:13px;
+  font-size:12px;
 }
 
 .stat-value{
   font-weight:700;
-  font-size:14px;
+  font-size:13px;
 }
 
-.small-note{
-  margin-top:10px;
-  color:var(--muted2);
-  font-size:11px;
-  line-height:1.5;
-}
+
+/* =========================================================
+   TABLES
+========================================================= */
 
 .table-wrap{
   overflow-x:auto;
@@ -366,19 +563,29 @@ table{
 
 th{
   text-align:left;
-  font-size:10px;
+
+  font-size:9px;
+
   color:#78958a;
+
   text-transform:uppercase;
+
   letter-spacing:.65px;
-  padding:11px 10px;
+
+  padding:10px;
+
   border-bottom:1px solid #234638;
+
   white-space:nowrap;
 }
 
 td{
-  padding:12px 10px;
+  padding:11px 10px;
+
   border-bottom:1px solid #183a2d;
-  font-size:13px;
+
+  font-size:12px;
+
   white-space:nowrap;
 }
 
@@ -388,52 +595,92 @@ tr:hover td{
 
 .pill{
   display:inline-block;
+
   padding:4px 8px;
+
   border-radius:12px;
+
   background:#143c2c;
+
   color:#a6d6bb;
-  font-size:10px;
+
+  font-size:9px;
+
   font-weight:700;
 }
 
-.empty{
-  padding:45px 20px;
-  text-align:center;
-  color:#718f82;
+
+/* =========================================================
+   COLLAPSIBLE DETAIL AREAS
+========================================================= */
+
+details{
+  background:
+    rgba(8,28,20,.55);
+
+  border:1px solid var(--border);
+
+  border-radius:10px;
+
+  overflow:hidden;
 }
 
-.error-box{
-  padding:16px;
-  border-radius:8px;
-  background:#351818;
-  border:1px solid #713333;
-  color:#ffb0b0;
-  margin-bottom:20px;
-  line-height:1.5;
+details + details{
+  margin-top:10px;
 }
 
-.loading{
-  padding:60px;
-  text-align:center;
-  color:#88a89a;
+summary{
+  cursor:pointer;
+
+  list-style:none;
+
+  padding:14px 16px;
+
+  color:#b5c9c0;
+
+  font-size:12px;
+
+  font-weight:700;
 }
 
-.about-list{
-  line-height:1.8;
-  color:#a5bbb1;
+summary::-webkit-details-marker{
+  display:none;
 }
 
-.about-list strong{
-  color:#edf7f1;
+summary:after{
+  content:"+";
+
+  float:right;
+
+  color:var(--muted);
 }
+
+details[open] summary:after{
+  content:"−";
+}
+
+.details-content{
+  padding:0 16px 16px;
+}
+
+
+/* =========================================================
+   CALLOUT
+========================================================= */
 
 .callout{
-  padding:17px 18px;
+  padding:15px 17px;
+
   background:#0d3021;
+
   border:1px solid #285640;
+
   border-radius:10px;
+
   color:#a9c8ba;
-  font-size:13px;
+
+  font-size:12px;
+
   line-height:1.6;
 }
 
@@ -441,7 +688,72 @@ tr:hover td{
   color:#edf7f1;
 }
 
+
+/* =========================================================
+   EMPTY / ERROR
+========================================================= */
+
+.empty{
+  padding:40px 20px;
+
+  text-align:center;
+
+  color:#718f82;
+}
+
+.error-box{
+  padding:15px;
+
+  border-radius:8px;
+
+  background:#351818;
+
+  border:1px solid #713333;
+
+  color:#ffb0b0;
+
+  margin-bottom:18px;
+
+  line-height:1.5;
+
+  font-size:12px;
+}
+
+.loading{
+  padding:55px;
+
+  text-align:center;
+
+  color:#88a89a;
+}
+
+
+/* =========================================================
+   ABOUT
+========================================================= */
+
+.about-list{
+  line-height:1.8;
+
+  color:#a5bbb1;
+
+  font-size:13px;
+}
+
+.about-list strong{
+  color:#edf7f1;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
 @media(max-width:1100px){
+
+  .hero-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
 
   .grid-4{
     grid-template-columns:repeat(2,minmax(0,1fr));
@@ -453,10 +765,11 @@ tr:hover td{
 
 }
 
+
 @media(max-width:750px){
 
   header{
-    padding:22px 18px;
+    padding:21px 17px;
   }
 
   .header-inner{
@@ -465,41 +778,54 @@ tr:hover td{
   }
 
   main{
-    padding:22px 15px 50px;
+    padding:21px 14px 50px;
   }
 
+  .hero-grid,
   .grid-4,
   .grid-3,
   .grid-2{
     grid-template-columns:1fr;
   }
 
+  .hero-card .metric{
+    font-size:34px;
+  }
+
   .chart-card{
-    min-height:360px;
+    min-height:335px;
   }
 
   .chart-wrap{
-    height:275px;
-  }
-
-  .metric-large{
-    font-size:34px;
+    height:245px;
   }
 
 }
 
 </style>
+
 </head>
 
+
 <body>
+
+
+<!-- =========================================================
+     HEADER
+========================================================= -->
 
 <header>
 
   <div class="header-inner">
 
     <div class="brand">
+
       <h1>Matias Baker</h1>
-      <p>Goaltending Analytics Platform</p>
+
+      <p>
+        Goaltending Development & Analytics
+      </p>
+
     </div>
 
     <div class="header-right">
@@ -515,35 +841,48 @@ tr:hover td{
 </header>
 
 
+<!-- =========================================================
+     NAV
+========================================================= -->
+
 <nav>
 
   <div class="nav-inner">
 
-    <button class="active" onclick="showTab('overview',this)">
+    <button
+      class="active"
+      onclick="showTab('overview',this)"
+    >
       Overview
     </button>
 
-    <button onclick="showTab('gamelog',this)">
-      Game Log
+    <button
+      onclick="showTab('gamelog',this)"
+    >
+      Games
     </button>
 
-    <button onclick="showTab('periods',this)">
-      Period Breakdown
+    <button
+      onclick="showTab('situational',this)"
+    >
+      Shot Analysis
     </button>
 
-    <button onclick="showTab('situational',this)">
-      Situational
-    </button>
-
-    <button onclick="showTab('control',this)">
+    <button
+      onclick="showTab('control',this)"
+    >
       Rebound Control
     </button>
 
-    <button onclick="showTab('incremental',this)">
-      Incremental Stats
+    <button
+      onclick="showTab('incremental',this)"
+    >
+      Trends
     </button>
 
-    <button onclick="showTab('about',this)">
+    <button
+      onclick="showTab('about',this)"
+    >
       About
     </button>
 
@@ -557,754 +896,333 @@ tr:hover td{
 <div id="dashboard-error"></div>
 
 
-<!-- ========================================================= -->
-<!-- OVERVIEW -->
-<!-- ========================================================= -->
+<!-- =========================================================
+     OVERVIEW
+========================================================= -->
 
-<section id="overview" class="tab active">
+<section
+  id="overview"
+  class="tab active"
+>
 
   <div class="page-title">
-    <h2>Overview</h2>
-    <p>Performance dashboard focused on identifying strengths, weaknesses and areas for improvement.</p>
+
+    <h2>Performance Overview</h2>
+
+    <p>
+      Your entire game reduced to the information that matters most.
+    </p>
+
   </div>
 
 
-  <!-- PRIMARY PERFORMANCE -->
+  <!-- PRIMARY NUMBERS -->
 
-  <div class="grid grid-4">
+  <div class="hero-grid">
 
-    <div class="card metric-card hero-card">
-      <div class="metric good" id="overviewSV">—</div>
-      <div class="hero-label">Save %</div>
+    <div class="card hero-card primary">
+
+      <div
+        class="metric good"
+        id="overviewSV"
+      >
+        —
+      </div>
+
+      <div class="hero-label">
+        Save Percentage
+      </div>
+
       <div class="hero-description">
         Your actual stopping performance.
       </div>
+
     </div>
 
-    <div class="card metric-card hero-card">
-      <div class="metric" id="overviewExpectedSV">—</div>
-      <div class="hero-label">Expected SV%</div>
-      <div class="hero-description">
-        Estimated save percentage based on shot quality faced.
+
+    <div class="card hero-card">
+
+      <div
+        class="metric"
+        id="overviewExpectedSV"
+      >
+        —
       </div>
+
+      <div class="hero-label">
+        Expected SV%
+      </div>
+
+      <div class="hero-description">
+        What your shot quality predicts you should save.
+      </div>
+
     </div>
 
-    <div class="card metric-card hero-card">
-      <div class="metric" id="overviewGSAx">—</div>
-      <div class="hero-label">GSAx</div>
+
+    <div class="card hero-card">
+
+      <div
+        class="metric"
+        id="overviewGSAx"
+      >
+        —
+      </div>
+
+      <div class="hero-label">
+        GSAx
+      </div>
+
       <div class="hero-description">
         Goals saved above the expected result.
       </div>
+
     </div>
 
-    <div class="card metric-card hero-card">
-      <div class="metric" id="overviewGAA">—</div>
-      <div class="hero-label">GAA</div>
+
+    <div class="card hero-card">
+
+      <div
+        class="metric"
+        id="overviewGAA"
+      >
+        —
+      </div>
+
+      <div class="hero-label">
+        GAA
+      </div>
+
       <div class="hero-description">
         Goals allowed per 60 minutes.
       </div>
+
     </div>
 
   </div>
 
 
-  <!-- SECONDARY PERFORMANCE -->
+  <!-- DEVELOPMENT SUMMARY -->
 
-  <div class="grid grid-4 section-space">
+  <div class="section-space">
 
-    <div class="card metric-card">
-      <div class="metric" id="overviewShots">—</div>
-      <div class="metric-label">Shots Against / 60</div>
-    </div>
+    <div class="development-box">
 
-    <div class="card metric-card">
-      <div class="metric" id="overviewGames">—</div>
-      <div class="metric-label">Games Played</div>
-    </div>
+      <h3>
+        What should I take from this?
+      </h3>
 
-    <div class="card metric-card">
-      <div class="metric" id="overviewRecord">—</div>
-      <div class="metric-label">Record</div>
-    </div>
+      <p id="overviewDevelopmentSummary">
+        Your dashboard will generate a development interpretation
+        once enough game and shot-level data has been collected.
+      </p>
 
-    <div class="card metric-card">
-      <div class="metric" id="overviewReboundPct">—</div>
-      <div class="metric-label">Good Rebound %</div>
     </div>
 
   </div>
 
 
-  <!-- PERFORMANCE VS EXPECTATION -->
+  <!-- SECONDARY CONTEXT -->
 
   <div class="section-heading">
-    <h3>Stopping Performance</h3>
-    <p>The most important question: are you stopping more or fewer pucks than the shots you face would predict?</p>
-  </div>
 
-  <div class="grid grid-2">
+    <h3>
+      Quick Context
+    </h3>
 
-    <div class="card chart-card">
-
-      <h3>SV% vs Expected SV%</h3>
-
-      <div class="chart-wrap">
-        <canvas id="overviewSVExpectedChart"></canvas>
-      </div>
-
-      <div class="insight" id="svExpectedInsight">
-        —
-      </div>
-
-    </div>
-
-
-    <div class="card chart-card">
-
-      <h3>Save Percentage Distribution</h3>
-
-      <div class="chart-wrap">
-        <canvas id="svDistributionChart"></canvas>
-      </div>
-
-      <div class="insight">
-        Each game is placed into a <strong>.020 SV%</strong> performance band,
-        beginning at <strong>.880</strong> and extending through <strong>.950+</strong>.
-      </div>
-
-    </div>
+    <p>
+      These numbers explain the environment your primary statistics came from.
+    </p>
 
   </div>
 
-
-  <!-- GOAL QUALITY -->
-
-  <div class="section-heading">
-    <h3>Goals Against Profile</h3>
-    <p>Use this section to understand the quality of goals being allowed rather than simply counting goals.</p>
-  </div>
-
-  <div class="grid grid-2">
-
-    <div class="card chart-card">
-
-      <h3>Goals Against Distribution</h3>
-
-      <div class="chart-wrap">
-        <canvas id="gaDistributionChart"></canvas>
-      </div>
-
-    </div>
-
-
-    <div class="card chart-card">
-
-      <h3>Goals Against by Shot Grade</h3>
-
-      <div class="chart-wrap">
-        <canvas id="goalsByGradeChart"></canvas>
-      </div>
-
-      <div class="insight" id="gradeInsight">
-        —
-      </div>
-
-    </div>
-
-  </div>
-
-
-  <!-- LAST 5 -->
-
-  <div class="section-heading">
-    <h3>Recent Form</h3>
-    <p>Short-term performance can reveal whether changes in your game are actually working.</p>
-  </div>
-
-  <div class="grid grid-2">
-
-    <div class="card">
-
-      <h3>Last 5 Games</h3>
-
-      <div class="stat-list">
-
-        <div class="stat-row">
-          <span class="stat-name">SV%</span>
-          <span class="stat-value" id="last5SV">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">GAA</span>
-          <span class="stat-value" id="last5GAA">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">Shots Against / 60</span>
-          <span class="stat-value" id="last5Shots">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">Record</span>
-          <span class="stat-value" id="last5Record">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">GSAx</span>
-          <span class="stat-value" id="last5GSAx">—</span>
-        </div>
-
-      </div>
-
-    </div>
-
-
-    <div class="card">
-
-      <h3>Core Performance</h3>
-
-      <div class="stat-list">
-
-        <div class="stat-row">
-          <span class="stat-name">Total Shots</span>
-          <span class="stat-value" id="overviewTotalShots">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">Saves</span>
-          <span class="stat-value" id="overviewSaves">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">Goals Against</span>
-          <span class="stat-value" id="overviewGoals">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">Expected Goals Against</span>
-          <span class="stat-value" id="overviewXGA">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">Actual SV% − Expected SV%</span>
-          <span class="stat-value" id="overviewSVDelta">—</span>
-        </div>
-
-      </div>
-
-    </div>
-
-  </div>
-
-</section>
-
-
-<!-- ========================================================= -->
-<!-- GAME LOG -->
-<!-- ========================================================= -->
-
-<section id="gamelog" class="tab">
-
-  <div class="page-title">
-    <h2>Game Log</h2>
-    <p>Game-by-game results with advanced performance context.</p>
-  </div>
-
-  <div class="card">
-
-    <div class="table-wrap">
-
-      <table>
-
-        <thead>
-
-          <tr>
-            <th>Date</th>
-            <th>Opponent</th>
-            <th>Result</th>
-            <th>Shots</th>
-            <th>Saves</th>
-            <th>GA</th>
-            <th>SV%</th>
-            <th>GAA</th>
-            <th>Minutes</th>
-          </tr>
-
-        </thead>
-
-        <tbody id="gameLogBody"></tbody>
-
-      </table>
-
-    </div>
-
-  </div>
-
-</section>
-
-
-<!-- ========================================================= -->
-<!-- PERIOD BREAKDOWN -->
-<!-- ========================================================= -->
-
-<section id="periods" class="tab">
-
-  <div class="page-title">
-    <h2>Period Breakdown</h2>
-    <p>Identify when performance changes during games.</p>
-  </div>
 
   <div class="grid grid-4">
 
     <div class="card metric-card">
-      <div class="metric" id="period1SV">—</div>
-      <div class="metric-label">1st Period SV%</div>
-    </div>
 
-    <div class="card metric-card">
-      <div class="metric" id="period2SV">—</div>
-      <div class="metric-label">2nd Period SV%</div>
-    </div>
-
-    <div class="card metric-card">
-      <div class="metric" id="period3SV">—</div>
-      <div class="metric-label">3rd Period SV%</div>
-    </div>
-
-    <div class="card metric-card">
-      <div class="metric" id="periodOTSV">—</div>
-      <div class="metric-label">OT SV%</div>
-    </div>
-
-  </div>
-
-  <div class="grid grid-2 section-space">
-
-    <div class="card chart-card">
-
-      <h3>Save Percentage by Period</h3>
-
-      <div class="chart-wrap">
-        <canvas id="periodSVChart"></canvas>
-      </div>
-
-    </div>
-
-    <div class="card chart-card">
-
-      <h3>Goals Against by Period</h3>
-
-      <div class="chart-wrap">
-        <canvas id="periodGAChart"></canvas>
-      </div>
-
-    </div>
-
-  </div>
-
-  <div class="card section-space">
-
-    <h3>Period Statistics</h3>
-
-    <div class="table-wrap">
-
-      <table>
-
-        <thead>
-
-          <tr>
-            <th>Period</th>
-            <th>Shots</th>
-            <th>Saves</th>
-            <th>Goals Against</th>
-            <th>SV%</th>
-          </tr>
-
-        </thead>
-
-        <tbody id="periodTableBody"></tbody>
-
-      </table>
-
-    </div>
-
-  </div>
-
-</section>
-
-
-<!-- ========================================================= -->
-<!-- SITUATIONAL -->
-<!-- ========================================================= -->
-
-<section id="situational" class="tab">
-
-  <div class="page-title">
-    <h2>Situational</h2>
-    <p>Find the situations, shot qualities and play types that give you the most room to improve.</p>
-  </div>
-
-
-  <!-- SHOT QUALITY -->
-
-  <div class="grid grid-4">
-
-    <div class="card metric-card">
-      <div class="metric" id="expectedSV">—</div>
-      <div class="metric-label">Expected SV%</div>
-    </div>
-
-    <div class="card metric-card">
-      <div class="metric" id="gsax">—</div>
-      <div class="metric-label">GSAx</div>
-    </div>
-
-    <div class="card metric-card">
-      <div class="metric" id="xGA">—</div>
-      <div class="metric-label">Expected Goals Against</div>
-    </div>
-
-    <div class="card metric-card">
-      <div class="metric" id="advancedShots">—</div>
-      <div class="metric-label">Shots Tracked</div>
-    </div>
-
-  </div>
-
-
-  <div class="section-heading">
-    <h3>Where Are the Problems?</h3>
-    <p>These charts are intended to turn shot tracking into actual training priorities.</p>
-  </div>
-
-
-  <div class="grid grid-2">
-
-    <div class="card chart-card">
-
-      <h3>Shots by Location</h3>
-
-      <div class="chart-wrap">
-        <canvas id="locationChart"></canvas>
-      </div>
-
-      <div class="insight">
-        High volume alone is not necessarily bad. Compare this with the goal chart
-        to identify locations where you are allowing a disproportionate number of goals.
-      </div>
-
-    </div>
-
-
-    <div class="card chart-card">
-
-      <h3>Goals by Location</h3>
-
-      <div class="chart-wrap">
-        <canvas id="goalLocationChart"></canvas>
-      </div>
-
-      <div class="insight" id="locationInsight">
+      <div
+        class="metric"
+        id="overviewShots"
+      >
         —
       </div>
 
-    </div>
+      <div class="metric-label">
+        Shots / 60
+      </div>
 
-  </div>
-
-
-  <div class="grid grid-2 section-space">
-
-    <div class="card chart-card">
-
-      <h3>Shot Quality Distribution</h3>
-
-      <div class="chart-wrap">
-        <canvas id="shotGradeChart"></canvas>
+      <div class="metric-context">
+        Workload
       </div>
 
     </div>
 
 
-    <div class="card chart-card">
+    <div class="card metric-card">
 
-      <h3>Goals by Shot Grade</h3>
-
-      <div class="chart-wrap">
-        <canvas id="shotGradeGoalChart"></canvas>
-      </div>
-
-      <div class="insight" id="shotGradeGoalInsight">
+      <div
+        class="metric"
+        id="overviewGames"
+      >
         —
       </div>
 
+      <div class="metric-label">
+        Games
+      </div>
+
+      <div class="metric-context">
+        Current sample
+      </div>
+
+    </div>
+
+
+    <div class="card metric-card">
+
+      <div
+        class="metric"
+        id="overviewRecord"
+      >
+        —
+      </div>
+
+      <div class="metric-label">
+        Record
+      </div>
+
+      <div class="metric-context">
+        Team result while playing
+      </div>
+
+    </div>
+
+
+    <div class="card metric-card">
+
+      <div
+        class="metric"
+        id="overviewReboundPct"
+      >
+        —
+      </div>
+
+      <div class="metric-label">
+        Good Rebound %
+      </div>
+
+      <div class="metric-context">
+        Directional rebound control
+      </div>
+
     </div>
 
   </div>
 
+
+  <!-- MAIN PERFORMANCE GRAPH -->
 
   <div class="section-heading">
-    <h3>Situation-Specific Performance</h3>
-    <p>Use these breakdowns to identify technical or tactical situations that deserve more practice.</p>
-  </div>
 
+    <h3>
+      Actual Performance vs Expected
+    </h3>
 
-  <div class="grid grid-3">
-
-    <div class="card">
-
-      <h3>Rush / Transition</h3>
-
-      <div class="stat-list">
-
-        <div class="stat-row">
-          <span class="stat-name">Shots</span>
-          <span class="stat-value" id="rushShots">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">SV%</span>
-          <span class="stat-value" id="rushSV">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">Goals</span>
-          <span class="stat-value" id="rushGoals">—</span>
-        </div>
-
-      </div>
-
-    </div>
-
-
-    <div class="card">
-
-      <h3>Breakaways</h3>
-
-      <div class="stat-list">
-
-        <div class="stat-row">
-          <span class="stat-name">Shots</span>
-          <span class="stat-value" id="breakawayShots">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">SV%</span>
-          <span class="stat-value" id="breakawaySV">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">Goals</span>
-          <span class="stat-value" id="breakawayGoals">—</span>
-        </div>
-
-      </div>
-
-    </div>
-
-
-    <div class="card">
-
-      <h3>Rebound Shots</h3>
-
-      <div class="stat-list">
-
-        <div class="stat-row">
-          <span class="stat-name">Shots</span>
-          <span class="stat-value" id="reboundShots">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">SV%</span>
-          <span class="stat-value" id="reboundSV">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">Goals</span>
-          <span class="stat-value" id="reboundGoals">—</span>
-        </div>
-
-      </div>
-
-    </div>
+    <p>
+      This is one of the most important charts on the entire site.
+      If the solid line stays above the dashed line, you are outperforming
+      the quality of shots you face.
+    </p>
 
   </div>
 
 
-  <div class="grid grid-3 section-space">
+  <div class="card chart-card">
 
-    <div class="card">
+    <h3>
+      SV% vs Expected SV%
+    </h3>
 
-      <h3>Screened Shots</h3>
-
-      <div class="stat-list">
-
-        <div class="stat-row">
-          <span class="stat-name">Shots</span>
-          <span class="stat-value" id="screenShots">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">SV%</span>
-          <span class="stat-value" id="screenSV">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">Goals</span>
-          <span class="stat-value" id="screenGoals">—</span>
-        </div>
-
-      </div>
-
+    <div class="chart-wrap">
+      <canvas id="overviewSVExpectedChart"></canvas>
     </div>
 
-
-    <div class="card">
-
-      <h3>One-Timers</h3>
-
-      <div class="stat-list">
-
-        <div class="stat-row">
-          <span class="stat-name">Shots</span>
-          <span class="stat-value" id="oneTimerShots">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">SV%</span>
-          <span class="stat-value" id="oneTimerSV">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">Goals</span>
-          <span class="stat-value" id="oneTimerGoals">—</span>
-        </div>
-
-      </div>
-
-    </div>
-
-
-    <div class="card">
-
-      <h3>High-Danger / Crease</h3>
-
-      <div class="stat-list">
-
-        <div class="stat-row">
-          <span class="stat-name">Shots</span>
-          <span class="stat-value" id="highDangerShots">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">SV%</span>
-          <span class="stat-value" id="highDangerSV">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">Goals</span>
-          <span class="stat-value" id="highDangerGoals">—</span>
-        </div>
-
-      </div>
-
-      <div class="small-note">
-        High-danger is estimated from the shot data available, including close-range and crease/slot chances.
-      </div>
-
-    </div>
-
-  </div>
-
-
-  <div class="card section-space">
-
-    <h3>Development Priority</h3>
-
-    <div class="callout" id="situationalPriority">
+    <div
+      class="insight"
+      id="svExpectedInsight"
+    >
       —
     </div>
 
   </div>
 
-</section>
 
+  <!-- RECENT FORM -->
 
-<!-- ========================================================= -->
-<!-- REBOUND CONTROL -->
-<!-- ========================================================= -->
+  <div class="section-heading">
 
-<section id="control" class="tab">
+    <h3>
+      Recent Form
+    </h3>
 
-  <div class="page-title">
-    <h2>Rebound Control</h2>
-    <p>Dedicated analysis of directional rebound-control execution.</p>
-  </div>
-
-
-  <div class="grid grid-4">
-
-    <div class="card metric-card">
-      <div class="metric" id="controlTotal">—</div>
-      <div class="metric-label">Total Events</div>
-    </div>
-
-    <div class="card metric-card">
-      <div class="metric good" id="controlGood">—</div>
-      <div class="metric-label">Good Rebounds</div>
-    </div>
-
-    <div class="card metric-card">
-      <div class="metric bad" id="controlBad">—</div>
-      <div class="metric-label">Bad Rebounds</div>
-    </div>
-
-    <div class="card metric-card">
-      <div class="metric" id="controlGoodPct">—</div>
-      <div class="metric-label">Good Rebound %</div>
-    </div>
+    <p>
+      Your last five games matter more for current development than your entire season average.
+    </p>
 
   </div>
 
 
-  <div class="grid grid-2 section-space">
+  <div class="grid grid-2">
 
-    <div class="card chart-card">
+    <div class="card">
 
-      <h3>Good vs Bad Rebounds</h3>
+      <h3>
+        Last 5 Games
+      </h3>
 
-      <div class="chart-wrap">
-        <canvas id="controlGoodBadChart"></canvas>
-      </div>
+      <div class="stat-list">
 
-      <div class="insight">
-        This is the primary rebound-control metric. Goal location is intentionally excluded from this comparison.
-      </div>
+        <div class="stat-row">
+          <span class="stat-name">SV%</span>
+          <span
+            class="stat-value"
+            id="last5SV"
+          >—</span>
+        </div>
 
-    </div>
+        <div class="stat-row">
+          <span class="stat-name">GAA</span>
+          <span
+            class="stat-value"
+            id="last5GAA"
+          >—</span>
+        </div>
 
+        <div class="stat-row">
+          <span class="stat-name">Shots / 60</span>
+          <span
+            class="stat-value"
+            id="last5Shots"
+          >—</span>
+        </div>
 
-    <div class="card chart-card">
+        <div class="stat-row">
+          <span class="stat-name">Record</span>
+          <span
+            class="stat-value"
+            id="last5Record"
+          >—</span>
+        </div>
 
-      <h3>Good vs Bad by Direction</h3>
+        <div class="stat-row">
+          <span class="stat-name">GSAx</span>
+          <span
+            class="stat-value"
+            id="last5GSAx"
+          >—</span>
+        </div>
 
-      <div class="chart-wrap">
-        <canvas id="controlDirectionChart"></canvas>
-      </div>
-
-    </div>
-
-  </div>
-
-
-  <div class="grid grid-2 section-space">
-
-    <div class="card chart-card">
-
-      <h3>Goal-Associated Outcomes by Direction</h3>
-
-      <div class="chart-wrap">
-        <canvas id="controlGoalsChart"></canvas>
       </div>
 
     </div>
@@ -1312,7 +1230,193 @@ tr:hover td{
 
     <div class="card">
 
-      <h3>Directional Breakdown</h3>
+      <h3>
+        Sample Size
+      </h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Games</span>
+          <span
+            class="stat-value"
+            id="overviewGames"
+          >—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Total Shots</span>
+          <span
+            class="stat-value"
+            id="overviewTotalShots"
+          >—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Saves</span>
+          <span
+            class="stat-value"
+            id="overviewSaves"
+          >—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Goals Against</span>
+          <span
+            class="stat-value"
+            id="overviewGoals"
+          >—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Expected Goals Against</span>
+          <span
+            class="stat-value"
+            id="overviewXGA"
+          >—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">SV% − Expected</span>
+          <span
+            class="stat-value"
+            id="overviewSVDelta"
+          >—</span>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- DEEPER OVERVIEW DETAILS -->
+
+  <div class="section-heading">
+
+    <h3>
+      Deeper Performance
+    </h3>
+
+    <p>
+      Useful information, but not something you need to look at after every game.
+    </p>
+
+  </div>
+
+
+  <details>
+
+    <summary>
+      Save Percentage Distribution
+    </summary>
+
+    <div class="details-content">
+
+      <div class="chart-wrap">
+
+        <canvas id="svDistributionChart"></canvas>
+
+      </div>
+
+      <div class="insight">
+
+        This shows how often you produce different save-percentage
+        performances across individual games.
+
+      </div>
+
+    </div>
+
+  </details>
+
+
+  <details>
+
+    <summary>
+      Goals Against Distribution
+    </summary>
+
+    <div class="details-content">
+
+      <div class="chart-wrap">
+
+        <canvas id="gaDistributionChart"></canvas>
+
+      </div>
+
+    </div>
+
+  </details>
+
+
+  <details>
+
+    <summary>
+      Goals Against by Shot Quality
+    </summary>
+
+    <div class="details-content">
+
+      <div class="chart-wrap">
+
+        <canvas id="goalsByGradeChart"></canvas>
+
+      </div>
+
+      <div
+        class="insight"
+        id="gradeInsight"
+      >
+        —
+      </div>
+
+    </div>
+
+  </details>
+
+</section>
+
+
+<!-- =========================================================
+     GAME LOG
+========================================================= -->
+
+<section
+  id="gamelog"
+  class="tab"
+>
+
+  <div class="page-title">
+
+    <h2>
+      Game Log
+    </h2>
+
+    <p>
+      Your complete game-by-game record. Use this to find games worth reviewing on video.
+    </p>
+
+  </div>
+
+
+  <div class="callout">
+
+    <strong>
+      How to use this:
+    </strong>
+
+    Don't judge yourself from one game.
+    Use the game log to identify patterns across multiple games,
+    then use the Shot Analysis and Trends sections to figure out why.
+
+  </div>
+
+
+  <div class="section-space">
+
+    <div class="card">
 
       <div class="table-wrap">
 
@@ -1321,17 +1425,22 @@ tr:hover td{
           <thead>
 
             <tr>
-              <th>Direction</th>
-              <th>Good</th>
-              <th>Bad</th>
-              <th>Total</th>
-              <th>Good %</th>
-              <th>Goals</th>
+
+              <th>Date</th>
+              <th>Opponent</th>
+              <th>Result</th>
+              <th>Shots</th>
+              <th>Saves</th>
+              <th>GA</th>
+              <th>SV%</th>
+              <th>GAA</th>
+              <th>Minutes</th>
+
             </tr>
 
           </thead>
 
-          <tbody id="controlTableBody"></tbody>
+          <tbody id="gameLogBody"></tbody>
 
         </table>
 
@@ -1344,147 +1453,155 @@ tr:hover td{
 </section>
 
 
-<!-- ========================================================= -->
-<!-- INCREMENTAL STATS -->
-<!-- ========================================================= -->
+<!-- =========================================================
+     SHOT ANALYSIS
+========================================================= -->
 
-<section id="incremental" class="tab">
+<section
+  id="situational"
+  class="tab"
+>
 
   <div class="page-title">
-    <h2>Incremental Stats</h2>
-    <p>Small, actionable measurements designed to track how specific parts of your game are improving.</p>
+
+    <h2>
+      Shot Analysis
+    </h2>
+
+    <p>
+      This is where you answer the question: <strong>why am I getting the results I'm getting?</strong>
+    </p>
+
   </div>
 
 
-  <div class="callout">
-    <strong>How to use this tab:</strong>
-    Don't chase every number. Use these metrics to identify one or two areas to work on,
-    make a change in practice, and then watch whether the corresponding metric improves.
-  </div>
-
-
-  <div class="section-heading">
-    <h3>Stopping</h3>
-    <p>Measure whether your actual stopping ability is improving beyond the quality of shots you face.</p>
-  </div>
-
+  <!-- CORE SHOT MODEL -->
 
   <div class="grid grid-4">
 
     <div class="card metric-card">
-      <div class="metric" id="incSVDelta">—</div>
-      <div class="metric-label">SV% Above Expected</div>
+
+      <div
+        class="metric"
+        id="expectedSV"
+      >
+        —
+      </div>
+
+      <div class="metric-label">
+        Expected SV%
+      </div>
+
+      <div class="metric-context">
+        Shot-quality baseline
+      </div>
+
     </div>
 
-    <div class="card metric-card">
-      <div class="metric" id="incGSAx">—</div>
-      <div class="metric-label">GSAx</div>
-    </div>
 
     <div class="card metric-card">
-      <div class="metric" id="incHighDanger">—</div>
-      <div class="metric-label">High-Danger SV%</div>
+
+      <div
+        class="metric"
+        id="gsax"
+      >
+        —
+      </div>
+
+      <div class="metric-label">
+        GSAx
+      </div>
+
+      <div class="metric-context">
+        Performance above expected
+      </div>
+
     </div>
 
+
     <div class="card metric-card">
-      <div class="metric" id="incRebound">—</div>
-      <div class="metric-label">Good Rebound %</div>
+
+      <div
+        class="metric"
+        id="xGA"
+      >
+        —
+      </div>
+
+      <div class="metric-label">
+        Expected Goals Against
+      </div>
+
+      <div class="metric-context">
+        Quality of chances faced
+      </div>
+
+    </div>
+
+
+    <div class="card metric-card">
+
+      <div
+        class="metric"
+        id="advancedShots"
+      >
+        —
+      </div>
+
+      <div class="metric-label">
+        Shots Tracked
+      </div>
+
+      <div class="metric-context">
+        Manual sample
+      </div>
+
     </div>
 
   </div>
 
+
+  <!-- DEVELOPMENT PRIORITY -->
 
   <div class="section-heading">
-    <h3>Incremental Game Factors</h3>
-    <p>These metrics can become especially useful once you have a larger sample of manually tracked shots.</p>
-  </div>
 
+    <h3>
+      Where should I look first?
+    </h3>
 
-  <div class="grid grid-3">
-
-    <div class="card">
-
-      <h3>Rush Defence</h3>
-
-      <div class="stat-list">
-
-        <div class="stat-row">
-          <span class="stat-name">Rush SV%</span>
-          <span class="stat-value" id="incRushSV">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">Rush Goals</span>
-          <span class="stat-value" id="incRushGoals">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">Rush Shots</span>
-          <span class="stat-value" id="incRushShots">—</span>
-        </div>
-
-      </div>
-
-    </div>
-
-
-    <div class="card">
-
-      <h3>Net-Front</h3>
-
-      <div class="stat-list">
-
-        <div class="stat-row">
-          <span class="stat-name">Screened SV%</span>
-          <span class="stat-value" id="incScreenSV">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">One-Timer SV%</span>
-          <span class="stat-value" id="incOneTimerSV">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">Rebound-Shot SV%</span>
-          <span class="stat-value" id="incReboundSV">—</span>
-        </div>
-
-      </div>
-
-    </div>
-
-
-    <div class="card">
-
-      <h3>Workload</h3>
-
-      <div class="stat-list">
-
-        <div class="stat-row">
-          <span class="stat-name">Shots / 60</span>
-          <span class="stat-value" id="incShots60">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">Goals / 60</span>
-          <span class="stat-value" id="incGoals60">—</span>
-        </div>
-
-        <div class="stat-row">
-          <span class="stat-name">Avg Shots / Game</span>
-          <span class="stat-value" id="incAvgShots">—</span>
-        </div>
-
-      </div>
-
-    </div>
+    <p>
+      Don't try to fix six things at once. Start with the lowest-performing
+      meaningful situation, then use video to find the cause.
+    </p>
 
   </div>
 
+
+  <div class="development-box">
+
+    <h3>
+      Current Development Priority
+    </h3>
+
+    <p id="situationalPriority">
+      —
+    </p>
+
+  </div>
+
+
+  <!-- LOCATION -->
 
   <div class="section-heading">
-    <h3>Progression</h3>
-    <p>Track whether your actual performance is moving in the right direction as more games are added.</p>
+
+    <h3>
+      Shot Location
+    </h3>
+
+    <p>
+      Volume tells you where opponents shoot. Goals tell you where those shots are hurting you.
+    </p>
+
   </div>
 
 
@@ -1492,10 +1609,14 @@ tr:hover td{
 
     <div class="card chart-card">
 
-      <h3>Cumulative SV% vs Expected SV%</h3>
+      <h3>
+        Where Shots Come From
+      </h3>
 
       <div class="chart-wrap">
-        <canvas id="incrementalSVChart"></canvas>
+
+        <canvas id="locationChart"></canvas>
+
       </div>
 
     </div>
@@ -1503,10 +1624,655 @@ tr:hover td{
 
     <div class="card chart-card">
 
-      <h3>Cumulative GSAx</h3>
+      <h3>
+        Where Goals Come From
+      </h3>
 
       <div class="chart-wrap">
-        <canvas id="incrementalGSAxChart"></canvas>
+
+        <canvas id="goalLocationChart"></canvas>
+
+      </div>
+
+      <div
+        class="insight"
+        id="locationInsight"
+      >
+        —
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- SHOT QUALITY -->
+
+  <div class="section-heading">
+
+    <h3>
+      Shot Quality
+    </h3>
+
+    <p>
+      This separates routine shots from genuinely dangerous chances.
+    </p>
+
+  </div>
+
+
+  <div class="grid grid-2">
+
+    <div class="card chart-card">
+
+      <h3>
+        Shots by Quality
+      </h3>
+
+      <div class="chart-wrap">
+
+        <canvas id="shotGradeChart"></canvas>
+
+      </div>
+
+    </div>
+
+
+    <div class="card chart-card">
+
+      <h3>
+        Goals by Quality
+      </h3>
+
+      <div class="chart-wrap">
+
+        <canvas id="shotGradeGoalChart"></canvas>
+
+      </div>
+
+      <div
+        class="insight"
+        id="shotGradeGoalInsight"
+      >
+        —
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- SITUATIONAL PERFORMANCE -->
+
+  <div class="section-heading">
+
+    <h3>
+      Situational Performance
+    </h3>
+
+    <p>
+      These are the areas that can eventually become specific practice priorities.
+    </p>
+
+  </div>
+
+
+  <div class="grid grid-3">
+
+    <div class="card">
+
+      <h3>
+        Rush / Transition
+      </h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Shots</span>
+          <span
+            class="stat-value"
+            id="rushShots"
+          >—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">SV%</span>
+          <span
+            class="stat-value"
+            id="rushSV"
+          >—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Goals</span>
+          <span
+            class="stat-value"
+            id="rushGoals"
+          >—</span>
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <h3>
+        Breakaways
+      </h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Shots</span>
+          <span
+            class="stat-value"
+            id="breakawayShots"
+          >—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">SV%</span>
+          <span
+            class="stat-value"
+            id="breakawaySV"
+          >—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Goals</span>
+          <span
+            class="stat-value"
+            id="breakawayGoals"
+          >—</span>
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <h3>
+        Rebound Shots
+      </h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Shots</span>
+          <span
+            class="stat-value"
+            id="reboundShots"
+          >—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">SV%</span>
+          <span
+            class="stat-value"
+            id="reboundSV"
+          >—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Goals</span>
+          <span
+            class="stat-value"
+            id="reboundGoals"
+          >—</span>
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <h3>
+        Screened Shots
+      </h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Shots</span>
+          <span
+            class="stat-value"
+            id="screenShots"
+          >—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">SV%</span>
+          <span
+            class="stat-value"
+            id="screenSV"
+          >—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Goals</span>
+          <span
+            class="stat-value"
+            id="screenGoals"
+          >—</span>
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <h3>
+        One-Timers
+      </h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Shots</span>
+          <span
+            class="stat-value"
+            id="oneTimerShots"
+          >—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">SV%</span>
+          <span
+            class="stat-value"
+            id="oneTimerSV"
+          >—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Goals</span>
+          <span
+            class="stat-value"
+            id="oneTimerGoals"
+          >—</span>
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <h3>
+        High-Danger / Crease
+      </h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Shots</span>
+          <span
+            class="stat-value"
+            id="highDangerShots"
+          >—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">SV%</span>
+          <span
+            class="stat-value"
+            id="highDangerSV"
+          >—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Goals</span>
+          <span
+            class="stat-value"
+            id="highDangerGoals"
+          >—</span>
+        </div>
+
+      </div>
+
+      <div class="small-note">
+
+        High-danger is an estimate based on your tracked
+        distance and location data.
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- PERIODS -->
+
+  <div class="section-heading">
+
+    <h3>
+      When Does Performance Change?
+    </h3>
+
+    <p>
+      Period data is useful for identifying fatigue, starts, late-game execution,
+      or other timing patterns.
+    </p>
+
+  </div>
+
+
+  <div class="grid grid-4">
+
+    <div class="card metric-card">
+
+      <div
+        class="metric"
+        id="period1SV"
+      >
+        —
+      </div>
+
+      <div class="metric-label">
+        1st Period SV%
+      </div>
+
+    </div>
+
+
+    <div class="card metric-card">
+
+      <div
+        class="metric"
+        id="period2SV"
+      >
+        —
+      </div>
+
+      <div class="metric-label">
+        2nd Period SV%
+      </div>
+
+    </div>
+
+
+    <div class="card metric-card">
+
+      <div
+        class="metric"
+        id="period3SV"
+      >
+        —
+      </div>
+
+      <div class="metric-label">
+        3rd Period SV%
+      </div>
+
+    </div>
+
+
+    <div class="card metric-card">
+
+      <div
+        class="metric"
+        id="periodOTSV"
+      >
+        —
+      </div>
+
+      <div class="metric-label">
+        OT SV%
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <div class="grid grid-2 section-space">
+
+    <div class="card chart-card">
+
+      <h3>
+        SV% by Period
+      </h3>
+
+      <div class="chart-wrap">
+
+        <canvas id="periodSVChart"></canvas>
+
+      </div>
+
+    </div>
+
+
+    <div class="card chart-card">
+
+      <h3>
+        Goals Against by Period
+      </h3>
+
+      <div class="chart-wrap">
+
+        <canvas id="periodGAChart"></canvas>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <details class="section-space">
+
+    <summary>
+      View Full Period Table
+    </summary>
+
+    <div class="details-content">
+
+      <div class="table-wrap">
+
+        <table>
+
+          <thead>
+
+            <tr>
+
+              <th>Period</th>
+              <th>Shots</th>
+              <th>Saves</th>
+              <th>Goals Against</th>
+              <th>SV%</th>
+
+            </tr>
+
+          </thead>
+
+          <tbody id="periodTableBody"></tbody>
+
+        </table>
+
+      </div>
+
+    </div>
+
+  </details>
+
+</section>
+
+
+<!-- =========================================================
+     REBOUND CONTROL
+========================================================= -->
+
+<section
+  id="control"
+  class="tab"
+>
+
+  <div class="page-title">
+
+    <h2>
+      Rebound Control
+    </h2>
+
+    <p>
+      How consistently are you controlling the first shot and directing the puck away from danger?
+    </p>
+
+  </div>
+
+
+  <div class="grid grid-4">
+
+    <div class="card metric-card">
+
+      <div
+        class="metric"
+        id="controlTotal"
+      >
+        —
+      </div>
+
+      <div class="metric-label">
+        Events Tracked
+      </div>
+
+    </div>
+
+
+    <div class="card metric-card">
+
+      <div
+        class="metric good"
+        id="controlGood"
+      >
+        —
+      </div>
+
+      <div class="metric-label">
+        Good
+      </div>
+
+    </div>
+
+
+    <div class="card metric-card">
+
+      <div
+        class="metric bad"
+        id="controlBad"
+      >
+        —
+      </div>
+
+      <div class="metric-label">
+        Bad
+      </div>
+
+    </div>
+
+
+    <div class="card metric-card">
+
+      <div
+        class="metric"
+        id="controlGoodPct"
+      >
+        —
+      </div>
+
+      <div class="metric-label">
+        Good Rebound %
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <div class="section-heading">
+
+    <h3>
+      The Number That Matters
+    </h3>
+
+    <p>
+      Start with overall rebound-control success. Then investigate which save direction is causing problems.
+    </p>
+
+  </div>
+
+
+  <div class="card chart-card">
+
+    <h3>
+      Good vs Bad Rebounds
+    </h3>
+
+    <div class="chart-wrap">
+
+      <canvas id="controlGoodBadChart"></canvas>
+
+    </div>
+
+    <div class="insight">
+
+      A "good" rebound is one that you intentionally control
+      or direct into a low-danger area. The purpose of this metric
+      is to evaluate execution, not simply whether a goal occurred.
+
+    </div>
+
+  </div>
+
+
+  <div class="section-heading">
+
+    <h3>
+      Where Are Rebounds Going Wrong?
+    </h3>
+
+    <p>
+      This is where you can turn the overall rebound number into a technical adjustment.
+    </p>
+
+  </div>
+
+
+  <div class="grid grid-2">
+
+    <div class="card chart-card">
+
+      <h3>
+        Good vs Bad by Direction
+      </h3>
+
+      <div class="chart-wrap">
+
+        <canvas id="controlDirectionChart"></canvas>
+
+      </div>
+
+    </div>
+
+
+    <div class="card chart-card">
+
+      <h3>
+        Goal-Associated Outcomes
+      </h3>
+
+      <div class="chart-wrap">
+
+        <canvas id="controlGoalsChart"></canvas>
+
       </div>
 
     </div>
@@ -1516,10 +2282,33 @@ tr:hover td{
 
   <div class="card section-space">
 
-    <h3>Current Development Focus</h3>
+    <h3>
+      Directional Breakdown
+    </h3>
 
-    <div class="callout" id="incrementalFocus">
-      —
+    <div class="table-wrap">
+
+      <table>
+
+        <thead>
+
+          <tr>
+
+            <th>Direction</th>
+            <th>Good</th>
+            <th>Bad</th>
+            <th>Total</th>
+            <th>Good %</th>
+            <th>Goals</th>
+
+          </tr>
+
+        </thead>
+
+        <tbody id="controlTableBody"></tbody>
+
+      </table>
+
     </div>
 
   </div>
@@ -1527,39 +2316,413 @@ tr:hover td{
 </section>
 
 
-<!-- ========================================================= -->
-<!-- ABOUT -->
-<!-- ========================================================= -->
+<!-- =========================================================
+     TRENDS
+========================================================= -->
 
-<section id="about" class="tab">
+<section
+  id="incremental"
+  class="tab"
+>
 
   <div class="page-title">
-    <h2>About</h2>
-    <p>About the player and analytics platform.</p>
+
+    <h2>
+      Trends & Development
+    </h2>
+
+    <p>
+      This section answers a different question: <strong>is my game actually improving?</strong>
+    </p>
+
   </div>
+
+
+  <div class="callout">
+
+    <strong>
+      Don't chase every number.
+    </strong>
+
+    Pick one or two development priorities, make a change,
+    and use this page to see whether the change survives over multiple games.
+
+  </div>
+
+
+  <!-- KEY DEVELOPMENT METRICS -->
+
+  <div class="section-heading">
+
+    <h3>
+      Key Development Indicators
+    </h3>
+
+    <p>
+      These are the numbers I would pay the most attention to over the season.
+    </p>
+
+  </div>
+
+
+  <div class="grid grid-4">
+
+    <div class="card metric-card">
+
+      <div
+        class="metric"
+        id="incSVDelta"
+      >
+        —
+      </div>
+
+      <div class="metric-label">
+        SV% Above Expected
+      </div>
+
+      <div class="metric-context">
+        Are you outperforming the shots you face?
+      </div>
+
+    </div>
+
+
+    <div class="card metric-card">
+
+      <div
+        class="metric"
+        id="incGSAx"
+      >
+        —
+      </div>
+
+      <div class="metric-label">
+        GSAx
+      </div>
+
+      <div class="metric-context">
+        Total goals saved above expectation
+      </div>
+
+    </div>
+
+
+    <div class="card metric-card">
+
+      <div
+        class="metric"
+        id="incHighDanger"
+      >
+        —
+      </div>
+
+      <div class="metric-label">
+        High-Danger SV%
+      </div>
+
+      <div class="metric-context">
+        Performance when mistakes matter most
+      </div>
+
+    </div>
+
+
+    <div class="card metric-card">
+
+      <div
+        class="metric"
+        id="incRebound"
+      >
+        —
+      </div>
+
+      <div class="metric-label">
+        Good Rebound %
+      </div>
+
+      <div class="metric-context">
+        First-save control
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- PROGRESSION -->
+
+  <div class="section-heading">
+
+    <h3>
+      Is the Game Moving in the Right Direction?
+    </h3>
+
+    <p>
+      Look for trends across several games rather than reacting to individual performances.
+    </p>
+
+  </div>
+
+
+  <div class="grid grid-2">
+
+    <div class="card chart-card">
+
+      <h3>
+        Cumulative SV% vs Expected
+      </h3>
+
+      <div class="chart-wrap">
+
+        <canvas id="incrementalSVChart"></canvas>
+
+      </div>
+
+      <div class="insight">
+
+        If your actual line moves above expected over time,
+        that suggests your stopping performance is improving relative
+        to the quality of chances you're facing.
+
+      </div>
+
+    </div>
+
+
+    <div class="card chart-card">
+
+      <h3>
+        Cumulative GSAx
+      </h3>
+
+      <div class="chart-wrap">
+
+        <canvas id="incrementalGSAxChart"></canvas>
+
+      </div>
+
+      <div class="insight">
+
+        A rising GSAx trend means you are increasingly preventing
+        more goals than the shot model predicts.
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- CURRENT FOCUS -->
+
+  <div class="section-heading">
+
+    <h3>
+      Current Focus
+    </h3>
+
+    <p>
+      This is where the analytics should ultimately lead.
+    </p>
+
+  </div>
+
+
+  <div class="development-box">
+
+    <h3>
+      Development Priority
+    </h3>
+
+    <p id="incrementalFocus">
+      —
+    </p>
+
+  </div>
+
+
+  <!-- SECONDARY METRICS -->
+
+  <div class="section-heading">
+
+    <h3>
+      Supporting Metrics
+    </h3>
+
+    <p>
+      Useful for deeper analysis, but don't treat these as separate problems.
+    </p>
+
+  </div>
+
+
+  <div class="grid grid-3">
+
+    <div class="card">
+
+      <h3>
+        Rush Defence
+      </h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Rush SV%</span>
+          <span
+            class="stat-value"
+            id="incRushSV"
+          >—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Rush Goals</span>
+          <span
+            class="stat-value"
+            id="incRushGoals"
+          >—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Rush Shots</span>
+          <span
+            class="stat-value"
+            id="incRushShots"
+          >—</span>
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <h3>
+        Net-Front
+      </h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Screened SV%</span>
+          <span
+            class="stat-value"
+            id="incScreenSV"
+          >—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">One-Timer SV%</span>
+          <span
+            class="stat-value"
+            id="incOneTimerSV"
+          >—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Rebound-Shot SV%</span>
+          <span
+            class="stat-value"
+            id="incReboundSV"
+          >—</span>
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <h3>
+        Workload
+      </h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Shots / 60</span>
+          <span
+            class="stat-value"
+            id="incShots60"
+          >—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Goals / 60</span>
+          <span
+            class="stat-value"
+            id="incGoals60"
+          >—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Avg Shots / Game</span>
+          <span
+            class="stat-value"
+            id="incAvgShots"
+          >—</span>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</section>
+
+
+<!-- =========================================================
+     ABOUT
+========================================================= -->
+
+<section
+  id="about"
+  class="tab"
+>
+
+  <div class="page-title">
+
+    <h2>
+      About
+    </h2>
+
+    <p>
+      The purpose behind the platform.
+    </p>
+
+  </div>
+
 
   <div class="grid grid-2">
 
     <div class="card">
 
-      <h3>Matias Baker</h3>
+      <h3>
+        Matias Baker
+      </h3>
 
       <div class="about-list">
 
         <p>
-          <strong>Position:</strong> Goaltender
+          <strong>Position:</strong>
+          Goaltender
         </p>
 
         <p>
-          <strong>Birth Year:</strong> 2008
+          <strong>Birth Year:</strong>
+          2008
         </p>
 
         <p>
-          <strong>Team:</strong> Pelham Panthers
+          <strong>Team:</strong>
+          Pelham Panthers
         </p>
 
         <p>
-          <strong>Season:</strong> 2026–27
+          <strong>Season:</strong>
+          2026–27
         </p>
 
       </div>
@@ -1569,24 +2732,26 @@ tr:hover td{
 
     <div class="card">
 
-      <h3>Analytics Philosophy</h3>
+      <h3>
+        Analytics Philosophy
+      </h3>
 
       <div class="about-list">
 
         <p>
-          This platform is designed as a development resource rather than simply
-          a statistical résumé.
+          This platform is designed as a development resource,
+          not simply as a statistical résumé.
         </p>
 
         <p>
-          Traditional goaltending statistics are combined with shot-level,
-          situational and rebound-control data to identify specific areas
-          that can be improved.
+          Traditional statistics are combined with shot-level,
+          situational and rebound-control information to understand
+          <strong>why</strong> performances happen.
         </p>
 
         <p>
-          The goal is to turn game data into actionable training priorities:
-          identify a weakness, train it, measure it and determine whether it improves.
+          The goal is simple:
+          <strong>identify → train → measure → adjust.</strong>
         </p>
 
       </div>
@@ -1595,3598 +2760,154 @@ tr:hover td{
 
   </div>
 
+
+  <div class="section-space">
+
+    <div class="callout">
+
+      <strong>
+        The most important rule:
+      </strong>
+
+      Analytics identify a pattern. Video identifies the cause.
+      A low SV% in one situation does not automatically mean your technique
+      is wrong. Use the numbers to decide what to investigate,
+      then use video and coaching to decide what to change.
+
+    </div>
+
+  </div>
+
 </section>
+
 
 </main>
 
 
 <script>
 
-/* ============================================================
-   SUPABASE
-============================================================ */
+/*
+================================================================
+IMPORTANT
+================================================================
 
-const SUPABASE_URL =
-  "https://iiuqxxrrruvwvfehrzic.supabase.co";
+KEEP YOUR EXISTING JAVASCRIPT HERE.
 
-const SUPABASE_KEY =
-  "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
+Everything from:
 
-const CURRENT_SEASON =
-  "2026 preseason";
+const SUPABASE_URL = ...
 
-
-/* ============================================================
-   DATA
-============================================================ */
-
-let games = [];
-let periodStats = [];
-let shots = [];
-let reboundControls = [];
-
-let seasonGames = [];
-let seasonPeriods = [];
-let seasonShots = [];
-let seasonReboundControls = [];
-
-let charts = {};
-
-
-/* ============================================================
-   SUPABASE QUERY
-============================================================ */
-
-async function q(table){
-
-  const response =
-    await fetch(
-      `${SUPABASE_URL}/rest/v1/${encodeURIComponent(table)}?select=*`,
-      {
-        headers:{
-          apikey:SUPABASE_KEY,
-          Authorization:`Bearer ${SUPABASE_KEY}`
-        }
-      }
-    );
-
-  if(!response.ok){
-
-    throw new Error(
-      `Supabase error ${response.status}: ${table}`
-    );
-
-  }
-
-  return await response.json();
-
-}
-
-
-/* ============================================================
-   NORMALIZATION
-============================================================ */
-
-function normalize(value){
-
-  return String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/[_-]/g," ")
-    .replace(/\s+/g," ");
-
-}
-
-
-function normalizeSeason(value){
-
-  const s =
-    normalize(value);
-
-  if(
-    s === "2026 preseason" ||
-    s === "2026 pre season" ||
-    s === "2026 pre-season"
-  ){
-    return "2026 preseason";
-  }
-
-  return s;
-
-}
-
-
-function isCurrentSeason(value){
-
-  return normalizeSeason(value) === CURRENT_SEASON;
-
-}
-
-
-/* ============================================================
-   GENERIC HELPERS
-============================================================ */
-
-function num(value){
-
-  const n =
-    Number(value);
-
-  return Number.isFinite(n)
-    ? n
-    : 0;
-
-}
-
-
-function shotBoolean(value){
-
-  if(
-    value === true ||
-    value === 1 ||
-    value === "1"
-  ){
-    return true;
-  }
-
-  const s =
-    normalize(value);
-
-  return [
-    "true",
-    "yes",
-    "y",
-    "x"
-  ].includes(s);
-
-}
-
-
-function isGoal(shot){
-
-  return [
-    shot.outcome,
-    shot.result,
-    shot.shot_result,
-    shot.event
-  ].some(
-    v => normalize(v) === "goal"
-  );
-
-}
-
-
-function shotIsRebound(shot){
-
-  return (
-    shotBoolean(shot.rebound) ||
-    shotBoolean(shot.is_rebound) ||
-    shotBoolean(shot.rebound_shot)
-  );
-
-}
-
-
-function gameDate(game){
-
-  return (
-    game.date ||
-    game.game_date ||
-    game.gameDate ||
-    ""
-  );
-
-}
-
-
-function gameOpponent(game){
-
-  return (
-    game.opponent ||
-    game.team ||
-    game.opponent_name ||
-    "Unknown"
-  );
-
-}
-
-
-function gameResult(game){
-
-  return (
-    game.result ||
-    game.outcome ||
-    ""
-  );
-
-}
-
-
-function gameMinutes(game){
-
-  return num(
-    game.minutes ||
-    game.minutes_played ||
-    game.goalie_minutes ||
-    60
-  );
-
-}
-
-
-function gameShots(game){
-
-  return num(
-    game.shots ||
-    game.shots_against ||
-    game.shots_faced
-  );
-
-}
-
-
-function gameGoals(game){
-
-  return num(
-    game.goals_against ||
-    game.goals ||
-    game.ga
-  );
-
-}
-
-
-function gameSaves(game){
-
-  const saves =
-    game.saves ||
-    game.save_count;
-
-  if(saves !== undefined){
-    return num(saves);
-  }
-
-  return Math.max(
-    0,
-    gameShots(game) -
-    gameGoals(game)
-  );
-
-}
-
-
-/* ============================================================
-   SHOT HELPERS
-============================================================ */
-
-function shotDistance(shot){
-
-  return num(
-    shot.distance ||
-    shot.shot_distance
-  );
-
-}
-
-
-function shotLocation(shot){
-
-  return normalize(
-    shot.location ||
-    shot.shot_location
-  );
-
-}
-
-
-function shotType(shot){
-
-  return normalize(
-    shot.shot_type ||
-    shot.type
-  );
-
-}
-
-
-function isRushShot(shot){
-
-  return shotBoolean(
-    shot.rush
-  );
-
-}
-
-
-function isBreakaway(shot){
-
-  return shotBoolean(
-    shot.breakaway
-  );
-
-}
-
-
-function isScreened(shot){
-
-  return shotBoolean(
-    shot.screened
-  );
-
-}
-
-
-function isOneTimer(shot){
-
-  const type =
-    shotType(shot);
-
-  return (
-    type === "one timer" ||
-    type === "one-timer" ||
-    shotBoolean(shot.one_timer)
-  );
-
-}
-
-
-function isHighDanger(shot){
-
-  const distance =
-    shotDistance(shot);
-
-  const location =
-    shotLocation(shot);
-
-  if(
-    distance > 0 &&
-    distance <= 12
-  ){
-    return true;
-  }
-
-  return [
-    "crease",
-    "slot",
-    "high danger",
-    "high-danger"
-  ].includes(location);
-
-}
-
-
-/* ============================================================
-   XG MODEL
-============================================================ */
-
-function calculateShotXG(shot){
-
-  const distance =
-    shotDistance(shot);
-
-  let xg;
-
-  if(distance <= 6){
-    xg = .24;
-  }
-  else if(distance <= 12){
-    xg = .14;
-  }
-  else if(distance <= 20){
-    xg = .065;
-  }
-  else if(distance <= 30){
-    xg = .030;
-  }
-  else if(distance <= 40){
-    xg = .015;
-  }
-  else{
-    xg = .008;
-  }
-
-
-  const location =
-    shotLocation(shot);
-
-  if(location === "crease"){
-    xg *= 1.15;
-  }
-  else if(location === "slot"){
-    xg *= 1.10;
-  }
-  else if(location === "point"){
-    xg *= .75;
-  }
-
-
-  const type =
-    shotType(shot);
-
-  if(
-    type === "one timer" ||
-    type === "one-timer"
-  ){
-    xg *= 1.18;
-  }
-
-  if(type === "backhand"){
-    xg *= 1.06;
-  }
-
-  if(
-    type === "slap shot" ||
-    type === "slap"
-  ){
-    xg *= 1.04;
-  }
-
-
-  if(isRushShot(shot)){
-    xg *= 1.08;
-  }
-
-  if(shotIsRebound(shot)){
-    xg *= 1.25;
-  }
-
-  if(isScreened(shot)){
-    xg *= 1.10;
-  }
-
-  if(isBreakaway(shot)){
-    xg *= 1.75;
-  }
-
-  if(shotBoolean(shot.cross_ice)){
-    xg *= 1.15;
-  }
-
-
-  return Math.max(
-    .003,
-    Math.min(.75,xg)
-  );
-
-}
-
-
-function shotGrade(shot){
-
-  const xg =
-    calculateShotXG(shot);
-
-  if(xg >= .25){
-    return "A+";
-  }
-
-  if(xg >= .12){
-    return "A";
-  }
-
-  if(xg >= .045){
-    return "B";
-  }
-
-  return "C";
-
-}
-
-
-function calculateAdvancedForShots(data){
-
-  const totalShots =
-    data.length;
-
-  const goals =
-    data.filter(isGoal).length;
-
-  const saves =
-    Math.max(
-      0,
-      totalShots - goals
-    );
-
-  const xGA =
-    data.reduce(
-      (sum,shot) =>
-        sum + calculateShotXG(shot),
-      0
-    );
-
-  const actualSV =
-    totalShots
-      ? saves / totalShots * 100
-      : 0;
-
-  const expectedSV =
-    totalShots
-      ? (1 - xGA / totalShots) * 100
-      : 0;
-
-  const gsax =
-    xGA - goals;
-
-
-  const grades = {
-    "A+":0,
-    "A":0,
-    "B":0,
-    "C":0
-  };
-
-
-  data.forEach(shot => {
-
-    grades[
-      shotGrade(shot)
-    ]++;
-
-  });
-
-
-  return {
-    shots:totalShots,
-    goals,
-    saves,
-    xGA,
-    actualSV,
-    expectedSV,
-    gsax,
-    grades
-  };
-
-}
-
-
-/* ============================================================
-   SUBSET STATS
-============================================================ */
-
-function subsetStats(data, predicate){
-
-  const subset =
-    data.filter(predicate);
-
-  const shotsCount =
-    subset.length;
-
-  const goals =
-    subset.filter(isGoal).length;
-
-  const saves =
-    Math.max(
-      0,
-      shotsCount - goals
-    );
-
-  return {
-    shots:shotsCount,
-    goals,
-    saves,
-    sv:
-      shotsCount
-        ? saves / shotsCount * 100
-        : null
-  };
-
-}
-
-
-/* ============================================================
-   CHART HELPERS
-============================================================ */
-
-function destroyChart(id){
-
-  if(charts[id]){
-
-    charts[id].destroy();
-
-    delete charts[id];
-
-  }
-
-}
-
-
-function percentageScale(){
-
-  return {
-    beginAtZero:false,
-    min:80,
-    max:100,
-
-    ticks:{
-      color:"#829f93",
-      callback:value =>
-        `${value}%`
-    },
-
-    grid:{
-      color:"rgba(255,255,255,.05)"
-    }
-  };
-
-}
-
-
-function distributionScale(){
-
-  return {
-    beginAtZero:true,
-    ticks:{
-      color:"#829f93",
-      precision:0
-    },
-
-    grid:{
-      color:"rgba(255,255,255,.05)"
-    }
-  };
-
-}
-
-
-function chartOptions(){
-
-  return {
-    responsive:true,
-    maintainAspectRatio:false,
-
-    animation:{
-      duration:450
-    },
-
-    plugins:{
-      legend:{
-        labels:{
-          color:"#a8beb4",
-          boxWidth:12
-        }
-      }
-    },
-
-    scales:{
-      x:{
-        ticks:{
-          color:"#829f93"
-        },
-
-        grid:{
-          color:"rgba(255,255,255,.05)"
-        }
-      },
-
-      y:{
-        ticks:{
-          color:"#829f93"
-        },
-
-        grid:{
-          color:"rgba(255,255,255,.05)"
-        }
-      }
-    }
-  };
-
-}
-
-
-/* ============================================================
-   TABS
-============================================================ */
-
-function showTab(id,button){
-
-  document
-    .querySelectorAll(".tab")
-    .forEach(tab =>
-      tab.classList.remove("active")
-    );
-
-  document
-    .querySelectorAll("nav button")
-    .forEach(btn =>
-      btn.classList.remove("active")
-    );
-
-
-  const target =
-    document.getElementById(id);
-
-  if(target){
-    target.classList.add("active");
-  }
-
-  if(button){
-    button.classList.add("active");
-  }
-
-
-  /*
-    Chart.js needs the visible container dimensions.
-    Resize charts after switching tabs.
-  */
-
-  setTimeout(() => {
-
-    Object.values(charts)
-      .forEach(chart => {
-
-        if(chart){
-          chart.resize();
-        }
-
-      });
-
-  },50);
-
-}
-
-
-/* ============================================================
-   FILTER
-============================================================ */
-
-function filterSeasonData(){
-
-  seasonGames =
-    games.filter(
-      game =>
-        isCurrentSeason(
-          game.season
-        )
-    );
-
-
-  const validGameIds =
-    new Set(
-      seasonGames.map(
-        game =>
-          String(
-            game.id ??
-            game.game_id
-          )
-      )
-    );
-
-
-  seasonPeriods =
-    periodStats.filter(
-      row =>
-        validGameIds.has(
-          String(
-            row.game_id ??
-            row.id
-          )
-        )
-    );
-
-
-  seasonShots =
-    shots.filter(
-      row =>
-        validGameIds.has(
-          String(row.game_id)
-        )
-    );
-
-
-  seasonReboundControls =
-    reboundControls.filter(
-      row =>
-        validGameIds.has(
-          String(row.game_id)
-        )
-    );
-
-}
-
-
-/* ============================================================
-   OVERVIEW
-============================================================ */
-
-function renderOverview(){
-
-  const totalShots =
-    seasonGames.reduce(
-      (sum,g) =>
-        sum + gameShots(g),
-      0
-    );
-
-  const totalGoals =
-    seasonGames.reduce(
-      (sum,g) =>
-        sum + gameGoals(g),
-      0
-    );
-
-  const totalSaves =
-    seasonGames.reduce(
-      (sum,g) =>
-        sum + gameSaves(g),
-      0
-    );
-
-  const totalMinutes =
-    seasonGames.reduce(
-      (sum,g) =>
-        sum + gameMinutes(g),
-      0
-    );
-
-
-  const sv =
-    totalShots
-      ? totalSaves /
-        totalShots *
-        100
-      : 0;
-
-
-  const gaa =
-    totalMinutes
-      ? totalGoals /
-        totalMinutes *
-        60
-      : 0;
-
-
-  const shots60 =
-    totalMinutes
-      ? totalShots /
-        totalMinutes *
-        60
-      : 0;
-
-
-  const advanced =
-    calculateAdvancedForShots(
-      seasonShots
-    );
-
-
-  const svDelta =
-    advanced.shots
-      ? advanced.actualSV -
-        advanced.expectedSV
-      : 0;
-
-
-  let wins = 0;
-  let losses = 0;
-  let ot = 0;
-
-
-  seasonGames.forEach(game => {
-
-    const result =
-      normalize(
-        gameResult(game)
-      );
-
-    if(
-      result === "w" ||
-      result === "win"
-    ){
-      wins++;
-    }
-    else if(
-      result === "l" ||
-      result === "loss"
-    ){
-      losses++;
-    }
-    else if(
-      result === "otl" ||
-      result === "ot" ||
-      result === "overtime loss"
-    ){
-      ot++;
-    }
-
-  });
-
-
-  const reboundTotals =
-    getReboundTotals();
-
-
-  document.getElementById(
-    "overviewSV"
-  ).textContent =
-    totalShots
-      ? `${sv.toFixed(1)}%`
-      : "—";
-
-
-  document.getElementById(
-    "overviewExpectedSV"
-  ).textContent =
-    advanced.shots
-      ? `${advanced.expectedSV.toFixed(1)}%`
-      : "—";
-
-
-  document.getElementById(
-    "overviewGSAx"
-  ).textContent =
-    advanced.shots
-      ? advanced.gsax.toFixed(2)
-      : "—";
-
-
-  document.getElementById(
-    "overviewGAA"
-  ).textContent =
-    totalShots
-      ? gaa.toFixed(2)
-      : "—";
-
-
-  document.getElementById(
-    "overviewShots"
-  ).textContent =
-    totalShots
-      ? shots60.toFixed(1)
-      : "—";
-
-
-  document.getElementById(
-    "overviewGames"
-  ).textContent =
-    seasonGames.length;
-
-
-  document.getElementById(
-    "overviewRecord"
-  ).textContent =
-    seasonGames.length
-      ? `${wins}-${losses}-${ot}`
-      : "—";
-
-
-  document.getElementById(
-    "overviewReboundPct"
-  ).textContent =
-    reboundTotals.total
-      ? `${reboundTotals.goodPct.toFixed(1)}%`
-      : "—";
-
-
-  document.getElementById(
-    "overviewTotalShots"
-  ).textContent =
-    totalShots;
-
-
-  document.getElementById(
-    "overviewSaves"
-  ).textContent =
-    totalSaves;
-
-
-  document.getElementById(
-    "overviewGoals"
-  ).textContent =
-    totalGoals;
-
-
-  document.getElementById(
-    "overviewXGA"
-  ).textContent =
-    advanced.shots
-      ? advanced.xGA.toFixed(2)
-      : "—";
-
-
-  document.getElementById(
-    "overviewSVDelta"
-  ).textContent =
-    advanced.shots
-      ? `${svDelta >= 0 ? "+" : ""}${svDelta.toFixed(1)}%`
-      : "—";
-
-
-  document.getElementById(
-    "overviewSVDelta"
-  ).className =
-    "stat-value " +
-    (
-      svDelta > 0
-        ? "good"
-        : svDelta < 0
-          ? "bad"
-          : "neutral"
-    );
-
-
-  /*
-    SV% vs expected
-  */
-
-  const labels =
-    seasonGames.map(
-      (game,index) =>
-        `${index+1}. ${gameOpponent(game)}`
-    );
-
-
-  const actualGameSV =
-    seasonGames.map(game => {
-
-      const s =
-        gameShots(game);
-
-      const svs =
-        gameSaves(game);
-
-      return s
-        ? svs / s * 100
-        : null;
-
-    });
-
-
-  const expectedGameSV =
-    seasonGames.map(game => {
-
-      const gameId =
-        String(
-          game.id ??
-          game.game_id
-        );
-
-      const data =
-        seasonShots.filter(
-          shot =>
-            String(
-              shot.game_id
-            ) === gameId
-        );
-
-      const advancedGame =
-        calculateAdvancedForShots(
-          data
-        );
-
-      return advancedGame.shots
-        ? advancedGame.expectedSV
-        : null;
-
-    });
-
-
-  destroyChart(
-    "overviewSVExpectedChart"
-  );
-
-
-  charts.overviewSVExpectedChart =
-    new Chart(
-      document.getElementById(
-        "overviewSVExpectedChart"
-      ),
-      {
-        type:"line",
-
-        data:{
-          labels,
-
-          datasets:[
-
-            {
-              label:"Actual SV%",
-
-              data:actualGameSV,
-
-              tension:.3,
-              borderWidth:2,
-              pointRadius:4
-            },
-
-            {
-              label:"Expected SV%",
-
-              data:expectedGameSV,
-
-              tension:.3,
-              borderWidth:2,
-              borderDash:[6,5],
-              pointRadius:3
-            }
-
-          ]
-        },
-
-        options:{
-          ...chartOptions(),
-
-          scales:{
-            x:chartOptions().scales.x,
-            y:percentageScale()
-          }
-        }
-      }
-    );
-
-
-  document.getElementById(
-    "svExpectedInsight"
-  ).innerHTML =
-    advanced.shots
-      ? `<strong>${
-          svDelta >= 0
-            ? "Positive result:"
-            : "Development opportunity:"
-        }</strong>
-        Your actual SV% is
-        <strong>${Math.abs(svDelta).toFixed(1)} percentage points
-        ${svDelta >= 0 ? "above" : "below"}</strong>
-        expected based on the current shot model.`
-      : "Shot-level data is required for this comparison.";
-
-
-  /*
-    SV DISTRIBUTION
-  */
-
-  const buckets = [
-    {label:".880–.899",min:.880,max:.900,count:0},
-    {label:".900–.919",min:.900,max:.920,count:0},
-    {label:".920–.939",min:.920,max:.940,count:0},
-    {label:".940–.959",min:.940,max:.960,count:0},
-    {label:".960+",min:.960,max:Infinity,count:0}
-  ];
-
-
-  seasonGames.forEach(game => {
-
-    const s =
-      gameShots(game);
-
-    const saves =
-      gameSaves(game);
-
-    if(!s){
-      return;
-    }
-
-    const pct =
-      saves / s;
-
-    const bucket =
-      buckets.find(
-        b =>
-          pct >= b.min &&
-          pct < b.max
-      );
-
-    if(bucket){
-      bucket.count++;
-    }
-
-  });
-
-
-  destroyChart(
-    "svDistributionChart"
-  );
-
-
-  charts.svDistributionChart =
-    new Chart(
-      document.getElementById(
-        "svDistributionChart"
-      ),
-      {
-        type:"bar",
-
-        data:{
-          labels:
-            buckets.map(
-              b => b.label
-            ),
-
-          datasets:[{
-            label:"Games",
-
-            data:
-              buckets.map(
-                b => b.count
-              ),
-
-            borderWidth:1
-          }]
-        },
-
-        options:{
-          ...chartOptions(),
-
-          scales:{
-            x:chartOptions().scales.x,
-            y:distributionScale()
-          }
-        }
-      }
-    );
-
-
-  /*
-    GA DISTRIBUTION
-  */
-
-  const gaValues =
-    seasonGames.map(
-      game =>
-        gameGoals(game)
-    );
-
-
-  const maxGA =
-    Math.max(
-      0,
-      ...gaValues
-    );
-
-
-  const gaLabels =
-    Array.from(
-      {length:Math.max(5,maxGA+1)},
-      (_,i) => String(i)
-    );
-
-
-  const gaCounts =
-    gaLabels.map(
-      value =>
-        gaValues.filter(
-          ga =>
-            ga === Number(value)
-        ).length
-    );
-
-
-  destroyChart(
-    "gaDistributionChart"
-  );
-
-
-  charts.gaDistributionChart =
-    new Chart(
-      document.getElementById(
-        "gaDistributionChart"
-      ),
-      {
-        type:"bar",
-
-        data:{
-          labels:
-            gaLabels.map(
-              v => `${v} GA`
-            ),
-
-          datasets:[{
-            label:"Games",
-
-            data:gaCounts,
-
-            borderWidth:1
-          }]
-        },
-
-        options:{
-          ...chartOptions(),
-
-          scales:{
-            x:chartOptions().scales.x,
-            y:distributionScale()
-          }
-        }
-      }
-    );
-
-
-  /*
-    GOALS BY GRADE
-  */
-
-  const goalGrades = {
-    "A+":0,
-    "A":0,
-    "B":0,
-    "C":0
-  };
-
-
-  seasonShots
-    .filter(isGoal)
-    .forEach(shot => {
-
-      goalGrades[
-        shotGrade(shot)
-      ]++;
-
-    });
-
-
-  destroyChart(
-    "goalsByGradeChart"
-  );
-
-
-  charts.goalsByGradeChart =
-    new Chart(
-      document.getElementById(
-        "goalsByGradeChart"
-      ),
-      {
-        type:"bar",
-
-        data:{
-          labels:[
-            "A+",
-            "A",
-            "B",
-            "C"
-          ],
-
-          datasets:[{
-            label:"Goals Against",
-
-            data:[
-              goalGrades["A+"],
-              goalGrades["A"],
-              goalGrades["B"],
-              goalGrades["C"]
-            ],
-
-            borderWidth:1
-          }]
-        },
-
-        options:{
-          ...chartOptions(),
-
-          scales:{
-            x:chartOptions().scales.x,
-            y:distributionScale()
-          }
-        }
-      }
-    );
-
-
-  const totalGoalsTracked =
-    Object.values(
-      goalGrades
-    ).reduce(
-      (a,b) => a+b,
-      0
-    );
-
-
-  const qualityGoals =
-    goalGrades["A+"] +
-    goalGrades["A"];
-
-
-  document.getElementById(
-    "gradeInsight"
-  ).innerHTML =
-    totalGoalsTracked
-      ? `<strong>${qualityGoals}</strong> of
-        <strong>${totalGoalsTracked}</strong>
-        tracked goals came from A/A+ chances.
-        This helps separate goals that require technical correction
-        from goals coming from extremely dangerous chances.`
-      : "Shot-level goal data is required.";
-
-
-  renderLast5();
-
-}
-
-
-/* ============================================================
-   LAST 5
-============================================================ */
-
-function renderLast5(){
-
-  const last5 =
-    [...seasonGames]
-      .sort(
-        (a,b) =>
-          new Date(
-            gameDate(a)
-          ) -
-          new Date(
-            gameDate(b)
-          )
-      )
-      .slice(-5);
-
-
-  let shots = 0;
-  let saves = 0;
-  let goals = 0;
-  let minutes = 0;
-
-  let wins = 0;
-  let losses = 0;
-  let ot = 0;
-
-
-  last5.forEach(game => {
-
-    shots += gameShots(game);
-    saves += gameSaves(game);
-    goals += gameGoals(game);
-    minutes += gameMinutes(game);
-
-
-    const r =
-      normalize(
-        gameResult(game)
-      );
-
-    if(r === "w" || r === "win"){
-      wins++;
-    }
-    else if(r === "l" || r === "loss"){
-      losses++;
-    }
-    else if(
-      r === "otl" ||
-      r === "ot" ||
-      r === "overtime loss"
-    ){
-      ot++;
-    }
-
-  });
-
-
-  const sv =
-    shots
-      ? saves / shots * 100
-      : null;
-
-
-  const gaa =
-    minutes
-      ? goals / minutes * 60
-      : null;
-
-
-  const shots60 =
-    minutes
-      ? shots / minutes * 60
-      : null;
-
-
-  const shotData =
-    getShotsForGames(last5);
-
-
-  const advanced =
-    calculateAdvancedForShots(
-      shotData
-    );
-
-
-  document.getElementById(
-    "last5SV"
-  ).textContent =
-    sv !== null
-      ? `${sv.toFixed(1)}%`
-      : "—";
-
-
-  document.getElementById(
-    "last5GAA"
-  ).textContent =
-    gaa !== null
-      ? gaa.toFixed(2)
-      : "—";
-
-
-  document.getElementById(
-    "last5Shots"
-  ).textContent =
-    shots60 !== null
-      ? shots60.toFixed(1)
-      : "—";
-
-
-  document.getElementById(
-    "last5Record"
-  ).textContent =
-    last5.length
-      ? `${wins}-${losses}-${ot}`
-      : "—";
-
-
-  document.getElementById(
-    "last5GSAx"
-  ).textContent =
-    advanced.shots
-      ? advanced.gsax.toFixed(2)
-      : "—";
-
-}
-
-
-/* ============================================================
-   GAME LOG
-============================================================ */
-
-function renderGameLog(){
-
-  const body =
-    document.getElementById(
-      "gameLogBody"
-    );
-
-  body.innerHTML = "";
-
-
-  const sorted =
-    [...seasonGames].sort(
-      (a,b) =>
-        new Date(
-          gameDate(b)
-        ) -
-        new Date(
-          gameDate(a)
-        )
-    );
-
-
-  sorted.forEach(game => {
-
-    const shots =
-      gameShots(game);
-
-    const saves =
-      gameSaves(game);
-
-    const goals =
-      gameGoals(game);
-
-    const minutes =
-      gameMinutes(game);
-
-    const sv =
-      shots
-        ? saves / shots * 100
-        : 0;
-
-    const gaa =
-      minutes
-        ? goals / minutes * 60
-        : 0;
-
-
-    const tr =
-      document.createElement("tr");
-
-
-    tr.innerHTML = `
-
-      <td>${gameDate(game)}</td>
-
-      <td>${gameOpponent(game)}</td>
-
-      <td>
-        <span class="pill">
-          ${gameResult(game) || "—"}
-        </span>
-      </td>
-
-      <td>${shots}</td>
-
-      <td>${saves}</td>
-
-      <td>${goals}</td>
-
-      <td class="${
-        sv >= 92
-          ? "good"
-          : sv < 88
-            ? "bad"
-            : "neutral"
-      }">
-        ${sv.toFixed(1)}%
-      </td>
-
-      <td>${gaa.toFixed(2)}</td>
-
-      <td>${minutes.toFixed(1)}</td>
-
-    `;
-
-
-    body.appendChild(tr);
-
-  });
-
-}
-
-
-/* ============================================================
-   PERIODS
-============================================================ */
-
-function renderPeriods(){
-
-  const periods = {
-    "1":[],
-    "2":[],
-    "3":[],
-    "OT":[]
-  };
-
-
-  seasonPeriods.forEach(row => {
-
-    let p =
-      normalize(
-        row.period ||
-        row.period_number
-      );
-
-
-    if(p === "1st"){
-      p = "1";
-    }
-
-    if(p === "2nd"){
-      p = "2";
-    }
-
-    if(p === "3rd"){
-      p = "3";
-    }
-
-    if(
-      p === "overtime" ||
-      p === "ot"
-    ){
-      p = "OT";
-    }
-
-
-    if(periods[p]){
-      periods[p].push(row);
-    }
-
-  });
-
-
-  const results = {};
-
-
-  Object.keys(periods).forEach(period => {
-
-    const rows =
-      periods[period];
-
-    let shots = 0;
-    let goals = 0;
-    let saves = 0;
-
-
-    rows.forEach(row => {
-
-      shots += num(
-        row.shots ||
-        row.shots_against ||
-        row.shots_faced
-      );
-
-      goals += num(
-        row.goals_against ||
-        row.goals ||
-        row.ga
-      );
-
-      saves += num(
-        row.saves
-      );
-
-    });
-
-
-    if(
-      saves === 0 &&
-      shots > 0
-    ){
-
-      saves =
-        Math.max(
-          0,
-          shots - goals
-        );
-
-    }
-
-
-    results[period] = {
-      shots,
-      goals,
-      saves,
-      sv:
-        shots
-          ? saves / shots * 100
-          : 0
-    };
-
-  });
-
-
-  document.getElementById(
-    "period1SV"
-  ).textContent =
-    results["1"].shots
-      ? `${results["1"].sv.toFixed(1)}%`
-      : "—";
-
-
-  document.getElementById(
-    "period2SV"
-  ).textContent =
-    results["2"].shots
-      ? `${results["2"].sv.toFixed(1)}%`
-      : "—";
-
-
-  document.getElementById(
-    "period3SV"
-  ).textContent =
-    results["3"].shots
-      ? `${results["3"].sv.toFixed(1)}%`
-      : "—";
-
-
-  document.getElementById(
-    "periodOTSV"
-  ).textContent =
-    results["OT"].shots
-      ? `${results["OT"].sv.toFixed(1)}%`
-      : "—";
-
-
-  const labels =
-    ["1st","2nd","3rd","OT"];
-
-
-  destroyChart(
-    "periodSVChart"
-  );
-
-
-  charts.periodSVChart =
-    new Chart(
-      document.getElementById(
-        "periodSVChart"
-      ),
-      {
-        type:"bar",
-
-        data:{
-          labels,
-
-          datasets:[{
-            label:"SV%",
-
-            data:[
-              results["1"].sv,
-              results["2"].sv,
-              results["3"].sv,
-              results["OT"].sv
-            ],
-
-            borderWidth:1
-          }]
-        },
-
-        options:{
-          ...chartOptions(),
-
-          scales:{
-            x:chartOptions().scales.x,
-            y:percentageScale()
-          }
-        }
-      }
-    );
-
-
-  destroyChart(
-    "periodGAChart"
-  );
-
-
-  charts.periodGAChart =
-    new Chart(
-      document.getElementById(
-        "periodGAChart"
-      ),
-      {
-        type:"bar",
-
-        data:{
-          labels,
-
-          datasets:[{
-            label:"Goals Against",
-
-            data:[
-              results["1"].goals,
-              results["2"].goals,
-              results["3"].goals,
-              results["OT"].goals
-            ],
-
-            borderWidth:1
-          }]
-        },
-
-        options:{
-          ...chartOptions(),
-
-          scales:{
-            x:chartOptions().scales.x,
-            y:distributionScale()
-          }
-        }
-      }
-    );
-
-
-  const body =
-    document.getElementById(
-      "periodTableBody"
-    );
-
-  body.innerHTML = "";
-
-
-  labels.forEach(
-    (label,index) => {
-
-      const key =
-        ["1","2","3","OT"][index];
-
-      const r =
-        results[key];
-
-
-      body.innerHTML += `
-
-        <tr>
-
-          <td>${label}</td>
-          <td>${r.shots}</td>
-          <td>${r.saves}</td>
-          <td>${r.goals}</td>
-
-          <td>
-            ${
-              r.shots
-                ? r.sv.toFixed(1)+"%"
-                : "—"
-            }
-          </td>
-
-        </tr>
-
-      `;
-
-    }
-  );
-
-}
-
-
-/* ============================================================
-   SITUATIONAL
-============================================================ */
-
-function renderSituational(){
-
-  const advanced =
-    calculateAdvancedForShots(
-      seasonShots
-    );
-
-
-  document.getElementById(
-    "expectedSV"
-  ).textContent =
-    advanced.shots
-      ? `${advanced.expectedSV.toFixed(1)}%`
-      : "—";
-
-
-  document.getElementById(
-    "gsax"
-  ).textContent =
-    advanced.shots
-      ? advanced.gsax.toFixed(2)
-      : "—";
-
-
-  document.getElementById(
-    "xGA"
-  ).textContent =
-    advanced.shots
-      ? advanced.xGA.toFixed(2)
-      : "—";
-
-
-  document.getElementById(
-    "advancedShots"
-  ).textContent =
-    advanced.shots;
-
-
-  /*
-    LOCATION
-  */
-
-  const locationCounts = {};
-  const locationGoals = {};
-
-
-  seasonShots.forEach(shot => {
-
-    const location =
-      shot.location ||
-      shot.shot_location ||
-      "Unknown";
-
-
-    locationCounts[location] =
-      (locationCounts[location] || 0) + 1;
-
-
-    if(isGoal(shot)){
-
-      locationGoals[location] =
-        (locationGoals[location] || 0) + 1;
-
-    }
-
-  });
-
-
-  const locations =
-    Object.keys(
-      locationCounts
-    );
-
-
-  destroyChart(
-    "locationChart"
-  );
-
-
-  charts.locationChart =
-    new Chart(
-      document.getElementById(
-        "locationChart"
-      ),
-      {
-        type:"bar",
-
-        data:{
-          labels:locations,
-
-          datasets:[{
-            label:"Shots",
-
-            data:
-              locations.map(
-                l => locationCounts[l]
-              ),
-
-            borderWidth:1
-          }]
-        },
-
-        options:{
-          ...chartOptions(),
-
-          scales:{
-            x:chartOptions().scales.x,
-            y:distributionScale()
-          }
-        }
-      }
-    );
-
-
-  destroyChart(
-    "goalLocationChart"
-  );
-
-
-  charts.goalLocationChart =
-    new Chart(
-      document.getElementById(
-        "goalLocationChart"
-      ),
-      {
-        type:"bar",
-
-        data:{
-          labels:locations,
-
-          datasets:[{
-            label:"Goals",
-
-            data:
-              locations.map(
-                l =>
-                  locationGoals[l] || 0
-              ),
-
-            borderWidth:1
-          }]
-        },
-
-        options:{
-          ...chartOptions(),
-
-          scales:{
-            x:chartOptions().scales.x,
-            y:distributionScale()
-          }
-        }
-      }
-    );
-
-
-  /*
-    LOCATION INSIGHT
-  */
-
-  let worstLocation = null;
-  let worstRate = -1;
-
-
-  locations.forEach(location => {
-
-    const shotsCount =
-      locationCounts[location];
-
-    const goals =
-      locationGoals[location] || 0;
-
-    if(shotsCount >= 3){
-
-      const rate =
-        goals / shotsCount;
-
-      if(rate > worstRate){
-
-        worstRate = rate;
-        worstLocation = location;
-
-      }
-
-    }
-
-  });
-
-
-  document.getElementById(
-    "locationInsight"
-  ).innerHTML =
-    worstLocation
-      ? `<strong>Potential development area:</strong>
-         ${worstLocation} has the highest goal rate
-         among locations with at least 3 tracked shots
-         (${(worstRate*100).toFixed(1)}%).`
-      : "More shot data is required to identify a meaningful location trend.";
-
-
-  /*
-    SHOT GRADE DISTRIBUTION
-  */
-
-  destroyChart(
-    "shotGradeChart"
-  );
-
-
-  charts.shotGradeChart =
-    new Chart(
-      document.getElementById(
-        "shotGradeChart"
-      ),
-      {
-        type:"bar",
-
-        data:{
-          labels:[
-            "A+",
-            "A",
-            "B",
-            "C"
-          ],
-
-          datasets:[{
-            label:"Shots",
-
-            data:[
-              advanced.grades["A+"],
-              advanced.grades["A"],
-              advanced.grades["B"],
-              advanced.grades["C"]
-            ],
-
-            borderWidth:1
-          }]
-        },
-
-        options:{
-          ...chartOptions(),
-
-          scales:{
-            x:chartOptions().scales.x,
-            y:distributionScale()
-          }
-        }
-      }
-    );
-
-
-  /*
-    GOALS BY GRADE
-  */
-
-  const goalGrades = {
-    "A+":0,
-    "A":0,
-    "B":0,
-    "C":0
-  };
-
-
-  seasonShots
-    .filter(isGoal)
-    .forEach(
-      shot =>
-        goalGrades[
-          shotGrade(shot)
-        ]++
-    );
-
-
-  destroyChart(
-    "shotGradeGoalChart"
-  );
-
-
-  charts.shotGradeGoalChart =
-    new Chart(
-      document.getElementById(
-        "shotGradeGoalChart"
-      ),
-      {
-        type:"bar",
-
-        data:{
-          labels:[
-            "A+",
-            "A",
-            "B",
-            "C"
-          ],
-
-          datasets:[{
-            label:"Goals Against",
-
-            data:[
-              goalGrades["A+"],
-              goalGrades["A"],
-              goalGrades["B"],
-              goalGrades["C"]
-            ],
-
-            borderWidth:1
-          }]
-        },
-
-        options:{
-          ...chartOptions(),
-
-          scales:{
-            x:chartOptions().scales.x,
-            y:distributionScale()
-          }
-        }
-      }
-    );
-
-
-  const totalTrackedGoals =
-    Object.values(
-      goalGrades
-    ).reduce(
-      (a,b) => a+b,
-      0
-    );
-
-
-  const difficultGoals =
-    goalGrades["A+"] +
-    goalGrades["A"];
-
-
-  document.getElementById(
-    "shotGradeGoalInsight"
-  ).innerHTML =
-    totalTrackedGoals
-      ? `<strong>${difficultGoals}</strong> of
-        <strong>${totalTrackedGoals}</strong>
-        tracked goals came from A/A+ chances.
-        Use the remaining goals to investigate whether
-        technique, tracking, positioning or rebound management
-        can be improved.`
-      : "More goal-level shot data is required.";
-
-
-  /*
-    SITUATION CARDS
-  */
-
-  const rush =
-    subsetStats(
-      seasonShots,
-      isRushShot
-    );
-
-  const breakaway =
-    subsetStats(
-      seasonShots,
-      isBreakaway
-    );
-
-  const rebound =
-    subsetStats(
-      seasonShots,
-      shotIsRebound
-    );
-
-  const screened =
-    subsetStats(
-      seasonShots,
-      isScreened
-    );
-
-  const oneTimer =
-    subsetStats(
-      seasonShots,
-      isOneTimer
-    );
-
-  const highDanger =
-    subsetStats(
-      seasonShots,
-      isHighDanger
-    );
-
-
-  setSubset(
-    "rush",
-    rush
-  );
-
-  setSubset(
-    "breakaway",
-    breakaway
-  );
-
-  setSubset(
-    "rebound",
-    rebound
-  );
-
-  setSubset(
-    "screen",
-    screened
-  );
-
-  setSubset(
-    "oneTimer",
-    oneTimer
-  );
-
-  setSubset(
-    "highDanger",
-    highDanger
-  );
-
-
-  /*
-    DEVELOPMENT PRIORITY
-  */
-
-  const candidates = [
-    {
-      name:"high-danger chances",
-      value:highDanger.sv,
-      shots:highDanger.shots
-    },
-    {
-      name:"rush chances",
-      value:rush.sv,
-      shots:rush.shots
-    },
-    {
-      name:"rebound shots",
-      value:rebound.sv,
-      shots:rebound.shots
-    },
-    {
-      name:"screened shots",
-      value:screened.sv,
-      shots:screened.shots
-    },
-    {
-      name:"one-timers",
-      value:oneTimer.sv,
-      shots:oneTimer.shots
-    }
-  ]
-  .filter(
-    x =>
-      x.value !== null &&
-      x.shots >= 3
-  )
-  .sort(
-    (a,b) =>
-      a.value - b.value
-  );
-
-
-  const priority =
-    candidates[0];
-
-
-  document.getElementById(
-    "situationalPriority"
-  ).innerHTML =
-    priority
-      ? `<strong>Current area to investigate:</strong>
-         ${priority.name} are currently your lowest-performing
-         tracked situation at <strong>${priority.value.toFixed(1)}% SV</strong>.
-         This should not automatically be treated as a weakness —
-         use video to determine whether the issue is positioning,
-         tracking, depth, movement, rebound control or execution.`
-      : "You need at least 3 tracked shots in a situation before this dashboard will identify it as a potential development priority.";
-
-}
-
-
-/* ============================================================
-   SUBSET CARD HELPER
-============================================================ */
-
-function setSubset(prefix,data){
-
-  const shotsEl =
-    document.getElementById(
-      prefix+"Shots"
-    );
-
-  const svEl =
-    document.getElementById(
-      prefix+"SV"
-    );
-
-  const goalsEl =
-    document.getElementById(
-      prefix+"Goals"
-    );
-
-
-  if(shotsEl){
-    shotsEl.textContent =
-      data.shots;
-  }
-
-  if(svEl){
-    svEl.textContent =
-      data.sv !== null
-        ? `${data.sv.toFixed(1)}%`
-        : "—";
-  }
-
-  if(goalsEl){
-    goalsEl.textContent =
-      data.goals;
-  }
-
-}
-
-
-/* ============================================================
-   REBOUND TOTALS
-============================================================ */
-
-function getReboundTotals(){
-
-  let good = 0;
-  let bad = 0;
-
-
-  seasonReboundControls
-    .forEach(row => {
-
-      good +=
-        num(row.glove_caught) +
-        num(row.blocker_good) +
-        num(row.midsection_good) +
-        num(row.pad_stick_good);
-
-
-      bad +=
-        num(row.glove_rebound) +
-        num(row.blocker_bad) +
-        num(row.midsection_bad) +
-        num(row.pad_stick_bad);
-
-    });
-
-
-  const total =
-    good + bad;
-
-
-  return {
-    good,
-    bad,
-    total,
-    goodPct:
-      total
-        ? good / total * 100
-        : 0
-  };
-
-}
-
-
-/* ============================================================
-   REBOUND CONTROL
-============================================================ */
-
-function renderReboundControl(){
-
-  const rows =
-    seasonReboundControls;
-
-
-  let totalGood = 0;
-  let totalBad = 0;
-
-
-  const directions = {
-
-    "Glove":{
-      good:0,
-      bad:0,
-      goals:0
-    },
-
-    "Blocker":{
-      good:0,
-      bad:0,
-      goals:0
-    },
-
-    "Body":{
-      good:0,
-      bad:0,
-      goals:0
-    },
-
-    "Pad / Stick":{
-      good:0,
-      bad:0,
-      goals:0
-    }
-
-  };
-
-
-  rows.forEach(row => {
-
-    const gloveGood =
-      num(row.glove_caught);
-
-    const gloveBad =
-      num(row.glove_rebound);
-
-    const gloveGoal =
-      num(row.glove_goal);
-
-
-    const blockerGood =
-      num(row.blocker_good);
-
-    const blockerBad =
-      num(row.blocker_bad);
-
-    const blockerGoal =
-      num(row.blocker_goal);
-
-
-    const bodyGood =
-      num(row.midsection_good);
-
-    const bodyBad =
-      num(row.midsection_bad);
-
-    const bodyGoal =
-      num(row.midsection_goal);
-
-
-    const padGood =
-      num(row.pad_stick_good);
-
-    const padBad =
-      num(row.pad_stick_bad);
-
-    const padGoal =
-      num(row.pad_stick_goal);
-
-
-    directions["Glove"].good +=
-      gloveGood;
-
-    directions["Glove"].bad +=
-      gloveBad;
-
-    directions["Glove"].goals +=
-      gloveGoal;
-
-
-    directions["Blocker"].good +=
-      blockerGood;
-
-    directions["Blocker"].bad +=
-      blockerBad;
-
-    directions["Blocker"].goals +=
-      blockerGoal;
-
-
-    directions["Body"].good +=
-      bodyGood;
-
-    directions["Body"].bad +=
-      bodyBad;
-
-    directions["Body"].goals +=
-      bodyGoal;
-
-
-    directions["Pad / Stick"].good +=
-      padGood;
-
-    directions["Pad / Stick"].bad +=
-      padBad;
-
-    directions["Pad / Stick"].goals +=
-      padGoal;
-
-
-    totalGood +=
-      gloveGood +
-      blockerGood +
-      bodyGood +
-      padGood;
-
-
-    totalBad +=
-      gloveBad +
-      blockerBad +
-      bodyBad +
-      padBad;
-
-  });
-
-
-  const total =
-    totalGood + totalBad;
-
-
-  const goodPct =
-    total
-      ? totalGood /
-        total *
-        100
-      : 0;
-
-
-  document.getElementById(
-    "controlTotal"
-  ).textContent =
-    total;
-
-
-  document.getElementById(
-    "controlGood"
-  ).textContent =
-    totalGood;
-
-
-  document.getElementById(
-    "controlBad"
-  ).textContent =
-    totalBad;
-
-
-  document.getElementById(
-    "controlGoodPct"
-  ).textContent =
-    total
-      ? `${goodPct.toFixed(1)}%`
-      : "—";
-
-
-  const labels =
-    Object.keys(
-      directions
-    );
-
-
-  destroyChart(
-    "controlGoodBadChart"
-  );
-
-
-  charts.controlGoodBadChart =
-    new Chart(
-      document.getElementById(
-        "controlGoodBadChart"
-      ),
-      {
-        type:"bar",
-
-        data:{
-          labels:[
-            "Good",
-            "Bad"
-          ],
-
-          datasets:[{
-            label:"Rebound Control Events",
-
-            data:[
-              totalGood,
-              totalBad
-            ],
-
-            borderWidth:1
-          }]
-        },
-
-        options:{
-          ...chartOptions(),
-
-          scales:{
-            x:chartOptions().scales.x,
-            y:distributionScale()
-          }
-        }
-      }
-    );
-
-
-  destroyChart(
-    "controlDirectionChart"
-  );
-
-
-  charts.controlDirectionChart =
-    new Chart(
-      document.getElementById(
-        "controlDirectionChart"
-      ),
-      {
-        type:"bar",
-
-        data:{
-          labels,
-
-          datasets:[
-
-            {
-              label:"Good",
-
-              data:
-                labels.map(
-                  d =>
-                    directions[d].good
-                ),
-
-              borderWidth:1
-            },
-
-            {
-              label:"Bad",
-
-              data:
-                labels.map(
-                  d =>
-                    directions[d].bad
-                ),
-
-              borderWidth:1
-            }
-
-          ]
-        },
-
-        options:{
-          ...chartOptions(),
-
-          scales:{
-            x:chartOptions().scales.x,
-            y:distributionScale()
-          }
-        }
-      }
-    );
-
-
-  destroyChart(
-    "controlGoalsChart"
-  );
-
-
-  charts.controlGoalsChart =
-    new Chart(
-      document.getElementById(
-        "controlGoalsChart"
-      ),
-      {
-        type:"bar",
-
-        data:{
-          labels,
-
-          datasets:[{
-            label:"Goal-Associated Outcomes",
-
-            data:
-              labels.map(
-                d =>
-                  directions[d].goals
-              ),
-
-            borderWidth:1
-          }]
-        },
-
-        options:{
-          ...chartOptions(),
-
-          scales:{
-            x:chartOptions().scales.x,
-            y:distributionScale()
-          }
-        }
-      }
-    );
-
-
-  const body =
-    document.getElementById(
-      "controlTableBody"
-    );
-
-
-  body.innerHTML = "";
-
-
-  labels.forEach(direction => {
-
-    const data =
-      directions[direction];
-
-    const totalDirection =
-      data.good +
-      data.bad;
-
-    const pct =
-      totalDirection
-        ? data.good /
-          totalDirection *
-          100
-        : 0;
-
-
-    body.innerHTML += `
-
-      <tr>
-
-        <td>${direction}</td>
-
-        <td class="good">
-          ${data.good}
-        </td>
-
-        <td class="bad">
-          ${data.bad}
-        </td>
-
-        <td>
-          ${totalDirection}
-        </td>
-
-        <td>
-          ${
-            totalDirection
-              ? pct.toFixed(1)+"%"
-              : "—"
-          }
-        </td>
-
-        <td>
-          ${data.goals}
-        </td>
-
-      </tr>
-
-    `;
-
-  });
-
-
-  console.log(
-    "Rebound Control rows:",
-    rows
-  );
-
-}
-
-
-/* ============================================================
-   INCREMENTAL STATS
-============================================================ */
-
-function renderIncremental(){
-
-  const advanced =
-    calculateAdvancedForShots(
-      seasonShots
-    );
-
-
-  const rebound =
-    getReboundTotals();
-
-
-  const highDanger =
-    subsetStats(
-      seasonShots,
-      isHighDanger
-    );
-
-
-  const rush =
-    subsetStats(
-      seasonShots,
-      isRushShot
-    );
-
-
-  const screened =
-    subsetStats(
-      seasonShots,
-      isScreened
-    );
-
-
-  const oneTimer =
-    subsetStats(
-      seasonShots,
-      isOneTimer
-    );
-
-
-  const reboundShots =
-    subsetStats(
-      seasonShots,
-      shotIsRebound
-    );
-
-
-  const totalShots =
-    seasonGames.reduce(
-      (sum,g) =>
-        sum + gameShots(g),
-      0
-    );
-
-
-  const totalGoals =
-    seasonGames.reduce(
-      (sum,g) =>
-        sum + gameGoals(g),
-      0
-    );
-
-
-  const totalMinutes =
-    seasonGames.reduce(
-      (sum,g) =>
-        sum + gameMinutes(g),
-      0
-    );
-
-
-  document.getElementById(
-    "incSVDelta"
-  ).textContent =
-    advanced.shots
-      ? `${(
-          advanced.actualSV -
-          advanced.expectedSV
-        ) >= 0 ? "+" : ""}${(
-          advanced.actualSV -
-          advanced.expectedSV
-        ).toFixed(1)}%`
-      : "—";
-
-
-  document.getElementById(
-    "incGSAx"
-  ).textContent =
-    advanced.shots
-      ? advanced.gsax.toFixed(2)
-      : "—";
-
-
-  document.getElementById(
-    "incHighDanger"
-  ).textContent =
-    highDanger.sv !== null
-      ? `${highDanger.sv.toFixed(1)}%`
-      : "—";
-
-
-  document.getElementById(
-    "incRebound"
-  ).textContent =
-    rebound.total
-      ? `${rebound.goodPct.toFixed(1)}%`
-      : "—";
-
-
-  document.getElementById(
-    "incRushSV"
-  ).textContent =
-    rush.sv !== null
-      ? `${rush.sv.toFixed(1)}%`
-      : "—";
-
-
-  document.getElementById(
-    "incRushGoals"
-  ).textContent =
-    rush.goals;
-
-
-  document.getElementById(
-    "incRushShots"
-  ).textContent =
-    rush.shots;
-
-
-  document.getElementById(
-    "incScreenSV"
-  ).textContent =
-    screened.sv !== null
-      ? `${screened.sv.toFixed(1)}%`
-      : "—";
-
-
-  document.getElementById(
-    "incOneTimerSV"
-  ).textContent =
-    oneTimer.sv !== null
-      ? `${oneTimer.sv.toFixed(1)}%`
-      : "—";
-
-
-  document.getElementById(
-    "incReboundSV"
-  ).textContent =
-    reboundShots.sv !== null
-      ? `${reboundShots.sv.toFixed(1)}%`
-      : "—";
-
-
-  document.getElementById(
-    "incShots60"
-  ).textContent =
-    totalMinutes
-      ? (
-          totalShots /
-          totalMinutes *
-          60
-        ).toFixed(1)
-      : "—";
-
-
-  document.getElementById(
-    "incGoals60"
-  ).textContent =
-    totalMinutes
-      ? (
-          totalGoals /
-          totalMinutes *
-          60
-        ).toFixed(2)
-      : "—";
-
-
-  document.getElementById(
-    "incAvgShots"
-  ).textContent =
-    seasonGames.length
-      ? (
-          totalShots /
-          seasonGames.length
-        ).toFixed(1)
-      : "—";
-
-
-  /*
-    CUMULATIVE ACTUAL VS EXPECTED
-  */
-
-  let runningShots = 0;
-  let runningSaves = 0;
-
-  const actualValues = [];
-  const expectedValues = [];
-
-  const labels =
-    seasonGames.map(
-      (game,index) =>
-        `${index+1}. ${gameOpponent(game)}`
-    );
-
-
-  seasonGames.forEach(game => {
-
-    runningShots +=
-      gameShots(game);
-
-    runningSaves +=
-      gameSaves(game);
-
-
-    actualValues.push(
-      runningShots
-        ? runningSaves /
-          runningShots *
-          100
-        : null
-    );
-
-
-    const gameId =
-      String(
-        game.id ??
-        game.game_id
-      );
-
-
-    const gameShotData =
-      seasonShots.filter(
-        shot =>
-          String(
-            shot.game_id
-          ) === gameId
-      );
-
-
-    const gameAdvanced =
-      calculateAdvancedForShots(
-        gameShotData
-      );
-
-
-    /*
-      Cumulative expected SV%
-      is calculated from all tracked shots
-      through the current game.
-    */
-
-    const cumulativeShotData =
-      seasonShots.filter(
-        shot => {
-
-          const gameIndex =
-            seasonGames.findIndex(
-              g =>
-                String(
-                  g.id ??
-                  g.game_id
-                ) ===
-                String(
-                  shot.game_id
-                )
-            );
-
-          return (
-            gameIndex >= 0 &&
-            gameIndex <=
-              seasonGames.indexOf(game)
-          );
-
-        }
-      );
-
-
-    const cumulativeAdvanced =
-      calculateAdvancedForShots(
-        cumulativeShotData
-      );
-
-
-    expectedValues.push(
-      cumulativeAdvanced.shots
-        ? cumulativeAdvanced.expectedSV
-        : null
-    );
-
-  });
-
-
-  destroyChart(
-    "incrementalSVChart"
-  );
-
-
-  charts.incrementalSVChart =
-    new Chart(
-      document.getElementById(
-        "incrementalSVChart"
-      ),
-      {
-        type:"line",
-
-        data:{
-          labels,
-
-          datasets:[
-
-            {
-              label:"Cumulative SV%",
-
-              data:actualValues,
-
-              tension:.3,
-              borderWidth:2,
-              pointRadius:4
-            },
-
-            {
-              label:"Expected SV%",
-
-              data:expectedValues,
-
-              tension:.3,
-              borderWidth:2,
-              borderDash:[6,5],
-              pointRadius:3
-            }
-
-          ]
-        },
-
-        options:{
-          ...chartOptions(),
-
-          scales:{
-            x:chartOptions().scales.x,
-            y:percentageScale()
-          }
-        }
-      }
-    );
-
-
-  /*
-    CUMULATIVE GSAX
-  */
-
-  let runningXGA = 0;
-  let runningGoals = 0;
-
-  const gsaxValues = [];
-
-
-  seasonGames.forEach(game => {
-
-    const gameId =
-      String(
-        game.id ??
-        game.game_id
-      );
-
-
-    const data =
-      seasonShots.filter(
-        shot =>
-          String(
-            shot.game_id
-          ) === gameId
-      );
-
-
-    const advancedGame =
-      calculateAdvancedForShots(
-        data
-      );
-
-
-    runningXGA +=
-      advancedGame.xGA;
-
-    runningGoals +=
-      advancedGame.goals;
-
-
-    gsaxValues.push(
-      runningXGA -
-      runningGoals
-    );
-
-  });
-
-
-  destroyChart(
-    "incrementalGSAxChart"
-  );
-
-
-  charts.incrementalGSAxChart =
-    new Chart(
-      document.getElementById(
-        "incrementalGSAxChart"
-      ),
-      {
-        type:"line",
-
-        data:{
-          labels,
-
-          datasets:[{
-            label:"Cumulative GSAx",
-
-            data:gsaxValues,
-
-            tension:.3,
-            borderWidth:2,
-            pointRadius:4
-          }]
-        },
-
-        options:{
-          ...chartOptions(),
-
-          scales:{
-            x:chartOptions().scales.x,
-            y:chartOptions().scales.y
-          }
-        }
-      }
-    );
-
-
-  /*
-    DEVELOPMENT FOCUS
-  */
-
-  const candidates = [
-
-    {
-      name:"high-danger stopping",
-      value:highDanger.sv,
-      shots:highDanger.shots
-    },
-
-    {
-      name:"rush defence",
-      value:rush.sv,
-      shots:rush.shots
-    },
-
-    {
-      name:"screened-shot stopping",
-      value:screened.sv,
-      shots:screened.shots
-    },
-
-    {
-      name:"one-timer stopping",
-      value:oneTimer.sv,
-      shots:oneTimer.shots
-    },
-
-    {
-      name:"rebound-shot stopping",
-      value:reboundShots.sv,
-      shots:reboundShots.shots
-    }
-
-  ]
-  .filter(
-    x =>
-      x.value !== null &&
-      x.shots >= 3
-  )
-  .sort(
-    (a,b) =>
-      a.value - b.value
-  );
-
-
-  const priority =
-    candidates[0];
-
-
-  document.getElementById(
-    "incrementalFocus"
-  ).innerHTML =
-    priority
-      ? `<strong>Current metric to investigate:</strong>
-         ${priority.name} is currently your lowest-performing
-         tracked situation at <strong>${priority.value.toFixed(1)}% SV</strong>.
-         Before changing technique, use video to identify the actual
-         cause of the goals. As your sample grows, this becomes a much
-         more reliable development tool.`
-      : "Continue collecting shot-level data. The incremental system becomes substantially more useful as the sample size grows.";
-
-}
-
-
-/* ============================================================
-   GET SHOTS FOR GAMES
-============================================================ */
-
-function getShotsForGames(gameList){
-
-  const ids =
-    new Set(
-      gameList.map(
-        game =>
-          String(
-            game.id ??
-            game.game_id
-          )
-      )
-    );
-
-
-  return seasonShots.filter(
-    shot =>
-      ids.has(
-        String(
-          shot.game_id
-        )
-      )
-  );
-
-}
-
-
-/* ============================================================
-   LOAD DASHBOARD
-============================================================ */
-
-async function loadDashboard(){
-
-  const errorBox =
-    document.getElementById(
-      "dashboard-error"
-    );
-
-
-  try{
-
-    errorBox.innerHTML = "";
-
-
-    const results =
-      await Promise.all([
-
-        q("Games"),
-
-        q("Period Stats"),
-
-        q("Shots")
-
-      ]);
-
-
-    games =
-      Array.isArray(results[0])
-        ? results[0]
-        : [];
-
-
-    periodStats =
-      Array.isArray(results[1])
-        ? results[1]
-        : [];
-
-
-    shots =
-      Array.isArray(results[2])
-        ? results[2]
-        : [];
-
-
-    /*
-      Rebound Control is a separate table.
-    */
-
-    try{
-
-      reboundControls =
-        await q(
-          "goalierebound_control"
-        );
-
-
-      if(
-        !Array.isArray(
-          reboundControls
-        )
-      ){
-
-        reboundControls = [];
-
-      }
-
-    }
-    catch(reboundError){
-
-      reboundControls = [];
-
-
-      console.error(
-        "Rebound Control loading error:",
-        reboundError
-      );
-
-
-      errorBox.innerHTML = `
-
-        <div class="error-box">
-
-          <strong>
-            Rebound Control could not load.
-          </strong>
-
-          <br>
-
-          Supabase is currently refusing access
-          to the
-          <strong>goalierebound_control</strong>
-          table.
-
-          <br><br>
-
-          The rest of the dashboard will still load.
-
-          <br><br>
-
-          Check the Supabase Data API exposure and
-          SELECT/RLS permissions for that table.
-
-        </div>
-
-      `;
-
-    }
-
-
-    filterSeasonData();
-
-
-    renderOverview();
-
-    renderGameLog();
-
-    renderPeriods();
-
-    renderSituational();
-
-    renderReboundControl();
-
-    renderIncremental();
-
-
-  }
-  catch(error){
-
-    console.error(error);
-
-
-    errorBox.innerHTML = `
-
-      <div class="error-box">
-
-        <strong>
-          Dashboard Error
-        </strong>
-
-        <br><br>
-
-        ${error.message}
-
-      </div>
-
-    `;
-
-  }
-
-}
-
-
-/* ============================================================
-   DEBUG
-============================================================ */
-
-window.debugReboundControl =
-  function(){
-
-    console.log(
-      "All rebound-control rows:",
-      reboundControls
-    );
-
-    console.log(
-      "Season rebound-control rows:",
-      seasonReboundControls
-    );
-
-    console.log(
-      "Games:",
-      seasonGames
-    );
-
-    console.log(
-      "Current season:",
-      CURRENT_SEASON
-    );
-
-  };
-
-
-/* ============================================================
-   START
-============================================================ */
+through:
 
 loadDashboard();
+
+stays the same.
+
+The new interface above deliberately preserves the IDs used by
+your existing JavaScript, including:
+
+overviewSV
+overviewExpectedSV
+overviewGSAx
+overviewGAA
+overviewShots
+overviewGames
+overviewRecord
+overviewReboundPct
+
+overviewSVExpectedChart
+svDistributionChart
+gaDistributionChart
+goalsByGradeChart
+
+last5SV
+last5GAA
+last5Shots
+last5Record
+last5GSAx
+
+gameLogBody
+
+period1SV
+period2SV
+period3SV
+periodOTSV
+periodSVChart
+periodGAChart
+periodTableBody
+
+expectedSV
+gsax
+xGA
+advancedShots
+
+locationChart
+goalLocationChart
+locationInsight
+
+shotGradeChart
+shotGradeGoalChart
+shotGradeGoalInsight
+
+rushShots
+rushSV
+rushGoals
+
+breakawayShots
+breakawaySV
+breakawayGoals
+
+reboundShots
+reboundSV
+reboundGoals
+
+screenShots
+screenSV
+screenGoals
+
+oneTimerShots
+oneTimerSV
+oneTimerGoals
+
+highDangerShots
+highDangerSV
+highDangerGoals
+
+situationalPriority
+
+controlTotal
+controlGood
+controlBad
+controlGoodPct
+
+controlGoodBadChart
+controlDirectionChart
+controlGoalsChart
+controlTableBody
+
+incSVDelta
+incGSAx
+incHighDanger
+incRebound
+
+incRushSV
+incRushGoals
+incRushShots
+
+incScreenSV
+incOneTimerSV
+incReboundSV
+
+incShots60
+incGoals60
+incAvgShots
+
+incrementalSVChart
+incrementalGSAxChart
+incrementalFocus
+
+================================================================
+*/
 
 </script>
 
