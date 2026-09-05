@@ -45,6 +45,7 @@ html{
 body{
   margin:0;
   font-family:Inter,Arial,sans-serif;
+
   background:
     radial-gradient(
       circle at top right,
@@ -52,6 +53,7 @@ body{
       transparent 32%
     ),
     var(--bg);
+
   color:var(--text);
 }
 
@@ -66,12 +68,14 @@ button{
 
 header{
   padding:28px 35px;
+
   background:
     linear-gradient(
       135deg,
       #0b241a,
       #0a1e17
     );
+
   border-bottom:1px solid var(--border);
 }
 
@@ -88,12 +92,14 @@ header{
 
 .brand h1{
   margin:0;
+
   font-size:30px;
   letter-spacing:-.6px;
 }
 
 .brand p{
   margin:6px 0 0;
+
   color:var(--muted);
   font-size:13px;
 }
@@ -255,16 +261,16 @@ main{
 
   border-radius:12px;
 
-  padding:18px;
+  padding:16px 17px;
 
   box-shadow:
-    0 8px 25px rgba(0,0,0,.12);
+    0 6px 20px rgba(0,0,0,.10);
 
   min-width:0;
 }
 
 .card h3{
-  margin:0 0 12px;
+  margin:0 0 10px;
 
   font-size:14px;
   font-weight:700;
@@ -458,7 +464,7 @@ main{
 ========================================================= */
 
 .insight{
-  margin-top:11px;
+  margin-top:9px;
 
   padding:10px 12px;
 
@@ -485,22 +491,29 @@ main{
 ========================================================= */
 
 .chart-card{
-  min-height:350px;
+  min-height:285px;
+  padding:16px 17px;
+}
+
+.chart-card h3{
+  margin-bottom:9px;
 }
 
 .chart-card.compact{
-  min-height:315px;
+  min-height:250px;
 }
 
 .chart-wrap{
   position:relative;
 
   width:100%;
-  height:260px;
+  height:195px;
+
+  margin-top:3px;
 }
 
 .chart-card.compact .chart-wrap{
-  height:220px;
+  height:175px;
 }
 
 .chart-wrap canvas{
@@ -508,6 +521,13 @@ main{
 
   width:100% !important;
   height:100% !important;
+}
+
+
+/* Charts inside expandable sections */
+
+.details-content .chart-wrap{
+  height:190px;
 }
 
 
@@ -607,6 +627,26 @@ tr:hover td{
   font-size:9px;
 
   font-weight:700;
+}
+
+
+/* =========================================================
+   GAME LOG RESULT COLORS
+========================================================= */
+
+.game-result-win{
+  color:var(--green) !important;
+  font-weight:800 !important;
+}
+
+.game-result-loss{
+  color:var(--red) !important;
+  font-weight:800 !important;
+}
+
+.game-result-otl{
+  color:var(--yellow) !important;
+  font-weight:800 !important;
 }
 
 
@@ -793,11 +833,15 @@ details[open] summary:after{
   }
 
   .chart-card{
-    min-height:335px;
+    min-height:270px;
   }
 
   .chart-wrap{
-    height:245px;
+    height:190px;
+  }
+
+  .chart-card.compact .chart-wrap{
+    height:175px;
   }
 
 }
@@ -2803,113 +2847,104 @@ loadDashboard();
 
 stays the same.
 
-The new interface above deliberately preserves the IDs used by
-your existing JavaScript, including:
-
-overviewSV
-overviewExpectedSV
-overviewGSAx
-overviewGAA
-overviewShots
-overviewGames
-overviewRecord
-overviewReboundPct
-
-overviewSVExpectedChart
-svDistributionChart
-gaDistributionChart
-goalsByGradeChart
-
-last5SV
-last5GAA
-last5Shots
-last5Record
-last5GSAx
-
-gameLogBody
-
-period1SV
-period2SV
-period3SV
-periodOTSV
-periodSVChart
-periodGAChart
-periodTableBody
-
-expectedSV
-gsax
-xGA
-advancedShots
-
-locationChart
-goalLocationChart
-locationInsight
-
-shotGradeChart
-shotGradeGoalChart
-shotGradeGoalInsight
-
-rushShots
-rushSV
-rushGoals
-
-breakawayShots
-breakawaySV
-breakawayGoals
-
-reboundShots
-reboundSV
-reboundGoals
-
-screenShots
-screenSV
-screenGoals
-
-oneTimerShots
-oneTimerSV
-oneTimerGoals
-
-highDangerShots
-highDangerSV
-highDangerGoals
-
-situationalPriority
-
-controlTotal
-controlGood
-controlBad
-controlGoodPct
-
-controlGoodBadChart
-controlDirectionChart
-controlGoalsChart
-controlTableBody
-
-incSVDelta
-incGSAx
-incHighDanger
-incRebound
-
-incRushSV
-incRushGoals
-incRushShots
-
-incScreenSV
-incOneTimerSV
-incReboundSV
-
-incShots60
-incGoals60
-incAvgShots
-
-incrementalSVChart
-incrementalGSAxChart
-incrementalFocus
+The interface above deliberately preserves the IDs used by
+your existing JavaScript.
 
 ================================================================
 */
 
+
+/* =========================================================
+   GAME LOG RESULT COLORS
+
+   This works with the dynamically generated game log.
+========================================================= */
+
+function styleGameLogResults(){
+
+  const rows = document.querySelectorAll("#gameLogBody tr");
+
+  rows.forEach(row => {
+
+    const resultCell = row.children[2];
+
+    if(!resultCell) return;
+
+    const result = resultCell.textContent
+      .trim()
+      .toUpperCase();
+
+    resultCell.classList.remove(
+      "game-result-win",
+      "game-result-loss",
+      "game-result-otl"
+    );
+
+    if(result === "W"){
+
+      resultCell.classList.add(
+        "game-result-win"
+      );
+
+    }
+
+    else if(result === "L"){
+
+      resultCell.classList.add(
+        "game-result-loss"
+      );
+
+    }
+
+    else if(
+      result === "OTL" ||
+      result === "OT" ||
+      result === "SOL"
+    ){
+
+      resultCell.classList.add(
+        "game-result-otl"
+      );
+
+    }
+
+  });
+
+}
+
+
+/* =========================================================
+   WATCH FOR THE GAME LOG BEING POPULATED
+========================================================= */
+
+const gameLogObserver =
+  new MutationObserver(() => {
+
+    styleGameLogResults();
+
+  });
+
+
+const gameLogBody =
+  document.getElementById("gameLogBody");
+
+
+if(gameLogBody){
+
+  gameLogObserver.observe(
+    gameLogBody,
+    {
+      childList:true,
+      subtree:true
+    }
+  );
+
+  styleGameLogResults();
+
+}
+
 </script>
+
 
 </body>
 </html>
