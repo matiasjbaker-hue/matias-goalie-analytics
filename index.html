@@ -925,6 +925,11 @@ tr:hover td{
 
   </div>
 
+
+  <!-- =======================================================
+       PERIOD CHARTS
+  ======================================================== -->
+
   <div class="grid grid-2 section-space">
 
     <div class="card chart-card">
@@ -937,7 +942,19 @@ tr:hover td{
 
     </div>
 
+
+    <div class="card chart-card">
+
+      <h3>SV% by Period</h3>
+
+      <div class="chart-wrap">
+        <canvas id="periodSVChart"></canvas>
+      </div>
+
+    </div>
+
   </div>
+
 
   <div class="card section-space">
 
@@ -2355,17 +2372,6 @@ function destroyChart(id){
 }
 
 
-/*
-  Percentage charts:
-
-  Instead of forcing the chart into a fixed 80-100 range,
-  the chart gets a sensible suggested range with some breathing
-  room around the actual values.
-
-  This prevents a 96% or 98% bar from visually slamming
-  against the ceiling.
-*/
-
 function percentageScale(){
 
   return {
@@ -2410,15 +2416,6 @@ function percentageScale(){
 }
 
 
-/*
-  Distribution charts:
-
-  Begin at zero because these represent actual counts.
-
-  The 20% grace creates headroom above the tallest bar so
-  nothing looks like it is artificially hitting the top.
-*/
-
 function distributionScale(){
 
   return {
@@ -2461,10 +2458,7 @@ function distributionScale(){
 /*
   GLOBAL BAR DESIGN
 
-  This is the major visual change.
-
-  Bars are intentionally narrow and restrained rather than
-  taking up most of each category.
+  Moderate-width bars. Not too thick and not too thin.
 */
 
 function barDatasetDefaults(){
@@ -2477,15 +2471,15 @@ function barDatasetDefaults(){
 
     borderWidth:0,
 
-    borderRadius:2,
+    borderRadius:3,
 
     borderSkipped:false,
 
-    barPercentage:.38,
+    barPercentage:.55,
 
-    categoryPercentage:.65,
+    categoryPercentage:.72,
 
-    maxBarThickness:20
+    maxBarThickness:32
 
   };
 
@@ -2564,13 +2558,6 @@ function chartOptions(){
     },
 
 
-    /*
-      Chart.js dataset-specific defaults.
-
-      This applies to EVERY bar chart without needing to
-      repeat the styling inside every dataset.
-    */
-
     datasets:{
 
       bar:barDatasetDefaults()
@@ -2594,19 +2581,6 @@ function chartOptions(){
       bar:{
         borderRadius:3,
         borderSkipped:false
-      }
-
-    },
-
-    datasets:{
-      bar:{
-        backgroundColor:"rgba(105,221,160,.62)",
-        borderColor:"#69dda0",
-        borderWidth:0,
-        borderRadius:3,
-        barPercentage:.55,
-        categoryPercentage:.72,
-        maxBarThickness:32
       }
 
     },
@@ -3830,7 +3804,12 @@ function renderPeriods(){
   const labels =
     ["1st","2nd","3rd","OT"];
 
-destroyChart(
+
+  /* ==========================================================
+     GOALS AGAINST BY PERIOD
+  ========================================================== */
+
+  destroyChart(
     "periodGAChart"
   );
 
@@ -3876,6 +3855,100 @@ destroyChart(
 
     );
 
+
+  /* ==========================================================
+     SV% BY PERIOD
+  ========================================================== */
+
+  destroyChart(
+    "periodSVChart"
+  );
+
+
+  charts.periodSVChart =
+    new Chart(
+      document.getElementById(
+        "periodSVChart"
+      ),
+      {
+        type:"bar",
+
+        data:{
+
+          labels,
+
+          datasets:[{
+
+            label:"SV%",
+
+            data:[
+
+              results["1"].shots
+                ? results["1"].sv
+                : null,
+
+              results["2"].shots
+                ? results["2"].sv
+                : null,
+
+              results["3"].shots
+                ? results["3"].sv
+                : null,
+
+              results["OT"].shots
+                ? results["OT"].sv
+                : null
+
+            ]
+
+          }]
+
+        },
+
+        options:{
+
+          ...chartOptions(),
+
+          scales:{
+
+            x:chartOptions().scales.x,
+
+            y:percentageScale()
+
+          },
+
+          plugins:{
+
+            ...chartOptions().plugins,
+
+            tooltip:{
+
+              ...chartOptions().plugins.tooltip,
+
+              callbacks:{
+
+                label:function(context){
+
+                  return `SV%: ${context.parsed.y.toFixed(1)}%`;
+
+                }
+
+              }
+
+            }
+
+          }
+
+        }
+
+      }
+
+    );
+
+
+  /* ==========================================================
+     PERIOD TABLE
+  ========================================================== */
 
   const body =
     document.getElementById(
