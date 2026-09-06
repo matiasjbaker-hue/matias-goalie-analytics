@@ -929,16 +929,6 @@ tr:hover td{
 
     <div class="card chart-card">
 
-      <h3>Save Percentage by Period</h3>
-
-      <div class="chart-wrap">
-        <canvas id="periodSVChart"></canvas>
-      </div>
-
-    </div>
-
-    <div class="card chart-card">
-
       <h3>Goals Against by Period</h3>
 
       <div class="chart-wrap">
@@ -2602,11 +2592,21 @@ function chartOptions(){
       },
 
       bar:{
-
-        borderRadius:2,
-
+        borderRadius:3,
         borderSkipped:false
+      }
 
+    },
+
+    datasets:{
+      bar:{
+        backgroundColor:"rgba(105,221,160,.62)",
+        borderColor:"#69dda0",
+        borderWidth:0,
+        borderRadius:3,
+        barPercentage:.55,
+        categoryPercentage:.72,
+        maxBarThickness:32
       }
 
     },
@@ -3830,55 +3830,7 @@ function renderPeriods(){
   const labels =
     ["1st","2nd","3rd","OT"];
 
-
-  destroyChart(
-    "periodSVChart"
-  );
-
-
-  charts.periodSVChart =
-    new Chart(
-      document.getElementById(
-        "periodSVChart"
-      ),
-      {
-        type:"bar",
-
-        data:{
-          labels,
-
-          datasets:[{
-
-            label:"SV%",
-
-            data:[
-              results["1"].sv,
-              results["2"].sv,
-              results["3"].sv,
-              results["OT"].sv
-            ]
-
-          }]
-
-        },
-
-        options:{
-
-          ...chartOptions(),
-
-          scales:{
-            x:chartOptions().scales.x,
-            y:percentageScale()
-          }
-
-        }
-
-      }
-
-    );
-
-
-  destroyChart(
+destroyChart(
     "periodGAChart"
   );
 
