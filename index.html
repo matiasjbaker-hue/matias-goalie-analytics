@@ -600,6 +600,10 @@ tr:hover td{
       Incremental Stats
     </button>
 
+    <button onclick="showTab('puckplaying',this)">
+      Puck Playing
+    </button>
+
     <button onclick="showTab('about',this)">
       About
     </button>
@@ -925,6 +929,11 @@ tr:hover td{
 
   </div>
 
+
+  <!-- =======================================================
+       PERIOD CHARTS
+  ======================================================== -->
+
   <div class="grid grid-2 section-space">
 
     <div class="card chart-card">
@@ -937,7 +946,19 @@ tr:hover td{
 
     </div>
 
+
+    <div class="card chart-card">
+
+      <h3>SV% by Period</h3>
+
+      <div class="chart-wrap">
+        <canvas id="periodSVChart"></canvas>
+      </div>
+
+    </div>
+
   </div>
+
 
   <div class="card section-space">
 
@@ -1563,6 +1584,102 @@ tr:hover td{
 
 
 <!-- ========================================================= -->
+<!-- PUCK PLAYING -->
+<!-- ========================================================= -->
+
+<section id="puckplaying" class="tab">
+
+  <div class="page-title">
+    <h2>Puck Playing</h2>
+    <p>Track how effectively you stop rims and turn puck touches into controlled passes.</p>
+  </div>
+
+  <div class="grid grid-4">
+
+    <div class="card metric-card hero-card">
+      <div class="metric good" id="puckRimsStopped">—</div>
+      <div class="hero-label">Rims Stopped</div>
+      <div class="hero-description">
+        Total rimmed pucks successfully stopped and controlled.
+      </div>
+    </div>
+
+    <div class="card metric-card hero-card">
+      <div class="metric" id="puckRimPct">—</div>
+      <div class="hero-label">Rim Stop %</div>
+      <div class="hero-description">
+        Rims stopped divided by total rims faced.
+      </div>
+    </div>
+
+    <div class="card metric-card hero-card">
+      <div class="metric" id="puckPassPct">—</div>
+      <div class="hero-label">Passes Converted %</div>
+      <div class="hero-description">
+        Completed passes divided by total pass attempts.
+      </div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="puckPassesCompleted">—</div>
+      <div class="metric-label">Passes Completed</div>
+      <div class="metric-context" id="puckPassContext">—</div>
+    </div>
+
+  </div>
+
+  <div class="section-heading">
+    <h3>Puck-Playing Breakdown</h3>
+    <p>Game-by-game puck-playing execution for the current season.</p>
+  </div>
+
+  <div class="card">
+
+    <div class="table-wrap">
+
+      <table>
+
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Opponent</th>
+            <th>Rims Faced</th>
+            <th>Rims Stopped</th>
+            <th>Rim Stop %</th>
+            <th>Pass Attempts</th>
+            <th>Passes Completed</th>
+            <th>Passes Converted %</th>
+          </tr>
+        </thead>
+
+        <tbody id="puckPlayingTableBody"></tbody>
+
+      </table>
+
+    </div>
+
+    <div class="small-note">
+      Rim Stop % = rims stopped ÷ rims faced. Passes Converted % = completed passes ÷ pass attempts.
+    </div>
+
+  </div>
+
+  <div class="card section-space">
+
+    <h3>How to Read This</h3>
+
+    <div class="callout">
+      <strong>Rim Stop %</strong> measures your ability to get to rimmed pucks and stop them before they continue around the boards.
+      <strong>Passes Converted %</strong> measures how often your puck touches turn into completed passes.
+      Use both together to evaluate puck-playing execution rather than simply counting touches.
+    </div>
+
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
 <!-- ABOUT -->
 <!-- ========================================================= -->
 
@@ -1659,11 +1776,13 @@ let games = [];
 let periodStats = [];
 let shots = [];
 let reboundControls = [];
+let puckPlaying = [];
 
 let seasonGames = [];
 let seasonPeriods = [];
 let seasonShots = [];
 let seasonReboundControls = [];
+let seasonPuckPlaying = [];
 
 let charts = {};
 
@@ -2355,17 +2474,6 @@ function destroyChart(id){
 }
 
 
-/*
-  Percentage charts:
-
-  Instead of forcing the chart into a fixed 80-100 range,
-  the chart gets a sensible suggested range with some breathing
-  room around the actual values.
-
-  This prevents a 96% or 98% bar from visually slamming
-  against the ceiling.
-*/
-
 function percentageScale(){
 
   return {
@@ -2410,15 +2518,6 @@ function percentageScale(){
 }
 
 
-/*
-  Distribution charts:
-
-  Begin at zero because these represent actual counts.
-
-  The 20% grace creates headroom above the tallest bar so
-  nothing looks like it is artificially hitting the top.
-*/
-
 function distributionScale(){
 
   return {
@@ -2461,10 +2560,7 @@ function distributionScale(){
 /*
   GLOBAL BAR DESIGN
 
-  This is the major visual change.
-
-  Bars are intentionally narrow and restrained rather than
-  taking up most of each category.
+  Moderate-width bars. Not too thick and not too thin.
 */
 
 function barDatasetDefaults(){
@@ -2477,15 +2573,15 @@ function barDatasetDefaults(){
 
     borderWidth:0,
 
-    borderRadius:2,
+    borderRadius:3,
 
     borderSkipped:false,
 
-    barPercentage:.38,
+    barPercentage:.55,
 
-    categoryPercentage:.65,
+    categoryPercentage:.72,
 
-    maxBarThickness:20
+    maxBarThickness:32
 
   };
 
@@ -2564,13 +2660,6 @@ function chartOptions(){
     },
 
 
-    /*
-      Chart.js dataset-specific defaults.
-
-      This applies to EVERY bar chart without needing to
-      repeat the styling inside every dataset.
-    */
-
     datasets:{
 
       bar:barDatasetDefaults()
@@ -2594,19 +2683,6 @@ function chartOptions(){
       bar:{
         borderRadius:3,
         borderSkipped:false
-      }
-
-    },
-
-    datasets:{
-      bar:{
-        backgroundColor:"rgba(105,221,160,.62)",
-        borderColor:"#69dda0",
-        borderWidth:0,
-        borderRadius:3,
-        barPercentage:.55,
-        categoryPercentage:.72,
-        maxBarThickness:32
       }
 
     },
@@ -2773,6 +2849,14 @@ function filterSeasonData(){
 
   seasonReboundControls =
     reboundControls.filter(
+      row =>
+        validGameIds.has(
+          String(row.game_id)
+        )
+    );
+
+  seasonPuckPlaying =
+    puckPlaying.filter(
       row =>
         validGameIds.has(
           String(row.game_id)
@@ -3830,7 +3914,12 @@ function renderPeriods(){
   const labels =
     ["1st","2nd","3rd","OT"];
 
-destroyChart(
+
+  /* ==========================================================
+     GOALS AGAINST BY PERIOD
+  ========================================================== */
+
+  destroyChart(
     "periodGAChart"
   );
 
@@ -3876,6 +3965,100 @@ destroyChart(
 
     );
 
+
+  /* ==========================================================
+     SV% BY PERIOD
+  ========================================================== */
+
+  destroyChart(
+    "periodSVChart"
+  );
+
+
+  charts.periodSVChart =
+    new Chart(
+      document.getElementById(
+        "periodSVChart"
+      ),
+      {
+        type:"bar",
+
+        data:{
+
+          labels,
+
+          datasets:[{
+
+            label:"SV%",
+
+            data:[
+
+              results["1"].shots
+                ? results["1"].sv
+                : null,
+
+              results["2"].shots
+                ? results["2"].sv
+                : null,
+
+              results["3"].shots
+                ? results["3"].sv
+                : null,
+
+              results["OT"].shots
+                ? results["OT"].sv
+                : null
+
+            ]
+
+          }]
+
+        },
+
+        options:{
+
+          ...chartOptions(),
+
+          scales:{
+
+            x:chartOptions().scales.x,
+
+            y:percentageScale()
+
+          },
+
+          plugins:{
+
+            ...chartOptions().plugins,
+
+            tooltip:{
+
+              ...chartOptions().plugins.tooltip,
+
+              callbacks:{
+
+                label:function(context){
+
+                  return `SV%: ${context.parsed.y.toFixed(1)}%`;
+
+                }
+
+              }
+
+            }
+
+          }
+
+        }
+
+      }
+
+    );
+
+
+  /* ==========================================================
+     PERIOD TABLE
+  ========================================================== */
 
   const body =
     document.getElementById(
@@ -5493,6 +5676,241 @@ function renderIncremental(){
 
 
 /* ============================================================
+   PUCK PLAYING
+============================================================ */
+
+function renderPuckPlaying(){
+
+  const totalRimsFaced =
+    seasonPuckPlaying.reduce(
+      (sum,row) =>
+        sum + num(row.rims_faced),
+      0
+    );
+
+  const totalRimsStopped =
+    seasonPuckPlaying.reduce(
+      (sum,row) =>
+        sum + num(row.rims_stopped),
+      0
+    );
+
+  const totalPassAttempts =
+    seasonPuckPlaying.reduce(
+      (sum,row) =>
+        sum + num(row.pass_attempts),
+      0
+    );
+
+  const totalPassesCompleted =
+    seasonPuckPlaying.reduce(
+      (sum,row) =>
+        sum + num(row.passes_completed),
+      0
+    );
+
+  const rimPct =
+    totalRimsFaced
+      ? totalRimsStopped /
+        totalRimsFaced *
+        100
+      : null;
+
+  const passPct =
+    totalPassAttempts
+      ? totalPassesCompleted /
+        totalPassAttempts *
+        100
+      : null;
+
+  document.getElementById(
+    "puckRimsStopped"
+  ).textContent =
+    totalRimsFaced
+      ? totalRimsStopped
+      : "—";
+
+  document.getElementById(
+    "puckRimPct"
+  ).textContent =
+    rimPct !== null
+      ? `${rimPct.toFixed(1)}%`
+      : "—";
+
+  document.getElementById(
+    "puckPassPct"
+  ).textContent =
+    passPct !== null
+      ? `${passPct.toFixed(1)}%`
+      : "—";
+
+  document.getElementById(
+    "puckPassesCompleted"
+  ).textContent =
+    totalPassAttempts
+      ? totalPassesCompleted
+      : "—";
+
+  document.getElementById(
+    "puckPassContext"
+  ).textContent =
+    totalPassAttempts
+      ? `${totalPassesCompleted} / ${totalPassAttempts} attempts`
+      : "No pass data";
+
+  const body =
+    document.getElementById(
+      "puckPlayingTableBody"
+    );
+
+  body.innerHTML = "";
+
+  if(!seasonPuckPlaying.length){
+
+    body.innerHTML = `
+      <tr>
+        <td colspan="8">
+          <div class="empty">
+            No puck-playing data is available for the current season yet.
+          </div>
+        </td>
+      </tr>
+    `;
+
+    return;
+  }
+
+  const byGame = {};
+
+  seasonPuckPlaying.forEach(row => {
+
+    const gameId =
+      String(row.game_id);
+
+    if(!byGame[gameId]){
+
+      byGame[gameId] = {
+        rimsFaced:0,
+        rimsStopped:0,
+        passAttempts:0,
+        passesCompleted:0
+      };
+
+    }
+
+    byGame[gameId].rimsFaced +=
+      num(row.rims_faced);
+
+    byGame[gameId].rimsStopped +=
+      num(row.rims_stopped);
+
+    byGame[gameId].passAttempts +=
+      num(row.pass_attempts);
+
+    byGame[gameId].passesCompleted +=
+      num(row.passes_completed);
+
+  });
+
+  const sortedGames =
+    [...seasonGames].sort(
+      (a,b) =>
+        new Date(gameDate(b)) -
+        new Date(gameDate(a))
+    );
+
+  sortedGames.forEach(game => {
+
+    const gameId =
+      String(
+        game.id ??
+        game.game_id
+      );
+
+    const data =
+      byGame[gameId];
+
+    if(!data){
+      return;
+    }
+
+    const rimPctGame =
+      data.rimsFaced
+        ? data.rimsStopped /
+          data.rimsFaced *
+          100
+        : null;
+
+    const passPctGame =
+      data.passAttempts
+        ? data.passesCompleted /
+          data.passAttempts *
+          100
+        : null;
+
+    const tr =
+      document.createElement("tr");
+
+    tr.innerHTML = `
+
+      <td>${gameDate(game) || "—"}</td>
+
+      <td>${gameOpponent(game)}</td>
+
+      <td>${data.rimsFaced}</td>
+
+      <td class="good">
+        ${data.rimsStopped}
+      </td>
+
+      <td class="${
+        rimPctGame === null
+          ? "neutral"
+          : rimPctGame >= 75
+            ? "good"
+            : rimPctGame < 50
+              ? "bad"
+              : "neutral"
+      }">
+        ${
+          rimPctGame !== null
+            ? rimPctGame.toFixed(1)+"%"
+            : "—"
+        }
+      </td>
+
+      <td>${data.passAttempts}</td>
+
+      <td class="good">
+        ${data.passesCompleted}
+      </td>
+
+      <td class="${
+        passPctGame === null
+          ? "neutral"
+          : passPctGame >= 75
+            ? "good"
+            : passPctGame < 50
+              ? "bad"
+              : "neutral"
+      }">
+        ${
+          passPctGame !== null
+            ? passPctGame.toFixed(1)+"%"
+            : "—"
+        }
+      </td>
+
+    `;
+
+    body.appendChild(tr);
+
+  });
+
+}
+
+
+/* ============================================================
    GET SHOTS FOR GAMES
 ============================================================ */
 
@@ -5630,6 +6048,67 @@ async function loadDashboard(){
     }
 
 
+    try{
+
+      puckPlaying =
+        await q(
+          "puck_playing"
+        );
+
+
+      if(
+        !Array.isArray(
+          puckPlaying
+        )
+      ){
+
+        puckPlaying = [];
+
+      }
+
+    }
+    catch(puckError){
+
+      puckPlaying = [];
+
+
+      console.error(
+        "Puck Playing loading error:",
+        puckError
+      );
+
+
+      errorBox.innerHTML += `
+
+        <div class="error-box">
+
+          <strong>
+            Puck Playing could not load.
+          </strong>
+
+          <br><br>
+
+          Supabase is currently refusing access
+          to the
+          <strong>puck_playing</strong>
+          table.
+
+          <br><br>
+
+          Check the Supabase Data API exposure and
+          SELECT/RLS permissions for that table.
+
+          <br><br>
+
+          The rest of the dashboard will still load.
+
+        </div>
+
+      `;
+
+    }
+
+
     filterSeasonData();
 
 
@@ -5644,6 +6123,8 @@ async function loadDashboard(){
     renderReboundControl();
 
     renderIncremental();
+
+    renderPuckPlaying();
 
 
   }
