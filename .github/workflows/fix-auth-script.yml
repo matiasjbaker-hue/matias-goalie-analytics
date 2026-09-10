@@ -19,54 +19,36 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           p = Path('index.html')
           s = p.read_text(encoding='utf-8')
           original = s
 
-          # Repair any remaining nested script tags.
-          s = s.replace(
-              '<script>\n/* Prevent the initial getSession() check from racing with sign-in. */',
-              '/* Prevent the initial getSession() check from racing with sign-in. */',
-              1,
-          )
-          s = s.replace(
-              '</script>\n\n\n<script>\nasync function safeInitializeAuth(){',
-              '\n\nasync function safeInitializeAuth(){',
-              1,
-          )
-          s = s.replace(
-              '\n</script>\n\n    safeInitializeAuth();\n\n  </script>',
-              '\n\n    safeInitializeAuth();\n\n  </script>',
-              1,
-          )
+          # Make the Supabase client available to every script block.
+          if 'window.supabaseClient = supabase;' not in s:
+              pattern = r'(const\s+supabase\s*=\s*createClient\(\s*SUPABASE_URL,\s*SUPABASE_KEY\s*\);)'
+              s, n = re.subn(pattern, r'\1\n\n    window.supabaseClient = supabase;', s, count=1)
+              print('Global client patch:', n)
 
-          # The robust login override lives in a later script tag, so the
-          # locally-scoped Supabase client must also be exposed globally.
-          old_client = '''    const supabase =
-      createClient(
-        SUPABASE_URL,
-        SUPABASE_KEY
-      );'''
-          new_client = '''    const supabase =
-      createClient(
-        SUPABASE_URL,
-        SUPABASE_KEY
-      );
+          # The login override is in a separate script tag, so it must use
+          # the global client instead of the main script's local const.
+          s, n = re.subn(
+              r'(<!-- ROBUST_LOGIN_OVERRIDE -->\s*<script>\s*window\.login\s*=\s*async function login\(\)\{)\s*',
+              r'\1\n      const supabase = window.supabaseClient;\n',
+              s,
+              count=1,
+          )
+          print('Login scope patch:', n)
 
-    window.supabaseClient = supabase;'''
-          if old_client in s and 'window.supabaseClient = supabase;' not in s:
-              s = s.replace(old_client, new_client, 1)
-
-          old_login = '''  <script>
-    window.login = async function login(){
-      const emailEl = document.getElementById("loginEmail");'''
-          new_login = '''  <script>
-    window.login = async function login(){
-      const supabase = window.supabaseClient;
-      const emailEl = document.getElementById("loginEmail");'''
-          if old_login in s and 'const supabase = window.supabaseClient;' not in s:
-              s = s.replace(old_login, new_login, 1)
+          # Explicitly expose the main authenticated-user handler as well.
+          if 'window.handleAuthenticatedUser = handleAuthenticatedUser;' not in s:
+              marker = 'async function handleAuthenticatedUser(user){'
+              if marker in s:
+                  s = s.replace(marker, marker, 1)
+                  close = '  }\n\n  async function loadProfile()'
+                  if close in s:
+                      s = s.replace(close, '  }\n\n  window.handleAuthenticatedUser = handleAuthenticatedUser;\n\n  async function loadProfile()', 1)
 
           if s == original:
               print('No changes made.')
@@ -83,6 +65,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else
-            git commit -m "[auth-fix] Expose Supabase client to login override"
+            git commit -m "[auth-fix] Repair login client scope"
             git push
           fi
