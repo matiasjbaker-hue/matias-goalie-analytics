@@ -22,7 +22,7 @@
 </form>
 <div class="links"><button class="link" type="button" id="signupLink">Create account</button><button class="link" type="button" id="forgotLink">Forgot password?</button></div>
 </div>
-<div id="jsStatus" class="status">Login page version: 2026-09-10B</div>
+<div id="jsStatus" class="status">Login page version: 2026-09-10C</div>
 <noscript><div class="status" style="color:#ff8585">JavaScript is disabled in this browser.</div></noscript>
 </div>
 <script>
@@ -31,10 +31,23 @@ const SUPABASE_KEY='sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ';
 let client=null;
 const $=id=>document.getElementById(id);
 function msg(text,type='error'){const e=$('loginMessage');e.textContent=text;e.className='message show '+type}
-$('loginForm').addEventListener('submit',async function(e){e.preventDefault();const email=$('email').value.trim(),password=$('password').value;if(!client){msg('Login service is not ready yet. Please refresh once.');return}const b=$('loginButton');b.disabled=true;b.textContent='Signing in...';try{const {data,error}=await client.auth.signInWithPassword({email,password});if(error)throw error;if(data.session){window.location.href='/dashboard.html'}else{throw new Error('No login session was returned.')}}catch(error){msg(error.message||'Unable to sign in.');b.disabled=false;b.textContent='Sign In'}});
+$('loginForm').addEventListener('submit',async function(e){
+ e.preventDefault();
+ const email=$('email').value.trim(),password=$('password').value;
+ if(!client){msg('Login service is not ready yet. Please refresh once.');return}
+ const b=$('loginButton');b.disabled=true;b.textContent='Signing in...';
+ try{
+  const {data,error}=await client.auth.signInWithPassword({email,password});
+  if(error)throw error;
+  if(!data||!data.session||!data.user)throw new Error('No login session was returned.');
+  // Make sure the session is written before navigating to the dashboard.
+  await client.auth.setSession({access_token:data.session.access_token,refresh_token:data.session.refresh_token});
+  window.location.replace('/dashboard.html');
+ }catch(error){msg(error.message||'Unable to sign in.');b.disabled=false;b.textContent='Sign In'}
+});
 $('signupLink').onclick=function(){window.location.href='/index.html?mode=signup'};
 $('forgotLink').onclick=function(){msg('Password reset can be added after sign-in is working.','success')};
-const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';script.onload=function(){client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);$('jsStatus').textContent='Login system: READY';$('jsStatus').style.color='#69dda0'};script.onerror=function(){msg('Could not load the Supabase login service.')};document.head.appendChild(script);
+const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';script.onload=function(){client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'goalie-analytics-auth'}});$('jsStatus').textContent='Login system: READY';$('jsStatus').style.color='#69dda0'};script.onerror=function(){msg('Could not load the Supabase login service.')};document.head.appendChild(script);
 </script>
 </body>
 </html>
