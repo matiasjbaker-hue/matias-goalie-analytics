@@ -1,4 +1,4 @@
-name: One-time auth cleanup
+name: Fix authentication flow
 
 on:
   push:
@@ -18,79 +18,140 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           p = Path('index.html')
           t = p.read_text(encoding='utf-8')
 
-          marker = '''    /* =========================================================
-       START
-    ========================================================== */'''
+          # Remove the temporary duplicate auth script if present.
+          t = re.sub(r'\s*<script\s+src=["\']login-fix\.js["\']\s*></script>', '', t, flags=re.I)
 
-          if marker not in t:
-              raise SystemExit('START marker not found')
+          # Remove the old ineffective injected override, if present.
+          t = re.sub(r'\s*<script>\s*window\.initializeAuth\s*=.*?</script>', '', t, flags=re.S)
 
-          prefix = t.split(marker, 1)[0]
+          # Replace the original initializeAuth function body with a session-safe version.
+          pattern = r'async function initializeAuth\(\)\s*\{.*?\n\s*\}\s*\n\s*\n\s*async function handleAuthenticatedUser'
+          replacement = '''async function initializeAuth(){
 
-          clean_tail = r'''    /* =========================================================
-       START
-    ========================================================== */
-
-    async function startAuth(){
-      let handledUserId = null;
-      let handling = false;
-
-      const showLoggedOut = () => {
-        currentUser = null;
-        currentProfile = null;
-        document.getElementById("app").classList.add("hidden");
-        document.getElementById("authScreen").classList.remove("hidden");
-        if (typeof showLogin === "function") showLogin();
-      };
+      let sessionUserSeen = false;
 
       supabase.auth.onAuthStateChange((event, session) => {
-        if (session && session.user) {
+
+        if(session && session.user){
           currentUser = session.user;
+          sessionUserSeen = true;
           return;
         }
 
-        if (event === "SIGNED_OUT") {
-          showLoggedOut();
+        if(event === "SIGNED_OUT"){
+          currentUser = null;
+          currentProfile = null;
+          document.getElementById("app").classList.add("hidden");
+          document.getElementById("authScreen").classList.remove("hidden");
+          showLogin();
         }
+
       });
 
       const { data, error } = await supabase.auth.getSession();
 
-      if (error) {
+      if(error){
         console.error("Supabase session error:", error);
-        showLoggedOut();
+        document.getElementById("app").classList.add("hidden");
+        document.getElementById("authScreen").classList.remove("hidden");
+        showLogin();
         return;
       }
 
-      if (data && data.session && data.session.user) {
+      if(data && data.session && data.session.user){
         currentUser = data.session.user;
-        handledUserId = data.session.user.id;
         await handleAuthenticatedUser(data.session.user);
-      } else if (!currentUser) {
-        showLoggedOut();
+      }else if(!sessionUserSeen && !currentUser){
+        document.getElementById("authScreen").classList.remove("hidden");
+        document.getElementById("app").classList.add("hidden");
       }
+
     }
 
-    startAuth();
 
-  </script>
-</body>
-</html>
-'''
+    async function handleAuthenticatedUser'''
 
-          p.write_text(prefix + clean_tail, encoding='utf-8')
+          t2, count = re.subn(pattern, replacement, t, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit('Could not locate initializeAuth function')
+          t = t2
+
+          # Make login surface the exact Supabase error and wait for dashboard setup.
+          login_pattern = r'async function login\(\)\s*\{.*?\n\s*\}\s*\n\s*\n\s*async function signUp'
+          login_replacement = '''async function login(){
+
+      const email = document.getElementById("loginEmail").value.trim();
+      const password = document.getElementById("loginPassword").value;
+
+      if(!email || !password){
+        showMessage("authMessage","Please enter your email and password.");
+        return;
+      }
+
+      const button = document.getElementById("loginButton");
+      if(button){
+        button.disabled = true;
+        button.textContent = "Signing in...";
+      }
+
+      try{
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+
+        if(error){
+          throw error;
+        }
+
+        if(!data || !data.user){
+          throw new Error("Supabase did not return a user after sign-in.");
+        }
+
+        currentUser = data.user;
+        await handleAuthenticatedUser(data.user);
+
+      }catch(error){
+        console.error("Login failed:", error);
+        showMessage(
+          "authMessage",
+          error && error.message ? error.message : "Unable to sign in. Please try again."
+        );
+      }finally{
+        if(button){
+          button.disabled = false;
+          button.textContent = "Sign In";
+        }
+      }
+
+    }
+
+
+    async function signUp'''
+
+          t2, count = re.subn(login_pattern, login_replacement, t, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit('Could not locate login function')
+          t = t2
+
+          p.write_text(t, encoding='utf-8')
           PY
 
           rm -f login-fix.js
 
-      - name: Commit cleanup and remove this workflow
+      - name: Commit cleaned authentication
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add index.html login-fix.js .github/workflows/fix-login.yml
-          git commit -m 'fix: simplify Supabase authentication'
+          if git diff --quiet; then
+            echo 'No authentication changes needed.'
+            exit 0
+          fi
+          git add index.html login-fix.js
+          git commit -m 'fix: clean Supabase authentication flow'
           git push
