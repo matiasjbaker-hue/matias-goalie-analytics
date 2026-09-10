@@ -6569,7 +6569,6 @@
     ========================================================== */
 
 
-<script>
 /* Prevent the initial getSession() check from racing with sign-in. */
 window.__safeAuthInitialized = true;
 window.initializeAuth = async function(){
@@ -6601,10 +6600,8 @@ window.initializeAuth = async function(){
     document.getElementById("app").classList.add("hidden");
   }
 };
-</script>
 
 
-<script>
 async function safeInitializeAuth(){
   let sessionSeen = false;
 
@@ -6634,7 +6631,6 @@ async function safeInitializeAuth(){
     document.getElementById("app").classList.add("hidden");
   }
 }
-</script>
 
     safeInitializeAuth();
 
