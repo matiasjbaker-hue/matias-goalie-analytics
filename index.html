@@ -1,15 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="refresh" content="0; url=/dashboard.html">
-  <title>Goalie Analytics</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Goalie Analytics</title>
+<style>
+:root{--bg:#061710;--card:#0c261c;--border:#1d4434;--border2:#285640;--text:#edf7f1;--muted:#88a599;--green:#69dda0;--green2:#9be1bd;--red:#ff8585}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% 0%,rgba(105,221,160,.1),transparent 35%),var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;display:flex;align-items:center;justify-content:center;padding:24px}.shell{width:100%;max-width:430px}.brand{text-align:center;margin-bottom:28px}.mark{width:64px;height:64px;border-radius:18px;margin:0 auto 18px;display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,var(--green),#3cae75);color:#04110b;font-size:26px;font-weight:900}.brand h1{margin:0;font-size:28px}.brand p{margin:8px 0 0;color:var(--muted);font-size:14px}.card{background:rgba(12,38,28,.96);border:1px solid var(--border);border-radius:20px;padding:28px;box-shadow:0 10px 30px rgba(0,0,0,.18)}h2{margin:0 0 8px;font-size:22px}.sub{margin:0 0 24px;color:var(--muted);font-size:14px;line-height:1.5}.field{margin-bottom:16px}.field label{display:block;margin-bottom:7px;font-size:13px;color:var(--green2);font-weight:700}.field input{width:100%;border:1px solid var(--border2);background:#071a12;color:var(--text);border-radius:10px;padding:12px 13px;outline:none}.field input:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(105,221,160,.08)}button{font:inherit;cursor:pointer}.primary{width:100%;border:0;border-radius:10px;padding:13px 16px;background:var(--green);color:#06130d;font-weight:900}.primary:disabled{opacity:.7;cursor:wait}.links{display:flex;justify-content:space-between;margin-top:16px}.link{border:0;background:none;color:var(--green2);font-size:13px}.message{display:none;padding:11px 13px;border-radius:9px;margin-bottom:16px;font-size:13px;line-height:1.45}.message.show{display:block}.error{background:rgba(255,133,133,.08);border:1px solid rgba(255,133,133,.25);color:#ffb0b0}.success{background:rgba(105,221,160,.08);border:1px solid rgba(105,221,160,.25);color:var(--green2)}
+</style>
 </head>
 <body>
-  <script>
-    window.location.replace('/dashboard.html');
-  </script>
-  <p>Opening Goalie Analytics…</p>
+<div class="shell"><div class="brand"><div class="mark">GA</div><h1>Goalie Analytics</h1><p>Performance analytics platform</p></div><div class="card"><h2>Welcome back</h2><p class="sub">Sign in to access your goalie analytics dashboard.</p><div id="message" class="message"></div><div class="field"><label for="email">Email</label><input id="email" type="email" autocomplete="email" placeholder="you@example.com"></div><div class="field"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password" placeholder="Password"></div><button id="signIn" class="primary" type="button">Sign In</button><div class="links"><button id="signup" class="link" type="button">Create account</button><button id="forgot" class="link" type="button">Forgot password?</button></div></div></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL='https://iiuqxxrrruvwvfehrzic.supabase.co';const SUPABASE_KEY='sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ';const client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'goalie-analytics-auth'}});const msg=document.getElementById('message'),btn=document.getElementById('signIn');function show(text,type='error'){msg.textContent=text;msg.className='message show '+type}btn.addEventListener('click',async()=>{const email=document.getElementById('email').value.trim(),password=document.getElementById('password').value;if(!email||!password){show('Please enter your email and password.');return}btn.disabled=true;btn.textContent='Signing in...';try{const {data,error}=await client.auth.signInWithPassword({email,password});if(error)throw error;if(!data.session)throw new Error('Login succeeded but no session was returned.');await client.auth.setSession({access_token:data.session.access_token,refresh_token:data.session.refresh_token});window.location.href='/dashboard.html'}catch(e){show(e?.message||'Unable to sign in.');btn.disabled=false;btn.textContent='Sign In'}});document.getElementById('forgot').addEventListener('click',async()=>{const email=document.getElementById('email').value.trim();if(!email){show('Enter your email first.');return}const {error}=await client.auth.resetPasswordForEmail(email,{redirectTo:window.location.origin});if(error)show(error.message);else show('Password reset instructions sent to your email.','success')});document.getElementById('signup').addEventListener('click',()=>show('Account creation is coming next. For now, use an existing account to sign in.'));
+</script>
 </body>
 </html>
