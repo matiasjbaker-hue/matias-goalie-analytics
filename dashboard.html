@@ -2469,48 +2469,30 @@
 
     async function initializeAuth(){
 
-      const {
-        data
-      } =
-        await supabase.auth.getSession();
-
-
-      if(data && data.session){
-
-        await handleAuthenticatedUser(
-          data.session.user
-        );
-
-      } else {
-
-        document
-          .getElementById("authScreen")
-          .classList.remove("hidden");
-
-        document
-          .getElementById("app")
-          .classList.add("hidden");
-
-      }
-
-
-      supabase.auth.onAuthStateChange(
-        async (event, session) => {
-
-          if(session && session.user){
-
-            currentUser =
-              session.user;
-
-          }
-
-        }
-      );
-
+  supabase.auth.onAuthStateChange(async (event, session) => {
+    if(session && session.user && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')){
+      currentUser = session.user;
+      await handleAuthenticatedUser(session.user);
     }
+  });
 
+  const { data, error } = await supabase.auth.getSession();
 
-    async function handleAuthenticatedUser(user){
+  if(error){
+    console.error('Auth session error:', error);
+  }
+
+  if(data && data.session && data.session.user){
+    await handleAuthenticatedUser(data.session.user);
+    return;
+  }
+
+  document.getElementById('authScreen').classList.remove('hidden');
+  document.getElementById('app').classList.add('hidden');
+  showLogin();
+}
+
+async function handleAuthenticatedUser(user){
 
       currentUser = user;
 
