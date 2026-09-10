@@ -2,7 +2,7 @@
   const SUPABASE_URL = 'https://iiuqxxrrruvwvfehrzic.supabase.co';
   const SUPABASE_KEY = 'sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ';
   let client = null;
-  let handlingSession = false;
+  let signingIn = false;
 
   function getClient() {
     if (!client) {
@@ -24,29 +24,12 @@
     }
   }
 
-  async function showAuthenticatedApp(user) {
-    if (!user || handlingSession) return;
-    handlingSession = true;
-    try {
-      if (typeof window.handleAuthenticatedUser === 'function') {
-        await window.handleAuthenticatedUser(user);
-      } else {
-        window.location.reload();
-      }
-    } catch (error) {
-      console.error('Authenticated app error:', error);
-      showError(error && error.message ? error.message : 'Unable to load your dashboard.');
-    } finally {
-      handlingSession = false;
-    }
-  }
-
   async function signIn() {
-    const email = document.getElementById('loginEmail') || document.querySelector('#authScreen input[type="email"]') || document.querySelector('input[type="email"]');
-    const password = document.getElementById('loginPassword') || document.querySelector('#authScreen input[type="password"]') || document.querySelector('input[type="password"]');
-    const button = document.getElementById('loginButton') || Array.from(document.querySelectorAll('button')).find(function (b) {
-      return b.textContent.trim().toLowerCase() === 'sign in';
-    });
+    if (signingIn) return;
+
+    const email = document.getElementById('loginEmail');
+    const password = document.getElementById('loginPassword');
+    const button = document.getElementById('loginButton');
 
     if (!email || !password) {
       showError('Login fields could not be found.');
@@ -61,14 +44,15 @@
       return;
     }
 
+    signingIn = true;
+
     if (button) {
       button.disabled = true;
       button.textContent = 'Signing in...';
     }
 
     try {
-      const authClient = getClient();
-      const result = await authClient.auth.signInWithPassword({
+      const result = await getClient().auth.signInWithPassword({
         email: emailValue,
         password: passwordValue
       });
@@ -78,48 +62,41 @@
         throw new Error('Sign-in succeeded, but no active session was returned.');
       }
 
-      await showAuthenticatedApp(result.data.user);
+      // Do NOT call the dashboard handler here. The original page has its own
+      // auth startup sequence. A clean reload lets that sequence read the newly
+      // persisted Supabase session without racing the sign-in request.
+      window.location.reload();
     } catch (error) {
       console.error('Sign-in error:', error);
-      showError(error && error.message ? error.message : 'Unable to sign in. Please try again.');
-    } finally {
+      signingIn = false;
       if (button) {
         button.disabled = false;
         button.textContent = 'Sign In';
       }
+      showError(error && error.message ? error.message : 'Unable to sign in. Please try again.');
     }
   }
 
+  // Replace the inline login handler with this single handler.
   window.login = signIn;
 
-  try {
-    getClient().auth.onAuthStateChange(function (event, session) {
-      if (session && session.user && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED')) {
-        setTimeout(function () {
-          showAuthenticatedApp(session.user);
-        }, 0);
-      }
-    });
-  } catch (error) {
-    console.error('Auth listener setup error:', error);
-  }
-
+  // Capture only the actual Sign In button. Inputs remain completely untouched,
+  // so typing/clicking into the fields cannot be intercepted by this script.
   document.addEventListener('click', function (event) {
-    const button = event.target.closest ? event.target.closest('button') : null;
+    const button = event.target.closest ? event.target.closest('#loginButton') : null;
     if (!button) return;
-    if (button.id === 'loginButton' || button.textContent.trim().toLowerCase() === 'sign in') {
-      event.preventDefault();
-      event.stopPropagation();
-      signIn();
-    }
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    signIn();
   }, true);
 
   document.addEventListener('keydown', function (event) {
     if (event.key !== 'Enter') return;
     const active = document.activeElement;
-    if (active && (active.type === 'email' || active.type === 'password' || active.id === 'loginEmail' || active.id === 'loginPassword')) {
-      event.preventDefault();
-      signIn();
-    }
-  });
+    if (!active) return;
+    if (active.id !== 'loginEmail' && active.id !== 'loginPassword') return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    signIn();
+  }, true);
 })();
