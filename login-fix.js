@@ -92,7 +92,6 @@
 
   window.login = signIn;
 
-  // Keep the login screen and dashboard synchronized with the Supabase session.
   try {
     getClient().auth.onAuthStateChange(function (event, session) {
       if (session && session.user && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED')) {
