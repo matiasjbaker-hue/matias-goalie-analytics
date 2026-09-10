@@ -127,6 +127,77 @@ nav button.active{
   color:#fff;
 }
 
+.nav-dropdown{
+  position:relative;
+}
+
+.nav-dropdown-toggle{
+  border:0;
+  background:transparent;
+  color:#8da99d;
+  padding:11px 15px;
+  border-radius:7px;
+  cursor:pointer;
+  white-space:nowrap;
+  transition:.15s;
+  font:inherit;
+}
+
+.nav-dropdown-toggle:hover{
+  background:#123126;
+  color:#fff;
+}
+
+.nav-dropdown-toggle.active{
+  background:#1a5139;
+  color:#fff;
+}
+
+.nav-dropdown-menu{
+  display:none;
+  position:absolute;
+  top:100%;
+  left:0;
+  margin-top:4px;
+  background:#0c261c;
+  border:1px solid var(--border2);
+  border-radius:9px;
+  padding:6px;
+  min-width:190px;
+  box-shadow:0 12px 30px rgba(0,0,0,.35);
+  z-index:20;
+}
+
+.nav-dropdown.open .nav-dropdown-menu{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+
+.nav-dropdown-menu button{
+  border:0;
+  background:transparent;
+  color:#c7d9ce;
+  padding:9px 12px;
+  border-radius:6px;
+  cursor:pointer;
+  text-align:left;
+  font-size:13px;
+  white-space:nowrap;
+  font:inherit;
+}
+
+.nav-dropdown-menu button:hover{
+  background:#123126;
+  color:#fff;
+}
+
+.nav-dropdown-menu button.active{
+  background:#1a5139;
+  color:#fff;
+  font-weight:700;
+}
+
 main{
   max-width:1500px;
   margin:auto;
@@ -1200,29 +1271,41 @@ tr:hover td{
       Overview
     </button>
 
-    <button onclick="showTab('gamelog',this)">
-      Game Log
-    </button>
+    <div class="nav-dropdown" id="stats-dropdown">
 
-    <button onclick="showTab('periods',this)">
-      Period Breakdown
-    </button>
+      <button type="button" class="nav-dropdown-toggle" id="stats-toggle-btn" onclick="toggleNavDropdown(event)">
+        Stats ▾
+      </button>
 
-    <button onclick="showTab('situational',this)">
-      Situational
-    </button>
+      <div class="nav-dropdown-menu">
 
-    <button onclick="showTab('control',this)">
-      Rebound Control
-    </button>
+        <button onclick="selectStatsTab('gamelog',this)">
+          Game Log
+        </button>
 
-    <button onclick="showTab('incremental',this)">
-      Incremental Stats
-    </button>
+        <button onclick="selectStatsTab('periods',this)">
+          Period Breakdown
+        </button>
 
-    <button onclick="showTab('puckplaying',this)">
-      Puck Playing
-    </button>
+        <button onclick="selectStatsTab('situational',this)">
+          Situational
+        </button>
+
+        <button onclick="selectStatsTab('control',this)">
+          Rebound Control
+        </button>
+
+        <button onclick="selectStatsTab('incremental',this)">
+          Incremental Stats
+        </button>
+
+        <button onclick="selectStatsTab('puckplaying',this)">
+          Puck Playing
+        </button>
+
+      </div>
+
+    </div>
 
     <button onclick="showTab('livetag',this)">
       Live Tag
@@ -3982,6 +4065,53 @@ function showTab(id,button){
   },50);
 
 }
+
+
+function toggleNavDropdown(e){
+
+  e.stopPropagation();
+
+  document
+    .getElementById("stats-dropdown")
+    .classList.toggle("open");
+
+}
+
+
+function closeNavDropdown(){
+
+  document
+    .getElementById("stats-dropdown")
+    .classList.remove("open");
+
+}
+
+
+function selectStatsTab(id, btn){
+
+  showTab(id, document.getElementById("stats-toggle-btn"));
+
+  document
+    .querySelectorAll("#stats-dropdown .nav-dropdown-menu button")
+    .forEach(b => b.classList.remove("active"));
+
+  btn.classList.add("active");
+
+  closeNavDropdown();
+
+}
+
+
+document.addEventListener("click", function(e){
+
+  const dropdown =
+    document.getElementById("stats-dropdown");
+
+  if(dropdown && !dropdown.contains(e.target)){
+    dropdown.classList.remove("open");
+  }
+
+});
 
 
 /* ============================================================
