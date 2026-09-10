@@ -7,6 +7,7 @@
 <title>Matias Baker | Goalie Analytics</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 
 <style>
 
@@ -545,10 +546,251 @@ tr:hover td{
 
 }
 
+
+/* =========================================================
+   AUTH / CLIENT PORTAL
+========================================================= */
+
+.auth-screen{
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:30px;
+  background:
+    radial-gradient(circle at top right,rgba(40,96,71,.14),transparent 30%),
+    var(--bg);
+}
+
+.auth-card{
+  width:100%;
+  max-width:380px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(16,45,34,.92),
+      rgba(10,31,23,.96)
+    );
+  border:1px solid var(--border);
+  border-radius:13px;
+  padding:32px 28px;
+  box-shadow:0 10px 30px rgba(0,0,0,.13);
+}
+
+.auth-brand{
+  text-align:center;
+  margin-bottom:22px;
+}
+
+.auth-brand h1{
+  margin:0;
+  font-size:24px;
+  letter-spacing:-.5px;
+}
+
+.auth-brand p{
+  margin:6px 0 0;
+  color:var(--muted);
+  font-size:13px;
+}
+
+.auth-form{
+  display:flex;
+  flex-direction:column;
+}
+
+.auth-form label{
+  font-size:13px;
+  color:var(--muted);
+  margin-top:12px;
+  margin-bottom:6px;
+}
+
+.auth-form input{
+  background:#0c261c;
+  border:1px solid var(--border2);
+  border-radius:7px;
+  padding:10px 12px;
+  color:var(--text);
+  font-size:14px;
+  font-family:inherit;
+}
+
+.auth-form input:focus{
+  outline:none;
+  border-color:var(--green);
+}
+
+.auth-btn{
+  margin-top:20px;
+  border:0;
+  background:#1a5139;
+  color:#fff;
+  padding:11px 15px;
+  border-radius:7px;
+  cursor:pointer;
+  font-weight:700;
+  font-size:14px;
+  transition:.15s;
+}
+
+.auth-btn:hover{
+  background:#22684a;
+}
+
+.auth-btn:disabled{
+  opacity:.6;
+  cursor:default;
+}
+
+.auth-links{
+  display:flex;
+  justify-content:space-between;
+  margin-top:16px;
+  font-size:13px;
+}
+
+.auth-links a{
+  color:var(--green2);
+  text-decoration:none;
+  cursor:pointer;
+}
+
+.auth-links a:hover{
+  text-decoration:underline;
+}
+
+.auth-error{
+  background:rgba(255,133,133,.12);
+  border:1px solid rgba(255,133,133,.4);
+  color:var(--red);
+  padding:10px 12px;
+  border-radius:7px;
+  font-size:13px;
+  margin-bottom:14px;
+  display:none;
+}
+
+.auth-error.visible{
+  display:block;
+}
+
+.auth-message{
+  background:rgba(105,221,160,.12);
+  border:1px solid rgba(105,221,160,.4);
+  color:var(--green2);
+  padding:10px 12px;
+  border-radius:7px;
+  font-size:13px;
+  margin-bottom:14px;
+  display:none;
+}
+
+.auth-message.visible{
+  display:block;
+}
+
+.logout-btn{
+  border:1px solid var(--border2);
+  background:transparent;
+  color:var(--muted);
+  padding:8px 14px;
+  border-radius:7px;
+  cursor:pointer;
+  font-size:13px;
+  font-family:inherit;
+}
+
+.logout-btn:hover{
+  color:#fff;
+  border-color:var(--green);
+}
+
+.user-badge{
+  color:var(--muted);
+  font-size:13px;
+  margin-right:12px;
+}
+
 </style>
 </head>
 
 <body>
+
+<!-- ========================================================= -->
+<!-- AUTH SCREEN -->
+<!-- ========================================================= -->
+
+<div id="auth-screen" class="auth-screen">
+  <div class="auth-card">
+
+    <div class="auth-brand">
+      <h1>Matias Baker</h1>
+      <p>Goaltending Analytics Platform</p>
+    </div>
+
+    <div id="auth-error" class="auth-error"></div>
+    <div id="auth-message" class="auth-message"></div>
+
+    <form id="signin-form" class="auth-form">
+      <label for="signin-email">Email</label>
+      <input type="email" id="signin-email" required autocomplete="email">
+
+      <label for="signin-password">Password</label>
+      <input type="password" id="signin-password" required autocomplete="current-password">
+
+      <button type="submit" class="auth-btn">Sign In</button>
+
+      <div class="auth-links">
+        <a onclick="showAuthView('signup');return false;">Create an account</a>
+        <a onclick="showAuthView('reset');return false;">Forgot password?</a>
+      </div>
+    </form>
+
+    <form id="signup-form" class="auth-form" style="display:none">
+      <label for="signup-name">Name</label>
+      <input type="text" id="signup-name" required autocomplete="name">
+
+      <label for="signup-email">Email</label>
+      <input type="email" id="signup-email" required autocomplete="email">
+
+      <label for="signup-password">Password</label>
+      <input type="password" id="signup-password" required autocomplete="new-password" minlength="6">
+
+      <button type="submit" class="auth-btn">Create Account</button>
+
+      <div class="auth-links">
+        <a onclick="showAuthView('signin');return false;">Back to sign in</a>
+      </div>
+    </form>
+
+    <form id="reset-form" class="auth-form" style="display:none">
+      <label for="reset-email">Email</label>
+      <input type="email" id="reset-email" required autocomplete="email">
+
+      <button type="submit" class="auth-btn">Send Reset Link</button>
+
+      <div class="auth-links">
+        <a onclick="showAuthView('signin');return false;">Back to sign in</a>
+      </div>
+    </form>
+
+    <form id="newpassword-form" class="auth-form" style="display:none">
+      <label for="newpassword-password">New Password</label>
+      <input type="password" id="newpassword-password" required autocomplete="new-password" minlength="6">
+
+      <button type="submit" class="auth-btn">Update Password</button>
+    </form>
+
+  </div>
+</div>
+
+
+<!-- ========================================================= -->
+<!-- APP (existing dashboard, unchanged below) -->
+<!-- ========================================================= -->
+
+<div id="app-shell" style="display:none">
 
 <header>
 
@@ -560,6 +802,12 @@ tr:hover td{
     </div>
 
     <div class="header-right">
+
+      <span id="user-email-badge" class="user-badge"></span>
+
+      <button class="logout-btn" onclick="handleLogout()">
+        Log out
+      </button>
 
       <div class="season-badge">
         2026 PRESEASON
@@ -1751,6 +1999,9 @@ tr:hover td{
 
 </main>
 
+</div>
+<!-- /#app-shell -->
+
 
 <script>
 
@@ -1766,6 +2017,12 @@ const SUPABASE_KEY =
 
 const CURRENT_SEASON =
   "2026 preseason";
+
+const supabaseClient =
+  window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_KEY
+  );
 
 
 /* ============================================================
@@ -1793,13 +2050,17 @@ let charts = {};
 
 async function q(table){
 
+  const accessToken =
+    (currentSession && currentSession.access_token) ||
+    SUPABASE_KEY;
+
   const response =
     await fetch(
       `${SUPABASE_URL}/rest/v1/${encodeURIComponent(table)}?select=*`,
       {
         headers:{
           apikey:SUPABASE_KEY,
-          Authorization:`Bearer ${SUPABASE_KEY}`
+          Authorization:`Bearer ${accessToken}`
         }
       }
     );
@@ -5941,6 +6202,293 @@ function getShotsForGames(gameList){
 
 
 /* ============================================================
+   AUTH
+============================================================ */
+
+let currentSession = null;
+
+
+function showAuthView(view){
+
+  document.getElementById("signin-form").style.display =
+    view === "signin" ? "flex" : "none";
+
+  document.getElementById("signup-form").style.display =
+    view === "signup" ? "flex" : "none";
+
+  document.getElementById("reset-form").style.display =
+    view === "reset" ? "flex" : "none";
+
+  document.getElementById("newpassword-form").style.display =
+    view === "newpassword" ? "flex" : "none";
+
+  hideAuthMessages();
+
+}
+
+
+function hideAuthMessages(){
+
+  const err = document.getElementById("auth-error");
+  const msg = document.getElementById("auth-message");
+
+  err.classList.remove("visible");
+  msg.classList.remove("visible");
+
+  err.textContent = "";
+  msg.textContent = "";
+
+}
+
+
+function showAuthError(message){
+
+  const err = document.getElementById("auth-error");
+
+  err.textContent = message;
+  err.classList.add("visible");
+
+}
+
+
+function showAuthMessage(message){
+
+  const msg = document.getElementById("auth-message");
+
+  msg.textContent = message;
+  msg.classList.add("visible");
+
+}
+
+
+function showApp(){
+
+  document.getElementById("auth-screen").style.display = "none";
+  document.getElementById("app-shell").style.display = "block";
+
+}
+
+
+function showAuthScreen(){
+
+  document.getElementById("app-shell").style.display = "none";
+  document.getElementById("auth-screen").style.display = "flex";
+
+  showAuthView("signin");
+
+}
+
+
+function refreshUserBadge(){
+
+  const badge = document.getElementById("user-email-badge");
+
+  if(badge && currentSession && currentSession.user){
+    badge.textContent = currentSession.user.email;
+  }
+
+}
+
+
+document.getElementById("signin-form")
+  .addEventListener("submit", async function(e){
+
+    e.preventDefault();
+    hideAuthMessages();
+
+    const email =
+      document.getElementById("signin-email").value.trim();
+
+    const password =
+      document.getElementById("signin-password").value;
+
+    const btn = e.target.querySelector("button");
+    btn.disabled = true;
+
+    const { data, error } =
+      await supabaseClient.auth.signInWithPassword({
+        email,
+        password
+      });
+
+    btn.disabled = false;
+
+    if(error){
+      showAuthError(error.message);
+      return;
+    }
+
+    currentSession = data.session;
+    refreshUserBadge();
+    showApp();
+    loadDashboard();
+
+  });
+
+
+document.getElementById("signup-form")
+  .addEventListener("submit", async function(e){
+
+    e.preventDefault();
+    hideAuthMessages();
+
+    const name =
+      document.getElementById("signup-name").value.trim();
+
+    const email =
+      document.getElementById("signup-email").value.trim();
+
+    const password =
+      document.getElementById("signup-password").value;
+
+    const btn = e.target.querySelector("button");
+    btn.disabled = true;
+
+    const { data, error } =
+      await supabaseClient.auth.signUp({
+        email,
+        password,
+        options:{
+          data:{ name }
+        }
+      });
+
+    btn.disabled = false;
+
+    if(error){
+      showAuthError(error.message);
+      return;
+    }
+
+    if(data.session){
+
+      currentSession = data.session;
+      refreshUserBadge();
+      showApp();
+      loadDashboard();
+
+    }
+    else{
+
+      showAuthView("signin");
+      showAuthMessage(
+        "Account created. Check your email to confirm, then sign in."
+      );
+
+    }
+
+  });
+
+
+document.getElementById("reset-form")
+  .addEventListener("submit", async function(e){
+
+    e.preventDefault();
+    hideAuthMessages();
+
+    const email =
+      document.getElementById("reset-email").value.trim();
+
+    const btn = e.target.querySelector("button");
+    btn.disabled = true;
+
+    const { error } =
+      await supabaseClient.auth.resetPasswordForEmail(
+        email,
+        {
+          redirectTo:
+            window.location.origin + window.location.pathname
+        }
+      );
+
+    btn.disabled = false;
+
+    if(error){
+      showAuthError(error.message);
+      return;
+    }
+
+    showAuthView("signin");
+    showAuthMessage(
+      "Password reset email sent. Check your inbox."
+    );
+
+  });
+
+
+document.getElementById("newpassword-form")
+  .addEventListener("submit", async function(e){
+
+    e.preventDefault();
+    hideAuthMessages();
+
+    const password =
+      document.getElementById("newpassword-password").value;
+
+    const btn = e.target.querySelector("button");
+    btn.disabled = true;
+
+    const { error } =
+      await supabaseClient.auth.updateUser({ password });
+
+    btn.disabled = false;
+
+    if(error){
+      showAuthError(error.message);
+      return;
+    }
+
+    showAuthMessage("Password updated. You're signed in.");
+    showApp();
+    loadDashboard();
+
+  });
+
+
+async function handleLogout(){
+
+  await supabaseClient.auth.signOut();
+  currentSession = null;
+  showAuthScreen();
+
+}
+
+
+supabaseClient.auth.onAuthStateChange(function(event, session){
+
+  if(event === "PASSWORD_RECOVERY"){
+    currentSession = session;
+    showAuthScreen();
+    showAuthView("newpassword");
+  }
+
+});
+
+
+async function initAuth(){
+
+  const { data } =
+    await supabaseClient.auth.getSession();
+
+  currentSession = data.session;
+
+  if(currentSession){
+
+    refreshUserBadge();
+    showApp();
+    loadDashboard();
+
+  }
+  else{
+
+    showAuthScreen();
+
+  }
+
+}
+
+
+/* ============================================================
    LOAD DASHBOARD
 ============================================================ */
 
@@ -6191,7 +6739,7 @@ window.debugReboundControl =
    START
 ============================================================ */
 
-loadDashboard();
+initAuth();
 
 </script>
 
