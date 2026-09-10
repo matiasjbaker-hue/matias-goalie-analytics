@@ -15,93 +15,37 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Repair login script
+      - name: Repair malformed login block
         shell: python
         run: |
           from pathlib import Path
-          import re
 
           path = Path("index.html")
           text = path.read_text(encoding="utf-8")
+
           marker = "<!-- ROBUST_LOGIN_OVERRIDE -->"
+          if marker not in text:
+              print("Login marker not found; nothing to repair.")
+              raise SystemExit(0)
 
-          script = '''  <!-- ROBUST_LOGIN_OVERRIDE -->
-  <script>
-    window.login = async function login(){
-      const emailEl = document.getElementById("loginEmail");
-      const passwordEl = document.getElementById("loginPassword");
-      const button = document.getElementById("loginButton");
-      const message = document.getElementById("authMessage");
-      const email = emailEl ? emailEl.value.trim() : "";
-      const password = passwordEl ? passwordEl.value : "";
+          marker_pos = text.find(marker)
+          script_start = text.rfind("<script", 0, marker_pos)
+          script_end = text.find("</script>", marker_pos)
 
-      if(message){
-        message.className = "auth-message";
-        message.textContent = "";
-      }
+          if script_start == -1 or script_end == -1:
+              raise SystemExit("Could not locate login override script.")
 
-      if(!email || !password){
-        if(message){
-          message.className = "auth-message show error";
-          message.textContent = "Please enter your email and password.";
-        }
-        return;
-      }
+          script_end += len("</script>")
+          block = text[script_start:script_end]
 
-      if(button){
-        button.disabled = true;
-        button.textContent = "Signing in...";
-      }
+          # The previous patch accidentally stored literal backslash-n characters.
+          # Convert those escape sequences into real newlines.
+          repaired = block.replace("\\n", "\n")
+          repaired = repaired.replace("\\\"", "\"")
 
-      try{
-        if(!window.supabase || !window.supabase.createClient){
-          throw new Error("Supabase failed to load. Please refresh the page and try again.");
-        }
-
-        const client = window.supabase.createClient(
-          "https://iiuqxxrrruvwvfehrzic.supabase.co",
-          "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ"
-        );
-
-        const { data, error } = await client.auth.signInWithPassword({ email, password });
-        if(error) throw error;
-
-        if(!data || !data.session || !data.user){
-          throw new Error("Sign-in succeeded, but no active session was returned. Check your email confirmation if this is a new account.");
-        }
-
-        if(typeof window.handleAuthenticatedUser === "function"){
-          await window.handleAuthenticatedUser(data.user);
-        }else{
-          window.location.reload();
-        }
-      }catch(error){
-        console.error("Sign-in error:", error);
-        if(message){
-          message.className = "auth-message show error";
-          message.textContent = error && error.message ? error.message : "Unable to sign in. Please try again.";
-        }
-      }finally{
-        if(button){
-          button.disabled = false;
-          button.textContent = "Sign In";
-        }
-      }
-    };
-  </script>'''
-
-          if marker in text:
-              start = text.find("<!-- ROBUST_LOGIN_OVERRIDE -->")
-              script_start = text.rfind("<script", 0, start)
-              end = text.find("</script>", start)
-              if script_start == -1 or end == -1:
-                  raise SystemExit("Could not locate malformed login override")
-              end += len("</script>")
-              text = text[:script_start] + script + text[end:]
-          else:
-              text = text.replace("</body>", script + "\n</body>", 1)
-
+          text = text[:script_start] + repaired + text[script_end:]
           path.write_text(text, encoding="utf-8")
+          print("Repaired login block.")
 
       - name: Commit repaired index
         shell: bash
@@ -113,5 +57,5 @@ jobs:
             echo "No index changes needed."
             exit 0
           fi
-          git commit -m "fix: repair malformed sign-in script"
+          git commit -m "fix: convert malformed login script to valid javascript"
           git push
