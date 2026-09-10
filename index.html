@@ -6603,7 +6603,40 @@ window.initializeAuth = async function(){
 };
 </script>
 
-    initializeAuth();
+
+<script>
+async function safeInitializeAuth(){
+  let sessionSeen = false;
+
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (session && session.user) {
+      sessionSeen = true;
+      currentUser = session.user;
+    } else if (event === "SIGNED_OUT") {
+      currentUser = null;
+      currentProfile = null;
+      document.getElementById("app").classList.add("hidden");
+      document.getElementById("authScreen").classList.remove("hidden");
+      if (typeof showLogin === "function") showLogin();
+    }
+  });
+
+  const { data, error } = await supabase.auth.getSession();
+  if (error) {
+    console.error("Auth session error:", error);
+  }
+
+  if (data && data.session) {
+    currentUser = data.session.user;
+    await handleAuthenticatedUser(data.session.user);
+  } else if (!sessionSeen && !currentUser) {
+    document.getElementById("authScreen").classList.remove("hidden");
+    document.getElementById("app").classList.add("hidden");
+  }
+}
+</script>
+
+    safeInitializeAuth();
 
   </script>
 
@@ -6682,6 +6715,6 @@ window.initializeAuth = async function(){
 
 
 
-<script src="login-fix.js"></script>
+
 </body>
 </html>
