@@ -2,48 +2,53 @@ name: Repair authentication
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
   contents: write
 
 jobs:
-  repair:
+  patch:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Patch login
-        shell: bash
+      - name: Install isolated login fallback
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
-          p = Path('index.html')
-          s = p.read_text(encoding='utf-8')
+          path = Path('index.html')
+          html = path.read_text(encoding='utf-8')
           marker = '<!-- ISOLATED_AUTH_FALLBACK -->'
 
-          if marker not in s:
-              fallback = r'''<!-- ISOLATED_AUTH_FALLBACK -->
+          if marker in html:
+              print('Fallback already installed')
+              raise SystemExit(0)
+
+          fallback = '''
+<!-- ISOLATED_AUTH_FALLBACK -->
 <script>
 (function () {
-  const URL = "https://iiuqxxrrruvwvfehrzic.supabase.co";
-  const KEY = "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
+  const SUPABASE_URL = 'https://iiuqxxrrruvwvfehrzic.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ';
 
-  function client() {
-    if (window.supabaseClient) return window.supabaseClient;
-    if (!window.supabase || !window.supabase.createClient) return null;
-    window.supabaseClient = window.supabase.createClient(URL, KEY);
-    return window.supabaseClient;
+  function getClient() {
+    if (window.__authSupabaseClient) return window.__authSupabaseClient;
+    if (!window.supabase || typeof window.supabase.createClient !== 'function') {
+      throw new Error('Authentication service did not load. Please refresh the page.');
+    }
+    window.__authSupabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    return window.__authSupabaseClient;
   }
 
   window.login = async function () {
-    const email = (document.getElementById('loginEmail') || {}).value?.trim() || '';
-    const password = (document.getElementById('loginPassword') || {}).value || '';
+    const emailEl = document.getElementById('loginEmail');
+    const passwordEl = document.getElementById('loginPassword');
     const button = document.getElementById('loginButton');
     const message = document.getElementById('authMessage');
+    const email = emailEl ? emailEl.value.trim() : '';
+    const password = passwordEl ? passwordEl.value : '';
 
     if (!email || !password) {
       if (message) {
@@ -59,22 +64,24 @@ jobs:
     }
 
     try {
-      const sb = client();
-      if (!sb) throw new Error('Authentication service did not load. Please refresh the page.');
-      const { data, error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      if (data?.user) {
-        document.getElementById('authScreen')?.classList.add('hidden');
-        document.getElementById('app')?.classList.remove('hidden');
-        const badge = document.getElementById('userEmailBadge');
-        if (badge) badge.textContent = data.user.email || '';
-        if (typeof window.handleAuthenticatedUser === 'function') {
-          await window.handleAuthenticatedUser(data.user);
-        }
+      const client = getClient();
+      const result = await client.auth.signInWithPassword({ email, password });
+      if (result.error) throw result.error;
+      if (!result.data || !result.data.user) throw new Error('Sign in completed but no user was returned.');
+
+      const authScreen = document.getElementById('authScreen');
+      const app = document.getElementById('app');
+      const badge = document.getElementById('userEmailBadge');
+      if (authScreen) authScreen.classList.add('hidden');
+      if (app) app.classList.remove('hidden');
+      if (badge) badge.textContent = result.data.user.email || '';
+
+      if (typeof window.handleAuthenticatedUser === 'function') {
+        await window.handleAuthenticatedUser(result.data.user);
       }
-    } catch (e) {
+    } catch (error) {
       if (message) {
-        message.textContent = e?.message || 'Unable to sign in.';
+        message.textContent = error && error.message ? error.message : 'Unable to sign in.';
         message.className = 'auth-message show error';
       }
     } finally {
@@ -83,20 +90,19 @@ jobs:
         button.textContent = 'Sign In';
       }
     }
+
     return false;
   };
 })();
 </script>
 '''
-              s = s.replace('</body>', fallback + '</body>', 1)
-              p.write_text(s, encoding='utf-8')
-              print('Installed isolated authentication fallback')
-          else:
-              print('Fallback already present')
+
+          html = html.replace('</body>', fallback + '</body>', 1)
+          path.write_text(html, encoding='utf-8')
+          print('Installed isolated authentication fallback')
           PY
 
       - name: Commit patch
-        shell: bash
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
