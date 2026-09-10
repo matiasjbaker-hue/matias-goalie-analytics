@@ -77,8 +77,52 @@ jobs:
           if count != 1:
               raise SystemExit('Could not find dashboard auth functions')
 
-          p.write_text(patched, encoding='utf-8')
-          print('dashboard auth initialization and storage key patched')
+          s = patched
+
+          # Add a completely independent login fallback at the end of the page.
+          # This still works if an earlier dashboard script throws before defining login().
+          marker = '<!-- AUTH-FALLBACK-20260910 -->'
+          if marker not in s:
+              fallback = r'''\n<!-- AUTH-FALLBACK-20260910 -->
+<script>
+(function(){
+  const URL='https://iiuqxxrrruvwvfehrzic.supabase.co';
+  const KEY='sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ';
+  const STORAGE='goalie-analytics-auth';
+  function boot(){
+    if(!window.supabase || !window.supabase.createClient){ return; }
+    const client=window.supabase.createClient(URL,KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:STORAGE}});
+    const button=document.getElementById('loginButton');
+    if(!button) return;
+    button.onclick=async function(e){
+      if(e) e.preventDefault();
+      const email=(document.getElementById('loginEmail')||{}).value?.trim()||'';
+      const password=(document.getElementById('loginPassword')||{}).value||'';
+      const message=document.getElementById('loginMessage');
+      const show=(text,type='error')=>{if(message){message.textContent=text;message.className='auth-message show '+type;}};
+      if(!email||!password){show('Please enter your email and password.');return false;}
+      button.disabled=true;button.textContent='Signing in...';
+      try{
+        const {data,error}=await client.auth.signInWithPassword({email,password});
+        if(error) throw error;
+        if(!data?.session) throw new Error('No login session was returned.');
+        await client.auth.setSession({access_token:data.session.access_token,refresh_token:data.session.refresh_token});
+        window.location.replace('/dashboard.html?auth=1');
+      }catch(err){
+        show(err?.message||'Unable to sign in.');
+        button.disabled=false;button.textContent='Sign In';
+      }
+      return false;
+    };
+  }
+  if(window.supabase) boot(); else window.addEventListener('load',boot);
+})();
+</script>
+'''
+              s = s.replace('</body>', fallback + '</body>')
+
+          p.write_text(s, encoding='utf-8')
+          print('dashboard auth patched with independent login fallback')
           PY
 
       - name: Commit patch
@@ -87,5 +131,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add dashboard.html
           git diff --cached --quiet && exit 0
-          git commit -m "Use shared Supabase auth storage key"
+          git commit -m "Add independent login fallback"
           git push
