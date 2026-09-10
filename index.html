@@ -6566,150 +6566,20 @@
     }
 
 
+    window.login = login;
+    window.handleAuthenticatedUser = handleAuthenticatedUser;
+    window.logout = logout;
+    window.signup = signup;
+    window.resetPassword = resetPassword;
+
     /* =========================================================
        START
     ========================================================== */
 
 
-/* Prevent the initial getSession() check from racing with sign-in. */
-window.__safeAuthInitialized = true;
-window.initializeAuth = async function(){
-  let activeSession = null;
-
-  supabase.auth.onAuthStateChange(async (event, session) => {
-    if (session && session.user) {
-      activeSession = session;
-      currentUser = session.user;
-
-      if (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") {
-        await handleAuthenticatedUser(session.user);
-      }
-    } else if (event === "SIGNED_OUT") {
-      activeSession = null;
-      currentUser = null;
-      document.getElementById("app").classList.add("hidden");
-      document.getElementById("authScreen").classList.remove("hidden");
-    }
-  });
-
-  const { data } = await supabase.auth.getSession();
-
-  if (data && data.session) {
-    activeSession = data.session;
-    await handleAuthenticatedUser(data.session.user);
-  } else if (!activeSession && !currentUser) {
-    document.getElementById("authScreen").classList.remove("hidden");
-    document.getElementById("app").classList.add("hidden");
-  }
-};
-
-
-async function safeInitializeAuth(){
-  let sessionSeen = false;
-
-  supabase.auth.onAuthStateChange((event, session) => {
-    if (session && session.user) {
-      sessionSeen = true;
-      currentUser = session.user;
-    } else if (event === "SIGNED_OUT") {
-      currentUser = null;
-      currentProfile = null;
-      document.getElementById("app").classList.add("hidden");
-      document.getElementById("authScreen").classList.remove("hidden");
-      if (typeof showLogin === "function") showLogin();
-    }
-  });
-
-  const { data, error } = await supabase.auth.getSession();
-  if (error) {
-    console.error("Auth session error:", error);
-  }
-
-  if (data && data.session) {
-    currentUser = data.session.user;
-    await handleAuthenticatedUser(data.session.user);
-  } else if (!sessionSeen && !currentUser) {
-    document.getElementById("authScreen").classList.remove("hidden");
-    document.getElementById("app").classList.add("hidden");
-  }
-}
-
-    safeInitializeAuth();
-
+    initializeAuth();
   </script>
-
-
-
-  <!-- ROBUST_LOGIN_OVERRIDE -->
-  <script>
-    window.login = async function login(){
-      const supabase = window.supabaseClient;
-const emailEl = document.getElementById("loginEmail");
-      const passwordEl = document.getElementById("loginPassword");
-      const button = document.getElementById("loginButton");
-      const message = document.getElementById("authMessage");
-
-      const email = emailEl ? emailEl.value.trim() : "";
-      const password = passwordEl ? passwordEl.value : "";
-
-      if(message){
-        message.className = "auth-message";
-        message.textContent = "";
-      }
-
-      if(!email || !password){
-        if(message){
-          message.className = "auth-message show error";
-          message.textContent = "Please enter your email and password.";
-        }
-        return;
-      }
-
-      if(button){
-        button.disabled = true;
-        button.textContent = "Signing in...";
-      }
-
-      try{
-        if(!window.supabase || !window.supabase.createClient){
-          throw new Error("Supabase failed to load. Please refresh the page and try again.");
-        }
-
-        const client = window.supabase.createClient(
-          "https://iiuqxxrrruvwvfehrzic.supabase.co",
-          "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ"
-        );
-
-        const { data, error } = await client.auth.signInWithPassword({
-          email,
-          password
-        });
-
-        if(error) throw error;
-
-        if(!data || !data.session || !data.user){
-          throw new Error("Sign-in succeeded, but no active session was returned. If this is a new account, check your email for a confirmation link.");
-        }
-
-        if(typeof window.handleAuthenticatedUser === "function"){
-          await window.handleAuthenticatedUser(data.user);
-        }else{
-          window.location.reload();
-        }
-      }catch(error){
-        console.error("Sign-in error:", error);
-        if(message){
-          message.className = "auth-message show error";
-          message.textContent = error && error.message ? error.message : "Unable to sign in. Please try again.";
-        }
-      }finally{
-        if(button){
-          button.disabled = false;
-          button.textContent = "Sign In";
-        }
-      }
-    };
-  </script>\n
+\n
 
 
 
