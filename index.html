@@ -712,6 +712,162 @@ tr:hover td{
   margin-right:12px;
 }
 
+
+/* =========================================================
+   ADD GAME FORM
+========================================================= */
+
+.field-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:14px;
+}
+
+.field{
+  display:flex;
+  flex-direction:column;
+}
+
+.field label{
+  font-size:12px;
+  color:var(--muted);
+  margin-bottom:5px;
+}
+
+.field input,
+.field select,
+.field textarea{
+  background:#0c261c;
+  border:1px solid var(--border2);
+  border-radius:7px;
+  padding:9px 10px;
+  color:var(--text);
+  font-size:13px;
+  font-family:inherit;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus{
+  outline:none;
+  border-color:var(--green);
+}
+
+.field.checkbox-field{
+  flex-direction:row;
+  align-items:center;
+  gap:8px;
+}
+
+.field.checkbox-field label{
+  margin:0;
+}
+
+.repeater-row{
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:14px;
+  margin-bottom:12px;
+  position:relative;
+}
+
+.repeater-row .field-grid{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+}
+
+.repeater-remove{
+  border:1px solid var(--border2);
+  background:transparent;
+  color:var(--muted);
+  padding:5px 10px;
+  border-radius:6px;
+  cursor:pointer;
+  font-size:12px;
+  margin-top:10px;
+}
+
+.repeater-remove:hover{
+  color:var(--red);
+  border-color:var(--red);
+}
+
+.btn-secondary{
+  border:1px solid var(--border2);
+  background:transparent;
+  color:var(--green2);
+  padding:9px 14px;
+  border-radius:7px;
+  cursor:pointer;
+  font-size:13px;
+  font-weight:600;
+  font-family:inherit;
+}
+
+.btn-secondary:hover{
+  background:#123126;
+}
+
+.btn-primary{
+  border:0;
+  background:#1a5139;
+  color:#fff;
+  padding:12px 20px;
+  border-radius:7px;
+  cursor:pointer;
+  font-weight:700;
+  font-size:14px;
+  font-family:inherit;
+  transition:.15s;
+}
+
+.btn-primary:hover{
+  background:#22684a;
+}
+
+.btn-primary:disabled{
+  opacity:.6;
+  cursor:default;
+}
+
+.form-error{
+  background:rgba(255,133,133,.12);
+  border:1px solid rgba(255,133,133,.4);
+  color:var(--red);
+  padding:10px 12px;
+  border-radius:7px;
+  font-size:13px;
+  margin-bottom:14px;
+  display:none;
+}
+
+.form-error.visible{
+  display:block;
+}
+
+.form-message{
+  background:rgba(105,221,160,.12);
+  border:1px solid rgba(105,221,160,.4);
+  color:var(--green2);
+  padding:10px 12px;
+  border-radius:7px;
+  font-size:13px;
+  margin-bottom:14px;
+  display:none;
+}
+
+.form-message.visible{
+  display:block;
+}
+
+@media(max-width:750px){
+
+  .field-grid,
+  .repeater-row .field-grid{
+    grid-template-columns:1fr;
+  }
+
+}
+
 </style>
 </head>
 
@@ -850,6 +1006,10 @@ tr:hover td{
 
     <button onclick="showTab('puckplaying',this)">
       Puck Playing
+    </button>
+
+    <button onclick="showTab('addgame',this)">
+      Add Game
     </button>
 
     <button onclick="showTab('about',this)">
@@ -1923,6 +2083,252 @@ tr:hover td{
     </div>
 
   </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- ADD GAME -->
+<!-- ========================================================= -->
+
+<section id="addgame" class="tab">
+
+  <div class="page-title">
+    <h2>Add Game</h2>
+    <p>Enter a completed game and its stats. This creates the game and, if filled in, its period, shot, rebound-control, and puck-playing data.</p>
+  </div>
+
+  <div id="addgame-error" class="form-error"></div>
+  <div id="addgame-message" class="form-message"></div>
+
+  <form id="addgame-form">
+
+    <div class="section-heading">
+      <h3>Game Info</h3>
+      <p>Required for every game.</p>
+    </div>
+
+    <div class="card">
+      <div class="field-grid">
+
+        <div class="field">
+          <label for="ag-date">Date</label>
+          <input type="date" id="ag-date">
+        </div>
+
+        <div class="field">
+          <label for="ag-season">Season</label>
+          <input type="text" id="ag-season" value="2026 preseason">
+        </div>
+
+        <div class="field">
+          <label for="ag-team">Team</label>
+          <input type="text" id="ag-team">
+        </div>
+
+        <div class="field">
+          <label for="ag-opponent">Opponent</label>
+          <input type="text" id="ag-opponent" required>
+        </div>
+
+        <div class="field">
+          <label for="ag-home-away">Home / Away</label>
+          <select id="ag-home-away">
+            <option value="">—</option>
+            <option value="Home">Home</option>
+            <option value="Away">Away</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="ag-result">Result</label>
+          <select id="ag-result">
+            <option value="">—</option>
+            <option value="W">Win</option>
+            <option value="L">Loss</option>
+            <option value="OTL">OT Loss</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="ag-team-goals">Team Goals</label>
+          <input type="number" id="ag-team-goals" min="0">
+        </div>
+
+        <div class="field">
+          <label for="ag-opponent-goals">Opponent Goals</label>
+          <input type="number" id="ag-opponent-goals" min="0">
+        </div>
+
+        <div class="field">
+          <label for="ag-shots-against">Shots Against</label>
+          <input type="number" id="ag-shots-against" min="0">
+        </div>
+
+        <div class="field">
+          <label for="ag-saves">Saves</label>
+          <input type="number" id="ag-saves" min="0">
+        </div>
+
+        <div class="field">
+          <label for="ag-goals-against">Goals Against</label>
+          <input type="number" id="ag-goals-against" min="0">
+        </div>
+
+        <div class="field">
+          <label for="ag-minutes">Minutes Played</label>
+          <input type="number" id="ag-minutes" min="0" step="0.1">
+        </div>
+
+        <div class="field checkbox-field">
+          <input type="checkbox" id="ag-shutout">
+          <label for="ag-shutout">Shutout</label>
+        </div>
+
+      </div>
+
+      <div class="field" style="margin-top:14px">
+        <label for="ag-notes">Notes</label>
+        <textarea id="ag-notes" rows="2"></textarea>
+      </div>
+    </div>
+
+
+    <div class="section-heading">
+      <h3>Period Stats</h3>
+      <p>Optional. Add one row per period.</p>
+    </div>
+
+    <div id="period-rows"></div>
+
+    <button type="button" class="btn-secondary" onclick="addPeriodRow()">
+      + Add Period
+    </button>
+
+
+    <div class="section-heading">
+      <h3>Shots</h3>
+      <p>Optional. Add one row per shot faced.</p>
+    </div>
+
+    <div id="shot-rows"></div>
+
+    <button type="button" class="btn-secondary" onclick="addShotRow()">
+      + Add Shot
+    </button>
+
+
+    <div class="section-heading">
+      <h3>Rebound Control</h3>
+      <p>Optional. One summary row for the whole game.</p>
+    </div>
+
+    <div class="card">
+      <div class="field-grid">
+
+        <div class="field">
+          <label for="rc-glove-caught">Glove — Caught</label>
+          <input type="number" id="rc-glove-caught" min="0">
+        </div>
+
+        <div class="field">
+          <label for="rc-glove-rebound">Glove — Rebound</label>
+          <input type="number" id="rc-glove-rebound" min="0">
+        </div>
+
+        <div class="field">
+          <label for="rc-glove-goal">Glove — Goal</label>
+          <input type="number" id="rc-glove-goal" min="0">
+        </div>
+
+        <div class="field">
+          <label for="rc-blocker-good">Blocker — Good</label>
+          <input type="number" id="rc-blocker-good" min="0">
+        </div>
+
+        <div class="field">
+          <label for="rc-blocker-bad">Blocker — Bad</label>
+          <input type="number" id="rc-blocker-bad" min="0">
+        </div>
+
+        <div class="field">
+          <label for="rc-blocker-goal">Blocker — Goal</label>
+          <input type="number" id="rc-blocker-goal" min="0">
+        </div>
+
+        <div class="field">
+          <label for="rc-midsection-good">Midsection — Good</label>
+          <input type="number" id="rc-midsection-good" min="0">
+        </div>
+
+        <div class="field">
+          <label for="rc-midsection-bad">Midsection — Bad</label>
+          <input type="number" id="rc-midsection-bad" min="0">
+        </div>
+
+        <div class="field">
+          <label for="rc-midsection-goal">Midsection — Goal</label>
+          <input type="number" id="rc-midsection-goal" min="0">
+        </div>
+
+        <div class="field">
+          <label for="rc-padstick-good">Pad/Stick — Good</label>
+          <input type="number" id="rc-padstick-good" min="0">
+        </div>
+
+        <div class="field">
+          <label for="rc-padstick-bad">Pad/Stick — Bad</label>
+          <input type="number" id="rc-padstick-bad" min="0">
+        </div>
+
+        <div class="field">
+          <label for="rc-padstick-goal">Pad/Stick — Goal</label>
+          <input type="number" id="rc-padstick-goal" min="0">
+        </div>
+
+      </div>
+    </div>
+
+
+    <div class="section-heading">
+      <h3>Puck Playing</h3>
+      <p>Optional. One summary row for the whole game.</p>
+    </div>
+
+    <div class="card">
+      <div class="field-grid">
+
+        <div class="field">
+          <label for="pp-rims-faced">Rims Faced</label>
+          <input type="number" id="pp-rims-faced" min="0">
+        </div>
+
+        <div class="field">
+          <label for="pp-rims-stopped">Rims Stopped</label>
+          <input type="number" id="pp-rims-stopped" min="0">
+        </div>
+
+        <div class="field">
+          <label for="pp-pass-attempts">Pass Attempts</label>
+          <input type="number" id="pp-pass-attempts" min="0">
+        </div>
+
+        <div class="field">
+          <label for="pp-passes-completed">Passes Completed</label>
+          <input type="number" id="pp-passes-completed" min="0">
+        </div>
+
+      </div>
+    </div>
+
+
+    <div class="section-space">
+      <button type="submit" class="btn-primary" id="addgame-submit">
+        Save Game
+      </button>
+    </div>
+
+  </form>
 
 </section>
 
@@ -6733,6 +7139,427 @@ window.debugReboundControl =
     );
 
   };
+
+
+/* ============================================================
+   ADD GAME FORM
+============================================================ */
+
+function addPeriodRow(){
+
+  const container =
+    document.getElementById("period-rows");
+
+  const row =
+    document.createElement("div");
+
+  row.className = "repeater-row";
+
+  row.innerHTML = `
+    <div class="field-grid">
+
+      <div class="field">
+        <label>Period</label>
+        <input type="text" data-field="period" placeholder="1, 2, 3, OT">
+      </div>
+
+      <div class="field">
+        <label>Minutes Played</label>
+        <input type="number" data-field="minutes_played" min="0" step="0.1">
+      </div>
+
+      <div class="field">
+        <label>Shots Against</label>
+        <input type="number" data-field="shots_against" min="0">
+      </div>
+
+      <div class="field">
+        <label>Saves</label>
+        <input type="number" data-field="saves" min="0">
+      </div>
+
+      <div class="field">
+        <label>Goals Against</label>
+        <input type="number" data-field="goals_against" min="0">
+      </div>
+
+      <div class="field">
+        <label>Notes</label>
+        <input type="text" data-field="Notes">
+      </div>
+
+    </div>
+
+    <button type="button" class="repeater-remove" onclick="this.closest('.repeater-row').remove()">
+      Remove period
+    </button>
+  `;
+
+  container.appendChild(row);
+
+}
+
+
+function addShotRow(){
+
+  const container =
+    document.getElementById("shot-rows");
+
+  const row =
+    document.createElement("div");
+
+  row.className = "repeater-row";
+
+  row.innerHTML = `
+    <div class="field-grid">
+
+      <div class="field">
+        <label>Period</label>
+        <input type="text" data-field="period" placeholder="1, 2, 3, OT">
+      </div>
+
+      <div class="field">
+        <label>Distance</label>
+        <input type="number" data-field="distance" min="0" step="0.1">
+      </div>
+
+      <div class="field">
+        <label>Location</label>
+        <input type="text" data-field="location" placeholder="slot, point, etc.">
+      </div>
+
+      <div class="field">
+        <label>Shot Type</label>
+        <input type="text" data-field="shot_type" placeholder="wrist, slap, etc.">
+      </div>
+
+      <div class="field">
+        <label>Outcome</label>
+        <select data-field="outcome">
+          <option value="save">Save</option>
+          <option value="goal">Goal</option>
+        </select>
+      </div>
+
+      <div class="field checkbox-field">
+        <input type="checkbox" data-field="rush">
+        <label>Rush</label>
+      </div>
+
+      <div class="field checkbox-field">
+        <input type="checkbox" data-field="rebound">
+        <label>Rebound</label>
+      </div>
+
+      <div class="field checkbox-field">
+        <input type="checkbox" data-field="screened">
+        <label>Screened</label>
+      </div>
+
+      <div class="field checkbox-field">
+        <input type="checkbox" data-field="breakaway">
+        <label>Breakaway</label>
+      </div>
+
+      <div class="field checkbox-field">
+        <input type="checkbox" data-field="cross_ice">
+        <label>Cross Ice</label>
+      </div>
+
+    </div>
+
+    <button type="button" class="repeater-remove" onclick="this.closest('.repeater-row').remove()">
+      Remove shot
+    </button>
+  `;
+
+  container.appendChild(row);
+
+}
+
+
+function hideAddGameMessages(){
+
+  const err = document.getElementById("addgame-error");
+  const msg = document.getElementById("addgame-message");
+
+  err.classList.remove("visible");
+  msg.classList.remove("visible");
+
+  err.textContent = "";
+  msg.textContent = "";
+
+}
+
+
+function showAddGameError(message){
+
+  const err = document.getElementById("addgame-error");
+
+  err.textContent = message;
+  err.classList.add("visible");
+
+}
+
+
+function showAddGameMessage(message){
+
+  const msg = document.getElementById("addgame-message");
+
+  msg.textContent = message;
+  msg.classList.add("visible");
+
+}
+
+
+function numOrNull(value){
+
+  if(value === "" || value === null || value === undefined){
+    return null;
+  }
+
+  const n = Number(value);
+
+  return Number.isFinite(n) ? n : null;
+
+}
+
+
+function textOrNull(value){
+
+  const v = String(value ?? "").trim();
+
+  return v === "" ? null : v;
+
+}
+
+
+function rowIsBlank(fields){
+
+  return Object.values(fields).every(
+    v => v === null || v === "" || v === false
+  );
+
+}
+
+
+document.getElementById("addgame-form")
+  .addEventListener("submit", async function(e){
+
+    e.preventDefault();
+    hideAddGameMessages();
+
+    if(!currentSession || !currentSession.user){
+      showAddGameError("You must be signed in to add a game.");
+      return;
+    }
+
+    const userId = currentSession.user.id;
+
+    const opponent =
+      textOrNull(document.getElementById("ag-opponent").value);
+
+    if(!opponent){
+      showAddGameError("Opponent is required.");
+      return;
+    }
+
+    const submitBtn =
+      document.getElementById("addgame-submit");
+
+    submitBtn.disabled = true;
+
+
+    try{
+
+      const gamePayload = {
+        user_id: userId,
+        date: textOrNull(document.getElementById("ag-date").value),
+        season: textOrNull(document.getElementById("ag-season").value),
+        team: textOrNull(document.getElementById("ag-team").value),
+        opponent: opponent,
+        home_away: textOrNull(document.getElementById("ag-home-away").value),
+        result: textOrNull(document.getElementById("ag-result").value),
+        team_goals: numOrNull(document.getElementById("ag-team-goals").value),
+        "opponent goals": numOrNull(document.getElementById("ag-opponent-goals").value),
+        shots_against: numOrNull(document.getElementById("ag-shots-against").value),
+        saves: numOrNull(document.getElementById("ag-saves").value),
+        goals_against: numOrNull(document.getElementById("ag-goals-against").value),
+        minutes_played: numOrNull(document.getElementById("ag-minutes").value),
+        shutout: document.getElementById("ag-shutout").checked,
+        notes: textOrNull(document.getElementById("ag-notes").value)
+      };
+
+      const { data: newGame, error: gameError } =
+        await supabaseClient
+          .from("Games")
+          .insert(gamePayload)
+          .select()
+          .single();
+
+      if(gameError){
+        throw gameError;
+      }
+
+      const gameId = newGame.id;
+
+
+      const periodPayloads = [];
+
+      document.querySelectorAll("#period-rows .repeater-row").forEach(row => {
+
+        const fields = {
+          period: textOrNull(row.querySelector('[data-field="period"]').value),
+          minutes_played: numOrNull(row.querySelector('[data-field="minutes_played"]').value),
+          shots_against: numOrNull(row.querySelector('[data-field="shots_against"]').value),
+          saves: numOrNull(row.querySelector('[data-field="saves"]').value),
+          goals_against: numOrNull(row.querySelector('[data-field="goals_against"]').value),
+          Notes: textOrNull(row.querySelector('[data-field="Notes"]').value)
+        };
+
+        if(!rowIsBlank(fields)){
+          periodPayloads.push({
+            ...fields,
+            game_id: gameId,
+            user_id: userId
+          });
+        }
+
+      });
+
+      if(periodPayloads.length > 0){
+
+        const { error: periodError } =
+          await supabaseClient
+            .from("Period Stats")
+            .insert(periodPayloads);
+
+        if(periodError){
+          throw periodError;
+        }
+
+      }
+
+
+      const shotPayloads = [];
+
+      document.querySelectorAll("#shot-rows .repeater-row").forEach(row => {
+
+        const fields = {
+          period: textOrNull(row.querySelector('[data-field="period"]').value),
+          distance: numOrNull(row.querySelector('[data-field="distance"]').value),
+          location: textOrNull(row.querySelector('[data-field="location"]').value),
+          shot_type: textOrNull(row.querySelector('[data-field="shot_type"]').value),
+          outcome: textOrNull(row.querySelector('[data-field="outcome"]').value),
+          rush: row.querySelector('[data-field="rush"]').checked,
+          rebound: row.querySelector('[data-field="rebound"]').checked,
+          screened: row.querySelector('[data-field="screened"]').checked,
+          breakaway: row.querySelector('[data-field="breakaway"]').checked,
+          cross_ice: row.querySelector('[data-field="cross_ice"]').checked
+        };
+
+        shotPayloads.push({
+          ...fields,
+          game_id: gameId,
+          user_id: userId
+        });
+
+      });
+
+      if(shotPayloads.length > 0){
+
+        const { error: shotError } =
+          await supabaseClient
+            .from("Shots")
+            .insert(shotPayloads);
+
+        if(shotError){
+          throw shotError;
+        }
+
+      }
+
+
+      const reboundFields = {
+        glove_caught: numOrNull(document.getElementById("rc-glove-caught").value),
+        glove_rebound: numOrNull(document.getElementById("rc-glove-rebound").value),
+        glove_goal: numOrNull(document.getElementById("rc-glove-goal").value),
+        blocker_good: numOrNull(document.getElementById("rc-blocker-good").value),
+        blocker_bad: numOrNull(document.getElementById("rc-blocker-bad").value),
+        blocker_goal: numOrNull(document.getElementById("rc-blocker-goal").value),
+        midsection_good: numOrNull(document.getElementById("rc-midsection-good").value),
+        midsection_bad: numOrNull(document.getElementById("rc-midsection-bad").value),
+        midsection_goal: numOrNull(document.getElementById("rc-midsection-goal").value),
+        pad_stick_good: numOrNull(document.getElementById("rc-padstick-good").value),
+        pad_stick_bad: numOrNull(document.getElementById("rc-padstick-bad").value),
+        pad_stick_goal: numOrNull(document.getElementById("rc-padstick-goal").value)
+      };
+
+      if(!rowIsBlank(reboundFields)){
+
+        const { error: reboundError } =
+          await supabaseClient
+            .from("goalierebound_control")
+            .insert({
+              ...reboundFields,
+              game_id: gameId,
+              user_id: userId
+            });
+
+        if(reboundError){
+          throw reboundError;
+        }
+
+      }
+
+
+      const puckFields = {
+        rims_faced: numOrNull(document.getElementById("pp-rims-faced").value),
+        rims_stopped: numOrNull(document.getElementById("pp-rims-stopped").value),
+        pass_attempts: numOrNull(document.getElementById("pp-pass-attempts").value),
+        passes_completed: numOrNull(document.getElementById("pp-passes-completed").value)
+      };
+
+      if(!rowIsBlank(puckFields)){
+
+        const { error: puckError } =
+          await supabaseClient
+            .from("puck_playing")
+            .insert({
+              ...puckFields,
+              game_id: gameId,
+              user_id: userId
+            });
+
+        if(puckError){
+          throw puckError;
+        }
+
+      }
+
+
+      document.getElementById("addgame-form").reset();
+      document.getElementById("period-rows").innerHTML = "";
+      document.getElementById("shot-rows").innerHTML = "";
+
+      showAddGameMessage("Game saved. Refreshing dashboard...");
+
+      await loadDashboard();
+
+    }
+    catch(error){
+
+      console.error(error);
+      showAddGameError(error.message || "Something went wrong saving this game.");
+
+    }
+    finally{
+
+      submitBtn.disabled = false;
+
+    }
+
+  });
 
 
 /* ============================================================
