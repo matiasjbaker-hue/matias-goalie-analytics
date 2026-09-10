@@ -1,61 +1,154 @@
-name: Fix sign-in handler
+name: Repair login directly
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
   contents: write
 
 jobs:
-  fix-login:
+  repair:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Repair malformed login block
-        shell: python
+      - name: Repair login JavaScript
         run: |
+          python3 - <<'PY'
           from pathlib import Path
 
-          path = Path("index.html")
-          text = path.read_text(encoding="utf-8")
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+          marker = '<!-- ROBUST_LOGIN_OVERRIDE -->'
 
-          marker = "<!-- ROBUST_LOGIN_OVERRIDE -->"
-          if marker not in text:
-              print("Login marker not found; nothing to repair.")
-              raise SystemExit(0)
+          # Remove any previous override, including malformed versions.
+          while marker in text:
+              start = text.find(marker)
+              script_start = text.rfind('<script', 0, start)
+              script_end = text.find('</script>', start)
+              if script_start == -1 or script_end == -1:
+                  raise SystemExit('Found login marker but could not find its script boundaries')
+              script_end += len('</script>')
+              text = text[:script_start] + text[script_end:]
 
-          marker_pos = text.find(marker)
-          script_start = text.rfind("<script", 0, marker_pos)
-          script_end = text.find("</script>", marker_pos)
+          # Remove any old delegated repair marker as well.
+          old_marker = '<!-- LOGIN_CLICK_REPAIR -->'
+          while old_marker in text:
+              start = text.find(old_marker)
+              script_start = text.rfind('<script', 0, start)
+              script_end = text.find('</script>', start)
+              if script_start == -1 or script_end == -1:
+                  raise SystemExit('Found old login marker but could not find its script boundaries')
+              script_end += len('</script>')
+              text = text[:script_start] + text[script_end:]
 
-          if script_start == -1 or script_end == -1:
-              raise SystemExit("Could not locate login override script.")
+          repair = r'''  <!-- LOGIN_CLICK_REPAIR -->
+  <script>
+    (function(){
+      function getLoginValues(){
+        const email = document.getElementById('loginEmail') || document.querySelector('#authScreen input[type="email"]') || document.querySelector('input[type="email"]');
+        const password = document.getElementById('loginPassword') || document.querySelector('#authScreen input[type="password"]') || document.querySelector('input[type="password"]');
+        return { email: email ? email.value.trim() : '', password: password ? password.value : '' };
+      }
 
-          script_end += len("</script>")
-          block = text[script_start:script_end]
+      async function performLogin(){
+        const values = getLoginValues();
+        const message = document.getElementById('authMessage') || document.querySelector('.auth-message');
+        const buttons = Array.from(document.querySelectorAll('button'));
+        const button = document.getElementById('loginButton') || buttons.find(b => b.textContent.trim().toLowerCase() === 'sign in');
 
-          # The previous patch accidentally stored literal backslash-n characters.
-          # Convert those escape sequences into real newlines.
-          repaired = block.replace("\\n", "\n")
-          repaired = repaired.replace("\\\"", "\"")
+        if(message){
+          message.className = 'auth-message';
+          message.textContent = '';
+        }
 
-          text = text[:script_start] + repaired + text[script_end:]
-          path.write_text(text, encoding="utf-8")
-          print("Repaired login block.")
+        if(!values.email || !values.password){
+          if(message){
+            message.className = 'auth-message show error';
+            message.textContent = 'Please enter your email and password.';
+          }
+          return;
+        }
+
+        if(button){
+          button.disabled = true;
+          button.textContent = 'Signing in...';
+        }
+
+        try{
+          if(!window.supabase || !window.supabase.createClient){
+            throw new Error('Supabase failed to load. Please refresh the page and try again.');
+          }
+
+          const client = window.supabase.createClient(
+            'https://iiuqxxrrruvwvfehrzic.supabase.co',
+            'sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ'
+          );
+
+          const result = await client.auth.signInWithPassword({ email: values.email, password: values.password });
+          if(result.error) throw result.error;
+          if(!result.data || !result.data.session || !result.data.user){
+            throw new Error('Sign-in succeeded, but no active session was returned.');
+          }
+
+          if(typeof window.handleAuthenticatedUser === 'function'){
+            await window.handleAuthenticatedUser(result.data.user);
+          }else{
+            window.location.reload();
+          }
+        }catch(error){
+          console.error('Sign-in error:', error);
+          if(message){
+            message.className = 'auth-message show error';
+            message.textContent = error && error.message ? error.message : 'Unable to sign in. Please try again.';
+          }
+        }finally{
+          if(button){
+            button.disabled = false;
+            button.textContent = 'Sign In';
+          }
+        }
+      }
+
+      window.login = performLogin;
+
+      document.addEventListener('click', function(event){
+        const button = event.target.closest ? event.target.closest('button') : null;
+        if(!button) return;
+        if(button.id === 'loginButton' || button.textContent.trim().toLowerCase() === 'sign in'){
+          event.preventDefault();
+          performLogin();
+        }
+      }, true);
+
+      document.addEventListener('keydown', function(event){
+        if(event.key !== 'Enter') return;
+        const active = document.activeElement;
+        if(active && (active.id === 'loginEmail' || active.id === 'loginPassword' || active.type === 'email' || active.type === 'password')){
+          event.preventDefault();
+          performLogin();
+        }
+      });
+    })();
+  </script>'''
+
+          if '</body>' not in text:
+              raise SystemExit('index.html does not contain </body>')
+          text = text.replace('</body>', repair + '\n</body>', 1)
+          path.write_text(text, encoding='utf-8')
+          print('Login repair inserted successfully')
+          PY
 
       - name: Commit repaired index
-        shell: bash
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add index.html
           if git diff --cached --quiet; then
-            echo "No index changes needed."
+            echo 'No changes to commit'
             exit 0
           fi
-          git commit -m "fix: convert malformed login script to valid javascript"
+          git commit -m 'fix: repair sign-in click handling'
           git push
