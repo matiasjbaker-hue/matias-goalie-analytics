@@ -876,6 +876,175 @@ tr:hover td{
   flex-shrink:0;
 }
 
+
+/* =========================================================
+   LIVE TAG
+========================================================= */
+
+.tag-group{
+  margin-bottom:16px;
+}
+
+.tag-group-label{
+  font-size:12px;
+  color:var(--muted);
+  margin-bottom:8px;
+}
+
+.tag-btn-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.tag-btn{
+  border:1px solid var(--border2);
+  background:#0c261c;
+  color:var(--text);
+  padding:9px 14px;
+  border-radius:20px;
+  cursor:pointer;
+  font-size:13px;
+  font-family:inherit;
+}
+
+.tag-btn:hover{
+  border-color:var(--green);
+}
+
+.tag-btn.selected{
+  background:#1a5139;
+  border-color:#1a5139;
+  color:#fff;
+  font-weight:700;
+}
+
+.tag-btn.outcome-goal.selected{
+  background:#7a2b2b;
+  border-color:#7a2b2b;
+}
+
+.period-selector{
+  display:flex;
+  gap:8px;
+  margin-bottom:20px;
+}
+
+.period-btn{
+  border:1px solid var(--border2);
+  background:#0c261c;
+  color:var(--text);
+  padding:10px 18px;
+  border-radius:8px;
+  cursor:pointer;
+  font-size:14px;
+  font-weight:700;
+  font-family:inherit;
+}
+
+.period-btn.active{
+  background:#1a5139;
+  border-color:#1a5139;
+  color:#fff;
+}
+
+.livetag-stats{
+  display:flex;
+  gap:22px;
+  flex-wrap:wrap;
+  margin-bottom:18px;
+}
+
+.livetag-stat{
+  text-align:center;
+}
+
+.livetag-stat .num{
+  font-size:26px;
+  font-weight:700;
+}
+
+.livetag-stat .label{
+  font-size:11px;
+  color:var(--muted);
+  text-transform:uppercase;
+  letter-spacing:.4px;
+}
+
+.counter-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:10px 0;
+  border-bottom:1px solid var(--border);
+}
+
+.counter-row:last-child{
+  border-bottom:0;
+}
+
+.counter-row .counter-name{
+  font-size:13px;
+  color:var(--text);
+}
+
+.counter-controls{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+.counter-controls .counter-value{
+  min-width:24px;
+  text-align:center;
+  font-weight:700;
+  font-size:15px;
+}
+
+.counter-step-btn{
+  border:1px solid var(--border2);
+  background:#0c261c;
+  color:var(--text);
+  width:28px;
+  height:28px;
+  border-radius:6px;
+  cursor:pointer;
+  font-size:15px;
+  line-height:1;
+  font-family:inherit;
+}
+
+.counter-step-btn:hover{
+  border-color:var(--green);
+}
+
+.shotlog-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:10px 14px;
+  border-bottom:1px solid var(--border);
+  font-size:13px;
+}
+
+.shotlog-row:last-child{
+  border-bottom:0;
+}
+
+.shotlog-row .shotlog-desc strong{
+  color:var(--text);
+}
+
+.shotlog-row .shotlog-desc{
+  color:var(--muted);
+}
+
+.reboundtally-summary{
+  font-size:12px;
+  color:var(--muted);
+  line-height:1.7;
+}
+
 .form-error{
   background:rgba(255,133,133,.12);
   border:1px solid rgba(255,133,133,.4);
@@ -1053,6 +1222,10 @@ tr:hover td{
 
     <button onclick="showTab('puckplaying',this)">
       Puck Playing
+    </button>
+
+    <button onclick="showTab('livetag',this)">
+      Live Tag
     </button>
 
     <button onclick="showTab('addgame',this)">
@@ -2129,6 +2302,288 @@ tr:hover td{
       Use both together to evaluate puck-playing execution rather than simply counting touches.
     </div>
 
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- LIVE TAG -->
+<!-- ========================================================= -->
+
+<section id="livetag" class="tab">
+
+  <div class="page-title">
+    <h2>Live Tag</h2>
+    <p>Watch the game on Hudl (or wherever) in another tab, and tap along here as it happens. When you're done, hit Finish to save it all as one game.</p>
+  </div>
+
+  <div id="livetag-error" class="form-error"></div>
+  <div id="livetag-message" class="form-message"></div>
+
+  <div class="section-heading">
+    <h3>Game Info</h3>
+    <p>Fill this in before or after tagging — whenever's easiest.</p>
+  </div>
+
+  <div class="card">
+    <div class="field-grid">
+
+      <div class="field">
+        <label for="lt-date">Date</label>
+        <input type="date" id="lt-date">
+      </div>
+
+      <div class="field">
+        <label for="lt-season">Season</label>
+        <input type="text" id="lt-season" value="2026 preseason">
+      </div>
+
+      <div class="field">
+        <label for="lt-team">Team</label>
+        <input type="text" id="lt-team">
+      </div>
+
+      <div class="field">
+        <label for="lt-opponent">Opponent</label>
+        <input type="text" id="lt-opponent" required>
+      </div>
+
+      <div class="field">
+        <label for="lt-home-away">Home / Away</label>
+        <select id="lt-home-away">
+          <option value="">—</option>
+          <option value="Home">Home</option>
+          <option value="Away">Away</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="lt-result">Result</label>
+        <select id="lt-result">
+          <option value="">—</option>
+          <option value="W">Win</option>
+          <option value="L">Loss</option>
+          <option value="OTL">OT Loss</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="lt-team-goals">Team Goals</label>
+        <input type="number" id="lt-team-goals" min="0">
+      </div>
+
+      <div class="field">
+        <label for="lt-opponent-goals">Opponent Goals</label>
+        <input type="number" id="lt-opponent-goals" min="0">
+      </div>
+
+    </div>
+  </div>
+
+
+  <div class="section-heading">
+    <h3>Period</h3>
+    <p>Select which period you're currently watching — new shots you tag will use this.</p>
+  </div>
+
+  <div class="period-selector" id="livetag-period-selector">
+    <button type="button" class="period-btn active" data-period="1" onclick="setLiveTagPeriod('1')">1st</button>
+    <button type="button" class="period-btn" data-period="2" onclick="setLiveTagPeriod('2')">2nd</button>
+    <button type="button" class="period-btn" data-period="3" onclick="setLiveTagPeriod('3')">3rd</button>
+    <button type="button" class="period-btn" data-period="OT" onclick="setLiveTagPeriod('OT')">OT</button>
+  </div>
+
+  <div class="card">
+    <div class="field-grid">
+      <div class="field">
+        <label for="lt-p1-minutes">1st Period Minutes</label>
+        <input type="number" id="lt-p1-minutes" min="0" step="0.1" value="15">
+      </div>
+      <div class="field">
+        <label for="lt-p2-minutes">2nd Period Minutes</label>
+        <input type="number" id="lt-p2-minutes" min="0" step="0.1" value="15">
+      </div>
+      <div class="field">
+        <label for="lt-p3-minutes">3rd Period Minutes</label>
+        <input type="number" id="lt-p3-minutes" min="0" step="0.1" value="15">
+      </div>
+      <div class="field">
+        <label for="lt-ot-minutes">OT Minutes</label>
+        <input type="number" id="lt-ot-minutes" min="0" step="0.1" value="0">
+      </div>
+    </div>
+  </div>
+
+
+  <div class="section-heading">
+    <h3>Live Totals</h3>
+    <p>Updates automatically as you tag shots below.</p>
+  </div>
+
+  <div class="card livetag-stats">
+    <div class="livetag-stat">
+      <div class="num" id="livetag-total-shots">0</div>
+      <div class="label">Shots</div>
+    </div>
+    <div class="livetag-stat">
+      <div class="num" id="livetag-total-saves">0</div>
+      <div class="label">Saves</div>
+    </div>
+    <div class="livetag-stat">
+      <div class="num" id="livetag-total-goals">0</div>
+      <div class="label">Goals</div>
+    </div>
+  </div>
+
+
+  <div class="section-heading">
+    <h3>Log a Shot</h3>
+    <p>Tap what happened, then hit Add Shot. Extra tags are optional.</p>
+  </div>
+
+  <div class="card">
+
+    <div class="tag-group">
+      <div class="tag-group-label">Outcome</div>
+      <div class="tag-btn-row" id="lt-outcome-buttons">
+        <button type="button" class="tag-btn outcome-save selected" data-value="save" onclick="selectLiveTagOutcome('save')">Save</button>
+        <button type="button" class="tag-btn outcome-goal" data-value="goal" onclick="selectLiveTagOutcome('goal')">Goal</button>
+      </div>
+    </div>
+
+    <div class="tag-group">
+      <div class="tag-group-label">Location</div>
+      <div class="tag-btn-row" id="lt-location-buttons">
+        <button type="button" class="tag-btn" data-value="Slot" onclick="selectLiveTagChoice('location','Slot',this)">Slot</button>
+        <button type="button" class="tag-btn" data-value="Point" onclick="selectLiveTagChoice('location','Point',this)">Point</button>
+        <button type="button" class="tag-btn" data-value="Circle" onclick="selectLiveTagChoice('location','Circle',this)">Circle</button>
+        <button type="button" class="tag-btn" data-value="Perimeter" onclick="selectLiveTagChoice('location','Perimeter',this)">Perimeter</button>
+        <button type="button" class="tag-btn" data-value="Crease" onclick="selectLiveTagChoice('location','Crease',this)">Crease</button>
+      </div>
+    </div>
+
+    <div class="tag-group">
+      <div class="tag-group-label">Shot Type</div>
+      <div class="tag-btn-row" id="lt-type-buttons">
+        <button type="button" class="tag-btn" data-value="Wrist" onclick="selectLiveTagChoice('shot_type','Wrist',this)">Wrist</button>
+        <button type="button" class="tag-btn" data-value="Slap" onclick="selectLiveTagChoice('shot_type','Slap',this)">Slap</button>
+        <button type="button" class="tag-btn" data-value="Snap" onclick="selectLiveTagChoice('shot_type','Snap',this)">Snap</button>
+        <button type="button" class="tag-btn" data-value="Backhand" onclick="selectLiveTagChoice('shot_type','Backhand',this)">Backhand</button>
+        <button type="button" class="tag-btn" data-value="Tip" onclick="selectLiveTagChoice('shot_type','Tip',this)">Tip</button>
+        <button type="button" class="tag-btn" data-value="One-Timer" onclick="selectLiveTagChoice('shot_type','One-Timer',this)">One-Timer</button>
+      </div>
+    </div>
+
+    <div class="tag-group">
+      <div class="tag-group-label">Details</div>
+      <div class="tag-btn-row" id="lt-toggle-buttons">
+        <button type="button" class="tag-btn" data-value="rush" onclick="toggleLiveTagFlag('rush',this)">Rush</button>
+        <button type="button" class="tag-btn" data-value="rebound" onclick="toggleLiveTagFlag('rebound',this)">Rebound</button>
+        <button type="button" class="tag-btn" data-value="screened" onclick="toggleLiveTagFlag('screened',this)">Screened</button>
+        <button type="button" class="tag-btn" data-value="breakaway" onclick="toggleLiveTagFlag('breakaway',this)">Breakaway</button>
+        <button type="button" class="tag-btn" data-value="cross_ice" onclick="toggleLiveTagFlag('cross_ice',this)">Cross Ice</button>
+        <button type="button" class="tag-btn" data-value="deflection" onclick="toggleLiveTagFlag('deflection',this)">Deflection</button>
+      </div>
+    </div>
+
+    <div class="tag-group">
+      <div class="tag-group-label">Rebound Control (optional — how did the save go?)</div>
+      <div class="tag-btn-row" id="lt-rebound-buttons">
+        <button type="button" class="tag-btn selected" data-value="skip" onclick="selectLiveTagChoice('reboundTag','skip',this)">Skip</button>
+        <button type="button" class="tag-btn" data-value="glove_caught" onclick="selectLiveTagChoice('reboundTag','glove_caught',this)">Glove — Caught</button>
+        <button type="button" class="tag-btn" data-value="glove_rebound" onclick="selectLiveTagChoice('reboundTag','glove_rebound',this)">Glove — Rebound</button>
+        <button type="button" class="tag-btn" data-value="glove_goal" onclick="selectLiveTagChoice('reboundTag','glove_goal',this)">Glove — Goal</button>
+        <button type="button" class="tag-btn" data-value="blocker_good" onclick="selectLiveTagChoice('reboundTag','blocker_good',this)">Blocker — Good</button>
+        <button type="button" class="tag-btn" data-value="blocker_bad" onclick="selectLiveTagChoice('reboundTag','blocker_bad',this)">Blocker — Bad</button>
+        <button type="button" class="tag-btn" data-value="blocker_goal" onclick="selectLiveTagChoice('reboundTag','blocker_goal',this)">Blocker — Goal</button>
+        <button type="button" class="tag-btn" data-value="midsection_good" onclick="selectLiveTagChoice('reboundTag','midsection_good',this)">Midsection — Good</button>
+        <button type="button" class="tag-btn" data-value="midsection_bad" onclick="selectLiveTagChoice('reboundTag','midsection_bad',this)">Midsection — Bad</button>
+        <button type="button" class="tag-btn" data-value="midsection_goal" onclick="selectLiveTagChoice('reboundTag','midsection_goal',this)">Midsection — Goal</button>
+        <button type="button" class="tag-btn" data-value="pad_stick_good" onclick="selectLiveTagChoice('reboundTag','pad_stick_good',this)">Pad/Stick — Good</button>
+        <button type="button" class="tag-btn" data-value="pad_stick_bad" onclick="selectLiveTagChoice('reboundTag','pad_stick_bad',this)">Pad/Stick — Bad</button>
+        <button type="button" class="tag-btn" data-value="pad_stick_goal" onclick="selectLiveTagChoice('reboundTag','pad_stick_goal',this)">Pad/Stick — Goal</button>
+      </div>
+    </div>
+
+    <button type="button" class="btn-primary" onclick="addLiveTagShot()">
+      + Add Shot
+    </button>
+
+  </div>
+
+
+  <div class="section-heading">
+    <h3>Shot Log</h3>
+    <p>Most recent first. Tap Remove to undo a mistake.</p>
+  </div>
+
+  <div class="card" style="padding:6px 16px" id="livetag-shot-list">
+    <div class="empty">No shots tagged yet.</div>
+  </div>
+
+
+  <div class="section-heading">
+    <h3>Puck Playing</h3>
+    <p>Tap to tally rim plays and passes as they happen.</p>
+  </div>
+
+  <div class="card">
+    <div class="counter-row">
+      <span class="counter-name">Rims Faced</span>
+      <div class="counter-controls">
+        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','rims_faced',-1)">–</button>
+        <span class="counter-value" id="lt-count-rims_faced">0</span>
+        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','rims_faced',1)">+</button>
+      </div>
+    </div>
+    <div class="counter-row">
+      <span class="counter-name">Rims Stopped</span>
+      <div class="counter-controls">
+        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','rims_stopped',-1)">–</button>
+        <span class="counter-value" id="lt-count-rims_stopped">0</span>
+        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','rims_stopped',1)">+</button>
+      </div>
+    </div>
+    <div class="counter-row">
+      <span class="counter-name">Pass Attempts</span>
+      <div class="counter-controls">
+        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','pass_attempts',-1)">–</button>
+        <span class="counter-value" id="lt-count-pass_attempts">0</span>
+        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','pass_attempts',1)">+</button>
+      </div>
+    </div>
+    <div class="counter-row">
+      <span class="counter-name">Passes Completed</span>
+      <div class="counter-controls">
+        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','passes_completed',-1)">–</button>
+        <span class="counter-value" id="lt-count-passes_completed">0</span>
+        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','passes_completed',1)">+</button>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="section-heading">
+    <h3>Rebound Control Totals</h3>
+    <p>Built automatically from what you tag above.</p>
+  </div>
+
+  <div class="card">
+    <div class="reboundtally-summary" id="livetag-rebound-summary">
+      Nothing tagged yet.
+    </div>
+  </div>
+
+
+  <div class="section-space" style="display:flex;gap:12px">
+    <button type="button" class="btn-primary" id="livetag-finish-btn" onclick="finishLiveTagGame()">
+      Finish &amp; Save Game
+    </button>
+
+    <button type="button" class="btn-secondary" onclick="resetLiveTagSession()">
+      Discard &amp; Start Over
+    </button>
   </div>
 
 </section>
@@ -7331,6 +7786,11 @@ function addShotRow(){
         <label>Cross Ice</label>
       </div>
 
+      <div class="field checkbox-field">
+        <input type="checkbox" data-field="deflection">
+        <label>Deflection</label>
+      </div>
+
     </div>
 
     <button type="button" class="repeater-remove" onclick="this.closest('.repeater-row').remove()">
@@ -7539,6 +7999,7 @@ function editGame(gameId){
       row.querySelector('[data-field="screened"]').checked = !!s.screened;
       row.querySelector('[data-field="breakaway"]').checked = !!s.breakaway;
       row.querySelector('[data-field="cross_ice"]').checked = !!s.cross_ice;
+      row.querySelector('[data-field="deflection"]').checked = !!s.deflection;
     });
 
   const rebound =
@@ -7633,6 +8094,548 @@ async function deleteGame(gameId){
 
     console.error(error);
     alert("Could not delete this game: " + (error.message || "unknown error"));
+
+  }
+
+}
+
+
+/* ============================================================
+   LIVE TAG
+============================================================ */
+
+const REBOUND_TALLY_KEYS = [
+  "glove_caught","glove_rebound","glove_goal",
+  "blocker_good","blocker_bad","blocker_goal",
+  "midsection_good","midsection_bad","midsection_goal",
+  "pad_stick_good","pad_stick_bad","pad_stick_goal"
+];
+
+const REBOUND_TALLY_LABELS = {
+  glove_caught:"Glove Caught",
+  glove_rebound:"Glove Rebound",
+  glove_goal:"Glove Goal",
+  blocker_good:"Blocker Good",
+  blocker_bad:"Blocker Bad",
+  blocker_goal:"Blocker Goal",
+  midsection_good:"Midsection Good",
+  midsection_bad:"Midsection Bad",
+  midsection_goal:"Midsection Goal",
+  pad_stick_good:"Pad/Stick Good",
+  pad_stick_bad:"Pad/Stick Bad",
+  pad_stick_goal:"Pad/Stick Goal"
+};
+
+function freshLiveTagState(){
+
+  const reboundTally = {};
+  REBOUND_TALLY_KEYS.forEach(k => reboundTally[k] = 0);
+
+  return {
+    currentPeriod: "1",
+    outcome: "save",
+    location: null,
+    shot_type: null,
+    flags: { rush:false, rebound:false, screened:false, breakaway:false, cross_ice:false, deflection:false },
+    reboundTag: "skip",
+    shots: [],
+    reboundTally,
+    puckTally: { rims_faced:0, rims_stopped:0, pass_attempts:0, passes_completed:0 }
+  };
+
+}
+
+let liveTagState = freshLiveTagState();
+
+
+function setLiveTagPeriod(period){
+
+  liveTagState.currentPeriod = period;
+
+  document
+    .querySelectorAll("#livetag-period-selector .period-btn")
+    .forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.period === period);
+    });
+
+}
+
+
+function selectLiveTagOutcome(value){
+
+  liveTagState.outcome = value;
+
+  document
+    .querySelectorAll("#lt-outcome-buttons .tag-btn")
+    .forEach(btn => {
+      btn.classList.toggle("selected", btn.dataset.value === value);
+    });
+
+}
+
+
+function selectLiveTagChoice(field, value, btnEl){
+
+  liveTagState[field] = value;
+
+  Array.from(btnEl.parentElement.children).forEach(btn => {
+    btn.classList.toggle("selected", btn === btnEl);
+  });
+
+}
+
+
+function toggleLiveTagFlag(flag, btnEl){
+
+  liveTagState.flags[flag] = !liveTagState.flags[flag];
+  btnEl.classList.toggle("selected", liveTagState.flags[flag]);
+
+}
+
+
+function resetLiveTagShotPicker(){
+
+  liveTagState.outcome = "save";
+  liveTagState.location = null;
+  liveTagState.shot_type = null;
+  liveTagState.flags = { rush:false, rebound:false, screened:false, breakaway:false, cross_ice:false, deflection:false };
+  liveTagState.reboundTag = "skip";
+
+  document.querySelectorAll("#lt-outcome-buttons .tag-btn").forEach(btn => {
+    btn.classList.toggle("selected", btn.dataset.value === "save");
+  });
+
+  document.querySelectorAll("#lt-location-buttons .tag-btn").forEach(btn => {
+    btn.classList.remove("selected");
+  });
+
+  document.querySelectorAll("#lt-type-buttons .tag-btn").forEach(btn => {
+    btn.classList.remove("selected");
+  });
+
+  document.querySelectorAll("#lt-toggle-buttons .tag-btn").forEach(btn => {
+    btn.classList.remove("selected");
+  });
+
+  document.querySelectorAll("#lt-rebound-buttons .tag-btn").forEach(btn => {
+    btn.classList.toggle("selected", btn.dataset.value === "skip");
+  });
+
+}
+
+
+function addLiveTagShot(){
+
+  const shot = {
+    period: liveTagState.currentPeriod,
+    outcome: liveTagState.outcome,
+    location: liveTagState.location,
+    shot_type: liveTagState.shot_type,
+    rush: liveTagState.flags.rush,
+    rebound: liveTagState.flags.rebound,
+    screened: liveTagState.flags.screened,
+    breakaway: liveTagState.flags.breakaway,
+    cross_ice: liveTagState.flags.cross_ice,
+    deflection: liveTagState.flags.deflection,
+    reboundTag: liveTagState.reboundTag
+  };
+
+  liveTagState.shots.unshift(shot);
+
+  if(shot.reboundTag && shot.reboundTag !== "skip"){
+    liveTagState.reboundTally[shot.reboundTag]++;
+  }
+
+  resetLiveTagShotPicker();
+  renderLiveTagUI();
+
+}
+
+
+function removeLiveTagShot(index){
+
+  const shot = liveTagState.shots[index];
+
+  if(!shot){
+    return;
+  }
+
+  if(shot.reboundTag && shot.reboundTag !== "skip"){
+    liveTagState.reboundTally[shot.reboundTag] =
+      Math.max(0, liveTagState.reboundTally[shot.reboundTag] - 1);
+  }
+
+  liveTagState.shots.splice(index, 1);
+
+  renderLiveTagUI();
+
+}
+
+
+function stepLiveTagCounter(kind, field, delta){
+
+  const tally =
+    kind === "puck" ? liveTagState.puckTally : null;
+
+  if(!tally){
+    return;
+  }
+
+  tally[field] = Math.max(0, (tally[field] || 0) + delta);
+
+  const el =
+    document.getElementById("lt-count-" + field);
+
+  if(el){
+    el.textContent = tally[field];
+  }
+
+}
+
+
+function renderLiveTagUI(){
+
+  const totalShots = liveTagState.shots.length;
+  const totalGoals = liveTagState.shots.filter(s => s.outcome === "goal").length;
+  const totalSaves = totalShots - totalGoals;
+
+  document.getElementById("livetag-total-shots").textContent = totalShots;
+  document.getElementById("livetag-total-saves").textContent = totalSaves;
+  document.getElementById("livetag-total-goals").textContent = totalGoals;
+
+  const listEl =
+    document.getElementById("livetag-shot-list");
+
+  if(totalShots === 0){
+
+    listEl.innerHTML = `<div class="empty">No shots tagged yet.</div>`;
+
+  }
+  else{
+
+    listEl.innerHTML = liveTagState.shots.map((shot, index) => {
+
+      const bits = [
+        shot.location,
+        shot.shot_type,
+        shot.rush ? "Rush" : null,
+        shot.rebound ? "Rebound" : null,
+        shot.screened ? "Screened" : null,
+        shot.breakaway ? "Breakaway" : null,
+        shot.cross_ice ? "Cross Ice" : null,
+        shot.deflection ? "Deflection" : null
+      ].filter(Boolean).join(", ");
+
+      return `
+        <div class="shotlog-row">
+          <div class="shotlog-desc">
+            <strong>P${shot.period} — ${shot.outcome === "goal" ? "Goal" : "Save"}</strong>
+            ${bits ? " — " + bits : ""}
+          </div>
+          <button type="button" class="repeater-remove" onclick="removeLiveTagShot(${index})">Remove</button>
+        </div>
+      `;
+
+    }).join("");
+
+  }
+
+  const summaryEl =
+    document.getElementById("livetag-rebound-summary");
+
+  const activeTally =
+    REBOUND_TALLY_KEYS
+      .filter(k => liveTagState.reboundTally[k] > 0)
+      .map(k => `${REBOUND_TALLY_LABELS[k]}: ${liveTagState.reboundTally[k]}`);
+
+  summaryEl.textContent =
+    activeTally.length > 0 ? activeTally.join(" · ") : "Nothing tagged yet.";
+
+}
+
+
+function resetLiveTagSession(){
+
+  if(liveTagState.shots.length > 0 || Object.values(liveTagState.puckTally).some(v => v > 0)){
+    if(!confirm("Discard everything tagged so far and start a new game?")){
+      return;
+    }
+  }
+
+  liveTagState = freshLiveTagState();
+
+  document.getElementById("lt-date").value = "";
+  document.getElementById("lt-season").value = "2026 preseason";
+  document.getElementById("lt-team").value = "";
+  document.getElementById("lt-opponent").value = "";
+  document.getElementById("lt-home-away").value = "";
+  document.getElementById("lt-result").value = "";
+  document.getElementById("lt-team-goals").value = "";
+  document.getElementById("lt-opponent-goals").value = "";
+  document.getElementById("lt-p1-minutes").value = "15";
+  document.getElementById("lt-p2-minutes").value = "15";
+  document.getElementById("lt-p3-minutes").value = "15";
+  document.getElementById("lt-ot-minutes").value = "0";
+
+  ["rims_faced","rims_stopped","pass_attempts","passes_completed"].forEach(field => {
+    document.getElementById("lt-count-" + field).textContent = "0";
+  });
+
+  setLiveTagPeriod("1");
+  resetLiveTagShotPicker();
+  renderLiveTagUI();
+
+  hideLiveTagMessages();
+
+}
+
+
+function hideLiveTagMessages(){
+
+  const err = document.getElementById("livetag-error");
+  const msg = document.getElementById("livetag-message");
+
+  err.classList.remove("visible");
+  msg.classList.remove("visible");
+
+  err.textContent = "";
+  msg.textContent = "";
+
+}
+
+
+function showLiveTagError(message){
+
+  const err = document.getElementById("livetag-error");
+
+  err.textContent = message;
+  err.classList.add("visible");
+
+}
+
+
+function showLiveTagMessage(message){
+
+  const msg = document.getElementById("livetag-message");
+
+  msg.textContent = message;
+  msg.classList.add("visible");
+
+}
+
+
+async function finishLiveTagGame(){
+
+  hideLiveTagMessages();
+
+  if(!currentSession || !currentSession.user){
+    showLiveTagError("You must be signed in to save a game.");
+    return;
+  }
+
+  if(liveTagState.shots.length === 0){
+    if(!confirm("No shots have been tagged. Save this game anyway?")){
+      return;
+    }
+  }
+
+  const userId = currentSession.user.id;
+
+  const opponent =
+    textOrNull(document.getElementById("lt-opponent").value);
+
+  if(!opponent){
+    showLiveTagError("Opponent is required.");
+    return;
+  }
+
+  const finishBtn =
+    document.getElementById("livetag-finish-btn");
+
+  finishBtn.disabled = true;
+
+
+  try{
+
+    const shotsAgainst = liveTagState.shots.length;
+    const goalsAgainst = liveTagState.shots.filter(s => s.outcome === "goal").length;
+    const saves = shotsAgainst - goalsAgainst;
+
+    const periodMinutes = {
+      "1": numOrNull(document.getElementById("lt-p1-minutes").value) || 0,
+      "2": numOrNull(document.getElementById("lt-p2-minutes").value) || 0,
+      "3": numOrNull(document.getElementById("lt-p3-minutes").value) || 0,
+      "OT": numOrNull(document.getElementById("lt-ot-minutes").value) || 0
+    };
+
+    const totalMinutes =
+      periodMinutes["1"] + periodMinutes["2"] + periodMinutes["3"] + periodMinutes["OT"];
+
+    const gamePayload = {
+      user_id: userId,
+      date: textOrNull(document.getElementById("lt-date").value),
+      season: textOrNull(document.getElementById("lt-season").value),
+      team: textOrNull(document.getElementById("lt-team").value),
+      opponent: opponent,
+      home_away: textOrNull(document.getElementById("lt-home-away").value),
+      result: textOrNull(document.getElementById("lt-result").value),
+      team_goals: numOrNull(document.getElementById("lt-team-goals").value),
+      "opponent goals": numOrNull(document.getElementById("lt-opponent-goals").value),
+      shots_against: shotsAgainst,
+      saves: saves,
+      goals_against: goalsAgainst,
+      minutes_played: totalMinutes > 0 ? totalMinutes : null,
+      shutout: shotsAgainst > 0 && goalsAgainst === 0,
+      notes: null
+    };
+
+    const { data: newGame, error: gameError } =
+      await supabaseClient
+        .from("Games")
+        .insert(gamePayload)
+        .select()
+        .single();
+
+    if(gameError){
+      throw gameError;
+    }
+
+    const gameId = newGame.id;
+
+
+    const periodPayloads = [];
+
+    ["1","2","3","OT"].forEach(p => {
+
+      const periodShots =
+        liveTagState.shots.filter(s => s.period === p);
+
+      const minutes = periodMinutes[p];
+
+      if(periodShots.length === 0 && minutes === 0){
+        return;
+      }
+
+      const pGoals = periodShots.filter(s => s.outcome === "goal").length;
+
+      periodPayloads.push({
+        game_id: gameId,
+        user_id: userId,
+        period: p,
+        minutes_played: minutes || null,
+        shots_against: periodShots.length,
+        saves: periodShots.length - pGoals,
+        goals_against: pGoals,
+        Notes: null
+      });
+
+    });
+
+    if(periodPayloads.length > 0){
+
+      const { error: periodError } =
+        await supabaseClient.from("Period Stats").insert(periodPayloads);
+
+      if(periodError){
+        throw periodError;
+      }
+
+    }
+
+
+    if(liveTagState.shots.length > 0){
+
+      const shotPayloads =
+        liveTagState.shots.map(shot => ({
+          game_id: gameId,
+          user_id: userId,
+          period: shot.period,
+          distance: null,
+          location: shot.location,
+          shot_type: shot.shot_type,
+          outcome: shot.outcome,
+          rush: shot.rush,
+          rebound: shot.rebound,
+          screened: shot.screened,
+          breakaway: shot.breakaway,
+          cross_ice: shot.cross_ice,
+          deflection: shot.deflection
+        }));
+
+      const { error: shotError } =
+        await supabaseClient.from("Shots").insert(shotPayloads);
+
+      if(shotError){
+        throw shotError;
+      }
+
+    }
+
+
+    const hasReboundTally =
+      REBOUND_TALLY_KEYS.some(k => liveTagState.reboundTally[k] > 0);
+
+    if(hasReboundTally){
+
+      const { error: reboundError } =
+        await supabaseClient
+          .from("goalierebound_control")
+          .insert({
+            ...liveTagState.reboundTally,
+            game_id: gameId,
+            user_id: userId
+          });
+
+      if(reboundError){
+        throw reboundError;
+      }
+
+    }
+
+
+    const hasPuckTally =
+      Object.values(liveTagState.puckTally).some(v => v > 0);
+
+    if(hasPuckTally){
+
+      const { error: puckError } =
+        await supabaseClient
+          .from("puck_playing")
+          .insert({
+            ...liveTagState.puckTally,
+            game_id: gameId,
+            user_id: userId
+          });
+
+      if(puckError){
+        throw puckError;
+      }
+
+    }
+
+
+    liveTagState = freshLiveTagState();
+    resetLiveTagSession();
+
+    const myGamesBtn =
+      document.querySelector('nav button[onclick*="\'addgame\'"]');
+
+    showTab("addgame", myGamesBtn);
+
+    await loadDashboard();
+
+    showAddGameMessage("Game saved from Live Tag.");
+
+  }
+  catch(error){
+
+    console.error(error);
+    showLiveTagError(error.message || "Something went wrong saving this game.");
+
+  }
+  finally{
+
+    finishBtn.disabled = false;
 
   }
 
@@ -7788,7 +8791,8 @@ document.getElementById("addgame-form")
           rebound: row.querySelector('[data-field="rebound"]').checked,
           screened: row.querySelector('[data-field="screened"]').checked,
           breakaway: row.querySelector('[data-field="breakaway"]').checked,
-          cross_ice: row.querySelector('[data-field="cross_ice"]').checked
+          cross_ice: row.querySelector('[data-field="cross_ice"]').checked,
+          deflection: row.querySelector('[data-field="deflection"]').checked
         };
 
         shotPayloads.push({
