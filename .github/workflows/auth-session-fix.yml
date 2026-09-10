@@ -24,6 +24,25 @@ jobs:
           p = Path('dashboard.html')
           s = p.read_text(encoding='utf-8')
 
+          # Make dashboard use the exact same Supabase browser storage key as index.html.
+          client_pattern = r'''const supabase\s*=\s*createClient\(\s*SUPABASE_URL,\s*SUPABASE_KEY\s*\);'''
+          client_replacement = '''const supabase = createClient(
+            SUPABASE_URL,
+            SUPABASE_KEY,
+            {
+              auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: true,
+                storageKey: 'goalie-analytics-auth'
+              }
+            }
+          );'''
+          s, client_count = re.subn(client_pattern, client_replacement, s, count=1, flags=re.S)
+
+          if client_count != 1:
+              raise SystemExit('Could not find dashboard Supabase client initialization')
+
           new = '''async function initializeAuth(){
 
             supabase.auth.onAuthStateChange(async (event, session) => {
@@ -59,7 +78,7 @@ jobs:
               raise SystemExit('Could not find dashboard auth functions')
 
           p.write_text(patched, encoding='utf-8')
-          print('dashboard auth initialization patched')
+          print('dashboard auth initialization and storage key patched')
           PY
 
       - name: Commit patch
@@ -68,5 +87,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add dashboard.html
           git diff --cached --quiet && exit 0
-          git commit -m "Fix Supabase auth session handoff"
+          git commit -m "Use shared Supabase auth storage key"
           git push
