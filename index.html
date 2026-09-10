@@ -6568,6 +6568,41 @@
        START
     ========================================================== */
 
+
+<script>
+/* Prevent the initial getSession() check from racing with sign-in. */
+window.__safeAuthInitialized = true;
+window.initializeAuth = async function(){
+  let activeSession = null;
+
+  supabase.auth.onAuthStateChange(async (event, session) => {
+    if (session && session.user) {
+      activeSession = session;
+      currentUser = session.user;
+
+      if (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") {
+        await handleAuthenticatedUser(session.user);
+      }
+    } else if (event === "SIGNED_OUT") {
+      activeSession = null;
+      currentUser = null;
+      document.getElementById("app").classList.add("hidden");
+      document.getElementById("authScreen").classList.remove("hidden");
+    }
+  });
+
+  const { data } = await supabase.auth.getSession();
+
+  if (data && data.session) {
+    activeSession = data.session;
+    await handleAuthenticatedUser(data.session.user);
+  } else if (!activeSession && !currentUser) {
+    document.getElementById("authScreen").classList.remove("hidden");
+    document.getElementById("app").classList.add("hidden");
+  }
+};
+</script>
+
     initializeAuth();
 
   </script>
@@ -6643,6 +6678,7 @@
       }
     };
   </script>\n
+
 
 
 <script src="login-fix.js"></script>
