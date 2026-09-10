@@ -2110,11 +2110,18 @@
     const { createClient } =
       window.supabase;
 
-    const supabase =
-      createClient(
-        SUPABASE_URL,
-        SUPABASE_KEY
-      );
+    const supabase = createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY,
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storageKey: 'goalie-analytics-auth'
+    }
+  }
+);
 
     window.supabaseClient = supabase;
 
