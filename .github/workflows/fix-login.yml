@@ -1,4 +1,4 @@
-name: One-time auth repair
+name: One-time auth cleanup
 
 on:
   push:
@@ -8,71 +8,89 @@ permissions:
   contents: write
 
 jobs:
-  repair:
+  cleanup:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Clean up authentication architecture
+      - name: Clean authentication code
         run: |
           python3 - <<'PY'
           from pathlib import Path
+
           p = Path('index.html')
           t = p.read_text(encoding='utf-8')
 
-          # Remove the temporary second-client login patch.
-          t = t.replace('<script src="login-fix.js"></script>', '')
+          marker = '''    /* =========================================================
+       START
+    ========================================================== */'''
 
-          # Replace the actual startup call with a clean startup function.
-          safe_auth = r'''
-          <script>
-          async function safeInitializeAuth(){
-            let sessionSeen = false;
+          if marker not in t:
+              raise SystemExit('START marker not found')
 
-            supabase.auth.onAuthStateChange((event, session) => {
-              if (session && session.user) {
-                sessionSeen = true;
-                currentUser = session.user;
-              } else if (event === "SIGNED_OUT") {
-                currentUser = null;
-                currentProfile = null;
-                document.getElementById("app").classList.add("hidden");
-                document.getElementById("authScreen").classList.remove("hidden");
-                if (typeof showLogin === "function") showLogin();
-              }
-            });
+          prefix = t.split(marker, 1)[0]
 
-            const { data, error } = await supabase.auth.getSession();
-            if (error) {
-              console.error("Auth session error:", error);
-            }
+          clean_tail = r'''    /* =========================================================
+       START
+    ========================================================== */
 
-            if (data && data.session) {
-              currentUser = data.session.user;
-              await handleAuthenticatedUser(data.session.user);
-            } else if (!sessionSeen && !currentUser) {
-              document.getElementById("authScreen").classList.remove("hidden");
-              document.getElementById("app").classList.add("hidden");
-            }
-          }
-          </script>
-          '''
+    async function startAuth(){
+      let handledUserId = null;
+      let handling = false;
 
-          if 'async function safeInitializeAuth()' not in t:
-              t = t.replace('    initializeAuth();', safe_auth + '\n    safeInitializeAuth();', 1)
-          else:
-              t = t.replace('    initializeAuth();', '    safeInitializeAuth();', 1)
+      const showLoggedOut = () => {
+        currentUser = null;
+        currentProfile = null;
+        document.getElementById("app").classList.add("hidden");
+        document.getElementById("authScreen").classList.remove("hidden");
+        if (typeof showLogin === "function") showLogin();
+      };
 
-          p.write_text(t, encoding='utf-8')
+      supabase.auth.onAuthStateChange((event, session) => {
+        if (session && session.user) {
+          currentUser = session.user;
+          return;
+        }
+
+        if (event === "SIGNED_OUT") {
+          showLoggedOut();
+        }
+      });
+
+      const { data, error } = await supabase.auth.getSession();
+
+      if (error) {
+        console.error("Supabase session error:", error);
+        showLoggedOut();
+        return;
+      }
+
+      if (data && data.session && data.session.user) {
+        currentUser = data.session.user;
+        handledUserId = data.session.user.id;
+        await handleAuthenticatedUser(data.session.user);
+      } else if (!currentUser) {
+        showLoggedOut();
+      }
+    }
+
+    startAuth();
+
+  </script>
+</body>
+</html>
+'''
+
+          p.write_text(prefix + clean_tail, encoding='utf-8')
           PY
 
           rm -f login-fix.js
 
-      - name: Commit and remove repair workflow
+      - name: Commit cleanup and remove this workflow
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add index.html login-fix.js .github/workflows/fix-login.yml
-          git commit -m 'fix: clean up auth session handling'
+          git commit -m 'fix: simplify Supabase authentication'
           git push
