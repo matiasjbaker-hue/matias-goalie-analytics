@@ -14,46 +14,103 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Repair authentication once
+      - name: Install isolated authentication fallback
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
 
           p = Path('index.html')
           s = p.read_text(encoding='utf-8')
 
-          # The page already has a working Supabase client in the main script.
-          # Remove the duplicate login override, which was fighting the main auth code.
-          s, n = re.subn(
-              r'\s*<!-- ROBUST_LOGIN_OVERRIDE -->\s*<script>.*?</script>\s*',
-              '\n',
-              s,
-              count=1,
-              flags=re.S,
-          )
-          print('Removed duplicate login override:', n)
+          marker = '<!-- ISOLATED_AUTH_FALLBACK -->'
 
-          # Expose the main functions explicitly for the inline onclick handlers.
-          if 'window.login = login;' not in s:
-              marker = '    /* =========================================================\n       START\n    ========================================================== */'
-              if marker in s:
-                  s = s.replace(
-                      marker,
-                      '    window.login = login;\n    window.handleAuthenticatedUser = handleAuthenticatedUser;\n    window.logout = logout;\n    window.signup = signup;\n    window.resetPassword = resetPassword;\n\n' + marker,
-                      1,
-                  )
+          if marker not in s:
+              fallback = r'''
 
-          # Remove the old duplicate initialization wrappers and use the original initializer.
-          s = re.sub(
-              r'\n/\* Prevent the initial getSession\(\) check from racing with sign-in\. \*/.*?\n\s*safeInitializeAuth\(\);\s*\n',
-              '\n    initializeAuth();\n',
-              s,
-              count=1,
-              flags=re.S,
-          )
+<!-- ISOLATED_AUTH_FALLBACK -->
+<script>
+(function () {
+  const URL = "https://iiuqxxrrruvwvfehrzic.supabase.co";
+  const KEY = "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
 
-          p.write_text(s, encoding='utf-8')
+  function getClient() {
+    if (window.supabaseClient) return window.supabaseClient;
+    if (!window.supabase || !window.supabase.createClient) return null;
+    window.supabaseClient = window.supabase.createClient(URL, KEY);
+    return window.supabaseClient;
+  }
+
+  window.login = async function () {
+    const emailEl = document.getElementById('loginEmail');
+    const passwordEl = document.getElementById('loginPassword');
+    const button = document.getElementById('loginButton');
+    const message = document.getElementById('authMessage');
+
+    const email = emailEl ? emailEl.value.trim() : '';
+    const password = passwordEl ? passwordEl.value : '';
+
+    if (!email || !password) {
+      if (message) {
+        message.textContent = 'Please enter your email and password.';
+        message.className = 'auth-message show error';
+      }
+      return false;
+    }
+
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Signing in...';
+    }
+
+    try {
+      const client = getClient();
+      if (!client) throw new Error('Authentication service did not load. Please refresh the page.');
+
+      const result = await client.auth.signInWithPassword({ email, password });
+      if (result.error) throw result.error;
+
+      if (result.data && result.data.user) {
+        window.currentUser = result.data.user;
+        const authScreen = document.getElementById('authScreen');
+        const app = document.getElementById('app');
+        const badge = document.getElementById('userEmailBadge');
+
+        if (authScreen) authScreen.classList.add('hidden');
+        if (app) app.classList.remove('hidden');
+        if (badge) badge.textContent = result.data.user.email || '';
+
+        if (typeof window.handleAuthenticatedUser === 'function') {
+          await window.handleAuthenticatedUser(result.data.user);
+        } else if (typeof window.loadDashboard === 'function') {
+          await window.loadDashboard();
+        }
+      }
+    } catch (error) {
+      if (message) {
+        message.textContent = error && error.message ? error.message : 'Unable to sign in.';
+        message.className = 'auth-message show error';
+      }
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = 'Sign In';
+      }
+    }
+
+    return false;
+  };
+
+  window.addEventListener('error', function (event) {
+    if (event && event.error) console.error('Goalie Analytics error:', event.error);
+  });
+})();
+</script>
+'''
+              s = s.replace('</body>', fallback + '\n</body>', 1)
+              p.write_text(s, encoding='utf-8')
+              print('Installed isolated authentication fallback.')
+          else:
+              print('Fallback already installed.')
           PY
 
       - name: Commit repair
@@ -64,6 +121,6 @@ jobs:
           if git diff --cached --quiet; then
             echo 'No authentication changes needed.'
           else
-            git commit -m 'fix: remove duplicate authentication handlers'
+            git commit -m 'fix: add isolated login fallback'
             git push
           fi
