@@ -127,10 +127,6 @@ nav button.active{
   color:#fff;
 }
 
-.nav-dropdown{
-  position:relative;
-}
-
 .nav-dropdown-toggle{
   border:0;
   background:transparent;
@@ -155,20 +151,17 @@ nav button.active{
 
 .nav-dropdown-menu{
   display:none;
-  position:absolute;
-  top:100%;
-  left:0;
-  margin-top:4px;
+  position:fixed;
   background:#0c261c;
   border:1px solid var(--border2);
   border-radius:9px;
   padding:6px;
   min-width:190px;
-  box-shadow:0 12px 30px rgba(0,0,0,.35);
-  z-index:20;
+  box-shadow:0 12px 30px rgba(0,0,0,.5);
+  z-index:9999;
 }
 
-.nav-dropdown.open .nav-dropdown-menu{
+.nav-dropdown-menu.open{
   display:flex;
   flex-direction:column;
   gap:2px;
@@ -1271,41 +1264,9 @@ tr:hover td{
       Overview
     </button>
 
-    <div class="nav-dropdown" id="stats-dropdown">
-
-      <button type="button" class="nav-dropdown-toggle" id="stats-toggle-btn" onclick="toggleNavDropdown(event)">
-        Stats ▾
-      </button>
-
-      <div class="nav-dropdown-menu">
-
-        <button onclick="selectStatsTab('gamelog',this)">
-          Game Log
-        </button>
-
-        <button onclick="selectStatsTab('periods',this)">
-          Period Breakdown
-        </button>
-
-        <button onclick="selectStatsTab('situational',this)">
-          Situational
-        </button>
-
-        <button onclick="selectStatsTab('control',this)">
-          Rebound Control
-        </button>
-
-        <button onclick="selectStatsTab('incremental',this)">
-          Incremental Stats
-        </button>
-
-        <button onclick="selectStatsTab('puckplaying',this)">
-          Puck Playing
-        </button>
-
-      </div>
-
-    </div>
+    <button type="button" class="nav-dropdown-toggle" id="stats-toggle-btn" onclick="toggleNavDropdown(event)">
+      Stats ▾
+    </button>
 
     <button onclick="showTab('livetag',this)">
       Live Tag
@@ -1322,6 +1283,34 @@ tr:hover td{
   </div>
 
 </nav>
+
+<div class="nav-dropdown-menu" id="stats-dropdown-menu">
+
+  <button onclick="selectStatsTab('gamelog',this)">
+    Game Log
+  </button>
+
+  <button onclick="selectStatsTab('periods',this)">
+    Period Breakdown
+  </button>
+
+  <button onclick="selectStatsTab('situational',this)">
+    Situational
+  </button>
+
+  <button onclick="selectStatsTab('control',this)">
+    Rebound Control
+  </button>
+
+  <button onclick="selectStatsTab('incremental',this)">
+    Incremental Stats
+  </button>
+
+  <button onclick="selectStatsTab('puckplaying',this)">
+    Puck Playing
+  </button>
+
+</div>
 
 
 <main>
@@ -4071,9 +4060,27 @@ function toggleNavDropdown(e){
 
   e.stopPropagation();
 
-  document
-    .getElementById("stats-dropdown")
-    .classList.toggle("open");
+  const menu =
+    document.getElementById("stats-dropdown-menu");
+
+  const isOpen =
+    menu.classList.contains("open");
+
+  if(isOpen){
+    closeNavDropdown();
+    return;
+  }
+
+  const toggleBtn =
+    document.getElementById("stats-toggle-btn");
+
+  const rect =
+    toggleBtn.getBoundingClientRect();
+
+  menu.style.top = (rect.bottom + 6) + "px";
+  menu.style.left = rect.left + "px";
+
+  menu.classList.add("open");
 
 }
 
@@ -4081,7 +4088,7 @@ function toggleNavDropdown(e){
 function closeNavDropdown(){
 
   document
-    .getElementById("stats-dropdown")
+    .getElementById("stats-dropdown-menu")
     .classList.remove("open");
 
 }
@@ -4092,7 +4099,7 @@ function selectStatsTab(id, btn){
   showTab(id, document.getElementById("stats-toggle-btn"));
 
   document
-    .querySelectorAll("#stats-dropdown .nav-dropdown-menu button")
+    .querySelectorAll("#stats-dropdown-menu button")
     .forEach(b => b.classList.remove("active"));
 
   btn.classList.add("active");
@@ -4104,13 +4111,26 @@ function selectStatsTab(id, btn){
 
 document.addEventListener("click", function(e){
 
-  const dropdown =
-    document.getElementById("stats-dropdown");
+  const menu =
+    document.getElementById("stats-dropdown-menu");
 
-  if(dropdown && !dropdown.contains(e.target)){
-    dropdown.classList.remove("open");
+  const toggleBtn =
+    document.getElementById("stats-toggle-btn");
+
+  if(menu && toggleBtn && !menu.contains(e.target) && !toggleBtn.contains(e.target)){
+    closeNavDropdown();
   }
 
+});
+
+
+window.addEventListener("scroll", function(){
+  closeNavDropdown();
+}, { passive: true });
+
+
+window.addEventListener("resize", function(){
+  closeNavDropdown();
 });
 
 
