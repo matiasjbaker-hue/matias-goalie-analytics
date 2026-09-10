@@ -1,0 +1,109 @@
+name: Repair authentication
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch login
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          marker = '<!-- ISOLATED_AUTH_FALLBACK -->'
+
+          if marker not in s:
+              fallback = r'''<!-- ISOLATED_AUTH_FALLBACK -->
+<script>
+(function () {
+  const URL = "https://iiuqxxrrruvwvfehrzic.supabase.co";
+  const KEY = "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
+
+  function client() {
+    if (window.supabaseClient) return window.supabaseClient;
+    if (!window.supabase || !window.supabase.createClient) return null;
+    window.supabaseClient = window.supabase.createClient(URL, KEY);
+    return window.supabaseClient;
+  }
+
+  window.login = async function () {
+    const email = (document.getElementById('loginEmail') || {}).value?.trim() || '';
+    const password = (document.getElementById('loginPassword') || {}).value || '';
+    const button = document.getElementById('loginButton');
+    const message = document.getElementById('authMessage');
+
+    if (!email || !password) {
+      if (message) {
+        message.textContent = 'Please enter your email and password.';
+        message.className = 'auth-message show error';
+      }
+      return false;
+    }
+
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Signing in...';
+    }
+
+    try {
+      const sb = client();
+      if (!sb) throw new Error('Authentication service did not load. Please refresh the page.');
+      const { data, error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      if (data?.user) {
+        document.getElementById('authScreen')?.classList.add('hidden');
+        document.getElementById('app')?.classList.remove('hidden');
+        const badge = document.getElementById('userEmailBadge');
+        if (badge) badge.textContent = data.user.email || '';
+        if (typeof window.handleAuthenticatedUser === 'function') {
+          await window.handleAuthenticatedUser(data.user);
+        }
+      }
+    } catch (e) {
+      if (message) {
+        message.textContent = e?.message || 'Unable to sign in.';
+        message.className = 'auth-message show error';
+      }
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = 'Sign In';
+      }
+    }
+    return false;
+  };
+})();
+</script>
+'''
+              s = s.replace('</body>', fallback + '</body>', 1)
+              p.write_text(s, encoding='utf-8')
+              print('Installed isolated authentication fallback')
+          else:
+              print('Fallback already present')
+          PY
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          if git diff --cached --quiet; then
+            echo 'No changes needed'
+          else
+            git commit -m 'fix: isolate sign in handler'
+            git push
+          fi
