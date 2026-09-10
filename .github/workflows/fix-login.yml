@@ -1,0 +1,50 @@
+name: Fix sign-in handler
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  fix-login:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch login handler
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("index.html")
+          text = path.read_text(encoding="utf-8")
+          marker = "<!-- ROBUST_LOGIN_OVERRIDE -->"
+
+          if marker in text:
+              print("Login override already present; nothing to do.")
+              raise SystemExit(0)
+
+          override = r'''\n\n  <!-- ROBUST_LOGIN_OVERRIDE -->\n  <script>\n    window.login = async function login(){\n      const emailEl = document.getElementById("loginEmail");\n      const passwordEl = document.getElementById("loginPassword");\n      const button = document.getElementById("loginButton");\n      const message = document.getElementById("authMessage");\n\n      const email = emailEl ? emailEl.value.trim() : "";\n      const password = passwordEl ? passwordEl.value : "";\n\n      if(message){\n        message.className = "auth-message";\n        message.textContent = "";\n      }\n\n      if(!email || !password){\n        if(message){\n          message.className = "auth-message show error";\n          message.textContent = "Please enter your email and password.";\n        }\n        return;\n      }\n\n      if(button){\n        button.disabled = true;\n        button.textContent = "Signing in...";\n      }\n\n      try{\n        if(!window.supabase || !window.supabase.createClient){\n          throw new Error("Supabase failed to load. Please refresh the page and try again.");\n        }\n\n        const client = window.supabase.createClient(\n          "https://iiuqxxrrruvwvfehrzic.supabase.co",\n          "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ"\n        );\n\n        const { data, error } = await client.auth.signInWithPassword({\n          email,\n          password\n        });\n\n        if(error) throw error;\n\n        if(!data || !data.session || !data.user){\n          throw new Error("Sign-in succeeded, but no active session was returned. If this is a new account, check your email for a confirmation link.");\n        }\n\n        if(typeof window.handleAuthenticatedUser === "function"){\n          await window.handleAuthenticatedUser(data.user);\n        }else{\n          window.location.reload();\n        }\n      }catch(error){\n        console.error("Sign-in error:", error);\n        if(message){\n          message.className = "auth-message show error";\n          message.textContent = error && error.message ? error.message : "Unable to sign in. Please try again.";\n        }\n      }finally{\n        if(button){\n          button.disabled = false;\n          button.textContent = "Sign In";\n        }\n      }\n    };\n  </script>\n'''
+
+          if "</body>" not in text:
+              raise SystemExit("Could not find </body> in index.html")
+
+          text = text.replace("</body>", override + "\n</body>", 1)
+          path.write_text(text, encoding="utf-8")
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "fix: override broken sign-in handler"
+          git push
