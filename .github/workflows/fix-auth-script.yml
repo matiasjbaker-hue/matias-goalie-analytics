@@ -1,0 +1,66 @@
+name: Fix auth script
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix-auth:
+    if: ${{ !contains(github.event.head_commit.message, '[auth-fix]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Repair nested auth script tags
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          original = s
+
+          # The auth hardening code was accidentally inserted as nested
+          # <script> blocks inside the main JavaScript block. That makes
+          # the browser terminate the main script early and leaves the
+          # Supabase client/functions undefined.
+          s = s.replace(
+              '<script>\n/* Prevent the initial getSession() check from racing with sign-in. */',
+              '/* Prevent the initial getSession() check from racing with sign-in. */',
+              1,
+          )
+
+          s = s.replace(
+              '</script>\n\n\n<script>\nasync function safeInitializeAuth(){',
+              '\n\nasync function safeInitializeAuth(){',
+              1,
+          )
+
+          s = s.replace(
+              '\n</script>\n\n    safeInitializeAuth();\n\n  </script>',
+              '\n\n    safeInitializeAuth();\n\n  </script>',
+              1,
+          )
+
+          if s == original:
+              print('No auth tag repair was necessary.')
+          else:
+              p.write_text(s, encoding='utf-8')
+              print('Auth script tags repaired.')
+          PY
+
+      - name: Commit repair
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "[auth-fix] Repair nested auth script tags"
+            git push
+          fi
