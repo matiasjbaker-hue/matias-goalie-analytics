@@ -15,7 +15,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Repair nested auth script tags
+      - name: Repair auth JavaScript
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -24,33 +24,55 @@ jobs:
           s = p.read_text(encoding='utf-8')
           original = s
 
-          # The auth hardening code was accidentally inserted as nested
-          # <script> blocks inside the main JavaScript block. That makes
-          # the browser terminate the main script early and leaves the
-          # Supabase client/functions undefined.
+          # Repair any remaining nested script tags.
           s = s.replace(
               '<script>\n/* Prevent the initial getSession() check from racing with sign-in. */',
               '/* Prevent the initial getSession() check from racing with sign-in. */',
               1,
           )
-
           s = s.replace(
               '</script>\n\n\n<script>\nasync function safeInitializeAuth(){',
               '\n\nasync function safeInitializeAuth(){',
               1,
           )
-
           s = s.replace(
               '\n</script>\n\n    safeInitializeAuth();\n\n  </script>',
               '\n\n    safeInitializeAuth();\n\n  </script>',
               1,
           )
 
+          # The robust login override lives in a later script tag, so the
+          # locally-scoped Supabase client must also be exposed globally.
+          old_client = '''    const supabase =
+      createClient(
+        SUPABASE_URL,
+        SUPABASE_KEY
+      );'''
+          new_client = '''    const supabase =
+      createClient(
+        SUPABASE_URL,
+        SUPABASE_KEY
+      );
+
+    window.supabaseClient = supabase;'''
+          if old_client in s and 'window.supabaseClient = supabase;' not in s:
+              s = s.replace(old_client, new_client, 1)
+
+          old_login = '''  <script>
+    window.login = async function login(){
+      const emailEl = document.getElementById("loginEmail");'''
+          new_login = '''  <script>
+    window.login = async function login(){
+      const supabase = window.supabaseClient;
+      const emailEl = document.getElementById("loginEmail");'''
+          if old_login in s and 'const supabase = window.supabaseClient;' not in s:
+              s = s.replace(old_login, new_login, 1)
+
           if s == original:
-              print('No auth tag repair was necessary.')
+              print('No changes made.')
           else:
               p.write_text(s, encoding='utf-8')
-              print('Auth script tags repaired.')
+              print('Auth JavaScript repaired.')
           PY
 
       - name: Commit repair
@@ -61,6 +83,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else
-            git commit -m "[auth-fix] Repair nested auth script tags"
+            git commit -m "[auth-fix] Expose Supabase client to login override"
             git push
           fi
