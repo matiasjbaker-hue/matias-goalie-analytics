@@ -829,6 +829,53 @@ tr:hover td{
   cursor:default;
 }
 
+.btn-danger{
+  border:1px solid rgba(255,133,133,.4);
+  background:transparent;
+  color:var(--red);
+  padding:8px 14px;
+  border-radius:7px;
+  cursor:pointer;
+  font-size:13px;
+  font-weight:600;
+  font-family:inherit;
+}
+
+.btn-danger:hover{
+  background:rgba(255,133,133,.12);
+}
+
+.mygame-item{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:14px;
+  padding:14px 16px;
+  margin-bottom:10px;
+}
+
+.mygame-item-info{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+
+.mygame-item-info .mygame-title{
+  font-weight:700;
+  font-size:14px;
+}
+
+.mygame-item-info .mygame-sub{
+  font-size:12px;
+  color:var(--muted);
+}
+
+.mygame-item-actions{
+  display:flex;
+  gap:8px;
+  flex-shrink:0;
+}
+
 .form-error{
   background:rgba(255,133,133,.12);
   border:1px solid rgba(255,133,133,.4);
@@ -1009,7 +1056,7 @@ tr:hover td{
     </button>
 
     <button onclick="showTab('addgame',this)">
-      Add Game
+      My Games
     </button>
 
     <button onclick="showTab('about',this)">
@@ -2094,8 +2141,20 @@ tr:hover td{
 <section id="addgame" class="tab">
 
   <div class="page-title">
-    <h2>Add Game</h2>
-    <p>Enter a completed game and its stats. This creates the game and, if filled in, its period, shot, rebound-control, and puck-playing data.</p>
+    <h2>My Games</h2>
+    <p>View, edit, or delete games you've entered. Use the form below to add a new one.</p>
+  </div>
+
+  <div class="section-heading">
+    <h3>Your Games</h3>
+    <p>Click Edit to load a game into the form below, or Delete to remove it permanently.</p>
+  </div>
+
+  <div id="my-games-list"></div>
+
+  <div class="section-heading">
+    <h3 id="addgame-form-heading">Add a New Game</h3>
+    <p id="addgame-form-subheading">Required for every game.</p>
   </div>
 
   <div id="addgame-error" class="form-error"></div>
@@ -2322,9 +2381,13 @@ tr:hover td{
     </div>
 
 
-    <div class="section-space">
+    <div class="section-space" style="display:flex;gap:12px">
       <button type="submit" class="btn-primary" id="addgame-submit">
         Save Game
+      </button>
+
+      <button type="button" class="btn-secondary" id="addgame-cancel-edit" style="display:none" onclick="cancelEditGame()">
+        Cancel Edit
       </button>
     </div>
 
@@ -7080,6 +7143,8 @@ async function loadDashboard(){
 
     renderPuckPlaying();
 
+    renderMyGamesList();
+
 
   }
   catch(error){
@@ -7343,6 +7408,237 @@ function rowIsBlank(fields){
 }
 
 
+/* ============================================================
+   MY GAMES LIST / EDIT / DELETE
+============================================================ */
+
+let editingGameId = null;
+
+
+function renderMyGamesList(){
+
+  const container =
+    document.getElementById("my-games-list");
+
+  if(!container){
+    return;
+  }
+
+  const sorted =
+    [...games].sort((a, b) => {
+      const da = String(a.date || "");
+      const db = String(b.date || "");
+      return db.localeCompare(da);
+    });
+
+  if(sorted.length === 0){
+    container.innerHTML = `<div class="card empty">No games yet. Add one below.</div>`;
+    return;
+  }
+
+  container.innerHTML = sorted.map(game => {
+
+    const dateLabel = game.date || "No date";
+    const oppLabel = game.opponent || "Unknown opponent";
+    const resultLabel = game.result || "";
+    const scoreLabel =
+      (game.team_goals ?? "?") + " - " + (game["opponent goals"] ?? "?");
+
+    return `
+      <div class="card mygame-item">
+        <div class="mygame-item-info">
+          <span class="mygame-title">${dateLabel} vs ${oppLabel}</span>
+          <span class="mygame-sub">${resultLabel} &middot; ${scoreLabel} &middot; ${game.shots_against ?? "?"} SA, ${game.saves ?? "?"} SV</span>
+        </div>
+        <div class="mygame-item-actions">
+          <button type="button" class="btn-secondary" onclick="editGame(${game.id})">Edit</button>
+          <button type="button" class="btn-danger" onclick="deleteGame(${game.id})">Delete</button>
+        </div>
+      </div>
+    `;
+
+  }).join("");
+
+}
+
+
+function editGame(gameId){
+
+  const game =
+    games.find(g => String(g.id) === String(gameId));
+
+  if(!game){
+    showAddGameError("Could not find that game.");
+    return;
+  }
+
+  editingGameId = gameId;
+
+  document.getElementById("addgame-form-heading").textContent =
+    "Editing Game";
+
+  document.getElementById("addgame-form-subheading").textContent =
+    `Editing ${game.date || ""} vs ${game.opponent || "opponent"}. Saving will replace this game's period, shot, rebound-control, and puck-playing rows with whatever is currently in this form.`;
+
+  document.getElementById("addgame-submit").textContent =
+    "Update Game";
+
+  document.getElementById("addgame-cancel-edit").style.display =
+    "inline-block";
+
+  document.getElementById("ag-date").value = game.date || "";
+  document.getElementById("ag-season").value = game.season || "";
+  document.getElementById("ag-team").value = game.team || "";
+  document.getElementById("ag-opponent").value = game.opponent || "";
+  document.getElementById("ag-home-away").value = game.home_away || "";
+  document.getElementById("ag-result").value = game.result || "";
+  document.getElementById("ag-team-goals").value = game.team_goals ?? "";
+  document.getElementById("ag-opponent-goals").value = game["opponent goals"] ?? "";
+  document.getElementById("ag-shots-against").value = game.shots_against ?? "";
+  document.getElementById("ag-saves").value = game.saves ?? "";
+  document.getElementById("ag-goals-against").value = game.goals_against ?? "";
+  document.getElementById("ag-minutes").value = game.minutes_played ?? "";
+  document.getElementById("ag-shutout").checked = !!game.shutout;
+  document.getElementById("ag-notes").value = game.notes || "";
+
+  const periodContainer =
+    document.getElementById("period-rows");
+
+  periodContainer.innerHTML = "";
+
+  periodStats
+    .filter(p => String(p.game_id) === String(gameId))
+    .forEach(p => {
+      addPeriodRow();
+      const row = periodContainer.lastElementChild;
+      row.querySelector('[data-field="period"]').value = p.period || "";
+      row.querySelector('[data-field="minutes_played"]').value = p.minutes_played ?? "";
+      row.querySelector('[data-field="shots_against"]').value = p.shots_against ?? "";
+      row.querySelector('[data-field="saves"]').value = p.saves ?? "";
+      row.querySelector('[data-field="goals_against"]').value = p.goals_against ?? "";
+      row.querySelector('[data-field="Notes"]').value = p.Notes || "";
+    });
+
+  const shotContainer =
+    document.getElementById("shot-rows");
+
+  shotContainer.innerHTML = "";
+
+  shots
+    .filter(s => String(s.game_id) === String(gameId))
+    .forEach(s => {
+      addShotRow();
+      const row = shotContainer.lastElementChild;
+      row.querySelector('[data-field="period"]').value = s.period || "";
+      row.querySelector('[data-field="distance"]').value = s.distance ?? "";
+      row.querySelector('[data-field="location"]').value = s.location || "";
+      row.querySelector('[data-field="shot_type"]').value = s.shot_type || "";
+      row.querySelector('[data-field="outcome"]').value = s.outcome || "save";
+      row.querySelector('[data-field="rush"]').checked = !!s.rush;
+      row.querySelector('[data-field="rebound"]').checked = !!s.rebound;
+      row.querySelector('[data-field="screened"]').checked = !!s.screened;
+      row.querySelector('[data-field="breakaway"]').checked = !!s.breakaway;
+      row.querySelector('[data-field="cross_ice"]').checked = !!s.cross_ice;
+    });
+
+  const rebound =
+    reboundControls.find(r => String(r.game_id) === String(gameId));
+
+  document.getElementById("rc-glove-caught").value = rebound?.glove_caught ?? "";
+  document.getElementById("rc-glove-rebound").value = rebound?.glove_rebound ?? "";
+  document.getElementById("rc-glove-goal").value = rebound?.glove_goal ?? "";
+  document.getElementById("rc-blocker-good").value = rebound?.blocker_good ?? "";
+  document.getElementById("rc-blocker-bad").value = rebound?.blocker_bad ?? "";
+  document.getElementById("rc-blocker-goal").value = rebound?.blocker_goal ?? "";
+  document.getElementById("rc-midsection-good").value = rebound?.midsection_good ?? "";
+  document.getElementById("rc-midsection-bad").value = rebound?.midsection_bad ?? "";
+  document.getElementById("rc-midsection-goal").value = rebound?.midsection_goal ?? "";
+  document.getElementById("rc-padstick-good").value = rebound?.pad_stick_good ?? "";
+  document.getElementById("rc-padstick-bad").value = rebound?.pad_stick_bad ?? "";
+  document.getElementById("rc-padstick-goal").value = rebound?.pad_stick_goal ?? "";
+
+  const puck =
+    puckPlaying.find(p => String(p.game_id) === String(gameId));
+
+  document.getElementById("pp-rims-faced").value = puck?.rims_faced ?? "";
+  document.getElementById("pp-rims-stopped").value = puck?.rims_stopped ?? "";
+  document.getElementById("pp-pass-attempts").value = puck?.pass_attempts ?? "";
+  document.getElementById("pp-passes-completed").value = puck?.passes_completed ?? "";
+
+  document.getElementById("addgame-form")
+    .scrollIntoView({ behavior: "smooth" });
+
+}
+
+
+function cancelEditGame(){
+
+  editingGameId = null;
+
+  document.getElementById("addgame-form").reset();
+  document.getElementById("period-rows").innerHTML = "";
+  document.getElementById("shot-rows").innerHTML = "";
+
+  document.getElementById("addgame-form-heading").textContent =
+    "Add a New Game";
+
+  document.getElementById("addgame-form-subheading").textContent =
+    "Required for every game.";
+
+  document.getElementById("addgame-submit").textContent =
+    "Save Game";
+
+  document.getElementById("addgame-cancel-edit").style.display =
+    "none";
+
+  hideAddGameMessages();
+
+}
+
+
+async function deleteGame(gameId){
+
+  const game =
+    games.find(g => String(g.id) === String(gameId));
+
+  const label =
+    game ? `${game.date || ""} vs ${game.opponent || "opponent"}` : "this game";
+
+  if(!confirm(`Delete ${label}? This also deletes its period, shot, rebound-control, and puck-playing rows. This cannot be undone.`)){
+    return;
+  }
+
+  try{
+
+    await supabaseClient.from("Period Stats").delete().eq("game_id", gameId);
+    await supabaseClient.from("Shots").delete().eq("game_id", gameId);
+    await supabaseClient.from("goalierebound_control").delete().eq("game_id", gameId);
+    await supabaseClient.from("puck_playing").delete().eq("game_id", gameId);
+
+    const { error: gameError } =
+      await supabaseClient.from("Games").delete().eq("id", gameId);
+
+    if(gameError){
+      throw gameError;
+    }
+
+    if(editingGameId === gameId){
+      cancelEditGame();
+    }
+
+    await loadDashboard();
+
+  }
+  catch(error){
+
+    console.error(error);
+    alert("Could not delete this game: " + (error.message || "unknown error"));
+
+  }
+
+}
+
+
 document.getElementById("addgame-form")
   .addEventListener("submit", async function(e){
 
@@ -7390,18 +7686,55 @@ document.getElementById("addgame-form")
         notes: textOrNull(document.getElementById("ag-notes").value)
       };
 
-      const { data: newGame, error: gameError } =
-        await supabaseClient
-          .from("Games")
-          .insert(gamePayload)
-          .select()
-          .single();
+      let gameId;
 
-      if(gameError){
-        throw gameError;
+      if(editingGameId){
+
+        const { data: updatedGame, error: gameError } =
+          await supabaseClient
+            .from("Games")
+            .update(gamePayload)
+            .eq("id", editingGameId)
+            .select()
+            .single();
+
+        if(gameError){
+          throw gameError;
+        }
+
+        gameId = updatedGame.id;
+
+        const deletions = await Promise.all([
+          supabaseClient.from("Period Stats").delete().eq("game_id", gameId),
+          supabaseClient.from("Shots").delete().eq("game_id", gameId),
+          supabaseClient.from("goalierebound_control").delete().eq("game_id", gameId),
+          supabaseClient.from("puck_playing").delete().eq("game_id", gameId)
+        ]);
+
+        const deletionError =
+          deletions.find(d => d.error)?.error;
+
+        if(deletionError){
+          throw deletionError;
+        }
+
       }
+      else{
 
-      const gameId = newGame.id;
+        const { data: newGame, error: gameError } =
+          await supabaseClient
+            .from("Games")
+            .insert(gamePayload)
+            .select()
+            .single();
+
+        if(gameError){
+          throw gameError;
+        }
+
+        gameId = newGame.id;
+
+      }
 
 
       const periodPayloads = [];
@@ -7538,11 +7871,13 @@ document.getElementById("addgame-form")
       }
 
 
-      document.getElementById("addgame-form").reset();
-      document.getElementById("period-rows").innerHTML = "";
-      document.getElementById("shot-rows").innerHTML = "";
+      const wasEditing = !!editingGameId;
 
-      showAddGameMessage("Game saved. Refreshing dashboard...");
+      cancelEditGame();
+
+      showAddGameMessage(
+        wasEditing ? "Game updated. Refreshing dashboard..." : "Game saved. Refreshing dashboard..."
+      );
 
       await loadDashboard();
 
