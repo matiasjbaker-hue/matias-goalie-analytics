@@ -15,72 +15,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Patch dashboard auth initialization
+      - name: Add independent login fallback
         run: |
           python - <<'PY'
           from pathlib import Path
-          import re
 
           p = Path('dashboard.html')
           s = p.read_text(encoding='utf-8')
 
-          # Make dashboard use the exact same Supabase browser storage key as index.html.
-          client_pattern = r'''const supabase\s*=\s*createClient\(\s*SUPABASE_URL,\s*SUPABASE_KEY\s*\);'''
-          client_replacement = '''const supabase = createClient(
-            SUPABASE_URL,
-            SUPABASE_KEY,
-            {
-              auth: {
-                persistSession: true,
-                autoRefreshToken: true,
-                detectSessionInUrl: true,
-                storageKey: 'goalie-analytics-auth'
-              }
-            }
-          );'''
-          s, client_count = re.subn(client_pattern, client_replacement, s, count=1, flags=re.S)
-
-          if client_count != 1:
-              raise SystemExit('Could not find dashboard Supabase client initialization')
-
-          new = '''async function initializeAuth(){
-
-            supabase.auth.onAuthStateChange(async (event, session) => {
-              if(session && session.user && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')){
-                currentUser = session.user;
-                await handleAuthenticatedUser(session.user);
-              }
-            });
-
-            const { data, error } = await supabase.auth.getSession();
-
-            if(error){
-              console.error('Auth session error:', error);
-            }
-
-            if(data && data.session && data.session.user){
-              await handleAuthenticatedUser(data.session.user);
-              return;
-            }
-
-            document.getElementById('authScreen').classList.remove('hidden');
-            document.getElementById('app').classList.add('hidden');
-            showLogin();
-          }
-
-          '''
-
-          pattern = r'async function initializeAuth\s*\(\s*\)\s*\{.*?async function handleAuthenticatedUser\s*\(\s*user\s*\)\s*\{'
-          replacement = new + 'async function handleAuthenticatedUser(user){'
-          patched, count = re.subn(pattern, replacement, s, count=1, flags=re.S)
-
-          if count != 1:
-              raise SystemExit('Could not find dashboard auth functions')
-
-          s = patched
-
-          # Add a completely independent login fallback at the end of the page.
-          # This still works if an earlier dashboard script throws before defining login().
           marker = '<!-- AUTH-FALLBACK-20260910 -->'
           if marker not in s:
               fallback = r'''\n<!-- AUTH-FALLBACK-20260910 -->
@@ -89,19 +31,24 @@ jobs:
   const URL='https://iiuqxxrrruvwvfehrzic.supabase.co';
   const KEY='sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ';
   const STORAGE='goalie-analytics-auth';
+
   function boot(){
-    if(!window.supabase || !window.supabase.createClient){ return; }
+    if(!window.supabase || !window.supabase.createClient) return;
     const client=window.supabase.createClient(URL,KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:STORAGE}});
     const button=document.getElementById('loginButton');
     if(!button) return;
+
     button.onclick=async function(e){
       if(e) e.preventDefault();
       const email=(document.getElementById('loginEmail')||{}).value?.trim()||'';
       const password=(document.getElementById('loginPassword')||{}).value||'';
       const message=document.getElementById('loginMessage');
       const show=(text,type='error')=>{if(message){message.textContent=text;message.className='auth-message show '+type;}};
+
       if(!email||!password){show('Please enter your email and password.');return false;}
-      button.disabled=true;button.textContent='Signing in...';
+      button.disabled=true;
+      button.textContent='Signing in...';
+
       try{
         const {data,error}=await client.auth.signInWithPassword({email,password});
         if(error) throw error;
@@ -110,19 +57,23 @@ jobs:
         window.location.replace('/dashboard.html?auth=1');
       }catch(err){
         show(err?.message||'Unable to sign in.');
-        button.disabled=false;button.textContent='Sign In';
+        button.disabled=false;
+        button.textContent='Sign In';
       }
       return false;
     };
   }
-  if(window.supabase) boot(); else window.addEventListener('load',boot);
+
+  if(window.supabase) boot();
+  else window.addEventListener('load',boot);
 })();
 </script>
 '''
               s = s.replace('</body>', fallback + '</body>')
-
-          p.write_text(s, encoding='utf-8')
-          print('dashboard auth patched with independent login fallback')
+              p.write_text(s, encoding='utf-8')
+              print('Added independent auth fallback')
+          else:
+              print('Auth fallback already present; nothing to patch')
           PY
 
       - name: Commit patch
