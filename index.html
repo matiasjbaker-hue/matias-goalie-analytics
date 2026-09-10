@@ -2116,6 +2116,8 @@
         SUPABASE_KEY
       );
 
+    window.supabaseClient = supabase;
+
 
     let currentUser = null;
     let currentProfile = null;
@@ -6641,7 +6643,8 @@ async function safeInitializeAuth(){
   <!-- ROBUST_LOGIN_OVERRIDE -->
   <script>
     window.login = async function login(){
-      const emailEl = document.getElementById("loginEmail");
+      const supabase = window.supabaseClient;
+const emailEl = document.getElementById("loginEmail");
       const passwordEl = document.getElementById("loginPassword");
       const button = document.getElementById("loginButton");
       const message = document.getElementById("authMessage");
