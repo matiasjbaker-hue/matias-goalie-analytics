@@ -24,49 +24,39 @@ jobs:
           p = Path('dashboard.html')
           s = p.read_text(encoding='utf-8')
 
-          new = r'''    async function initializeAuth(){
+          new = '''async function initializeAuth(){
 
-      // Register the listener immediately so a session restored during
-      // client initialization is not missed.
-      supabase.auth.onAuthStateChange(
-        async (event, session) => {
-          if(session && session.user){
-            currentUser = session.user;
-            if(event === 'SIGNED_IN' || event === 'INITIAL_SESSION'){
-              await handleAuthenticatedUser(session.user);
+            supabase.auth.onAuthStateChange(async (event, session) => {
+              if(session && session.user && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')){
+                currentUser = session.user;
+                await handleAuthenticatedUser(session.user);
+              }
+            });
+
+            const { data, error } = await supabase.auth.getSession();
+
+            if(error){
+              console.error('Auth session error:', error);
             }
+
+            if(data && data.session && data.session.user){
+              await handleAuthenticatedUser(data.session.user);
+              return;
+            }
+
+            document.getElementById('authScreen').classList.remove('hidden');
+            document.getElementById('app').classList.add('hidden');
+            showLogin();
           }
-        }
-      );
 
-      // Supabase normally restores browser sessions from localStorage.
-      // Give the client a moment to finish its automatic initialization.
-      const { data, error } = await supabase.auth.getSession();
+          '''
 
-      if(error){
-        console.error('Auth session error:', error);
-      }
-
-      if(data && data.session && data.session.user){
-        await handleAuthenticatedUser(data.session.user);
-        return;
-      }
-
-      document.getElementById('authScreen').classList.remove('hidden');
-      document.getElementById('app').classList.add('hidden');
-      showLogin();
-
-    }
-
-
-'''
-
-          pattern = r'    async function initializeAuth\(\)\{.*?\n    async function handleAuthenticatedUser\(user\)\{'
-          replacement = new + '    async function handleAuthenticatedUser(user){'
+          pattern = r'async function initializeAuth\s*\(\s*\)\s*\{.*?async function handleAuthenticatedUser\s*\(\s*user\s*\)\s*\{'
+          replacement = new + 'async function handleAuthenticatedUser(user){'
           patched, count = re.subn(pattern, replacement, s, count=1, flags=re.S)
 
           if count != 1:
-              raise SystemExit('Could not find dashboard initializeAuth block')
+              raise SystemExit('Could not find dashboard auth functions')
 
           p.write_text(patched, encoding='utf-8')
           print('dashboard auth initialization patched')
