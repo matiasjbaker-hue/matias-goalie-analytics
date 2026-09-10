@@ -8,19 +8,11 @@
 :root{--bg:#061710;--card:#0c261c;--border:#285640;--text:#edf7f1;--muted:#88a599;--green:#69dda0;--red:#ff8585}
 *{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--bg);color:var(--text);font-family:system-ui,sans-serif}.shell{width:100%;max-width:430px}.brand{text-align:center;margin-bottom:24px}.mark{width:64px;height:64px;border-radius:18px;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;background:var(--green);color:#06130d;font-size:24px;font-weight:900}h1{margin:0;font-size:28px}.brand p{color:var(--muted);font-size:14px}.card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:28px}h2{margin:0 0 8px}.subtitle{color:var(--muted);font-size:14px;margin:0 0 22px}.field{margin-bottom:16px}label{display:block;margin-bottom:7px;font-size:13px;font-weight:700}input{width:100%;padding:13px;border-radius:10px;border:1px solid var(--border);background:#071a12;color:var(--text);font:inherit}button{font:inherit;cursor:pointer}.primary{width:100%;padding:13px;border:0;border-radius:10px;background:var(--green);font-weight:900}.links{display:flex;justify-content:space-between;margin-top:16px}.link{border:0;background:none;color:var(--green);font-size:13px}.message{display:none;padding:11px;border-radius:9px;margin-bottom:16px;font-size:13px}.message.show{display:block}.error{color:#ffb0b0;background:#ff858514;border:1px solid #ff858540}.success{color:var(--green);background:#69dda014;border:1px solid #69dda040}.status{font-size:11px;text-align:center;color:var(--muted);margin-top:14px}
 </style>
-<script>
-window.__loginPageJS=true;
-window.addEventListener('DOMContentLoaded',function(){
- var s=document.getElementById('jsStatus');
- if(s){s.textContent='JavaScript: WORKING';s.style.color='#69dda0';}
-});
-</script>
 </head>
 <body>
 <div class="shell">
 <div class="brand"><div class="mark">GA</div><h1>Goalie Analytics</h1><p>Goaltending Analytics Platform</p></div>
 <div class="card">
-<div id="loginView">
 <h2>Sign in</h2><p class="subtitle">Sign in to access your goalie analytics dashboard.</p>
 <div id="loginMessage" class="message"></div>
 <form id="loginForm">
@@ -30,32 +22,19 @@ window.addEventListener('DOMContentLoaded',function(){
 </form>
 <div class="links"><button class="link" type="button" id="signupLink">Create account</button><button class="link" type="button" id="forgotLink">Forgot password?</button></div>
 </div>
-<div id="signupView" hidden>
-<h2>Create account</h2><p class="subtitle">Create an account for a goalie analytics profile.</p><div id="signupMessage" class="message"></div>
-<form id="signupForm"><div class="field"><label for="name">Name</label><input id="name" required></div><div class="field"><label for="signupEmail">Email</label><input id="signupEmail" type="email" required></div><div class="field"><label for="signupPassword">Password</label><input id="signupPassword" type="password" minlength="6" required></div><button class="primary" type="submit">Create Account</button></form>
-<div class="links"><button class="link" type="button" id="signupBack">Back to Sign In</button></div>
-</div>
-<div id="forgotView" hidden>
-<h2>Reset password</h2><p class="subtitle">Enter your email and we'll send you a password reset link.</p><div id="forgotMessage" class="message"></div>
-<form id="forgotForm"><div class="field"><label for="forgotEmail">Email</label><input id="forgotEmail" type="email" required></div><button class="primary" type="submit">Send Reset Link</button></form>
-<div class="links"><button class="link" type="button" id="forgotBack">Back to Sign In</button></div>
-</div>
-</div>
-<div id="jsStatus" class="status">JavaScript: LOADING</div>
+<div id="jsStatus" class="status">Login page version: 2026-09-10B</div>
 <noscript><div class="status" style="color:#ff8585">JavaScript is disabled in this browser.</div></noscript>
 </div>
 <script>
 const SUPABASE_URL='https://iiuqxxrrruvwvfehrzic.supabase.co';
-const SUPABASE_KEY='sb_publishable_b8r2Nb1BWv4cndNyE75dA_o40__ZPQ';
-let client;
+const SUPABASE_KEY='sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ';
+let client=null;
 const $=id=>document.getElementById(id);
-function msg(id,text,type='error'){const e=$(id);e.textContent=text;e.className='message show '+type}
-function view(id){['loginView','signupView','forgotView'].forEach(x=>$(x).hidden=true);$(id).hidden=false;document.querySelectorAll('.message').forEach(x=>x.className='message')}
-$('signupLink').onclick=()=>view('signupView');$('forgotLink').onclick=()=>view('forgotView');$('signupBack').onclick=()=>view('loginView');$('forgotBack').onclick=()=>view('loginView');
-$('loginForm').addEventListener('submit',async e=>{e.preventDefault();const email=$('email').value.trim(),password=$('password').value;if(!email||!password)return;if(!client)return msg('loginMessage','Login system is still loading. Please refresh the page.');const b=$('loginButton');b.disabled=true;b.textContent='Signing in...';const {data,error}=await client.auth.signInWithPassword({email,password});if(error){msg('loginMessage',error.message);b.disabled=false;b.textContent='Sign In';return}if(data.session){location.href='/dashboard.html'}else{msg('loginMessage','No login session was returned.');b.disabled=false;b.textContent='Sign In'}});
-$('signupForm').addEventListener('submit',async e=>{e.preventDefault();const name=$('name').value.trim(),email=$('signupEmail').value.trim(),password=$('signupPassword').value;if(!client)return msg('signupMessage','Login system is still loading. Please refresh the page.');const {data,error}=await client.auth.signUp({email,password,options:{data:{full_name:name}}});if(error)return msg('signupMessage',error.message);if(data.session)location.href='/dashboard.html';else msg('signupMessage','Account created. Check your email to confirm your account.','success')});
-$('forgotForm').addEventListener('submit',async e=>{e.preventDefault();const email=$('forgotEmail').value.trim();if(!client)return msg('forgotMessage','Login system is still loading. Please refresh the page.');const {error}=await client.auth.resetPasswordForEmail(email,{redirectTo:location.origin+'/dashboard.html'});if(error)msg('forgotMessage',error.message);else msg('forgotMessage','Password reset instructions have been sent to your email.','success')});
-const supabaseScript=document.createElement('script');supabaseScript.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';supabaseScript.onload=()=>{client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);client.auth.getSession().then(({data})=>{if(data.session)location.href='/dashboard.html'});};supabaseScript.onerror=()=>msg('loginMessage','Could not load the login service.');document.head.appendChild(supabaseScript);
+function msg(text,type='error'){const e=$('loginMessage');e.textContent=text;e.className='message show '+type}
+$('loginForm').addEventListener('submit',async function(e){e.preventDefault();const email=$('email').value.trim(),password=$('password').value;if(!client){msg('Login service is not ready yet. Please refresh once.');return}const b=$('loginButton');b.disabled=true;b.textContent='Signing in...';try{const {data,error}=await client.auth.signInWithPassword({email,password});if(error)throw error;if(data.session){window.location.href='/dashboard.html'}else{throw new Error('No login session was returned.')}}catch(error){msg(error.message||'Unable to sign in.');b.disabled=false;b.textContent='Sign In'}});
+$('signupLink').onclick=function(){window.location.href='/index.html?mode=signup'};
+$('forgotLink').onclick=function(){msg('Password reset can be added after sign-in is working.','success')};
+const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';script.onload=function(){client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);$('jsStatus').textContent='Login system: READY';$('jsStatus').style.color='#69dda0'};script.onerror=function(){msg('Could not load the Supabase login service.')};document.head.appendChild(script);
 </script>
 </body>
 </html>
