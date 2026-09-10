@@ -14,8 +14,67 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Inject login script
-        run: python3 -c "from pathlib import Path; p=Path('index.html'); t=p.read_text(encoding='utf-8'); tag='<script src=\"login-fix.js\"></script>'; t=t.replace(tag,''); t=t.replace('</body>',tag+'\\n</body>',1); p.write_text(t,encoding='utf-8')"
+      - name: Repair authentication startup
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('index.html')
+          t = p.read_text(encoding='utf-8')
+
+          marker = 'window.__safeAuthInitialized = true;'
+          if marker not in t:
+              safe_auth = r'''
+          <script>
+          /* Prevent the initial getSession() check from racing with sign-in. */
+          window.__safeAuthInitialized = true;
+          window.initializeAuth = async function(){
+            let activeSession = null;
+
+            supabase.auth.onAuthStateChange(async (event, session) => {
+              if (session && session.user) {
+                activeSession = session;
+                currentUser = session.user;
+
+                if (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") {
+                  await handleAuthenticatedUser(session.user);
+                }
+              } else if (event === "SIGNED_OUT") {
+                activeSession = null;
+                currentUser = null;
+                document.getElementById("app").classList.add("hidden");
+                document.getElementById("authScreen").classList.remove("hidden");
+              }
+            });
+
+            const { data } = await supabase.auth.getSession();
+
+            if (data && data.session) {
+              activeSession = data.session;
+              await handleAuthenticatedUser(data.session.user);
+            } else if (!activeSession && !currentUser) {
+              document.getElementById("authScreen").classList.remove("hidden");
+              document.getElementById("app").classList.add("hidden");
+            }
+          };
+          </script>
+          '''
+              t = t.replace('    initializeAuth();', safe_auth + '\n    initializeAuth();', 1)
+
+          p.write_text(t, encoding='utf-8')
+          PY
+
+      - name: Ensure login script is loaded once
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          t = p.read_text(encoding='utf-8')
+          tag = '<script src="login-fix.js"></script>'
+          t = t.replace(tag, '')
+          t = t.replace('</body>', tag + '\n</body>', 1)
+          p.write_text(t, encoding='utf-8')
+          PY
 
       - name: Commit repaired index
         run: |
@@ -23,5 +82,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add index.html
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'fix: connect standalone sign-in handler'
+          git commit -m 'fix: prevent auth session race on login'
           git push
