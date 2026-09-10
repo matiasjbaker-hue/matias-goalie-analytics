@@ -1,53 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Goalie Analytics — Sign In</title>
-<style>
-:root{--bg:#061710;--card:#0c261c;--border:#285640;--text:#edf7f1;--muted:#88a599;--green:#69dda0;--red:#ff8585}
-*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:var(--bg);color:var(--text);font-family:system-ui,sans-serif}.shell{width:100%;max-width:430px}.brand{text-align:center;margin-bottom:24px}.mark{width:64px;height:64px;border-radius:18px;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;background:var(--green);color:#06130d;font-size:24px;font-weight:900}h1{margin:0;font-size:28px}.brand p{color:var(--muted);font-size:14px}.card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:28px}h2{margin:0 0 8px}.subtitle{color:var(--muted);font-size:14px;margin:0 0 22px}.field{margin-bottom:16px}label{display:block;margin-bottom:7px;font-size:13px;font-weight:700}input{width:100%;padding:13px;border-radius:10px;border:1px solid var(--border);background:#071a12;color:var(--text);font:inherit}button{font:inherit;cursor:pointer}.primary{width:100%;padding:13px;border:0;border-radius:10px;background:var(--green);font-weight:900}.links{display:flex;justify-content:space-between;margin-top:16px}.link{border:0;background:none;color:var(--green);font-size:13px}.message{display:none;padding:11px;border-radius:9px;margin-bottom:16px;font-size:13px}.message.show{display:block}.error{color:#ffb0b0;background:#ff858514;border:1px solid #ff858540}.success{color:var(--green);background:#69dda014;border:1px solid #69dda040}.status{font-size:11px;text-align:center;color:var(--muted);margin-top:14px}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="refresh" content="0; url=/dashboard.html">
+  <title>Goalie Analytics</title>
 </head>
 <body>
-<div class="shell">
-<div class="brand"><div class="mark">GA</div><h1>Goalie Analytics</h1><p>Goaltending Analytics Platform</p></div>
-<div class="card">
-<h2>Sign in</h2><p class="subtitle">Sign in to access your goalie analytics dashboard.</p>
-<div id="loginMessage" class="message"></div>
-<form id="loginForm">
-<div class="field"><label for="email">Email</label><input id="email" type="email" autocomplete="email" placeholder="you@example.com" required></div>
-<div class="field"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password" placeholder="Your password" required></div>
-<button class="primary" id="loginButton" type="submit">Sign In</button>
-</form>
-<div class="links"><button class="link" type="button" id="signupLink">Create account</button><button class="link" type="button" id="forgotLink">Forgot password?</button></div>
-</div>
-<div id="jsStatus" class="status">Login page version: 2026-09-10C</div>
-<noscript><div class="status" style="color:#ff8585">JavaScript is disabled in this browser.</div></noscript>
-</div>
-<script>
-const SUPABASE_URL='https://iiuqxxrrruvwvfehrzic.supabase.co';
-const SUPABASE_KEY='sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ';
-let client=null;
-const $=id=>document.getElementById(id);
-function msg(text,type='error'){const e=$('loginMessage');e.textContent=text;e.className='message show '+type}
-$('loginForm').addEventListener('submit',async function(e){
- e.preventDefault();
- const email=$('email').value.trim(),password=$('password').value;
- if(!client){msg('Login service is not ready yet. Please refresh once.');return}
- const b=$('loginButton');b.disabled=true;b.textContent='Signing in...';
- try{
-  const {data,error}=await client.auth.signInWithPassword({email,password});
-  if(error)throw error;
-  if(!data||!data.session||!data.user)throw new Error('No login session was returned.');
-  // Make sure the session is written before navigating to the dashboard.
-  await client.auth.setSession({access_token:data.session.access_token,refresh_token:data.session.refresh_token});
-  window.location.replace('/dashboard.html');
- }catch(error){msg(error.message||'Unable to sign in.');b.disabled=false;b.textContent='Sign In'}
-});
-$('signupLink').onclick=function(){window.location.href='/index.html?mode=signup'};
-$('forgotLink').onclick=function(){msg('Password reset can be added after sign-in is working.','success')};
-const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';script.onload=function(){client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,storageKey:'goalie-analytics-auth'}});$('jsStatus').textContent='Login system: READY';$('jsStatus').style.color='#69dda0'};script.onerror=function(){msg('Could not load the Supabase login service.')};document.head.appendChild(script);
-</script>
+  <script>
+    window.location.replace('/dashboard.html');
+  </script>
+  <p>Opening Goalie Analytics…</p>
 </body>
 </html>
