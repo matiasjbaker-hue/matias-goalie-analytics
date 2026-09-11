@@ -616,14 +616,10 @@ tr:hover td{
 ========================================================= */
 
 .auth-screen{
-  min-height:100vh;
   display:flex;
   align-items:center;
   justify-content:center;
-  padding:30px;
-  background:
-    radial-gradient(circle at top right,rgba(40,96,71,.14),transparent 30%),
-    var(--bg);
+  padding:10px 20px 20px;
 }
 
 .auth-card{
@@ -1374,77 +1370,437 @@ tr:hover td{
   }
 }
 
+
+/* =========================================================
+   LANDING PAGE
+========================================================= */
+
+.landing-header{
+  padding:22px 35px;
+  border-bottom:1px solid var(--border);
+}
+
+.landing-header-inner{
+  max-width:1100px;
+  margin:0 auto;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+
+.landing-brand{
+  font-size:18px;
+  font-weight:800;
+  letter-spacing:-.3px;
+}
+
+.landing-signin-link{
+  color:var(--green2);
+  text-decoration:none;
+  font-size:14px;
+  font-weight:600;
+  border:1px solid var(--border2);
+  padding:9px 16px;
+  border-radius:7px;
+  transition:.15s;
+}
+
+.landing-signin-link:hover{
+  background:#123126;
+}
+
+.landing-section-inner{
+  max-width:1100px;
+  margin:0 auto;
+  padding:70px 35px;
+}
+
+.landing-hero{
+  padding:0;
+}
+
+.landing-hero-inner{
+  max-width:1100px;
+  margin:0 auto;
+  padding:80px 35px;
+  display:grid;
+  grid-template-columns:1.1fr 1fr;
+  gap:50px;
+  align-items:center;
+}
+
+.landing-hero-text h1{
+  font-size:44px;
+  line-height:1.15;
+  letter-spacing:-1px;
+  margin:0 0 20px;
+}
+
+.landing-hero-text p{
+  color:var(--muted);
+  font-size:16px;
+  line-height:1.6;
+  max-width:480px;
+  margin:0 0 30px;
+}
+
+.landing-cta{
+  display:inline-block;
+  padding:14px 26px;
+  font-size:15px;
+  text-decoration:none;
+}
+
+.landing-preview{
+  background:
+    linear-gradient(
+      145deg,
+      rgba(16,45,34,.92),
+      rgba(10,31,23,.96)
+    );
+  border:1px solid var(--border);
+  border-radius:14px;
+  box-shadow:0 20px 60px rgba(0,0,0,.25);
+  overflow:hidden;
+}
+
+.landing-preview-chrome{
+  padding:12px 16px;
+  border-bottom:1px solid var(--border);
+  display:flex;
+  gap:6px;
+}
+
+.landing-preview-chrome span{
+  width:9px;
+  height:9px;
+  border-radius:50%;
+  background:var(--border2);
+  display:inline-block;
+}
+
+.landing-preview-body{
+  padding:24px;
+}
+
+.landing-preview-title{
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:.7px;
+  color:var(--muted);
+  margin-bottom:14px;
+}
+
+.landing-preview-card{
+  cursor:default;
+}
+
+.landing-preview-card:hover{
+  transform:none;
+  border-color:var(--border);
+}
+
+.landing-features{
+  border-top:1px solid var(--border);
+}
+
+.feature-card{
+  text-align:center;
+}
+
+.feature-icon{
+  font-size:30px;
+  margin-bottom:14px;
+}
+
+.feature-card h3{
+  margin:0 0 10px;
+  font-size:15px;
+}
+
+.feature-card p{
+  margin:0;
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.6;
+}
+
+.landing-contact{
+  border-top:1px solid var(--border);
+  text-align:center;
+}
+
+.landing-contact h2{
+  margin:0 0 10px;
+  font-size:24px;
+}
+
+.landing-contact p{
+  color:var(--muted);
+  font-size:14px;
+}
+
+.landing-contact a{
+  color:var(--green2);
+  text-decoration:none;
+}
+
+.landing-contact a:hover{
+  text-decoration:underline;
+}
+
+.landing-get-started{
+  border-top:1px solid var(--border);
+  padding:70px 35px 90px;
+}
+
+@media(max-width:900px){
+
+  .landing-hero-inner{
+    grid-template-columns:1fr;
+    padding:50px 22px;
+  }
+
+  .landing-hero-text h1{
+    font-size:32px;
+  }
+
+  .landing-section-inner{
+    padding:50px 22px;
+  }
+
+  .landing-get-started{
+    padding:50px 18px 70px;
+  }
+
+}
+
 </style>
 </head>
 
 <body>
 
 <!-- ========================================================= -->
-<!-- AUTH SCREEN -->
+<!-- LANDING PAGE -->
 <!-- ========================================================= -->
 
-<div id="auth-screen" class="auth-screen">
-  <div class="auth-card">
+<div id="landing-page">
 
-    <div class="auth-brand">
-      <h1>GoalieIQ Analytics</h1>
-      <p>Goaltending Performance Platform</p>
+  <header class="landing-header">
+    <div class="landing-header-inner">
+      <div class="landing-brand">GoalieIQ Analytics</div>
+      <a href="#get-started" class="landing-signin-link" onclick="showAuthView('signin')">Sign In</a>
+    </div>
+  </header>
+
+  <section class="landing-hero">
+    <div class="landing-hero-inner">
+
+      <div class="landing-hero-text">
+        <h1>Turn raw goalie stats into coaching decisions.</h1>
+        <p>
+          GoalieIQ Analytics tracks every shot, rebound, and situation a
+          goaltender faces during a game, then turns it into the kind of
+          performance picture a coach can actually act on — not just a
+          pile of numbers.
+        </p>
+        <a href="#get-started" class="btn-primary landing-cta" onclick="showAuthView('signin')">Get Started</a>
+      </div>
+
+      <div class="landing-preview">
+
+        <div class="landing-preview-chrome">
+          <span></span><span></span><span></span>
+        </div>
+
+        <div class="landing-preview-body">
+
+          <div class="landing-preview-title">Coach Dashboard</div>
+
+          <div class="card goalie-card landing-preview-card">
+
+            <div class="goalie-card-top">
+              <div>
+                <div class="goalie-name">Sample Goalie</div>
+                <div class="goalie-meta">Panthers · 2026 Season</div>
+              </div>
+              <span class="trend-badge trend-up">↑ Improving</span>
+            </div>
+
+            <div class="goalie-card-stats">
+
+              <div>
+                <div class="metric good">.920</div>
+                <div class="metric-label">SV%</div>
+              </div>
+
+              <div>
+                <div class="metric">2.10</div>
+                <div class="metric-label">GAA</div>
+              </div>
+
+              <div>
+                <div class="metric good">+3.4</div>
+                <div class="metric-label">GSAx</div>
+              </div>
+
+              <div>
+                <div class="metric">12</div>
+                <div class="metric-label">Games</div>
+              </div>
+
+            </div>
+
+            <div class="goalie-card-footer">
+              <span>Last game: vs Rivals (W)</span>
+              <span>View analytics →</span>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+
+  <section class="landing-features">
+
+    <div class="landing-section-inner">
+
+      <div class="page-title" style="text-align:center">
+        <h2>Everything a goalie program needs</h2>
+        <p>Built from the ground up for goaltending, not adapted from a generic stats app.</p>
+      </div>
+
+      <div class="grid grid-3">
+
+        <div class="card feature-card">
+          <div class="feature-icon">🎯</div>
+          <h3>Live Shot Tagging</h3>
+          <p>Tag every shot in real time while reviewing video — location, danger level, rebound outcome, and more.</p>
+        </div>
+
+        <div class="card feature-card">
+          <div class="feature-icon">🥅</div>
+          <h3>Rebound Control Analytics</h3>
+          <p>Break down glove, blocker, pad, and midsection rebounds to see exactly where control is being lost.</p>
+        </div>
+
+        <div class="card feature-card">
+          <div class="feature-icon">📊</div>
+          <h3>Situational Breakdown</h3>
+          <p>See performance by rush chances, screens, breakaways, and other high-danger situations — not just totals.</p>
+        </div>
+
+        <div class="card feature-card">
+          <div class="feature-icon">📈</div>
+          <h3>Period-by-Period Trends</h3>
+          <p>Track how a goaltender's game changes from the first period to the third, game over game.</p>
+        </div>
+
+        <div class="card feature-card">
+          <div class="feature-icon">🧑‍🏫</div>
+          <h3>Coach Dashboard</h3>
+          <p>A dedicated view for coaches — every assigned goalie's performance, notes, and development areas in one place.</p>
+        </div>
+
+        <div class="card feature-card">
+          <div class="feature-icon">🤖</div>
+          <h3>AI Coach</h3>
+          <p>Ask plain-language questions about a goalie's season and get answers grounded in their actual tracked data.</p>
+        </div>
+
+      </div>
+
     </div>
 
-    <div id="auth-error" class="auth-error"></div>
-    <div id="auth-message" class="auth-message"></div>
+  </section>
 
-    <form id="signin-form" class="auth-form">
-      <label for="signin-email">Email</label>
-      <input type="email" id="signin-email" required autocomplete="email">
 
-      <label for="signin-password">Password</label>
-      <input type="password" id="signin-password" required autocomplete="current-password">
+  <section class="landing-contact">
 
-      <button type="submit" class="auth-btn">Sign In</button>
+    <div class="landing-section-inner">
+      <h2>Questions?</h2>
+      <p>
+        Reach out any time —
+        <a href="mailto:goalieiqanalytics@gmail.com">goalieiqanalytics@gmail.com</a>
+      </p>
+    </div>
 
-      <div class="auth-links">
-        <span style="color:var(--muted2)">Accounts are created by your admin.</span>
-        <a onclick="showAuthView('reset');return false;">Forgot password?</a>
+  </section>
+
+
+  <section class="landing-get-started" id="get-started">
+
+    <div class="page-title" style="text-align:center">
+      <h2>Get Started</h2>
+      <p>Sign in to your dashboard below.</p>
+    </div>
+
+    <div id="auth-screen" class="auth-screen">
+      <div class="auth-card">
+
+        <div id="auth-error" class="auth-error"></div>
+        <div id="auth-message" class="auth-message"></div>
+
+        <form id="signin-form" class="auth-form">
+          <label for="signin-email">Email</label>
+          <input type="email" id="signin-email" required autocomplete="email">
+
+          <label for="signin-password">Password</label>
+          <input type="password" id="signin-password" required autocomplete="current-password">
+
+          <button type="submit" class="auth-btn">Sign In</button>
+
+          <div class="auth-links">
+            <span style="color:var(--muted2)">Accounts are created by your admin.</span>
+            <a onclick="showAuthView('reset');return false;">Forgot password?</a>
+          </div>
+        </form>
+
+        <form id="signup-form" class="auth-form" style="display:none">
+          <label for="signup-name">Name</label>
+          <input type="text" id="signup-name" required autocomplete="name">
+
+          <label for="signup-email">Email</label>
+          <input type="email" id="signup-email" required autocomplete="email">
+
+          <label for="signup-password">Password</label>
+          <input type="password" id="signup-password" required autocomplete="new-password" minlength="6">
+
+          <button type="submit" class="auth-btn">Create Account</button>
+
+          <div class="auth-links">
+            <a onclick="showAuthView('signin');return false;">Back to sign in</a>
+          </div>
+        </form>
+
+        <form id="reset-form" class="auth-form" style="display:none">
+          <label for="reset-email">Email</label>
+          <input type="email" id="reset-email" required autocomplete="email">
+
+          <button type="submit" class="auth-btn">Send Reset Link</button>
+
+          <div class="auth-links">
+            <a onclick="showAuthView('signin');return false;">Back to sign in</a>
+          </div>
+        </form>
+
+        <form id="newpassword-form" class="auth-form" style="display:none">
+          <label for="newpassword-password">New Password</label>
+          <input type="password" id="newpassword-password" required autocomplete="new-password" minlength="6">
+
+          <button type="submit" class="auth-btn">Update Password</button>
+        </form>
+
       </div>
-    </form>
+    </div>
 
-    <form id="signup-form" class="auth-form" style="display:none">
-      <label for="signup-name">Name</label>
-      <input type="text" id="signup-name" required autocomplete="name">
+  </section>
 
-      <label for="signup-email">Email</label>
-      <input type="email" id="signup-email" required autocomplete="email">
-
-      <label for="signup-password">Password</label>
-      <input type="password" id="signup-password" required autocomplete="new-password" minlength="6">
-
-      <button type="submit" class="auth-btn">Create Account</button>
-
-      <div class="auth-links">
-        <a onclick="showAuthView('signin');return false;">Back to sign in</a>
-      </div>
-    </form>
-
-    <form id="reset-form" class="auth-form" style="display:none">
-      <label for="reset-email">Email</label>
-      <input type="email" id="reset-email" required autocomplete="email">
-
-      <button type="submit" class="auth-btn">Send Reset Link</button>
-
-      <div class="auth-links">
-        <a onclick="showAuthView('signin');return false;">Back to sign in</a>
-      </div>
-    </form>
-
-    <form id="newpassword-form" class="auth-form" style="display:none">
-      <label for="newpassword-password">New Password</label>
-      <input type="password" id="newpassword-password" required autocomplete="new-password" minlength="6">
-
-      <button type="submit" class="auth-btn">Update Password</button>
-    </form>
-
-  </div>
 </div>
 
 
@@ -1532,6 +1888,34 @@ tr:hover td{
 
     <button id="coach-nav-ai" onclick="showTab('coach',this)">
       AI Coach
+    </button>
+
+    <button onclick="showTab('about',this)">
+      About
+    </button>
+
+  </div>
+
+</nav>
+
+<nav id="admin-nav" style="display:none">
+
+  <div class="nav-inner">
+
+    <button class="active" onclick="showTab('adminhome',this)">
+      Platform Overview
+    </button>
+
+    <button onclick="showTab('admincoaches',this)">
+      Coaches
+    </button>
+
+    <button onclick="showTab('admingoalies',this)">
+      Goalies
+    </button>
+
+    <button onclick="showTab('adminassignments',this)">
+      Assignments
     </button>
 
     <button onclick="showTab('about',this)">
@@ -1747,6 +2131,160 @@ tr:hover td{
       Ask AI Coach →
     </button>
 
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- ADMIN: PLATFORM OVERVIEW -->
+<!-- ========================================================= -->
+
+<section id="adminhome" class="tab">
+
+  <div class="page-title">
+    <h2>Platform Overview</h2>
+    <p>GoalieIQ Analytics — account and usage summary across the platform.</p>
+  </div>
+
+  <div class="grid grid-4">
+
+    <div class="card metric-card">
+      <div class="metric" id="adminTotalGoalies">—</div>
+      <div class="metric-label">Goalies</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="adminTotalCoaches">—</div>
+      <div class="metric-label">Coaches</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="adminTotalGames">—</div>
+      <div class="metric-label">Games Tracked</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="adminActiveAssignments">—</div>
+      <div class="metric-label">Active Assignments</div>
+    </div>
+
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- ADMIN: COACHES -->
+<!-- ========================================================= -->
+
+<section id="admincoaches" class="tab">
+
+  <div class="page-title">
+    <h2>Coaches</h2>
+    <p>Every coach account on the platform.</p>
+  </div>
+
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Assigned Goalies</th>
+            <th>Created</th>
+          </tr>
+        </thead>
+        <tbody id="adminCoachesBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- ADMIN: GOALIES -->
+<!-- ========================================================= -->
+
+<section id="admingoalies" class="tab">
+
+  <div class="page-title">
+    <h2>Goalies</h2>
+    <p>Every goalie account on the platform.</p>
+  </div>
+
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Team</th>
+            <th>Games Tracked</th>
+            <th>Coaches Assigned</th>
+          </tr>
+        </thead>
+        <tbody id="adminGoaliesBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- ADMIN: ASSIGNMENTS -->
+<!-- ========================================================= -->
+
+<section id="adminassignments" class="tab">
+
+  <div class="page-title">
+    <h2>Assignments</h2>
+    <p>Link a coach to a goalie. Coaches can never do this themselves — only an admin can grant access.</p>
+  </div>
+
+  <div class="card">
+
+    <h3>Create Assignment</h3>
+
+    <div class="grid grid-3">
+
+      <div>
+        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px;">Coach</label>
+        <select id="adminAssignCoachSelect" style="width:100%;background:#0c261c;border:1px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
+      </div>
+
+      <div>
+        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px;">Goalie</label>
+        <select id="adminAssignGoalieSelect" style="width:100%;background:#0c261c;border:1px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
+      </div>
+
+      <div style="display:flex;align-items:flex-end;">
+        <button class="btn-primary" style="width:100%" onclick="createAssignment()">Create Assignment</button>
+      </div>
+
+    </div>
+
+    <div class="small-note" id="adminAssignStatus"></div>
+
+  </div>
+
+  <div class="card section-space">
+    <h3>All Assignments</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Coach</th>
+            <th>Goalie</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="adminAssignmentsBody"></tbody>
+      </table>
+    </div>
   </div>
 
 </section>
@@ -7817,7 +8355,7 @@ function showAuthMessage(message){
 
 function showApp(){
 
-  document.getElementById("auth-screen").style.display = "none";
+  document.getElementById("landing-page").style.display = "none";
   document.getElementById("app-shell").style.display = "block";
 
 }
@@ -7826,7 +8364,7 @@ function showApp(){
 function showAuthScreen(){
 
   document.getElementById("app-shell").style.display = "none";
-  document.getElementById("auth-screen").style.display = "flex";
+  document.getElementById("landing-page").style.display = "block";
 
   showAuthView("signin");
 
@@ -8079,15 +8617,30 @@ function setNavForRole(){
 
   const goalieNav = document.getElementById("goalie-nav");
   const coachNav = document.getElementById("coach-nav");
+  const adminNav = document.getElementById("admin-nav");
   const brandTitle = document.getElementById("brand-title");
   const brandSubtitle = document.getElementById("brand-subtitle");
 
-  if(currentRole === "coach"){
+  goalieNav.style.display = "none";
+  coachNav.style.display = "none";
+  adminNav.style.display = "none";
 
-    goalieNav.style.display = "none";
+  brandTitle.textContent = "GoalieIQ Analytics";
+
+  if(currentRole === "admin"){
+
+    adminNav.style.display = "";
+    brandSubtitle.textContent = "Admin Console";
+
+    showTab(
+      "adminhome",
+      adminNav.querySelector("button")
+    );
+
+  }
+  else if(currentRole === "coach"){
+
     coachNav.style.display = "";
-
-    brandTitle.textContent = "GoalieIQ Analytics";
     brandSubtitle.textContent = "Coach Dashboard";
 
     showTab(
@@ -8099,9 +8652,6 @@ function setNavForRole(){
   else{
 
     goalieNav.style.display = "";
-    coachNav.style.display = "none";
-
-    brandTitle.textContent = "GoalieIQ Analytics";
 
     brandSubtitle.textContent =
       (currentProfile && currentProfile.full_name)
@@ -8134,6 +8684,9 @@ async function applyRoleAndLoad(){
 
   if(currentRole === "coach"){
     await loadCoachExtras();
+  }
+  else if(currentRole === "admin"){
+    await loadAdminExtras();
   }
 
 }
@@ -8719,6 +9272,332 @@ async function saveCoachNote(){
   finally{
 
     btn.disabled = false;
+
+  }
+
+}
+
+
+/* ------------------------------------------------------------
+   Admin Dashboard
+------------------------------------------------------------ */
+
+let adminProfiles = [];
+let adminAssignments = [];
+
+
+async function loadAdminExtras(){
+
+  const errorBox = document.getElementById("dashboard-error");
+
+  try{
+
+    // is_admin() bypasses RLS on profiles/coach_goalie_assignments,
+    // so an admin genuinely gets every row here -- unlike the coach
+    // path, this is not scoped by assignment.
+    adminProfiles = await q("profiles");
+    adminAssignments = await q("coach_goalie_assignments");
+
+  }
+  catch(err){
+
+    console.error("Admin data loading error:", err);
+    adminProfiles = [];
+    adminAssignments = [];
+
+    errorBox.innerHTML += `
+      <div class="error-box">
+        <strong>Couldn't load platform data.</strong>
+        <br>${err.message}
+      </div>
+    `;
+
+  }
+
+  renderAdminHome();
+  renderAdminCoaches();
+  renderAdminGoalies();
+  renderAdminAssignments();
+
+}
+
+
+function renderAdminHome(){
+
+  const coaches = adminProfiles.filter(p => p.role === "coach");
+  const goalies = adminProfiles.filter(p => p.role === "goalie");
+
+  document.getElementById("adminTotalGoalies").textContent = goalies.length;
+  document.getElementById("adminTotalCoaches").textContent = coaches.length;
+
+  // games is populated by loadDashboard(); is_admin() means it
+  // contains every goalie's games platform-wide for this role.
+  document.getElementById("adminTotalGames").textContent = games.length;
+
+  document.getElementById("adminActiveAssignments").textContent =
+    adminAssignments.filter(a => a.active).length;
+
+}
+
+
+function renderAdminCoaches(){
+
+  const coaches = adminProfiles.filter(p => p.role === "coach");
+  const tbody = document.getElementById("adminCoachesBody");
+
+  if(!coaches.length){
+
+    tbody.innerHTML =
+      `<tr><td colspan="3"><div class="empty-state">No coach accounts yet.</div></td></tr>`;
+
+    return;
+
+  }
+
+  tbody.innerHTML =
+    coaches.map(c => {
+
+      const assignedCount =
+        adminAssignments.filter(a => a.coach_id === c.id && a.active).length;
+
+      const created =
+        c.created_at ? new Date(c.created_at).toLocaleDateString() : "—";
+
+      return `
+        <tr>
+          <td>${c.full_name || "Unnamed"}</td>
+          <td>${assignedCount}</td>
+          <td>${created}</td>
+        </tr>
+      `;
+
+    }).join("");
+
+}
+
+
+function renderAdminGoalies(){
+
+  const goalies = adminProfiles.filter(p => p.role === "goalie");
+  const tbody = document.getElementById("adminGoaliesBody");
+
+  if(!goalies.length){
+
+    tbody.innerHTML =
+      `<tr><td colspan="4"><div class="empty-state">No goalie accounts yet.</div></td></tr>`;
+
+    return;
+
+  }
+
+  tbody.innerHTML =
+    goalies.map(g => {
+
+      const gameCount =
+        games.filter(gm => gm.user_id === g.id).length;
+
+      const coachCount =
+        adminAssignments.filter(a => a.goalie_id === g.id && a.active).length;
+
+      return `
+        <tr>
+          <td>${g.full_name || "Unnamed"}</td>
+          <td>${g.team || "—"}</td>
+          <td>${gameCount}</td>
+          <td>${coachCount}</td>
+        </tr>
+      `;
+
+    }).join("");
+
+}
+
+
+function renderAdminAssignments(){
+
+  const coaches = adminProfiles.filter(p => p.role === "coach");
+  const goalies = adminProfiles.filter(p => p.role === "goalie");
+
+  const coachSelect = document.getElementById("adminAssignCoachSelect");
+  const goalieSelect = document.getElementById("adminAssignGoalieSelect");
+
+  coachSelect.innerHTML =
+    coaches.length
+      ? coaches.map(c => `<option value="${c.id}">${c.full_name || c.id}</option>`).join("")
+      : `<option value="">No coaches yet</option>`;
+
+  goalieSelect.innerHTML =
+    goalies.length
+      ? goalies.map(g => `<option value="${g.id}">${g.full_name || g.id}</option>`).join("")
+      : `<option value="">No goalies yet</option>`;
+
+  const tbody = document.getElementById("adminAssignmentsBody");
+
+  if(!adminAssignments.length){
+
+    tbody.innerHTML =
+      `<tr><td colspan="4"><div class="empty-state">No assignments yet.</div></td></tr>`;
+
+    return;
+
+  }
+
+  tbody.innerHTML =
+    adminAssignments.map(a => {
+
+      const coach = adminProfiles.find(p => p.id === a.coach_id);
+      const goalie = adminProfiles.find(p => p.id === a.goalie_id);
+
+      const statusPill =
+        a.active
+          ? `<span class="result-pill result-win">Active</span>`
+          : `<span class="result-pill result-neutral">Inactive</span>`;
+
+      return `
+        <tr>
+          <td>${coach ? coach.full_name : a.coach_id}</td>
+          <td>${goalie ? goalie.full_name : a.goalie_id}</td>
+          <td>${statusPill}</td>
+          <td>
+            <button class="btn-secondary" onclick="toggleAssignment(${a.id}, ${!a.active})">
+              ${a.active ? "Deactivate" : "Reactivate"}
+            </button>
+            <button class="btn-danger" onclick="deleteAssignment(${a.id})">
+              Delete
+            </button>
+          </td>
+        </tr>
+      `;
+
+    }).join("");
+
+}
+
+
+async function createAssignment(){
+
+  const coachId = document.getElementById("adminAssignCoachSelect").value;
+  const goalieId = document.getElementById("adminAssignGoalieSelect").value;
+  const statusEl = document.getElementById("adminAssignStatus");
+
+  if(!coachId || !goalieId){
+    statusEl.textContent = "Pick both a coach and a goalie.";
+    return;
+  }
+
+  statusEl.textContent = "Saving...";
+
+  try{
+
+    const accessToken =
+      (currentSession && currentSession.access_token) || SUPABASE_KEY;
+
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/coach_goalie_assignments`,
+      {
+        method:"POST",
+        headers:{
+          apikey:SUPABASE_KEY,
+          Authorization:`Bearer ${accessToken}`,
+          "Content-Type":"application/json",
+          Prefer:"return=minimal"
+        },
+        body: JSON.stringify({
+          coach_id: coachId,
+          goalie_id: goalieId,
+          active: true
+        })
+      }
+    );
+
+    if(!response.ok){
+      throw new Error(`Supabase error ${response.status}`);
+    }
+
+    statusEl.textContent = "Assignment created.";
+
+    await loadAdminExtras();
+
+  }
+  catch(err){
+
+    console.error("Create assignment error:", err);
+    statusEl.textContent = "Could not create assignment: " + err.message;
+
+  }
+
+}
+
+
+async function toggleAssignment(id, newActive){
+
+  try{
+
+    const accessToken =
+      (currentSession && currentSession.access_token) || SUPABASE_KEY;
+
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/coach_goalie_assignments?id=eq.${id}`,
+      {
+        method:"PATCH",
+        headers:{
+          apikey:SUPABASE_KEY,
+          Authorization:`Bearer ${accessToken}`,
+          "Content-Type":"application/json",
+          Prefer:"return=minimal"
+        },
+        body: JSON.stringify({ active: newActive })
+      }
+    );
+
+    if(!response.ok){
+      throw new Error(`Supabase error ${response.status}`);
+    }
+
+    await loadAdminExtras();
+
+  }
+  catch(err){
+
+    console.error("Toggle assignment error:", err);
+
+  }
+
+}
+
+
+async function deleteAssignment(id){
+
+  if(!confirm("Delete this assignment? The coach will immediately lose access to this goalie's data.")){
+    return;
+  }
+
+  try{
+
+    const accessToken =
+      (currentSession && currentSession.access_token) || SUPABASE_KEY;
+
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/coach_goalie_assignments?id=eq.${id}`,
+      {
+        method:"DELETE",
+        headers:{
+          apikey:SUPABASE_KEY,
+          Authorization:`Bearer ${accessToken}`
+        }
+      }
+    );
+
+    if(!response.ok){
+      throw new Error(`Supabase error ${response.status}`);
+    }
+
+    await loadAdminExtras();
+
+  }
+  catch(err){
+
+    console.error("Delete assignment error:", err);
 
   }
 
