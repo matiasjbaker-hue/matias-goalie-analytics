@@ -3994,6 +3994,95 @@ tr:hover td{
 
   </div>
 
+
+  <div class="section-heading">
+    <h3>xG &amp; GSAx Methodology</h3>
+    <p>How shot quality (xG), GSAx, and shot grades are actually calculated — and their current limitations.</p>
+  </div>
+
+  <div class="grid grid-2">
+
+    <div class="card">
+
+      <h3>How xG is calculated</h3>
+
+      <div class="about-list">
+
+        <p>
+          Every tagged shot is scored by a formula that lives in the
+          database, not in this page's code — it runs automatically
+          the moment a shot is saved, so it can't be quietly edited
+          per goalie without a visible, version-tracked change.
+        </p>
+
+        <p>
+          <strong>Base rate:</strong> starts from shot distance
+          (closer shots score more often). <strong>Adjustments:</strong>
+          multiplied up or down based on location (crease/slot/point),
+          shot type (one-timer, backhand, slap shot), and situation
+          (rush, rebound, screened, breakaway, cross-ice).
+        </p>
+
+        <p>
+          <strong>GSAx</strong> = total xG faced minus goals actually
+          allowed. A positive number means the goalie stopped more
+          than an average goalie would be expected to, given the
+          shots faced.
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <h3>Current limitations — read this</h3>
+
+      <div class="about-list">
+
+        <p>
+          <strong>This is a heuristic, not a validated model.</strong>
+          The distance/situation factors above are informed by public
+          hockey and soccer xG research, but they have not yet been
+          statistically fit to this platform's own shot data.
+        </p>
+
+        <p>
+          A legitimate xG model is normally built by fitting a
+          statistical model (typically logistic regression) to
+          thousands of shots with known outcomes, then checking that
+          its predictions are calibrated — e.g. that shots it scores
+          at 20% actually go in about 20% of the time.
+        </p>
+
+        <p>
+          At current shot volume, that calibration isn't yet
+          statistically meaningful. As tagged shots accumulate, the
+          plan is: fit real coefficients from outcome data, validate
+          with held-out data, and publish the results here — same
+          standard used by public models like MoneyPuck and Evolving
+          Hockey.
+        </p>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <div class="section-heading">
+    <h3>Model Version History</h3>
+    <p>Every change to the formula, including bugs found and fixed.</p>
+  </div>
+
+  <div class="card">
+    <div id="xgVersionHistory">
+      <div class="empty-state">Loading version history…</div>
+    </div>
+  </div>
+
 </section>
 
 </main>
@@ -4373,8 +4462,25 @@ function isHighDanger(shot){
    CONSERVATIVE NHL-STYLE XG MODEL
 ============================================================ */
 
+// Current model version, mirrors the latest row in xg_model_versions.
+// Only used for the local pre-save preview fallback below -- the
+// authoritative value for any saved shot is shot.xg, computed and
+// stamped by the database trigger (see xg_model_versions for history).
+const XG_MODEL_VERSION = "v1.1-heuristic";
+
+
 function calculateShotXG(shot){
 
+  // Authoritative path: this shot has already been scored by the
+  // database trigger at save time. Use that value rather than
+  // recomputing client-side -- this is the tamper-evident source.
+  if(shot.xg !== undefined && shot.xg !== null && shot.xg !== ""){
+    return Number(shot.xg);
+  }
+
+  // Fallback path: a shot not yet saved (e.g. live-tag preview).
+  // Same formula the database uses, kept in sync manually -- the
+  // stored xg value always wins once the shot is actually saved.
   const distance =
     shotDistance(shot);
 
@@ -4519,29 +4625,15 @@ function calculateShotXG(shot){
     multiplier;
 
 
-  const leagueBaselineXG =
-    0.100;
-
-  const shrinkage =
-    0.55;
-
-
-  let calibratedXG =
-    (
-      rawXG * shrinkage
-    ) +
-    (
-      leagueBaselineXG *
-      (1 - shrinkage)
-    );
-
-
-  calibratedXG =
+  // v1.1: no shrinkage-to-baseline -- see calculate_shot_xg() in the
+  // database and xg_model_versions for why v1.0's blending step was
+  // removed (it made A+ and C grades unreachable).
+  const calibratedXG =
     Math.max(
-      0.003,
+      0.005,
       Math.min(
-        0.40,
-        calibratedXG
+        0.35,
+        rawXG
       )
     );
 
@@ -4557,25 +4649,33 @@ function calculateShotXG(shot){
 
 function shotGrade(shot){
 
+  // Authoritative path: the database trigger already stamped a grade
+  // computed by the same version that scored shot.xg.
+  if(shot.xg_grade){
+    return shot.xg_grade;
+  }
+
+  // Fallback path (pre-save preview only). Thresholds match v1.1's
+  // calculate_shot_xg_grade() in the database.
   const xg =
     calculateShotXG(shot);
 
 
-  if(xg >= 0.20){
+  if(xg >= 0.15){
 
     return "A+";
 
   }
 
 
-  if(xg >= 0.10){
+  if(xg >= 0.08){
 
     return "A";
 
   }
 
 
-  if(xg >= 0.040){
+  if(xg >= 0.03){
 
     return "B";
 
@@ -8687,6 +8787,62 @@ async function applyRoleAndLoad(){
   }
   else if(currentRole === "admin"){
     await loadAdminExtras();
+  }
+
+  // Reference content, not role-scoped -- load for everyone.
+  await loadXGVersionHistory();
+
+}
+
+
+async function loadXGVersionHistory(){
+
+  const container = document.getElementById("xgVersionHistory");
+
+  if(!container){ return; }
+
+  try{
+
+    const versions =
+      await qFiltered("xg_model_versions", "order=effective_at.desc");
+
+    if(!versions.length){
+
+      container.innerHTML =
+        `<div class="empty-state">No version history recorded yet.</div>`;
+
+      return;
+
+    }
+
+    container.innerHTML =
+      versions.map(v => {
+
+        const date =
+          v.effective_at
+            ? new Date(v.effective_at).toLocaleDateString()
+            : "";
+
+        return `
+          <div class="note-item">
+            <div class="note-date">
+              <strong>${v.version}</strong> · ${date}
+            </div>
+            <div class="note-text">${v.summary}</div>
+            ${v.notes ? `<div class="metric-context" style="margin-top:8px">${v.notes}</div>` : ""}
+          </div>
+        `;
+
+      }).join("");
+
+  }
+  catch(err){
+
+    console.error("xG version history loading error:", err);
+
+    container.innerHTML =
+      `<div class="empty-state">Couldn't load version history.</div>`;
+
   }
 
 }
