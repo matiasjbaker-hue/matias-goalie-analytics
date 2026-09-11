@@ -1223,6 +1223,143 @@ tr:hover td{
 
 }
 
+
+/* =========================================================
+   COACH DASHBOARD
+========================================================= */
+
+.goalie-card{
+  cursor:pointer;
+  transition:border-color .15s, transform .15s;
+}
+
+.goalie-card:hover{
+  border-color:var(--border2);
+  transform:translateY(-2px);
+}
+
+.goalie-card-top{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  margin-bottom:18px;
+}
+
+.goalie-name{
+  font-size:17px;
+  font-weight:800;
+}
+
+.goalie-meta{
+  color:var(--muted);
+  font-size:12px;
+  margin-top:3px;
+}
+
+.goalie-card-stats{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;
+}
+
+.goalie-card-stats .metric{
+  font-size:19px;
+}
+
+.goalie-card-stats .metric-label{
+  font-size:10px;
+  margin-top:5px;
+}
+
+.goalie-card-footer{
+  margin-top:16px;
+  padding-top:12px;
+  border-top:1px solid rgba(255,255,255,.06);
+  color:var(--muted2);
+  font-size:12px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+.trend-badge{
+  font-size:11px;
+  font-weight:700;
+  padding:3px 9px;
+  border-radius:10px;
+  white-space:nowrap;
+}
+
+.trend-up{
+  background:rgba(105,221,160,.12);
+  color:var(--green);
+  border:1px solid rgba(105,221,160,.22);
+}
+
+.trend-down{
+  background:rgba(255,133,133,.12);
+  color:var(--red);
+  border:1px solid rgba(255,133,133,.22);
+}
+
+.trend-flat{
+  background:rgba(255,255,255,.05);
+  color:var(--muted);
+  border:1px solid rgba(255,255,255,.08);
+}
+
+.empty-state{
+  padding:40px 20px;
+  text-align:center;
+  color:var(--muted);
+  font-size:13px;
+}
+
+.coach-note-form textarea{
+  width:100%;
+  min-height:90px;
+  background:rgba(255,255,255,.03);
+  border:1px solid var(--border);
+  border-radius:8px;
+  color:var(--text);
+  padding:12px;
+  font-family:inherit;
+  font-size:14px;
+  resize:vertical;
+  box-sizing:border-box;
+}
+
+.coach-note-form button{
+  margin-top:12px;
+}
+
+.note-item{
+  padding:14px 0;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+
+.note-item:last-child{
+  border-bottom:0;
+}
+
+.note-date{
+  color:var(--muted2);
+  font-size:11px;
+  margin-bottom:6px;
+}
+
+.note-text{
+  font-size:14px;
+  line-height:1.5;
+  white-space:pre-wrap;
+}
+
+@media (max-width:900px){
+  .goalie-card-stats{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+
 </style>
 </head>
 
@@ -1308,8 +1445,8 @@ tr:hover td{
   <div class="header-inner">
 
     <div class="brand">
-      <h1>Matias Baker</h1>
-      <p>Goaltending Analytics Platform</p>
+      <h1 id="brand-title">Matias Baker</h1>
+      <p id="brand-subtitle">Goaltending Analytics Platform</p>
     </div>
 
     <div class="header-right">
@@ -1331,7 +1468,7 @@ tr:hover td{
 </header>
 
 
-<nav>
+<nav id="goalie-nav">
 
   <div class="nav-inner">
 
@@ -1353,6 +1490,34 @@ tr:hover td{
 
     <button onclick="showTab('coach',this)">
       Coach
+    </button>
+
+    <button onclick="showTab('about',this)">
+      About
+    </button>
+
+  </div>
+
+</nav>
+
+<nav id="coach-nav" style="display:none">
+
+  <div class="nav-inner">
+
+    <button class="active" onclick="showTab('coachhome',this)">
+      My Goalies
+    </button>
+
+    <button type="button" class="nav-dropdown-toggle" id="coach-stats-toggle-btn" onclick="toggleNavDropdown(event)">
+      Full Analytics ▾
+    </button>
+
+    <button onclick="showTab('coachnotes',this)">
+      Coach Notes
+    </button>
+
+    <button onclick="showTab('coach',this)">
+      AI Coach
     </button>
 
     <button onclick="showTab('about',this)">
@@ -1395,6 +1560,85 @@ tr:hover td{
 <main>
 
 <div id="dashboard-error"></div>
+
+
+<!-- ========================================================= -->
+<!-- COACH OVERVIEW (My Goalies) -->
+<!-- ========================================================= -->
+
+<section id="coachhome" class="tab">
+
+  <div class="page-title">
+    <h2>Coach Dashboard</h2>
+    <p>Your assigned goalies at a glance.</p>
+  </div>
+
+  <div class="grid grid-4" id="coachSummaryCards">
+
+    <div class="card metric-card">
+      <div class="metric" id="coachGoalieCount">—</div>
+      <div class="metric-label">Goalies</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="coachGamesAnalyzed">—</div>
+      <div class="metric-label">Games Analyzed</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="coachAvgSV">—</div>
+      <div class="metric-label">Avg SV%</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="coachAvgGAA">—</div>
+      <div class="metric-label">Avg GAA</div>
+    </div>
+
+  </div>
+
+  <div class="section-heading">
+    <h3>My Goalies</h3>
+    <p>Click a goalie to open their full analytics.</p>
+  </div>
+
+  <div class="grid grid-3" id="coachGoalieGrid">
+    <!-- populated by renderCoachHome() -->
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- COACH NOTES -->
+<!-- ========================================================= -->
+
+<section id="coachnotes" class="tab">
+
+  <div class="page-title">
+    <h2>Coach Notes</h2>
+    <p>Private notes only you can see, tied to your assigned goalie.</p>
+  </div>
+
+  <div class="grid grid-2">
+
+    <div class="card coach-note-form">
+      <h3>Add a Note</h3>
+      <textarea id="coachNoteText" placeholder="e.g. Needs to stay patient on east-west plays."></textarea>
+      <button class="btn-primary" onclick="saveCoachNote()" id="coachNoteSaveBtn">Save Note</button>
+      <div class="small-note" id="coachNoteStatus"></div>
+    </div>
+
+    <div class="card">
+      <h3>Note History</h3>
+      <div id="coachNotesList">
+        <div class="empty-state">No notes yet.</div>
+      </div>
+    </div>
+
+  </div>
+
+</section>
 
 
 <!-- ========================================================= -->
@@ -4166,6 +4410,9 @@ function showTab(id,button){
 }
 
 
+let activeStatsToggleBtn = null;
+
+
 function toggleNavDropdown(e){
 
   e.stopPropagation();
@@ -4182,7 +4429,10 @@ function toggleNavDropdown(e){
   }
 
   const toggleBtn =
+    e.currentTarget ||
     document.getElementById("stats-toggle-btn");
+
+  activeStatsToggleBtn = toggleBtn;
 
   const rect =
     toggleBtn.getBoundingClientRect();
@@ -4206,7 +4456,10 @@ function closeNavDropdown(){
 
 function selectStatsTab(id, btn){
 
-  showTab(id, document.getElementById("stats-toggle-btn"));
+  showTab(
+    id,
+    activeStatsToggleBtn || document.getElementById("stats-toggle-btn")
+  );
 
   document
     .querySelectorAll("#stats-dropdown-menu button")
@@ -4224,10 +4477,16 @@ document.addEventListener("click", function(e){
   const menu =
     document.getElementById("stats-dropdown-menu");
 
-  const toggleBtn =
-    document.getElementById("stats-toggle-btn");
+  const toggleBtns =
+    [
+      document.getElementById("stats-toggle-btn"),
+      document.getElementById("coach-stats-toggle-btn")
+    ].filter(Boolean);
 
-  if(menu && toggleBtn && !menu.contains(e.target) && !toggleBtn.contains(e.target)){
+  const clickedToggle =
+    toggleBtns.some(btn => btn.contains(e.target));
+
+  if(menu && !menu.contains(e.target) && !clickedToggle){
     closeNavDropdown();
   }
 
@@ -7505,7 +7764,7 @@ document.getElementById("signin-form")
     currentSession = data.session;
     refreshUserBadge();
     showApp();
-    loadDashboard();
+    applyRoleAndLoad();
 
   });
 
@@ -7549,7 +7808,7 @@ document.getElementById("signup-form")
       currentSession = data.session;
       refreshUserBadge();
       showApp();
-      loadDashboard();
+      applyRoleAndLoad();
 
     }
     else{
@@ -7624,7 +7883,7 @@ document.getElementById("newpassword-form")
 
     showAuthMessage("Password updated. You're signed in.");
     showApp();
-    loadDashboard();
+    applyRoleAndLoad();
 
   });
 
@@ -7649,6 +7908,549 @@ supabaseClient.auth.onAuthStateChange(function(event, session){
 });
 
 
+/* ============================================================
+   ROLE / COACH DASHBOARD
+============================================================ */
+
+let currentRole = "goalie";
+let currentProfile = null;
+let coachGoalieProfiles = [];
+let coachNotesData = [];
+
+// Only used while there's a single assigned goalie (see note below).
+let coachPrimaryGoalieId = null;
+
+
+async function qFiltered(table, filterQuery){
+
+  const accessToken =
+    (currentSession && currentSession.access_token) ||
+    SUPABASE_KEY;
+
+  const response =
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/${encodeURIComponent(table)}?select=*&${filterQuery}`,
+      {
+        headers:{
+          apikey:SUPABASE_KEY,
+          Authorization:`Bearer ${accessToken}`
+        }
+      }
+    );
+
+  if(!response.ok){
+    throw new Error(`Supabase error ${response.status}: ${table}`);
+  }
+
+  return await response.json();
+
+}
+
+
+async function fetchOwnProfile(){
+
+  if(!currentSession || !currentSession.user){
+    return null;
+  }
+
+  const rows =
+    await qFiltered(
+      "profiles",
+      `id=eq.${currentSession.user.id}`
+    );
+
+  return Array.isArray(rows) && rows.length ? rows[0] : null;
+
+}
+
+
+function setNavForRole(){
+
+  const goalieNav = document.getElementById("goalie-nav");
+  const coachNav = document.getElementById("coach-nav");
+  const brandTitle = document.getElementById("brand-title");
+  const brandSubtitle = document.getElementById("brand-subtitle");
+
+  if(currentRole === "coach"){
+
+    goalieNav.style.display = "none";
+    coachNav.style.display = "";
+
+    brandTitle.textContent =
+      (currentProfile && currentProfile.full_name) || "Coach Dashboard";
+    brandSubtitle.textContent = "Coach Dashboard";
+
+    showTab(
+      "coachhome",
+      coachNav.querySelector("button")
+    );
+
+  }
+  else{
+
+    goalieNav.style.display = "";
+    coachNav.style.display = "none";
+
+    brandTitle.textContent =
+      (currentProfile && currentProfile.full_name) || "Matias Baker";
+    brandSubtitle.textContent = "Goaltending Analytics Platform";
+
+    showTab(
+      "overview",
+      goalieNav.querySelector("button")
+    );
+
+  }
+
+}
+
+
+async function applyRoleAndLoad(){
+
+  currentProfile = await fetchOwnProfile();
+  currentRole = (currentProfile && currentProfile.role) || "goalie";
+
+  setNavForRole();
+
+  // loadDashboard() populates games/periodStats/shots/reboundControls/
+  // puckPlaying from Supabase. RLS scopes these to: the caller's own
+  // rows, OR (for a coach) rows belonging to an actively-assigned
+  // goalie, OR everything if the caller is an admin. So this call is
+  // correct and safe for every role without any change.
+  await loadDashboard();
+
+  if(currentRole === "coach"){
+    await loadCoachExtras();
+  }
+
+}
+
+
+/* ------------------------------------------------------------
+   Per-goalie summary (used by the "My Goalies" cards)
+------------------------------------------------------------ */
+
+function computeGoalieSummary(goalieId){
+
+  const goalieGames =
+    games.filter(
+      g => g.user_id === goalieId && isCurrentSeason(g.season)
+    );
+
+  const goalieShots =
+    shots.filter(s => s.user_id === goalieId);
+
+  const gamesPlayed = goalieGames.length;
+
+  const totalShotsAgainst =
+    goalieGames.reduce((sum,g) => sum + num(g.shots_against), 0);
+
+  const totalSaves =
+    goalieGames.reduce((sum,g) => sum + num(g.saves), 0);
+
+  const totalGoalsAgainst =
+    goalieGames.reduce((sum,g) => sum + num(g.goals_against), 0);
+
+  const totalMinutes =
+    goalieGames.reduce((sum,g) => sum + num(g.minutes_played), 0);
+
+  const svPct =
+    totalShotsAgainst ? (totalSaves / totalShotsAgainst * 100) : null;
+
+  const gaa =
+    totalMinutes > 0
+      ? (totalGoalsAgainst / (totalMinutes / 60))
+      : null;
+
+  const advanced =
+    goalieShots.length
+      ? calculateAdvancedForShots(goalieShots)
+      : null;
+
+  const sortedGames =
+    [...goalieGames].sort(
+      (a,b) => new Date(b.date) - new Date(a.date)
+    );
+
+  const lastGame = sortedGames[0] || null;
+
+  const last3 = sortedGames.slice(0,3);
+
+  const last3Shots =
+    last3.reduce((sum,g) => sum + num(g.shots_against), 0);
+
+  const last3Saves =
+    last3.reduce((sum,g) => sum + num(g.saves), 0);
+
+  const last3SV =
+    last3Shots ? (last3Saves / last3Shots * 100) : null;
+
+  let trend = null;
+
+  if(svPct !== null && last3SV !== null && last3.length >= 2){
+
+    if(last3SV - svPct >= 2){
+      trend = "up";
+    }
+    else if(svPct - last3SV >= 2){
+      trend = "down";
+    }
+    else{
+      trend = "flat";
+    }
+
+  }
+
+  return {
+    gamesPlayed,
+    svPct,
+    gaa,
+    gsax: advanced ? advanced.gsax : null,
+    lastGame,
+    trend
+  };
+
+}
+
+
+/* ------------------------------------------------------------
+   Coach Overview ("My Goalies")
+------------------------------------------------------------ */
+
+async function loadCoachExtras(){
+
+  const errorBox = document.getElementById("dashboard-error");
+
+  try{
+
+    // Own profile always passes RLS via the self-view policy; every
+    // other profile that comes back only passes because of the
+    // "Coaches can view assigned goalie profiles" policy (is_my_goalie).
+    // So "everything that isn't me" IS exactly my assigned goalies --
+    // this deliberately doesn't key off role, since one person (e.g.
+    // an owner/admin account) can also be the tracked goalie.
+    const allProfiles = await q("profiles");
+    const ownId = currentSession && currentSession.user && currentSession.user.id;
+
+    coachGoalieProfiles =
+      allProfiles.filter(p => p.id !== ownId);
+
+    coachPrimaryGoalieId =
+      coachGoalieProfiles.length === 1
+        ? coachGoalieProfiles[0].id
+        : null;
+
+  }
+  catch(err){
+
+    console.error("Coach profile loading error:", err);
+    coachGoalieProfiles = [];
+
+    errorBox.innerHTML += `
+      <div class="error-box">
+        <strong>Couldn't load your goalies.</strong>
+        <br>${err.message}
+      </div>
+    `;
+
+  }
+
+  renderCoachHome();
+
+  await loadCoachNotes();
+
+}
+
+
+function formatSV(svPct){
+  return svPct === null ? "—" : svPct.toFixed(1) + "%";
+}
+
+function formatGAA(gaa){
+  return gaa === null ? "—" : gaa.toFixed(2);
+}
+
+function formatGSAx(gsax){
+  if(gsax === null){ return "—"; }
+  const rounded = Math.round(gsax * 10) / 10;
+  return (rounded > 0 ? "+" : "") + rounded.toFixed(1);
+}
+
+function trendBadge(trend){
+
+  if(trend === "up"){
+    return `<span class="trend-badge trend-up">↑ Improving</span>`;
+  }
+
+  if(trend === "down"){
+    return `<span class="trend-badge trend-down">↓ Declining</span>`;
+  }
+
+  if(trend === "flat"){
+    return `<span class="trend-badge trend-flat">→ Steady</span>`;
+  }
+
+  return `<span class="trend-badge trend-flat">Not enough data</span>`;
+
+}
+
+
+function renderCoachHome(){
+
+  const grid = document.getElementById("coachGoalieGrid");
+
+  if(!coachGoalieProfiles.length){
+
+    grid.innerHTML = `
+      <div class="empty-state">
+        You don't have any goalies assigned yet.
+      </div>
+    `;
+
+    document.getElementById("coachGoalieCount").textContent = "0";
+    document.getElementById("coachGamesAnalyzed").textContent = "—";
+    document.getElementById("coachAvgSV").textContent = "—";
+    document.getElementById("coachAvgGAA").textContent = "—";
+
+    return;
+
+  }
+
+  const summaries =
+    coachGoalieProfiles.map(p => ({
+      profile: p,
+      summary: computeGoalieSummary(p.id)
+    }));
+
+  document.getElementById("coachGoalieCount").textContent =
+    coachGoalieProfiles.length;
+
+  const totalGames =
+    summaries.reduce((sum,s) => sum + s.summary.gamesPlayed, 0);
+
+  document.getElementById("coachGamesAnalyzed").textContent =
+    totalGames;
+
+  const svValues =
+    summaries.map(s => s.summary.svPct).filter(v => v !== null);
+
+  document.getElementById("coachAvgSV").textContent =
+    svValues.length
+      ? formatSV(svValues.reduce((a,b) => a+b, 0) / svValues.length)
+      : "—";
+
+  const gaaValues =
+    summaries.map(s => s.summary.gaa).filter(v => v !== null);
+
+  document.getElementById("coachAvgGAA").textContent =
+    gaaValues.length
+      ? formatGAA(gaaValues.reduce((a,b) => a+b, 0) / gaaValues.length)
+      : "—";
+
+  grid.innerHTML =
+    summaries.map(({profile, summary}) => {
+
+      const lastGameLabel =
+        summary.lastGame
+          ? `vs ${summary.lastGame.opponent || "opponent"} (${summary.lastGame.date || ""})`
+          : "No games yet";
+
+      return `
+        <div class="card goalie-card" onclick="openGoalie('${profile.id}')">
+
+          <div class="goalie-card-top">
+            <div>
+              <div class="goalie-name">${profile.full_name || "Unnamed Goalie"}</div>
+              <div class="goalie-meta">${profile.team || "No team set"} · ${profile.season || CURRENT_SEASON}</div>
+            </div>
+            ${trendBadge(summary.trend)}
+          </div>
+
+          <div class="goalie-card-stats">
+
+            <div>
+              <div class="metric ${summary.svPct !== null ? "good" : ""}">${formatSV(summary.svPct)}</div>
+              <div class="metric-label">SV%</div>
+            </div>
+
+            <div>
+              <div class="metric">${formatGAA(summary.gaa)}</div>
+              <div class="metric-label">GAA</div>
+            </div>
+
+            <div>
+              <div class="metric ${summary.gsax !== null && summary.gsax > 0 ? "good" : ""}">${formatGSAx(summary.gsax)}</div>
+              <div class="metric-label">GSAx</div>
+            </div>
+
+            <div>
+              <div class="metric">${summary.gamesPlayed}</div>
+              <div class="metric-label">Games</div>
+            </div>
+
+          </div>
+
+          <div class="goalie-card-footer">
+            <span>Last game: ${lastGameLabel}</span>
+            <span>View analytics →</span>
+          </div>
+
+        </div>
+      `;
+
+    }).join("");
+
+}
+
+
+function openGoalie(goalieId){
+
+  // NOTE: with exactly one goalie assigned per coach today, the
+  // existing Overview/Game Log/Periods/etc. tabs already show the
+  // right data as-is (RLS scopes the underlying queries to that one
+  // goalie). Once a coach can have multiple goalies, those render
+  // functions need to filter by goalieId instead of reading the
+  // global arrays directly -- flagging this now rather than having
+  // it silently break later.
+  coachPrimaryGoalieId = goalieId;
+
+  showTab(
+    "overview",
+    document.getElementById("coach-stats-toggle-btn")
+  );
+
+}
+
+
+/* ------------------------------------------------------------
+   Coach Notes
+------------------------------------------------------------ */
+
+async function loadCoachNotes(){
+
+  const list = document.getElementById("coachNotesList");
+
+  try{
+
+    // RLS already scopes this to the signed-in coach's own notes.
+    coachNotesData = await qFiltered("coach_notes", "order=created_at.desc");
+
+  }
+  catch(err){
+
+    console.error("Coach notes loading error:", err);
+    coachNotesData = [];
+
+  }
+
+  if(!coachNotesData.length){
+
+    list.innerHTML = `<div class="empty-state">No notes yet.</div>`;
+    return;
+
+  }
+
+  list.innerHTML =
+    coachNotesData.map(note => {
+
+      const goalieProfile =
+        coachGoalieProfiles.find(p => p.id === note.goalie_id);
+
+      const dateLabel =
+        note.created_at
+          ? new Date(note.created_at).toLocaleDateString()
+          : "";
+
+      return `
+        <div class="note-item">
+          <div class="note-date">
+            ${dateLabel}${goalieProfile ? " · " + goalieProfile.full_name : ""}
+          </div>
+          <div class="note-text"></div>
+        </div>
+      `;
+
+    }).join("");
+
+  // Set note text via textContent to avoid any HTML injection from
+  // stored note text.
+  const items = list.querySelectorAll(".note-text");
+  coachNotesData.forEach((note, i) => {
+    if(items[i]){ items[i].textContent = note.text; }
+  });
+
+}
+
+
+async function saveCoachNote(){
+
+  const textEl = document.getElementById("coachNoteText");
+  const statusEl = document.getElementById("coachNoteStatus");
+  const btn = document.getElementById("coachNoteSaveBtn");
+
+  const text = textEl.value.trim();
+
+  if(!text){
+    statusEl.textContent = "Write a note first.";
+    return;
+  }
+
+  if(!coachPrimaryGoalieId){
+    statusEl.textContent = "No goalie assigned to attach this note to.";
+    return;
+  }
+
+  btn.disabled = true;
+  statusEl.textContent = "Saving...";
+
+  try{
+
+    const accessToken =
+      (currentSession && currentSession.access_token) || SUPABASE_KEY;
+
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/coach_notes`,
+      {
+        method:"POST",
+        headers:{
+          apikey:SUPABASE_KEY,
+          Authorization:`Bearer ${accessToken}`,
+          "Content-Type":"application/json",
+          Prefer:"return=minimal"
+        },
+        body: JSON.stringify({
+          coach_id: currentSession.user.id,
+          goalie_id: coachPrimaryGoalieId,
+          text
+        })
+      }
+    );
+
+    if(!response.ok){
+      throw new Error(`Supabase error ${response.status}`);
+    }
+
+    textEl.value = "";
+    statusEl.textContent = "Saved.";
+
+    await loadCoachNotes();
+
+  }
+  catch(err){
+
+    console.error("Save note error:", err);
+    statusEl.textContent = "Could not save note: " + err.message;
+
+  }
+  finally{
+
+    btn.disabled = false;
+
+  }
+
+}
+
+
 async function initAuth(){
 
   const { data } =
@@ -7660,7 +8462,7 @@ async function initAuth(){
 
     refreshUserBadge();
     showApp();
-    loadDashboard();
+    applyRoleAndLoad();
 
   }
   else{
