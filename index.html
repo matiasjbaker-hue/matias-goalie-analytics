@@ -13081,7 +13081,13 @@ async function runVideoAnalysis(gameVideoId, button){
 
     }
 
-    alert(`Drafted ${data.draftCount} shot(s). Review them below.`);
+    let message = `TwelveLabs found ${data.momentsFound ?? "?"} candidate moment(s). Drafted ${data.draftCount} shot(s).`;
+
+    if(data.extractionErrors && data.extractionErrors.length){
+      message += `\n\nSome moments failed to process:\n- ${data.extractionErrors.join("\n- ")}`;
+    }
+
+    alert(message);
 
     await Promise.all([
       renderAdminVideoList(),
