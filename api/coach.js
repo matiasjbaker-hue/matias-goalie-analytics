@@ -1,316 +1,12030 @@
-// ============================================================
-// AI COACH — serverless function
-// ============================================================
-// This runs on Vercel's server, not in the browser, so it's the
-// only safe place to hold the Anthropic API key. It:
-//   1. Takes the signed-in user's Supabase access token + their
-//      question from the browser.
-//   2. Uses that access token to pull THIS SEASON's stats from
-//      Supabase — Row Level Security means it's physically
-//      impossible for this to return anyone else's data, even
-//      if someone tampered with the request.
-//   3. Summarizes those stats into plain text.
-//   4. Asks Claude to answer the question using that summary.
-//   5. Returns the answer to the browser.
-//
-// Setup required (see the walkthrough that comes with this file):
-//   - An Anthropic API key, set as the ANTHROPIC_API_KEY
-//     environment variable in your Vercel project settings.
-//     Get one at https://console.anthropic.com — this is a
-//     separate account/billing from a claude.ai subscription.
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 
-const SUPABASE_URL = "https://iiuqxxrrruvwvfehrzic.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
-const CURRENT_SEASON = "2026 preseason";
+<title>GoalieIQ Analytics</title>
 
-// Change this if Anthropic retires this model name — check
-// https://docs.claude.com for current model strings.
-const CLAUDE_MODEL = "claude-sonnet-5";
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+
+*{
+  box-sizing:border-box;
+}
+
+:root{
+  --bg:#061710;
+  --bg2:#091e16;
+  --card:#0c261c;
+  --card2:#102d22;
+  --border:#1d4434;
+  --border2:#285640;
+  --text:#edf7f1;
+  --muted:#88a599;
+  --muted2:#6f8c80;
+  --green:#69dda0;
+  --green2:#9be1bd;
+  --red:#ff8585;
+  --yellow:#e6d27a;
+}
+
+html{
+  scroll-behavior:smooth;
+}
+
+body{
+  margin:0;
+  font-family:Inter,Arial,sans-serif;
+  background:
+    radial-gradient(circle at top right,rgba(40,96,71,.14),transparent 30%),
+    var(--bg);
+  color:var(--text);
+}
+
+button{
+  font:inherit;
+}
+
+header{
+  padding:30px 35px;
+  background:
+    linear-gradient(135deg,#0b241a,#0a1e17);
+  border-bottom:1px solid var(--border);
+}
+
+.header-inner{
+  max-width:1500px;
+  margin:auto;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:25px;
+}
+
+.brand h1{
+  margin:0;
+  font-size:31px;
+  letter-spacing:-.5px;
+}
+
+.brand p{
+  margin:6px 0 0;
+  color:var(--muted);
+  font-size:14px;
+}
+
+.header-right{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+.season-badge{
+  padding:9px 15px;
+  border-radius:20px;
+  background:#123c2b;
+  border:1px solid #286047;
+  color:var(--green2);
+  font-size:13px;
+  font-weight:700;
+}
+
+nav{
+  background:#081c15;
+  border-bottom:1px solid var(--border);
+  overflow-x:auto;
+}
+
+.nav-inner{
+  max-width:1500px;
+  margin:auto;
+  display:flex;
+  gap:4px;
+  padding:9px 25px;
+}
+
+nav button{
+  border:0;
+  background:transparent;
+  color:#8da99d;
+  padding:11px 15px;
+  border-radius:7px;
+  cursor:pointer;
+  white-space:nowrap;
+  transition:.15s;
+}
+
+nav button:hover{
+  background:#123126;
+  color:#fff;
+}
+
+nav button.active{
+  background:#1a5139;
+  color:#fff;
+}
+
+.nav-dropdown-toggle{
+  border:0;
+  background:transparent;
+  color:#8da99d;
+  padding:11px 15px;
+  border-radius:7px;
+  cursor:pointer;
+  white-space:nowrap;
+  transition:.15s;
+  font:inherit;
+}
+
+.nav-dropdown-toggle:hover{
+  background:#123126;
+  color:#fff;
+}
+
+.nav-dropdown-toggle.active{
+  background:#1a5139;
+  color:#fff;
+}
+
+.nav-dropdown-menu{
+  display:none;
+  position:fixed;
+  background:#0c261c;
+  border:1px solid var(--border2);
+  border-radius:9px;
+  padding:6px;
+  min-width:190px;
+  box-shadow:0 12px 30px rgba(0,0,0,.5);
+  z-index:9999;
+}
+
+.nav-dropdown-menu.open{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+
+.nav-dropdown-menu button{
+  border:0;
+  background:transparent;
+  color:#c7d9ce;
+  padding:9px 12px;
+  border-radius:6px;
+  cursor:pointer;
+  text-align:left;
+  font-size:13px;
+  white-space:nowrap;
+  font:inherit;
+}
+
+.nav-dropdown-menu button:hover{
+  background:#123126;
+  color:#fff;
+}
+
+.nav-dropdown-menu button.active{
+  background:#1a5139;
+  color:#fff;
+  font-weight:700;
+}
+
+main{
+  max-width:1500px;
+  margin:auto;
+  padding:30px 25px 70px;
+}
+
+.tab{
+  display:none;
+}
+
+.tab.active{
+  display:block;
+}
+
+.page-title{
+  margin-bottom:24px;
+}
+
+.page-title h2{
+  margin:0 0 6px;
+  font-size:26px;
+  letter-spacing:-.3px;
+}
+
+.page-title p{
+  margin:0;
+  color:var(--muted);
+  font-size:14px;
+}
+
+.section-space{
+  margin-top:20px;
+}
+
+.section-heading{
+  margin:30px 0 14px;
+}
+
+.section-heading h3{
+  margin:0 0 4px;
+  font-size:18px;
+}
+
+.section-heading p{
+  margin:0;
+  color:var(--muted2);
+  font-size:13px;
+}
+
+.grid{
+  display:grid;
+  gap:18px;
+}
+
+.grid-2{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+}
+
+.grid-3{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+}
+
+.grid-4{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+}
+
+.card{
+  background:
+    linear-gradient(
+      145deg,
+      rgba(16,45,34,.92),
+      rgba(10,31,23,.96)
+    );
+  border:1px solid var(--border);
+  border-radius:13px;
+  padding:19px;
+  box-shadow:0 10px 30px rgba(0,0,0,.13);
+  min-width:0;
+}
+
+.card h3{
+  margin:0 0 14px;
+  font-size:14px;
+  font-weight:700;
+}
+
+.metric-card{
+  min-height:128px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+}
+
+.metric{
+  font-size:31px;
+  line-height:1;
+  font-weight:800;
+  letter-spacing:-.5px;
+}
+
+.metric-large{
+  font-size:39px;
+}
+
+.metric-label{
+  color:var(--muted);
+  font-size:11px;
+  margin-top:8px;
+  text-transform:uppercase;
+  letter-spacing:.7px;
+}
+
+.metric-context{
+  color:var(--muted2);
+  font-size:12px;
+  margin-top:8px;
+}
+
+.good{
+  color:var(--green);
+}
+
+.bad{
+  color:var(--red);
+}
+
+.neutral{
+  color:var(--text);
+}
+
+.warning{
+  color:var(--yellow);
+}
+
+.hero-card{
+  padding:24px;
+  min-height:150px;
+}
+
+.hero-card .metric{
+  font-size:42px;
+}
+
+.hero-label{
+  color:var(--muted);
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:.7px;
+  margin-top:8px;
+}
+
+.hero-description{
+  margin-top:10px;
+  color:var(--muted2);
+  font-size:12px;
+  line-height:1.5;
+}
 
 
-function normalizeSeason(value) {
+/* =========================================================
+   CLEANER CHARTS
+========================================================= */
+
+.chart-card{
+  min-height:370px;
+}
+
+.chart-card.compact{
+  min-height:330px;
+}
+
+.chart-wrap{
+  position:relative;
+  width:100%;
+  height:285px;
+}
+
+.chart-card.compact .chart-wrap{
+  height:250px;
+}
+
+.chart-wrap canvas{
+  display:block !important;
+  width:100% !important;
+  height:100% !important;
+}
+
+
+/* =========================================================
+   GAME RESULT STYLING
+========================================================= */
+
+.result-pill{
+  display:inline-block;
+  padding:4px 9px;
+  border-radius:12px;
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.3px;
+}
+
+.result-win{
+  background:rgba(105,221,160,.12);
+  border:1px solid rgba(105,221,160,.22);
+  color:#69dda0;
+}
+
+.result-loss{
+  background:rgba(255,133,133,.12);
+  border:1px solid rgba(255,133,133,.22);
+  color:#ff8585;
+}
+
+.result-otl{
+  background:rgba(230,210,122,.12);
+  border:1px solid rgba(230,210,122,.22);
+  color:#e6d27a;
+}
+
+.result-neutral{
+  background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.08);
+  color:#a8beb4;
+}
+
+
+/* =========================================================
+   OTHER UI
+========================================================= */
+
+.insight{
+  margin-top:13px;
+  padding:11px 13px;
+  border-left:3px solid var(--border2);
+  background:rgba(255,255,255,.025);
+  border-radius:5px;
+  color:#a9beb5;
+  font-size:12px;
+  line-height:1.5;
+}
+
+.insight strong{
+  color:var(--text);
+}
+
+.stat-list{
+  display:flex;
+  flex-direction:column;
+  gap:0;
+}
+
+.stat-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:15px;
+  padding:11px 0;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+
+.stat-row:last-child{
+  border-bottom:0;
+}
+
+.stat-name{
+  color:#9eb4aa;
+  font-size:13px;
+}
+
+.stat-value{
+  font-weight:700;
+  font-size:14px;
+}
+
+.small-note{
+  margin-top:10px;
+  color:var(--muted2);
+  font-size:11px;
+  line-height:1.5;
+}
+
+.table-wrap{
+  overflow-x:auto;
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+}
+
+th{
+  text-align:left;
+  font-size:10px;
+  color:#78958a;
+  text-transform:uppercase;
+  letter-spacing:.65px;
+  padding:11px 10px;
+  border-bottom:1px solid #234638;
+  white-space:nowrap;
+}
+
+td{
+  padding:12px 10px;
+  border-bottom:1px solid #183a2d;
+  font-size:13px;
+  white-space:nowrap;
+}
+
+tr:hover td{
+  background:#102d22;
+}
+
+.pill{
+  display:inline-block;
+  padding:4px 8px;
+  border-radius:12px;
+  background:#143c2c;
+  color:#a6d6bb;
+  font-size:10px;
+  font-weight:700;
+}
+
+.empty{
+  padding:45px 20px;
+  text-align:center;
+  color:#718f82;
+}
+
+.error-box{
+  padding:16px;
+  border-radius:8px;
+  background:#351818;
+  border:1px solid #713333;
+  color:#ffb0b0;
+  margin-bottom:20px;
+  line-height:1.5;
+}
+
+.loading{
+  padding:60px;
+  text-align:center;
+  color:#88a89a;
+}
+
+.about-list{
+  line-height:1.8;
+  color:#a5bbb1;
+}
+
+.about-list strong{
+  color:#edf7f1;
+}
+
+.callout{
+  padding:17px 18px;
+  background:#0d3021;
+  border:1px solid #285640;
+  border-radius:10px;
+  color:#a9c8ba;
+  font-size:13px;
+  line-height:1.6;
+}
+
+.callout strong{
+  color:#edf7f1;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
+@media(max-width:1100px){
+
+  .grid-4{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+
+  .grid-3{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+
+}
+
+@media(max-width:750px){
+
+  header{
+    padding:22px 18px;
+  }
+
+  .header-inner{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+
+  main{
+    padding:22px 15px 50px;
+  }
+
+  .grid-4,
+  .grid-3,
+  .grid-2{
+    grid-template-columns:1fr;
+  }
+
+  .chart-card{
+    min-height:345px;
+  }
+
+  .chart-wrap{
+    height:260px;
+  }
+
+  .metric-large{
+    font-size:34px;
+  }
+
+}
+
+
+/* =========================================================
+   AUTH / CLIENT PORTAL
+========================================================= */
+
+.auth-screen{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:10px 20px 20px;
+}
+
+.auth-card{
+  width:100%;
+  max-width:380px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(16,45,34,.92),
+      rgba(10,31,23,.96)
+    );
+  border:1px solid var(--border);
+  border-radius:13px;
+  padding:32px 28px;
+  box-shadow:0 10px 30px rgba(0,0,0,.13);
+}
+
+.auth-brand{
+  text-align:center;
+  margin-bottom:22px;
+}
+
+.auth-brand h1{
+  margin:0;
+  font-size:24px;
+  letter-spacing:-.5px;
+}
+
+.auth-brand p{
+  margin:6px 0 0;
+  color:var(--muted);
+  font-size:13px;
+}
+
+.auth-form{
+  display:flex;
+  flex-direction:column;
+}
+
+.auth-form label{
+  font-size:13px;
+  color:var(--muted);
+  margin-top:12px;
+  margin-bottom:6px;
+}
+
+.auth-form input{
+  background:#0c261c;
+  border:1px solid var(--border2);
+  border-radius:7px;
+  padding:10px 12px;
+  color:var(--text);
+  font-size:14px;
+  font-family:inherit;
+}
+
+.auth-form input:focus{
+  outline:none;
+  border-color:var(--green);
+}
+
+.auth-btn{
+  margin-top:20px;
+  border:0;
+  background:#1a5139;
+  color:#fff;
+  padding:11px 15px;
+  border-radius:7px;
+  cursor:pointer;
+  font-weight:700;
+  font-size:14px;
+  transition:.15s;
+}
+
+.auth-btn:hover{
+  background:#22684a;
+}
+
+.auth-btn:disabled{
+  opacity:.6;
+  cursor:default;
+}
+
+.auth-links{
+  display:flex;
+  justify-content:space-between;
+  margin-top:16px;
+  font-size:13px;
+}
+
+.auth-links a{
+  color:var(--green2);
+  text-decoration:none;
+  cursor:pointer;
+}
+
+.auth-links a:hover{
+  text-decoration:underline;
+}
+
+.auth-error{
+  background:rgba(255,133,133,.12);
+  border:1px solid rgba(255,133,133,.4);
+  color:var(--red);
+  padding:10px 12px;
+  border-radius:7px;
+  font-size:13px;
+  margin-bottom:14px;
+  display:none;
+}
+
+.auth-error.visible{
+  display:block;
+}
+
+.auth-message{
+  background:rgba(105,221,160,.12);
+  border:1px solid rgba(105,221,160,.4);
+  color:var(--green2);
+  padding:10px 12px;
+  border-radius:7px;
+  font-size:13px;
+  margin-bottom:14px;
+  display:none;
+}
+
+.auth-message.visible{
+  display:block;
+}
+
+.logout-btn{
+  border:1px solid var(--border2);
+  background:transparent;
+  color:var(--muted);
+  padding:8px 14px;
+  border-radius:7px;
+  cursor:pointer;
+  font-size:13px;
+  font-family:inherit;
+}
+
+.logout-btn:hover{
+  color:#fff;
+  border-color:var(--green);
+}
+
+.user-badge{
+  color:var(--muted);
+  font-size:13px;
+  margin-right:12px;
+}
+
+
+/* =========================================================
+   ADD GAME FORM
+========================================================= */
+
+.field-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:14px;
+}
+
+.field{
+  display:flex;
+  flex-direction:column;
+}
+
+.field label{
+  font-size:12px;
+  color:var(--muted);
+  margin-bottom:5px;
+}
+
+.field input,
+.field select,
+.field textarea{
+  background:#0c261c;
+  border:1px solid var(--border2);
+  border-radius:7px;
+  padding:9px 10px;
+  color:var(--text);
+  font-size:13px;
+  font-family:inherit;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus{
+  outline:none;
+  border-color:var(--green);
+}
+
+.field.checkbox-field{
+  flex-direction:row;
+  align-items:center;
+  gap:8px;
+}
+
+.field.checkbox-field label{
+  margin:0;
+}
+
+.repeater-row{
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:14px;
+  margin-bottom:12px;
+  position:relative;
+}
+
+.repeater-row .field-grid{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+}
+
+.repeater-remove{
+  border:1px solid var(--border2);
+  background:transparent;
+  color:var(--muted);
+  padding:5px 10px;
+  border-radius:6px;
+  cursor:pointer;
+  font-size:12px;
+  margin-top:10px;
+}
+
+.repeater-remove:hover{
+  color:var(--red);
+  border-color:var(--red);
+}
+
+.btn-secondary{
+  border:1px solid var(--border2);
+  background:transparent;
+  color:var(--green2);
+  padding:9px 14px;
+  border-radius:7px;
+  cursor:pointer;
+  font-size:13px;
+  font-weight:600;
+  font-family:inherit;
+}
+
+.btn-secondary:hover{
+  background:#123126;
+}
+
+.btn-primary{
+  border:0;
+  background:#1a5139;
+  color:#fff;
+  padding:12px 20px;
+  border-radius:7px;
+  cursor:pointer;
+  font-weight:700;
+  font-size:14px;
+  font-family:inherit;
+  transition:.15s;
+}
+
+.btn-primary:hover{
+  background:#22684a;
+}
+
+.btn-primary:disabled{
+  opacity:.6;
+  cursor:default;
+}
+
+.btn-danger{
+  border:1px solid rgba(255,133,133,.4);
+  background:transparent;
+  color:var(--red);
+  padding:8px 14px;
+  border-radius:7px;
+  cursor:pointer;
+  font-size:13px;
+  font-weight:600;
+  font-family:inherit;
+}
+
+.btn-danger:hover{
+  background:rgba(255,133,133,.12);
+}
+
+.mygame-item{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:14px;
+  padding:14px 16px;
+  margin-bottom:10px;
+}
+
+.mygame-item-info{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+
+.mygame-item-info .mygame-title{
+  font-weight:700;
+  font-size:14px;
+}
+
+.mygame-item-info .mygame-sub{
+  font-size:12px;
+  color:var(--muted);
+}
+
+.mygame-item-actions{
+  display:flex;
+  gap:8px;
+  flex-shrink:0;
+}
+
+
+/* =========================================================
+   LIVE TAG
+========================================================= */
+
+.tag-group{
+  margin-bottom:16px;
+}
+
+.tag-group-label{
+  font-size:12px;
+  color:var(--muted);
+  margin-bottom:8px;
+}
+
+.tag-btn-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.tag-btn{
+  border:1px solid var(--border2);
+  background:#0c261c;
+  color:var(--text);
+  padding:9px 14px;
+  border-radius:20px;
+  cursor:pointer;
+  font-size:13px;
+  font-family:inherit;
+}
+
+.tag-btn:hover{
+  border-color:var(--green);
+}
+
+.tag-btn.selected{
+  background:#1a5139;
+  border-color:#1a5139;
+  color:#fff;
+  font-weight:700;
+}
+
+.tag-btn.outcome-goal.selected{
+  background:#7a2b2b;
+  border-color:#7a2b2b;
+}
+
+.period-selector{
+  display:flex;
+  gap:8px;
+  margin-bottom:20px;
+}
+
+.period-btn{
+  border:1px solid var(--border2);
+  background:#0c261c;
+  color:var(--text);
+  padding:10px 18px;
+  border-radius:8px;
+  cursor:pointer;
+  font-size:14px;
+  font-weight:700;
+  font-family:inherit;
+}
+
+.period-btn.active{
+  background:#1a5139;
+  border-color:#1a5139;
+  color:#fff;
+}
+
+.livetag-stats{
+  display:flex;
+  gap:22px;
+  flex-wrap:wrap;
+  margin-bottom:18px;
+}
+
+.livetag-stat{
+  text-align:center;
+}
+
+.livetag-stat .num{
+  font-size:26px;
+  font-weight:700;
+}
+
+.livetag-stat .label{
+  font-size:11px;
+  color:var(--muted);
+  text-transform:uppercase;
+  letter-spacing:.4px;
+}
+
+.counter-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:10px 0;
+  border-bottom:1px solid var(--border);
+}
+
+.counter-row:last-child{
+  border-bottom:0;
+}
+
+.counter-row .counter-name{
+  font-size:13px;
+  color:var(--text);
+}
+
+.counter-controls{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+.counter-controls .counter-value{
+  min-width:24px;
+  text-align:center;
+  font-weight:700;
+  font-size:15px;
+}
+
+.counter-step-btn{
+  border:1px solid var(--border2);
+  background:#0c261c;
+  color:var(--text);
+  width:28px;
+  height:28px;
+  border-radius:6px;
+  cursor:pointer;
+  font-size:15px;
+  line-height:1;
+  font-family:inherit;
+}
+
+.counter-step-btn:hover{
+  border-color:var(--green);
+}
+
+.shotlog-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:10px 14px;
+  border-bottom:1px solid var(--border);
+  font-size:13px;
+}
+
+.shotlog-row:last-child{
+  border-bottom:0;
+}
+
+.shotlog-row .shotlog-desc strong{
+  color:var(--text);
+}
+
+.shotlog-row .shotlog-desc{
+  color:var(--muted);
+}
+
+.reboundtally-summary{
+  font-size:12px;
+  color:var(--muted);
+  line-height:1.7;
+}
+
+
+/* =========================================================
+   AI COACH
+========================================================= */
+
+.coach-chat{
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+  min-height:200px;
+  max-height:60vh;
+  overflow-y:auto;
+  padding:6px 2px;
+  margin-bottom:16px;
+}
+
+.coach-message{
+  max-width:80%;
+  padding:12px 15px;
+  border-radius:13px;
+  font-size:14px;
+  line-height:1.55;
+  white-space:pre-wrap;
+}
+
+.coach-message.user{
+  align-self:flex-end;
+  background:#1a5139;
+  color:#fff;
+}
+
+.coach-message.assistant{
+  align-self:flex-start;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(16,45,34,.92),
+      rgba(10,31,23,.96)
+    );
+  border:1px solid var(--border);
+  color:var(--text);
+}
+
+.coach-message.assistant.loading{
+  color:var(--muted);
+  font-style:italic;
+}
+
+.coach-message.assistant.error{
+  border-color:rgba(255,133,133,.4);
+  color:var(--red);
+}
+
+.coach-input-row{
+  display:flex;
+  gap:10px;
+}
+
+.coach-input-row textarea{
+  flex:1;
+  background:#0c261c;
+  border:1px solid var(--border2);
+  border-radius:9px;
+  padding:11px 13px;
+  color:var(--text);
+  font-size:14px;
+  font-family:inherit;
+  resize:none;
+}
+
+.coach-input-row textarea:focus{
+  outline:none;
+  border-color:var(--green);
+}
+
+.form-error{
+  background:rgba(255,133,133,.12);
+  border:1px solid rgba(255,133,133,.4);
+  color:var(--red);
+  padding:10px 12px;
+  border-radius:7px;
+  font-size:13px;
+  margin-bottom:14px;
+  display:none;
+}
+
+.form-error.visible{
+  display:block;
+}
+
+.form-message{
+  background:rgba(105,221,160,.12);
+  border:1px solid rgba(105,221,160,.4);
+  color:var(--green2);
+  padding:10px 12px;
+  border-radius:7px;
+  font-size:13px;
+  margin-bottom:14px;
+  display:none;
+}
+
+.form-message.visible{
+  display:block;
+}
+
+@media(max-width:750px){
+
+  .field-grid,
+  .repeater-row .field-grid{
+    grid-template-columns:1fr;
+  }
+
+}
+
+
+/* =========================================================
+   COACH DASHBOARD
+========================================================= */
+
+.goalie-card{
+  cursor:pointer;
+  transition:border-color .15s, transform .15s;
+}
+
+.goalie-card:hover{
+  border-color:var(--border2);
+  transform:translateY(-2px);
+}
+
+.goalie-card-top{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  margin-bottom:18px;
+}
+
+.goalie-name{
+  font-size:17px;
+  font-weight:800;
+}
+
+.goalie-meta{
+  color:var(--muted);
+  font-size:12px;
+  margin-top:3px;
+}
+
+.goalie-card-stats{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;
+}
+
+.goalie-card-stats .metric{
+  font-size:19px;
+}
+
+.goalie-card-stats .metric-label{
+  font-size:10px;
+  margin-top:5px;
+}
+
+.goalie-card-footer{
+  margin-top:16px;
+  padding-top:12px;
+  border-top:1px solid rgba(255,255,255,.06);
+  color:var(--muted2);
+  font-size:12px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+.trend-badge{
+  font-size:11px;
+  font-weight:700;
+  padding:3px 9px;
+  border-radius:10px;
+  white-space:nowrap;
+}
+
+.trend-up{
+  background:rgba(105,221,160,.12);
+  color:var(--green);
+  border:1px solid rgba(105,221,160,.22);
+}
+
+.trend-down{
+  background:rgba(255,133,133,.12);
+  color:var(--red);
+  border:1px solid rgba(255,133,133,.22);
+}
+
+.trend-flat{
+  background:rgba(255,255,255,.05);
+  color:var(--muted);
+  border:1px solid rgba(255,255,255,.08);
+}
+
+.empty-state{
+  padding:40px 20px;
+  text-align:center;
+  color:var(--muted);
+  font-size:13px;
+}
+
+.back-link{
+  display:inline-block;
+  color:var(--green2);
+  font-size:13px;
+  font-weight:600;
+  text-decoration:none;
+  cursor:pointer;
+  margin-bottom:10px;
+}
+
+.back-link:hover{
+  text-decoration:underline;
+}
+
+.coach-note-form textarea{
+  width:100%;
+  min-height:90px;
+  background:rgba(255,255,255,.03);
+  border:1px solid var(--border);
+  border-radius:8px;
+  color:var(--text);
+  padding:12px;
+  font-family:inherit;
+  font-size:14px;
+  resize:vertical;
+  box-sizing:border-box;
+}
+
+.coach-note-form button{
+  margin-top:12px;
+}
+
+.note-item{
+  padding:14px 0;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+
+.note-item:last-child{
+  border-bottom:0;
+}
+
+.note-date{
+  color:var(--muted2);
+  font-size:11px;
+  margin-bottom:6px;
+}
+
+.note-text{
+  font-size:14px;
+  line-height:1.5;
+  white-space:pre-wrap;
+}
+
+@media (max-width:900px){
+  .goalie-card-stats{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+
+
+/* =========================================================
+   LANDING PAGE
+========================================================= */
+
+.landing-header{
+  padding:22px 35px;
+  border-bottom:1px solid var(--border);
+}
+
+.landing-header-inner{
+  max-width:1100px;
+  margin:0 auto;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+
+.landing-brand{
+  font-size:18px;
+  font-weight:800;
+  letter-spacing:-.3px;
+}
+
+.landing-signin-link{
+  color:var(--green2);
+  text-decoration:none;
+  font-size:14px;
+  font-weight:600;
+  border:1px solid var(--border2);
+  padding:9px 16px;
+  border-radius:7px;
+  transition:.15s;
+}
+
+.landing-signin-link:hover{
+  background:#123126;
+}
+
+.landing-section-inner{
+  max-width:1100px;
+  margin:0 auto;
+  padding:70px 35px;
+}
+
+.landing-hero{
+  padding:0;
+}
+
+.landing-hero-inner{
+  max-width:1100px;
+  margin:0 auto;
+  padding:80px 35px;
+  display:grid;
+  grid-template-columns:1.1fr 1fr;
+  gap:50px;
+  align-items:center;
+}
+
+.landing-hero-text h1{
+  font-size:44px;
+  line-height:1.15;
+  letter-spacing:-1px;
+  margin:0 0 20px;
+}
+
+.landing-hero-text p{
+  color:var(--muted);
+  font-size:16px;
+  line-height:1.6;
+  max-width:480px;
+  margin:0 0 30px;
+}
+
+.landing-cta{
+  display:inline-block;
+  padding:14px 26px;
+  font-size:15px;
+  text-decoration:none;
+}
+
+.landing-preview{
+  background:
+    linear-gradient(
+      145deg,
+      rgba(16,45,34,.92),
+      rgba(10,31,23,.96)
+    );
+  border:1px solid var(--border);
+  border-radius:14px;
+  box-shadow:0 20px 60px rgba(0,0,0,.25);
+  overflow:hidden;
+}
+
+.landing-preview-chrome{
+  padding:12px 16px;
+  border-bottom:1px solid var(--border);
+  display:flex;
+  gap:6px;
+}
+
+.landing-preview-chrome span{
+  width:9px;
+  height:9px;
+  border-radius:50%;
+  background:var(--border2);
+  display:inline-block;
+}
+
+.landing-preview-body{
+  padding:24px;
+}
+
+.landing-preview-title{
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:.7px;
+  color:var(--muted);
+  margin-bottom:14px;
+}
+
+.landing-preview-card{
+  cursor:default;
+}
+
+.landing-preview-card:hover{
+  transform:none;
+  border-color:var(--border);
+}
+
+.landing-features{
+  border-top:1px solid var(--border);
+}
+
+.feature-card{
+  text-align:center;
+}
+
+.feature-icon{
+  font-size:30px;
+  margin-bottom:14px;
+}
+
+.feature-card h3{
+  margin:0 0 10px;
+  font-size:15px;
+}
+
+.feature-card p{
+  margin:0;
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.6;
+}
+
+.landing-contact{
+  border-top:1px solid var(--border);
+  text-align:center;
+}
+
+.landing-contact h2{
+  margin:0 0 10px;
+  font-size:24px;
+}
+
+.landing-contact p{
+  color:var(--muted);
+  font-size:14px;
+}
+
+.landing-contact a{
+  color:var(--green2);
+  text-decoration:none;
+}
+
+.landing-contact a:hover{
+  text-decoration:underline;
+}
+
+.landing-get-started{
+  border-top:1px solid var(--border);
+  padding:70px 35px 90px;
+}
+
+@media(max-width:900px){
+
+  .landing-hero-inner{
+    grid-template-columns:1fr;
+    padding:50px 22px;
+  }
+
+  .landing-hero-text h1{
+    font-size:32px;
+  }
+
+  .landing-section-inner{
+    padding:50px 22px;
+  }
+
+  .landing-get-started{
+    padding:50px 18px 70px;
+  }
+
+}
+
+</style>
+</head>
+
+<body>
+
+<!-- ========================================================= -->
+<!-- LANDING PAGE -->
+<!-- ========================================================= -->
+
+<div id="landing-page">
+
+  <header class="landing-header">
+    <div class="landing-header-inner">
+      <div class="landing-brand">GoalieIQ Analytics</div>
+      <a href="#get-started" class="landing-signin-link" onclick="showAuthView('signin')">Sign In</a>
+    </div>
+  </header>
+
+  <section class="landing-hero">
+    <div class="landing-hero-inner">
+
+      <div class="landing-hero-text">
+        <h1>Turn raw goalie stats into coaching decisions.</h1>
+        <p>
+          GoalieIQ Analytics tracks every shot, rebound, and situation a
+          goaltender faces during a game, then turns it into the kind of
+          performance picture a coach can actually act on — not just a
+          pile of numbers.
+        </p>
+        <a href="#get-started" class="btn-primary landing-cta" onclick="showAuthView('signin')">Get Started</a>
+      </div>
+
+      <div class="landing-preview">
+
+        <div class="landing-preview-chrome">
+          <span></span><span></span><span></span>
+        </div>
+
+        <div class="landing-preview-body">
+
+          <div class="landing-preview-title">Coach Dashboard</div>
+
+          <div class="card goalie-card landing-preview-card">
+
+            <div class="goalie-card-top">
+              <div>
+                <div class="goalie-name">Sample Goalie</div>
+                <div class="goalie-meta">Panthers · 2026 Season</div>
+              </div>
+              <span class="trend-badge trend-up">↑ Improving</span>
+            </div>
+
+            <div class="goalie-card-stats">
+
+              <div>
+                <div class="metric good">.920</div>
+                <div class="metric-label">SV%</div>
+              </div>
+
+              <div>
+                <div class="metric">2.10</div>
+                <div class="metric-label">GAA</div>
+              </div>
+
+              <div>
+                <div class="metric good">+3.4</div>
+                <div class="metric-label">GSAx</div>
+              </div>
+
+              <div>
+                <div class="metric">12</div>
+                <div class="metric-label">Games</div>
+              </div>
+
+            </div>
+
+            <div class="goalie-card-footer">
+              <span>Last game: vs Rivals (W)</span>
+              <span>View analytics →</span>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+
+  <section class="landing-features">
+
+    <div class="landing-section-inner">
+
+      <div class="page-title" style="text-align:center">
+        <h2>Everything a goalie program needs</h2>
+        <p>Built from the ground up for goaltending, not adapted from a generic stats app.</p>
+      </div>
+
+      <div class="grid grid-3">
+
+        <div class="card feature-card">
+          <div class="feature-icon">🎯</div>
+          <h3>Live Shot Tagging</h3>
+          <p>Tag every shot in real time while reviewing video — location, danger level, rebound outcome, and more.</p>
+        </div>
+
+        <div class="card feature-card">
+          <div class="feature-icon">🥅</div>
+          <h3>Rebound Control Analytics</h3>
+          <p>Break down glove, blocker, pad, and midsection rebounds to see exactly where control is being lost.</p>
+        </div>
+
+        <div class="card feature-card">
+          <div class="feature-icon">📊</div>
+          <h3>Situational Breakdown</h3>
+          <p>See performance by rush chances, screens, breakaways, and other high-danger situations — not just totals.</p>
+        </div>
+
+        <div class="card feature-card">
+          <div class="feature-icon">📈</div>
+          <h3>Period-by-Period Trends</h3>
+          <p>Track how a goaltender's game changes from the first period to the third, game over game.</p>
+        </div>
+
+        <div class="card feature-card">
+          <div class="feature-icon">🧑‍🏫</div>
+          <h3>Coach Dashboard</h3>
+          <p>A dedicated view for coaches — every assigned goalie's performance, notes, and development areas in one place.</p>
+        </div>
+
+        <div class="card feature-card">
+          <div class="feature-icon">🤖</div>
+          <h3>AI Coach</h3>
+          <p>Ask plain-language questions about a goalie's season and get answers grounded in their actual tracked data.</p>
+        </div>
+
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <section class="landing-contact">
+
+    <div class="landing-section-inner">
+      <h2>Questions?</h2>
+      <p>
+        Reach out any time —
+        <a href="mailto:goalieiqanalytics@gmail.com">goalieiqanalytics@gmail.com</a>
+      </p>
+    </div>
+
+  </section>
+
+
+  <section class="landing-get-started" id="get-started">
+
+    <div class="page-title" style="text-align:center">
+      <h2>Get Started</h2>
+      <p>Sign in to your dashboard below.</p>
+    </div>
+
+    <div id="auth-screen" class="auth-screen">
+      <div class="auth-card">
+
+        <div id="auth-error" class="auth-error"></div>
+        <div id="auth-message" class="auth-message"></div>
+
+        <form id="signin-form" class="auth-form">
+          <label for="signin-email">Email</label>
+          <input type="email" id="signin-email" required autocomplete="email">
+
+          <label for="signin-password">Password</label>
+          <input type="password" id="signin-password" required autocomplete="current-password">
+
+          <button type="submit" class="auth-btn">Sign In</button>
+
+          <div class="auth-links">
+            <span style="color:var(--muted2)">Accounts are created by your admin.</span>
+            <a onclick="showAuthView('reset');return false;">Forgot password?</a>
+          </div>
+        </form>
+
+        <form id="signup-form" class="auth-form" style="display:none">
+          <label for="signup-name">Name</label>
+          <input type="text" id="signup-name" required autocomplete="name">
+
+          <label for="signup-email">Email</label>
+          <input type="email" id="signup-email" required autocomplete="email">
+
+          <label for="signup-password">Password</label>
+          <input type="password" id="signup-password" required autocomplete="new-password" minlength="6">
+
+          <button type="submit" class="auth-btn">Create Account</button>
+
+          <div class="auth-links">
+            <a onclick="showAuthView('signin');return false;">Back to sign in</a>
+          </div>
+        </form>
+
+        <form id="reset-form" class="auth-form" style="display:none">
+          <label for="reset-email">Email</label>
+          <input type="email" id="reset-email" required autocomplete="email">
+
+          <button type="submit" class="auth-btn">Send Reset Link</button>
+
+          <div class="auth-links">
+            <a onclick="showAuthView('signin');return false;">Back to sign in</a>
+          </div>
+        </form>
+
+        <form id="newpassword-form" class="auth-form" style="display:none">
+          <label for="newpassword-password">New Password</label>
+          <input type="password" id="newpassword-password" required autocomplete="new-password" minlength="6">
+
+          <button type="submit" class="auth-btn">Update Password</button>
+        </form>
+
+      </div>
+    </div>
+
+  </section>
+
+</div>
+
+
+<!-- ========================================================= -->
+<!-- APP (existing dashboard, unchanged below) -->
+<!-- ========================================================= -->
+
+<div id="app-shell" style="display:none">
+
+<header>
+
+  <div class="header-inner">
+
+    <div class="brand">
+      <h1 id="brand-title">GoalieIQ Analytics</h1>
+      <p id="brand-subtitle">Goaltending Performance Platform</p>
+    </div>
+
+    <div class="header-right">
+
+      <span id="user-email-badge" class="user-badge"></span>
+
+      <button class="logout-btn" onclick="handleLogout()">
+        Log out
+      </button>
+
+      <div class="season-badge">
+        2026 PRESEASON
+      </div>
+
+    </div>
+
+  </div>
+
+</header>
+
+
+<nav id="goalie-nav">
+
+  <div class="nav-inner">
+
+    <button class="active" onclick="showTab('overview',this)">
+      Overview
+    </button>
+
+    <button type="button" class="nav-dropdown-toggle" id="stats-toggle-btn" onclick="toggleNavDropdown(event)">
+      Stats ▾
+    </button>
+
+    <button onclick="showTab('livetag',this)">
+      Live Tag
+    </button>
+
+    <button onclick="showTab('addgame',this)">
+      My Games
+    </button>
+
+    <button onclick="showTab('coach',this)">
+      Coach
+    </button>
+
+    <button onclick="showTab('about',this)">
+      About
+    </button>
+
+  </div>
+
+</nav>
+
+<nav id="coach-nav" style="display:none">
+
+  <div class="nav-inner">
+
+    <button class="active" id="coach-nav-myGoalies" onclick="showTab('coachhome',this)">
+      My Goalies
+    </button>
+
+    <button type="button" class="nav-dropdown-toggle" id="coach-stats-toggle-btn" onclick="toggleNavDropdown(event)">
+      Full Analytics ▾
+    </button>
+
+    <button id="coach-nav-notes" onclick="showTab('coachnotes',this)">
+      Coach Notes
+    </button>
+
+    <button id="coach-nav-ai" onclick="showTab('coach',this)">
+      AI Coach
+    </button>
+
+    <button onclick="showTab('about',this)">
+      About
+    </button>
+
+  </div>
+
+</nav>
+
+<nav id="admin-nav" style="display:none">
+
+  <div class="nav-inner">
+
+    <button class="active" onclick="showTab('adminhome',this)">
+      Platform Overview
+    </button>
+
+    <button onclick="showTab('admincoaches',this)">
+      Coaches
+    </button>
+
+    <button onclick="showTab('admingoalies',this)">
+      Goalies
+    </button>
+
+    <button onclick="showTab('adminassignments',this)">
+      Assignments
+    </button>
+
+    <button onclick="showTab('about',this)">
+      About
+    </button>
+
+  </div>
+
+</nav>
+
+<div class="nav-dropdown-menu" id="stats-dropdown-menu">
+
+  <button onclick="selectStatsTab('gamelog',this)">
+    Game Log
+  </button>
+
+  <button onclick="selectStatsTab('periods',this)">
+    Period Breakdown
+  </button>
+
+  <button onclick="selectStatsTab('situational',this)">
+    Situational
+  </button>
+
+  <button onclick="selectStatsTab('control',this)">
+    Rebound Control
+  </button>
+
+  <button onclick="selectStatsTab('incremental',this)">
+    Incremental Stats
+  </button>
+
+  <button onclick="selectStatsTab('puckplaying',this)">
+    Puck Playing
+  </button>
+
+</div>
+
+
+<main>
+
+<div id="dashboard-error"></div>
+
+
+<!-- ========================================================= -->
+<!-- COACH OVERVIEW (My Goalies) -->
+<!-- ========================================================= -->
+
+<section id="coachhome" class="tab">
+
+  <div class="page-title">
+    <h2>Coach Dashboard</h2>
+    <p>Your assigned goalies at a glance.</p>
+  </div>
+
+  <div class="grid grid-4" id="coachSummaryCards">
+
+    <div class="card metric-card">
+      <div class="metric" id="coachGoalieCount">—</div>
+      <div class="metric-label">Goalies</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="coachGamesAnalyzed">—</div>
+      <div class="metric-label">Games Analyzed</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="coachAvgSV">—</div>
+      <div class="metric-label">Avg SV%</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="coachAvgGAA">—</div>
+      <div class="metric-label">Avg GAA</div>
+    </div>
+
+  </div>
+
+  <div class="section-heading">
+    <h3>My Goalies</h3>
+    <p>Click a goalie to open their full analytics.</p>
+  </div>
+
+  <div class="grid grid-3" id="coachGoalieGrid">
+    <!-- populated by renderCoachHome() -->
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- COACH NOTES -->
+<!-- ========================================================= -->
+
+<section id="coachnotes" class="tab">
+
+  <div class="page-title">
+    <h2>Coach Notes</h2>
+    <p>Private notes only you can see, tied to a specific goalie.</p>
+  </div>
+
+  <div class="card" id="coachNotesPickerCard">
+    <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:8px;">Goalie</label>
+    <select id="coachNotesGoalieSelect" onchange="selectCoachNotesGoalie(this.value)" style="width:100%;max-width:320px;background:#0c261c;border:1px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
+  </div>
+
+  <div class="grid grid-2 section-space">
+
+    <div class="card coach-note-form">
+      <h3>Add a Note</h3>
+      <textarea id="coachNoteText" placeholder="e.g. Needs to stay patient on east-west plays."></textarea>
+      <button class="btn-primary" onclick="saveCoachNote()" id="coachNoteSaveBtn">Save Note</button>
+      <div class="small-note" id="coachNoteStatus"></div>
+    </div>
+
+    <div class="card">
+      <h3>Note History</h3>
+      <div id="coachNotesList">
+        <div class="empty-state">No notes yet.</div>
+      </div>
+    </div>
+
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- GOALIE PROFILE (coach drill-down) -->
+<!-- ========================================================= -->
+
+<section id="goalieprofile" class="tab">
+
+  <div class="page-title">
+    <a href="#" class="back-link" onclick="showTab('coachhome', document.getElementById('coach-nav-myGoalies')); return false;">← Back to My Goalies</a>
+    <h2 id="goalieProfileName">Goalie</h2>
+    <p id="goalieProfileMeta">—</p>
+  </div>
+
+  <div class="grid grid-4">
+
+    <div class="card metric-card hero-card">
+      <div class="metric good" id="gpSV">—</div>
+      <div class="hero-label">SV%</div>
+    </div>
+
+    <div class="card metric-card hero-card">
+      <div class="metric" id="gpGAA">—</div>
+      <div class="hero-label">GAA</div>
+    </div>
+
+    <div class="card metric-card hero-card">
+      <div class="metric" id="gpGSAx">—</div>
+      <div class="hero-label">GSAx</div>
+    </div>
+
+    <div class="card metric-card hero-card">
+      <div class="metric" id="gpGames">—</div>
+      <div class="hero-label">Games Played</div>
+    </div>
+
+  </div>
+
+  <div class="section-heading">
+    <h3>Recent Games</h3>
+    <p>Most recent tracked games this season.</p>
+  </div>
+
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Opponent</th>
+            <th>Result</th>
+            <th>Shots</th>
+            <th>Saves</th>
+            <th>SV%</th>
+            <th>Report</th>
+          </tr>
+        </thead>
+        <tbody id="gpRecentGamesBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="grid grid-2 section-space">
+
+    <div class="card">
+      <h3>Rebound Control</h3>
+      <div class="stat-list" id="gpReboundSummary"></div>
+    </div>
+
+    <div class="card">
+      <h3>Puck Playing</h3>
+      <div class="stat-list" id="gpPuckSummary"></div>
+    </div>
+
+  </div>
+
+  <div class="section-heading">
+    <h3>Go Deeper</h3>
+    <p>Full analytics, coach notes, and the AI Coach for this goalie.</p>
+  </div>
+
+  <div class="grid grid-3">
+
+    <button class="btn-secondary" style="width:100%" onclick="showTab('gamelog', document.getElementById('coach-stats-toggle-btn'))">
+      Full Game Log →
+    </button>
+
+    <button class="btn-secondary" style="width:100%" onclick="showTab('coachnotes', document.getElementById('coach-nav-notes'))">
+      Coach Notes →
+    </button>
+
+    <button class="btn-secondary" style="width:100%" onclick="showTab('coach', document.getElementById('coach-nav-ai'))">
+      Ask AI Coach →
+    </button>
+
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- ADMIN: PLATFORM OVERVIEW -->
+<!-- ========================================================= -->
+
+<section id="adminhome" class="tab">
+
+  <div class="page-title">
+    <h2>Platform Overview</h2>
+    <p>GoalieIQ Analytics — account and usage summary across the platform.</p>
+  </div>
+
+  <div class="grid grid-4">
+
+    <div class="card metric-card">
+      <div class="metric" id="adminTotalGoalies">—</div>
+      <div class="metric-label">Goalies</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="adminTotalCoaches">—</div>
+      <div class="metric-label">Coaches</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="adminTotalGames">—</div>
+      <div class="metric-label">Games Tracked</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="adminActiveAssignments">—</div>
+      <div class="metric-label">Active Assignments</div>
+    </div>
+
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- ADMIN: COACHES -->
+<!-- ========================================================= -->
+
+<section id="admincoaches" class="tab">
+
+  <div class="page-title">
+    <h2>Coaches</h2>
+    <p>Every coach account on the platform.</p>
+  </div>
+
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Assigned Goalies</th>
+            <th>Created</th>
+          </tr>
+        </thead>
+        <tbody id="adminCoachesBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- ADMIN: GOALIES -->
+<!-- ========================================================= -->
+
+<section id="admingoalies" class="tab">
+
+  <div class="page-title">
+    <h2>Goalies</h2>
+    <p>Every goalie account on the platform.</p>
+  </div>
+
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Team</th>
+            <th>Games Tracked</th>
+            <th>Coaches Assigned</th>
+          </tr>
+        </thead>
+        <tbody id="adminGoaliesBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- ADMIN: ASSIGNMENTS -->
+<!-- ========================================================= -->
+
+<section id="adminassignments" class="tab">
+
+  <div class="page-title">
+    <h2>Assignments</h2>
+    <p>Link a coach to a goalie. Coaches can never do this themselves — only an admin can grant access.</p>
+  </div>
+
+  <div class="card">
+
+    <h3>Create Assignment</h3>
+
+    <div class="grid grid-3">
+
+      <div>
+        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px;">Coach</label>
+        <select id="adminAssignCoachSelect" style="width:100%;background:#0c261c;border:1px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
+      </div>
+
+      <div>
+        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px;">Goalie</label>
+        <select id="adminAssignGoalieSelect" style="width:100%;background:#0c261c;border:1px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
+      </div>
+
+      <div style="display:flex;align-items:flex-end;">
+        <button class="btn-primary" style="width:100%" onclick="createAssignment()">Create Assignment</button>
+      </div>
+
+    </div>
+
+    <div class="small-note" id="adminAssignStatus"></div>
+
+  </div>
+
+  <div class="card section-space">
+    <h3>All Assignments</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Coach</th>
+            <th>Goalie</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="adminAssignmentsBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- OVERVIEW -->
+<!-- ========================================================= -->
+
+<section id="overview" class="tab active">
+
+  <div class="page-title">
+    <h2>Overview</h2>
+    <p>Performance dashboard focused on identifying strengths, weaknesses and areas for improvement.</p>
+  </div>
+
+
+  <div class="grid grid-4">
+
+    <div class="card metric-card hero-card">
+      <div class="metric good" id="overviewSV">—</div>
+      <div class="hero-label">Save %</div>
+      <div class="hero-description">
+        Your actual stopping performance.
+      </div>
+    </div>
+
+    <div class="card metric-card hero-card">
+      <div class="metric" id="overviewExpectedSV">—</div>
+      <div class="hero-label">Expected SV%</div>
+      <div class="hero-description">
+        Estimated save percentage based on shot quality faced.
+      </div>
+    </div>
+
+    <div class="card metric-card hero-card">
+      <div class="metric" id="overviewGSAx">—</div>
+      <div class="hero-label">GSAx</div>
+      <div class="hero-description">
+        Goals saved above the expected result.
+      </div>
+    </div>
+
+    <div class="card metric-card hero-card">
+      <div class="metric" id="overviewGAA">—</div>
+      <div class="hero-label">GAA</div>
+      <div class="hero-description">
+        Goals allowed per 60 minutes.
+      </div>
+    </div>
+
+  </div>
+
+
+  <div class="grid grid-4 section-space">
+
+    <div class="card metric-card">
+      <div class="metric" id="overviewShots">—</div>
+      <div class="metric-label">Shots Against / 60</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="overviewGames">—</div>
+      <div class="metric-label">Games Played</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="overviewRecord">—</div>
+      <div class="metric-label">Record</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="overviewReboundPct">—</div>
+      <div class="metric-label">Good Rebound %</div>
+    </div>
+
+  </div>
+
+
+  <div class="section-heading">
+    <h3>Stopping Performance</h3>
+    <p>The most important question: are you stopping more or fewer pucks than the shots you face would predict?</p>
+  </div>
+
+  <div class="grid grid-2">
+
+    <div class="card chart-card">
+
+      <h3>SV% vs Expected SV%</h3>
+
+      <div class="chart-wrap">
+        <canvas id="overviewSVExpectedChart"></canvas>
+      </div>
+
+      <div class="insight" id="svExpectedInsight">
+        —
+      </div>
+
+    </div>
+
+
+    <div class="card chart-card">
+
+      <h3>Save Percentage Distribution</h3>
+
+      <div class="chart-wrap">
+        <canvas id="svDistributionChart"></canvas>
+      </div>
+
+      <div class="insight">
+        Each game is placed into a <strong>.020 SV%</strong> performance band,
+        beginning at <strong>.880</strong> and extending through <strong>.960+</strong>.
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <div class="section-heading">
+    <h3>Goals Against Profile</h3>
+    <p>Use this section to understand the quality of goals being allowed rather than simply counting goals.</p>
+  </div>
+
+  <div class="grid grid-2">
+
+    <div class="card chart-card">
+
+      <h3>Goals Against Distribution</h3>
+
+      <div class="chart-wrap">
+        <canvas id="gaDistributionChart"></canvas>
+      </div>
+
+    </div>
+
+
+    <div class="card chart-card">
+
+      <h3>Goals Against by Shot Grade</h3>
+
+      <div class="chart-wrap">
+        <canvas id="goalsByGradeChart"></canvas>
+      </div>
+
+      <div class="insight" id="gradeInsight">
+        —
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <div class="section-heading">
+    <h3>Recent Form</h3>
+    <p>Short-term performance can reveal whether changes in your game are actually working.</p>
+  </div>
+
+  <div class="grid grid-2">
+
+    <div class="card">
+
+      <h3>Last 5 Games</h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">SV%</span>
+          <span class="stat-value" id="last5SV">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">GAA</span>
+          <span class="stat-value" id="last5GAA">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Shots Against / 60</span>
+          <span class="stat-value" id="last5Shots">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Record</span>
+          <span class="stat-value" id="last5Record">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">GSAx</span>
+          <span class="stat-value" id="last5GSAx">—</span>
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <h3>Core Performance</h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Total Shots</span>
+          <span class="stat-value" id="overviewTotalShots">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Saves</span>
+          <span class="stat-value" id="overviewSaves">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Goals Against</span>
+          <span class="stat-value" id="overviewGoals">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Expected Goals Against</span>
+          <span class="stat-value" id="overviewXGA">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Actual SV% − Expected SV%</span>
+          <span class="stat-value" id="overviewSVDelta">—</span>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- GAME LOG -->
+<!-- ========================================================= -->
+
+<section id="gamelog" class="tab">
+
+  <div class="page-title">
+    <h2>Game Log</h2>
+    <p>Game-by-game results with advanced performance context.</p>
+  </div>
+
+  <div class="card">
+
+    <div class="table-wrap">
+
+      <table>
+
+        <thead>
+
+          <tr>
+            <th>Date</th>
+            <th>Opponent</th>
+            <th>Result</th>
+            <th>Shots</th>
+            <th>Saves</th>
+            <th>GA</th>
+            <th>SV%</th>
+            <th>GAA</th>
+            <th>Minutes</th>
+            <th>Report</th>
+          </tr>
+
+        </thead>
+
+        <tbody id="gameLogBody"></tbody>
+
+      </table>
+
+    </div>
+
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- PERIOD BREAKDOWN -->
+<!-- ========================================================= -->
+
+<section id="periods" class="tab">
+
+  <div class="page-title">
+    <h2>Period Breakdown</h2>
+    <p>Identify when performance changes during games.</p>
+  </div>
+
+  <div class="grid grid-4">
+
+    <div class="card metric-card">
+      <div class="metric" id="period1SV">—</div>
+      <div class="metric-label">1st Period SV%</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="period2SV">—</div>
+      <div class="metric-label">2nd Period SV%</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="period3SV">—</div>
+      <div class="metric-label">3rd Period SV%</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="periodOTSV">—</div>
+      <div class="metric-label">OT SV%</div>
+    </div>
+
+  </div>
+
+
+  <!-- =======================================================
+       PERIOD CHARTS
+  ======================================================== -->
+
+  <div class="grid grid-2 section-space">
+
+    <div class="card chart-card">
+
+      <h3>Goals Against by Period</h3>
+
+      <div class="chart-wrap">
+        <canvas id="periodGAChart"></canvas>
+      </div>
+
+    </div>
+
+
+    <div class="card chart-card">
+
+      <h3>SV% by Period</h3>
+
+      <div class="chart-wrap">
+        <canvas id="periodSVChart"></canvas>
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <div class="card section-space">
+
+    <h3>Period Statistics</h3>
+
+    <div class="table-wrap">
+
+      <table>
+
+        <thead>
+
+          <tr>
+            <th>Period</th>
+            <th>Shots</th>
+            <th>Saves</th>
+            <th>Goals Against</th>
+            <th>SV%</th>
+          </tr>
+
+        </thead>
+
+        <tbody id="periodTableBody"></tbody>
+
+      </table>
+
+    </div>
+
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- SITUATIONAL -->
+<!-- ========================================================= -->
+
+<section id="situational" class="tab">
+
+  <div class="page-title">
+    <h2>Situational</h2>
+    <p>Find the situations, shot qualities and play types that give you the most room to improve.</p>
+  </div>
+
+
+  <div class="grid grid-4">
+
+    <div class="card metric-card">
+      <div class="metric" id="expectedSV">—</div>
+      <div class="metric-label">Expected SV%</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="gsax">—</div>
+      <div class="metric-label">GSAx</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="xGA">—</div>
+      <div class="metric-label">Expected Goals Against</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="advancedShots">—</div>
+      <div class="metric-label">Shots Tracked</div>
+    </div>
+
+  </div>
+
+
+  <div class="section-heading">
+    <h3>Where Are the Problems?</h3>
+    <p>These charts are intended to turn shot tracking into actual training priorities.</p>
+  </div>
+
+
+  <div class="grid grid-2">
+
+    <div class="card chart-card">
+
+      <h3>Shots by Location</h3>
+
+      <div class="chart-wrap">
+        <canvas id="locationChart"></canvas>
+      </div>
+
+      <div class="insight">
+        High volume alone is not necessarily bad. Compare this with the goal chart
+        to identify locations where you are allowing a disproportionate number of goals.
+      </div>
+
+    </div>
+
+
+    <div class="card chart-card">
+
+      <h3>Goals by Location</h3>
+
+      <div class="chart-wrap">
+        <canvas id="goalLocationChart"></canvas>
+      </div>
+
+      <div class="insight" id="locationInsight">
+        —
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <div class="grid grid-2 section-space">
+
+    <div class="card chart-card">
+
+      <h3>Shot Quality Distribution</h3>
+
+      <div class="chart-wrap">
+        <canvas id="shotGradeChart"></canvas>
+      </div>
+
+    </div>
+
+
+    <div class="card chart-card">
+
+      <h3>Goals by Shot Grade</h3>
+
+      <div class="chart-wrap">
+        <canvas id="shotGradeGoalChart"></canvas>
+      </div>
+
+      <div class="insight" id="shotGradeGoalInsight">
+        —
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <div class="section-heading">
+    <h3>Situation-Specific Performance</h3>
+    <p>Use these breakdowns to identify technical or tactical situations that deserve more practice.</p>
+  </div>
+
+
+  <div class="grid grid-3">
+
+    <div class="card">
+
+      <h3>Rush / Transition</h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Shots</span>
+          <span class="stat-value" id="rushShots">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">SV%</span>
+          <span class="stat-value" id="rushSV">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Goals</span>
+          <span class="stat-value" id="rushGoals">—</span>
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <h3>Breakaways</h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Shots</span>
+          <span class="stat-value" id="breakawayShots">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">SV%</span>
+          <span class="stat-value" id="breakawaySV">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Goals</span>
+          <span class="stat-value" id="breakawayGoals">—</span>
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <h3>Rebound Shots</h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Shots</span>
+          <span class="stat-value" id="reboundShots">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">SV%</span>
+          <span class="stat-value" id="reboundSV">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Goals</span>
+          <span class="stat-value" id="reboundGoals">—</span>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <div class="grid grid-3 section-space">
+
+    <div class="card">
+
+      <h3>Screened Shots</h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Shots</span>
+          <span class="stat-value" id="screenShots">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">SV%</span>
+          <span class="stat-value" id="screenSV">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Goals</span>
+          <span class="stat-value" id="screenGoals">—</span>
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <h3>One-Timers</h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Shots</span>
+          <span class="stat-value" id="oneTimerShots">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">SV%</span>
+          <span class="stat-value" id="oneTimerSV">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Goals</span>
+          <span class="stat-value" id="oneTimerGoals">—</span>
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <h3>High-Danger / Crease</h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Shots</span>
+          <span class="stat-value" id="highDangerShots">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">SV%</span>
+          <span class="stat-value" id="highDangerSV">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Goals</span>
+          <span class="stat-value" id="highDangerGoals">—</span>
+        </div>
+
+      </div>
+
+      <div class="small-note">
+        High-danger is estimated from the shot data available, including close-range and crease/slot chances.
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <div class="card section-space">
+
+    <h3>Development Priority</h3>
+
+    <div class="callout" id="situationalPriority">
+      —
+    </div>
+
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- REBOUND CONTROL -->
+<!-- ========================================================= -->
+
+<section id="control" class="tab">
+
+  <div class="page-title">
+    <h2>Rebound Control</h2>
+    <p>Dedicated analysis of directional rebound-control execution.</p>
+  </div>
+
+
+  <div class="grid grid-4">
+
+    <div class="card metric-card">
+      <div class="metric" id="controlTotal">—</div>
+      <div class="metric-label">Total Events</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric good" id="controlGood">—</div>
+      <div class="metric-label">Good Rebounds</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric bad" id="controlBad">—</div>
+      <div class="metric-label">Bad Rebounds</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="controlGoodPct">—</div>
+      <div class="metric-label">Good Rebound %</div>
+    </div>
+
+  </div>
+
+
+  <div class="grid grid-2 section-space">
+
+    <div class="card chart-card">
+
+      <h3>Good vs Bad Rebounds</h3>
+
+      <div class="chart-wrap">
+        <canvas id="controlGoodBadChart"></canvas>
+      </div>
+
+      <div class="insight">
+        This is the primary rebound-control metric. Goal location is intentionally excluded from this comparison.
+      </div>
+
+    </div>
+
+
+    <div class="card chart-card">
+
+      <h3>Good vs Bad by Direction</h3>
+
+      <div class="chart-wrap">
+        <canvas id="controlDirectionChart"></canvas>
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <div class="grid grid-2 section-space">
+
+    <div class="card chart-card">
+
+      <h3>Goal-Associated Outcomes by Direction</h3>
+
+      <div class="chart-wrap">
+        <canvas id="controlGoalsChart"></canvas>
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <h3>Directional Breakdown</h3>
+
+      <div class="table-wrap">
+
+        <table>
+
+          <thead>
+
+            <tr>
+              <th>Direction</th>
+              <th>Good</th>
+              <th>Bad</th>
+              <th>Total</th>
+              <th>Good %</th>
+              <th>Goals</th>
+            </tr>
+
+          </thead>
+
+          <tbody id="controlTableBody"></tbody>
+
+        </table>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- INCREMENTAL STATS -->
+<!-- ========================================================= -->
+
+<section id="incremental" class="tab">
+
+  <div class="page-title">
+    <h2>Incremental Stats</h2>
+    <p>Small, actionable measurements designed to track how specific parts of your game are improving.</p>
+  </div>
+
+
+  <div class="callout">
+    <strong>How to use this tab:</strong>
+    Don't chase every number. Use these metrics to identify one or two areas to work on,
+    make a change in practice, and then watch whether the corresponding metric improves.
+  </div>
+
+
+  <div class="section-heading">
+    <h3>Stopping</h3>
+    <p>Measure whether your actual stopping ability is improving beyond the quality of shots you face.</p>
+  </div>
+
+
+  <div class="grid grid-4">
+
+    <div class="card metric-card">
+      <div class="metric" id="incSVDelta">—</div>
+      <div class="metric-label">SV% Above Expected</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="incGSAx">—</div>
+      <div class="metric-label">GSAx</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="incHighDanger">—</div>
+      <div class="metric-label">High-Danger SV%</div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="incRebound">—</div>
+      <div class="metric-label">Good Rebound %</div>
+    </div>
+
+  </div>
+
+
+  <div class="section-heading">
+    <h3>Incremental Game Factors</h3>
+    <p>These metrics can become especially useful once you have a larger sample of manually tracked shots.</p>
+  </div>
+
+
+  <div class="grid grid-3">
+
+    <div class="card">
+
+      <h3>Rush Defence</h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Rush SV%</span>
+          <span class="stat-value" id="incRushSV">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Rush Goals</span>
+          <span class="stat-value" id="incRushGoals">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Rush Shots</span>
+          <span class="stat-value" id="incRushShots">—</span>
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <h3>Net-Front</h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Screened SV%</span>
+          <span class="stat-value" id="incScreenSV">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">One-Timer SV%</span>
+          <span class="stat-value" id="incOneTimerSV">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Rebound-Shot SV%</span>
+          <span class="stat-value" id="incReboundSV">—</span>
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <h3>Workload</h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Shots / 60</span>
+          <span class="stat-value" id="incShots60">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Goals / 60</span>
+          <span class="stat-value" id="incGoals60">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Avg Shots / Game</span>
+          <span class="stat-value" id="incAvgShots">—</span>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <div class="section-heading">
+    <h3>Progression</h3>
+    <p>Track whether your actual performance is moving in the right direction as more games are added.</p>
+  </div>
+
+
+  <div class="grid grid-2">
+
+    <div class="card chart-card">
+
+      <h3>Cumulative SV% vs Expected SV%</h3>
+
+      <div class="chart-wrap">
+        <canvas id="incrementalSVChart"></canvas>
+      </div>
+
+    </div>
+
+
+    <div class="card chart-card">
+
+      <h3>Cumulative GSAx</h3>
+
+      <div class="chart-wrap">
+        <canvas id="incrementalGSAxChart"></canvas>
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <div class="card section-space">
+
+    <h3>Current Development Focus</h3>
+
+    <div class="callout" id="incrementalFocus">
+      —
+    </div>
+
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- PUCK PLAYING -->
+<!-- ========================================================= -->
+
+<section id="puckplaying" class="tab">
+
+  <div class="page-title">
+    <h2>Puck Playing</h2>
+    <p>Track how effectively you stop rims and turn puck touches into controlled passes.</p>
+  </div>
+
+  <div class="grid grid-4">
+
+    <div class="card metric-card hero-card">
+      <div class="metric good" id="puckRimsStopped">—</div>
+      <div class="hero-label">Rims Stopped</div>
+      <div class="hero-description">
+        Total rimmed pucks successfully stopped and controlled.
+      </div>
+    </div>
+
+    <div class="card metric-card hero-card">
+      <div class="metric" id="puckRimPct">—</div>
+      <div class="hero-label">Rim Stop %</div>
+      <div class="hero-description">
+        Rims stopped divided by total rims faced.
+      </div>
+    </div>
+
+    <div class="card metric-card hero-card">
+      <div class="metric" id="puckPassPct">—</div>
+      <div class="hero-label">Passes Converted %</div>
+      <div class="hero-description">
+        Completed passes divided by total pass attempts.
+      </div>
+    </div>
+
+    <div class="card metric-card">
+      <div class="metric" id="puckPassesCompleted">—</div>
+      <div class="metric-label">Passes Completed</div>
+      <div class="metric-context" id="puckPassContext">—</div>
+    </div>
+
+  </div>
+
+  <div class="section-heading">
+    <h3>Puck-Playing Breakdown</h3>
+    <p>Game-by-game puck-playing execution for the current season.</p>
+  </div>
+
+  <div class="card">
+
+    <div class="table-wrap">
+
+      <table>
+
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Opponent</th>
+            <th>Rims Faced</th>
+            <th>Rims Stopped</th>
+            <th>Rim Stop %</th>
+            <th>Pass Attempts</th>
+            <th>Passes Completed</th>
+            <th>Passes Converted %</th>
+          </tr>
+        </thead>
+
+        <tbody id="puckPlayingTableBody"></tbody>
+
+      </table>
+
+    </div>
+
+    <div class="small-note">
+      Rim Stop % = rims stopped ÷ rims faced. Passes Converted % = completed passes ÷ pass attempts.
+    </div>
+
+  </div>
+
+  <div class="card section-space">
+
+    <h3>How to Read This</h3>
+
+    <div class="callout">
+      <strong>Rim Stop %</strong> measures your ability to get to rimmed pucks and stop them before they continue around the boards.
+      <strong>Passes Converted %</strong> measures how often your puck touches turn into completed passes.
+      Use both together to evaluate puck-playing execution rather than simply counting touches.
+    </div>
+
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- LIVE TAG -->
+<!-- ========================================================= -->
+
+<section id="livetag" class="tab">
+
+  <div class="page-title">
+    <h2>Live Tag</h2>
+    <p>Watch the game on Hudl (or wherever) in another tab, and tap along here as it happens. When you're done, hit Finish to save it all as one game.</p>
+  </div>
+
+  <div id="livetag-error" class="form-error"></div>
+  <div id="livetag-message" class="form-message"></div>
+
+  <div class="section-heading">
+    <h3>Game Info</h3>
+    <p>Fill this in before or after tagging — whenever's easiest.</p>
+  </div>
+
+  <div class="card">
+    <div class="field-grid">
+
+      <div class="field">
+        <label for="lt-date">Date</label>
+        <input type="date" id="lt-date">
+      </div>
+
+      <div class="field">
+        <label for="lt-season">Season</label>
+        <input type="text" id="lt-season" value="2026 preseason">
+      </div>
+
+      <div class="field">
+        <label for="lt-team">Team</label>
+        <input type="text" id="lt-team">
+      </div>
+
+      <div class="field">
+        <label for="lt-opponent">Opponent</label>
+        <input type="text" id="lt-opponent" required>
+      </div>
+
+      <div class="field">
+        <label for="lt-home-away">Home / Away</label>
+        <select id="lt-home-away">
+          <option value="">—</option>
+          <option value="Home">Home</option>
+          <option value="Away">Away</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="lt-result">Result</label>
+        <select id="lt-result">
+          <option value="">—</option>
+          <option value="W">Win</option>
+          <option value="L">Loss</option>
+          <option value="OTL">OT Loss</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="lt-team-goals">Team Goals</label>
+        <input type="number" id="lt-team-goals" min="0">
+      </div>
+
+      <div class="field">
+        <label for="lt-opponent-goals">Opponent Goals</label>
+        <input type="number" id="lt-opponent-goals" min="0">
+      </div>
+
+    </div>
+  </div>
+
+
+  <div class="section-heading">
+    <h3>Period</h3>
+    <p>Select which period you're currently watching — new shots you tag will use this.</p>
+  </div>
+
+  <div class="period-selector" id="livetag-period-selector">
+    <button type="button" class="period-btn active" data-period="1" onclick="setLiveTagPeriod('1')">1st</button>
+    <button type="button" class="period-btn" data-period="2" onclick="setLiveTagPeriod('2')">2nd</button>
+    <button type="button" class="period-btn" data-period="3" onclick="setLiveTagPeriod('3')">3rd</button>
+    <button type="button" class="period-btn" data-period="OT" onclick="setLiveTagPeriod('OT')">OT</button>
+  </div>
+
+  <div class="card">
+    <div class="field-grid">
+      <div class="field">
+        <label for="lt-p1-minutes">1st Period Minutes</label>
+        <input type="number" id="lt-p1-minutes" min="0" step="0.1" value="15">
+      </div>
+      <div class="field">
+        <label for="lt-p2-minutes">2nd Period Minutes</label>
+        <input type="number" id="lt-p2-minutes" min="0" step="0.1" value="15">
+      </div>
+      <div class="field">
+        <label for="lt-p3-minutes">3rd Period Minutes</label>
+        <input type="number" id="lt-p3-minutes" min="0" step="0.1" value="15">
+      </div>
+      <div class="field">
+        <label for="lt-ot-minutes">OT Minutes</label>
+        <input type="number" id="lt-ot-minutes" min="0" step="0.1" value="0">
+      </div>
+    </div>
+  </div>
+
+
+  <div class="section-heading">
+    <h3>Live Totals</h3>
+    <p>Updates automatically as you tag shots below.</p>
+  </div>
+
+  <div class="card livetag-stats">
+    <div class="livetag-stat">
+      <div class="num" id="livetag-total-shots">0</div>
+      <div class="label">Shots</div>
+    </div>
+    <div class="livetag-stat">
+      <div class="num" id="livetag-total-saves">0</div>
+      <div class="label">Saves</div>
+    </div>
+    <div class="livetag-stat">
+      <div class="num" id="livetag-total-goals">0</div>
+      <div class="label">Goals</div>
+    </div>
+  </div>
+
+
+  <div class="section-heading">
+    <h3>Log a Shot</h3>
+    <p>Tap what happened, then hit Add Shot. Extra tags are optional.</p>
+  </div>
+
+  <div class="card">
+
+    <div class="tag-group">
+      <div class="tag-group-label">Outcome</div>
+      <div class="tag-btn-row" id="lt-outcome-buttons">
+        <button type="button" class="tag-btn outcome-save selected" data-value="save" onclick="selectLiveTagOutcome('save')">Save</button>
+        <button type="button" class="tag-btn outcome-goal" data-value="goal" onclick="selectLiveTagOutcome('goal')">Goal</button>
+      </div>
+    </div>
+
+    <div class="tag-group">
+      <div class="tag-group-label">Location</div>
+      <div class="tag-btn-row" id="lt-location-buttons">
+        <button type="button" class="tag-btn" data-value="Slot" onclick="selectLiveTagChoice('location','Slot',this)">Slot</button>
+        <button type="button" class="tag-btn" data-value="Point" onclick="selectLiveTagChoice('location','Point',this)">Point</button>
+        <button type="button" class="tag-btn" data-value="Circle" onclick="selectLiveTagChoice('location','Circle',this)">Circle</button>
+        <button type="button" class="tag-btn" data-value="Perimeter" onclick="selectLiveTagChoice('location','Perimeter',this)">Perimeter</button>
+        <button type="button" class="tag-btn" data-value="Crease" onclick="selectLiveTagChoice('location','Crease',this)">Crease</button>
+      </div>
+    </div>
+
+    <div class="tag-group">
+      <div class="tag-group-label">Shot Type</div>
+      <div class="tag-btn-row" id="lt-type-buttons">
+        <button type="button" class="tag-btn" data-value="Wrist" onclick="selectLiveTagChoice('shot_type','Wrist',this)">Wrist</button>
+        <button type="button" class="tag-btn" data-value="Slap" onclick="selectLiveTagChoice('shot_type','Slap',this)">Slap</button>
+        <button type="button" class="tag-btn" data-value="Snap" onclick="selectLiveTagChoice('shot_type','Snap',this)">Snap</button>
+        <button type="button" class="tag-btn" data-value="Backhand" onclick="selectLiveTagChoice('shot_type','Backhand',this)">Backhand</button>
+        <button type="button" class="tag-btn" data-value="Tip" onclick="selectLiveTagChoice('shot_type','Tip',this)">Tip</button>
+        <button type="button" class="tag-btn" data-value="One-Timer" onclick="selectLiveTagChoice('shot_type','One-Timer',this)">One-Timer</button>
+      </div>
+    </div>
+
+    <div class="tag-group">
+      <div class="tag-group-label">Details</div>
+      <div class="tag-btn-row" id="lt-toggle-buttons">
+        <button type="button" class="tag-btn" data-value="rush" onclick="toggleLiveTagFlag('rush',this)">Rush</button>
+        <button type="button" class="tag-btn" data-value="rebound" onclick="toggleLiveTagFlag('rebound',this)">Rebound</button>
+        <button type="button" class="tag-btn" data-value="screened" onclick="toggleLiveTagFlag('screened',this)">Screened</button>
+        <button type="button" class="tag-btn" data-value="breakaway" onclick="toggleLiveTagFlag('breakaway',this)">Breakaway</button>
+        <button type="button" class="tag-btn" data-value="cross_ice" onclick="toggleLiveTagFlag('cross_ice',this)">Cross Ice</button>
+        <button type="button" class="tag-btn" data-value="deflection" onclick="toggleLiveTagFlag('deflection',this)">Deflection</button>
+      </div>
+    </div>
+
+    <div class="tag-group">
+      <div class="tag-group-label">Rebound Control (optional — how did the save go?)</div>
+      <div class="tag-btn-row" id="lt-rebound-buttons">
+        <button type="button" class="tag-btn selected" data-value="skip" onclick="selectLiveTagChoice('reboundTag','skip',this)">Skip</button>
+        <button type="button" class="tag-btn" data-value="glove_caught" onclick="selectLiveTagChoice('reboundTag','glove_caught',this)">Glove — Caught</button>
+        <button type="button" class="tag-btn" data-value="glove_rebound" onclick="selectLiveTagChoice('reboundTag','glove_rebound',this)">Glove — Rebound</button>
+        <button type="button" class="tag-btn" data-value="glove_goal" onclick="selectLiveTagChoice('reboundTag','glove_goal',this)">Glove — Goal</button>
+        <button type="button" class="tag-btn" data-value="blocker_good" onclick="selectLiveTagChoice('reboundTag','blocker_good',this)">Blocker — Good</button>
+        <button type="button" class="tag-btn" data-value="blocker_bad" onclick="selectLiveTagChoice('reboundTag','blocker_bad',this)">Blocker — Bad</button>
+        <button type="button" class="tag-btn" data-value="blocker_goal" onclick="selectLiveTagChoice('reboundTag','blocker_goal',this)">Blocker — Goal</button>
+        <button type="button" class="tag-btn" data-value="midsection_good" onclick="selectLiveTagChoice('reboundTag','midsection_good',this)">Midsection — Good</button>
+        <button type="button" class="tag-btn" data-value="midsection_bad" onclick="selectLiveTagChoice('reboundTag','midsection_bad',this)">Midsection — Bad</button>
+        <button type="button" class="tag-btn" data-value="midsection_goal" onclick="selectLiveTagChoice('reboundTag','midsection_goal',this)">Midsection — Goal</button>
+        <button type="button" class="tag-btn" data-value="pad_stick_good" onclick="selectLiveTagChoice('reboundTag','pad_stick_good',this)">Pad/Stick — Good</button>
+        <button type="button" class="tag-btn" data-value="pad_stick_bad" onclick="selectLiveTagChoice('reboundTag','pad_stick_bad',this)">Pad/Stick — Bad</button>
+        <button type="button" class="tag-btn" data-value="pad_stick_goal" onclick="selectLiveTagChoice('reboundTag','pad_stick_goal',this)">Pad/Stick — Goal</button>
+      </div>
+    </div>
+
+    <button type="button" class="btn-primary" onclick="addLiveTagShot()">
+      + Add Shot
+    </button>
+
+  </div>
+
+
+  <div class="section-heading">
+    <h3>Shot Log</h3>
+    <p>Most recent first. Tap Remove to undo a mistake.</p>
+  </div>
+
+  <div class="card" style="padding:6px 16px" id="livetag-shot-list">
+    <div class="empty">No shots tagged yet.</div>
+  </div>
+
+
+  <div class="section-heading">
+    <h3>Puck Playing</h3>
+    <p>Tap to tally rim plays and passes as they happen.</p>
+  </div>
+
+  <div class="card">
+    <div class="counter-row">
+      <span class="counter-name">Rims Faced</span>
+      <div class="counter-controls">
+        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','rims_faced',-1)">–</button>
+        <span class="counter-value" id="lt-count-rims_faced">0</span>
+        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','rims_faced',1)">+</button>
+      </div>
+    </div>
+    <div class="counter-row">
+      <span class="counter-name">Rims Stopped</span>
+      <div class="counter-controls">
+        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','rims_stopped',-1)">–</button>
+        <span class="counter-value" id="lt-count-rims_stopped">0</span>
+        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','rims_stopped',1)">+</button>
+      </div>
+    </div>
+    <div class="counter-row">
+      <span class="counter-name">Pass Attempts</span>
+      <div class="counter-controls">
+        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','pass_attempts',-1)">–</button>
+        <span class="counter-value" id="lt-count-pass_attempts">0</span>
+        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','pass_attempts',1)">+</button>
+      </div>
+    </div>
+    <div class="counter-row">
+      <span class="counter-name">Passes Completed</span>
+      <div class="counter-controls">
+        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','passes_completed',-1)">–</button>
+        <span class="counter-value" id="lt-count-passes_completed">0</span>
+        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','passes_completed',1)">+</button>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="section-heading">
+    <h3>Rebound Control Totals</h3>
+    <p>Built automatically from what you tag above.</p>
+  </div>
+
+  <div class="card">
+    <div class="reboundtally-summary" id="livetag-rebound-summary">
+      Nothing tagged yet.
+    </div>
+  </div>
+
+
+  <div class="section-space" style="display:flex;gap:12px">
+    <button type="button" class="btn-primary" id="livetag-finish-btn" onclick="finishLiveTagGame()">
+      Finish &amp; Save Game
+    </button>
+
+    <button type="button" class="btn-secondary" onclick="resetLiveTagSession()">
+      Discard &amp; Start Over
+    </button>
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- ADD GAME -->
+<!-- ========================================================= -->
+
+<section id="addgame" class="tab">
+
+  <div class="page-title">
+    <h2>My Games</h2>
+    <p>View, edit, or delete games you've entered. Use the form below to add a new one.</p>
+  </div>
+
+  <div class="section-heading">
+    <h3>Your Games</h3>
+    <p>Click Edit to load a game into the form below, or Delete to remove it permanently.</p>
+  </div>
+
+  <div id="my-games-list"></div>
+
+  <div class="section-heading">
+    <h3 id="addgame-form-heading">Add a New Game</h3>
+    <p id="addgame-form-subheading">Required for every game.</p>
+  </div>
+
+  <div id="addgame-error" class="form-error"></div>
+  <div id="addgame-message" class="form-message"></div>
+
+  <form id="addgame-form">
+
+    <div class="section-heading">
+      <h3>Game Info</h3>
+      <p>Required for every game.</p>
+    </div>
+
+    <div class="card">
+      <div class="field-grid">
+
+        <div class="field">
+          <label for="ag-date">Date</label>
+          <input type="date" id="ag-date">
+        </div>
+
+        <div class="field">
+          <label for="ag-season">Season</label>
+          <input type="text" id="ag-season" value="2026 preseason">
+        </div>
+
+        <div class="field">
+          <label for="ag-team">Team</label>
+          <input type="text" id="ag-team">
+        </div>
+
+        <div class="field">
+          <label for="ag-opponent">Opponent</label>
+          <input type="text" id="ag-opponent" required>
+        </div>
+
+        <div class="field">
+          <label for="ag-home-away">Home / Away</label>
+          <select id="ag-home-away">
+            <option value="">—</option>
+            <option value="Home">Home</option>
+            <option value="Away">Away</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="ag-result">Result</label>
+          <select id="ag-result">
+            <option value="">—</option>
+            <option value="W">Win</option>
+            <option value="L">Loss</option>
+            <option value="OTL">OT Loss</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="ag-team-goals">Team Goals</label>
+          <input type="number" id="ag-team-goals" min="0">
+        </div>
+
+        <div class="field">
+          <label for="ag-opponent-goals">Opponent Goals</label>
+          <input type="number" id="ag-opponent-goals" min="0">
+        </div>
+
+        <div class="field">
+          <label for="ag-shots-against">Shots Against</label>
+          <input type="number" id="ag-shots-against" min="0">
+        </div>
+
+        <div class="field">
+          <label for="ag-saves">Saves</label>
+          <input type="number" id="ag-saves" min="0">
+        </div>
+
+        <div class="field">
+          <label for="ag-goals-against">Goals Against</label>
+          <input type="number" id="ag-goals-against" min="0">
+        </div>
+
+        <div class="field">
+          <label for="ag-minutes">Minutes Played</label>
+          <input type="number" id="ag-minutes" min="0" step="0.1">
+        </div>
+
+        <div class="field checkbox-field">
+          <input type="checkbox" id="ag-shutout">
+          <label for="ag-shutout">Shutout</label>
+        </div>
+
+      </div>
+
+      <div class="field" style="margin-top:14px">
+        <label for="ag-notes">Notes</label>
+        <textarea id="ag-notes" rows="2"></textarea>
+      </div>
+    </div>
+
+
+    <div class="section-heading">
+      <h3>Period Stats</h3>
+      <p>Optional. Add one row per period.</p>
+    </div>
+
+    <div id="period-rows"></div>
+
+    <button type="button" class="btn-secondary" onclick="addPeriodRow()">
+      + Add Period
+    </button>
+
+
+    <div class="section-heading">
+      <h3>Shots</h3>
+      <p>Optional. Add one row per shot faced.</p>
+    </div>
+
+    <div id="shot-rows"></div>
+
+    <button type="button" class="btn-secondary" onclick="addShotRow()">
+      + Add Shot
+    </button>
+
+
+    <div class="section-heading">
+      <h3>Rebound Control</h3>
+      <p>Optional. One summary row for the whole game.</p>
+    </div>
+
+    <div class="card">
+      <div class="field-grid">
+
+        <div class="field">
+          <label for="rc-glove-caught">Glove — Caught</label>
+          <input type="number" id="rc-glove-caught" min="0">
+        </div>
+
+        <div class="field">
+          <label for="rc-glove-rebound">Glove — Rebound</label>
+          <input type="number" id="rc-glove-rebound" min="0">
+        </div>
+
+        <div class="field">
+          <label for="rc-glove-goal">Glove — Goal</label>
+          <input type="number" id="rc-glove-goal" min="0">
+        </div>
+
+        <div class="field">
+          <label for="rc-blocker-good">Blocker — Good</label>
+          <input type="number" id="rc-blocker-good" min="0">
+        </div>
+
+        <div class="field">
+          <label for="rc-blocker-bad">Blocker — Bad</label>
+          <input type="number" id="rc-blocker-bad" min="0">
+        </div>
+
+        <div class="field">
+          <label for="rc-blocker-goal">Blocker — Goal</label>
+          <input type="number" id="rc-blocker-goal" min="0">
+        </div>
+
+        <div class="field">
+          <label for="rc-midsection-good">Midsection — Good</label>
+          <input type="number" id="rc-midsection-good" min="0">
+        </div>
+
+        <div class="field">
+          <label for="rc-midsection-bad">Midsection — Bad</label>
+          <input type="number" id="rc-midsection-bad" min="0">
+        </div>
+
+        <div class="field">
+          <label for="rc-midsection-goal">Midsection — Goal</label>
+          <input type="number" id="rc-midsection-goal" min="0">
+        </div>
+
+        <div class="field">
+          <label for="rc-padstick-good">Pad/Stick — Good</label>
+          <input type="number" id="rc-padstick-good" min="0">
+        </div>
+
+        <div class="field">
+          <label for="rc-padstick-bad">Pad/Stick — Bad</label>
+          <input type="number" id="rc-padstick-bad" min="0">
+        </div>
+
+        <div class="field">
+          <label for="rc-padstick-goal">Pad/Stick — Goal</label>
+          <input type="number" id="rc-padstick-goal" min="0">
+        </div>
+
+      </div>
+    </div>
+
+
+    <div class="section-heading">
+      <h3>Puck Playing</h3>
+      <p>Optional. One summary row for the whole game.</p>
+    </div>
+
+    <div class="card">
+      <div class="field-grid">
+
+        <div class="field">
+          <label for="pp-rims-faced">Rims Faced</label>
+          <input type="number" id="pp-rims-faced" min="0">
+        </div>
+
+        <div class="field">
+          <label for="pp-rims-stopped">Rims Stopped</label>
+          <input type="number" id="pp-rims-stopped" min="0">
+        </div>
+
+        <div class="field">
+          <label for="pp-pass-attempts">Pass Attempts</label>
+          <input type="number" id="pp-pass-attempts" min="0">
+        </div>
+
+        <div class="field">
+          <label for="pp-passes-completed">Passes Completed</label>
+          <input type="number" id="pp-passes-completed" min="0">
+        </div>
+
+      </div>
+    </div>
+
+
+    <div class="section-space" style="display:flex;gap:12px">
+      <button type="submit" class="btn-primary" id="addgame-submit">
+        Save Game
+      </button>
+
+      <button type="button" class="btn-secondary" id="addgame-cancel-edit" style="display:none" onclick="cancelEditGame()">
+        Cancel Edit
+      </button>
+    </div>
+
+  </form>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- AI COACH -->
+<!-- ========================================================= -->
+
+<section id="coach" class="tab">
+
+  <div class="page-title">
+    <h2>Coach</h2>
+    <p>Ask a question about this season's stats and get a plain-language answer.</p>
+  </div>
+
+  <div class="card">
+
+    <div class="coach-chat" id="coach-chat">
+      <div class="coach-message assistant">
+        Ask me anything about this season — like "what's my save percentage in the third period" or "where am I giving up the most goals."
+      </div>
+    </div>
+
+    <div class="coach-input-row">
+      <textarea id="coach-input" rows="2" placeholder="Ask a question about this season..."></textarea>
+      <button type="button" class="btn-primary" id="coach-send-btn" onclick="sendCoachQuestion()">
+        Ask
+      </button>
+    </div>
+
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- ABOUT -->
+<!-- ========================================================= -->
+
+<section id="about" class="tab">
+
+  <div class="page-title">
+    <h2>About</h2>
+    <p>About the player and analytics platform.</p>
+  </div>
+
+  <div class="grid grid-2">
+
+    <div class="card">
+
+      <h3>Matias Baker</h3>
+
+      <div class="about-list">
+
+        <p>
+          <strong>Position:</strong> Goaltender
+        </p>
+
+        <p>
+          <strong>Birth Year:</strong> 2008
+        </p>
+
+        <p>
+          <strong>Team:</strong> Pelham Panthers
+        </p>
+
+        <p>
+          <strong>Season:</strong> 2026–27
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <h3>Analytics Philosophy</h3>
+
+      <div class="about-list">
+
+        <p>
+          This platform is designed as a development resource rather than simply
+          a statistical résumé.
+        </p>
+
+        <p>
+          Traditional goaltending statistics are combined with shot-level,
+          situational and rebound-control data to identify specific areas
+          that can be improved.
+        </p>
+
+        <p>
+          The goal is to turn game data into actionable training priorities:
+          identify a weakness, train it, measure it and determine whether it improves.
+        </p>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <div class="section-heading">
+    <h3>xG &amp; GSAx Methodology</h3>
+    <p>How shot quality (xG), GSAx, and shot grades are actually calculated — and their current limitations.</p>
+  </div>
+
+  <div class="grid grid-2">
+
+    <div class="card">
+
+      <h3>How xG is calculated</h3>
+
+      <div class="about-list">
+
+        <p>
+          Every tagged shot is scored by a formula that lives in the
+          database, not in this page's code — it runs automatically
+          the moment a shot is saved, so it can't be quietly edited
+          per goalie without a visible, version-tracked change.
+        </p>
+
+        <p>
+          <strong>Base rate:</strong> starts from shot distance
+          (closer shots score more often). <strong>Adjustments:</strong>
+          multiplied up or down based on location (crease/slot/point),
+          shot type (one-timer, backhand, slap shot), and situation
+          (rush, rebound, screened, breakaway, cross-ice).
+        </p>
+
+        <p>
+          <strong>GSAx</strong> = total xG faced minus goals actually
+          allowed. A positive number means the goalie stopped more
+          than an average goalie would be expected to, given the
+          shots faced.
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <h3>Current limitations — read this</h3>
+
+      <div class="about-list">
+
+        <p>
+          <strong>This is a heuristic, not a validated model.</strong>
+          The distance/situation factors above are informed by public
+          hockey and soccer xG research, but they have not yet been
+          statistically fit to this platform's own shot data.
+        </p>
+
+        <p>
+          A legitimate xG model is normally built by fitting a
+          statistical model (typically logistic regression) to
+          thousands of shots with known outcomes, then checking that
+          its predictions are calibrated — e.g. that shots it scores
+          at 20% actually go in about 20% of the time.
+        </p>
+
+        <p>
+          At current shot volume, that calibration isn't yet
+          statistically meaningful. As tagged shots accumulate, the
+          plan is: fit real coefficients from outcome data, validate
+          with held-out data, and publish the results here — same
+          standard used by public models like MoneyPuck and Evolving
+          Hockey.
+        </p>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <div class="section-heading">
+    <h3>Model Version History</h3>
+    <p>Every change to the formula, including bugs found and fixed.</p>
+  </div>
+
+  <div class="card">
+    <div id="xgVersionHistory">
+      <div class="empty-state">Loading version history…</div>
+    </div>
+  </div>
+
+</section>
+
+</main>
+
+</div>
+<!-- /#app-shell -->
+
+
+<script>
+
+/* ============================================================
+   SUPABASE
+============================================================ */
+
+const SUPABASE_URL =
+  "https://iiuqxxrrruvwvfehrzic.supabase.co";
+
+const SUPABASE_KEY =
+  "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
+
+const CURRENT_SEASON =
+  "2026 preseason";
+
+const supabaseClient =
+  window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_KEY
+  );
+
+
+/* ============================================================
+   DATA
+============================================================ */
+
+// Master data: everything the signed-in user is allowed to see via
+// RLS -- for a goalie that's just their own rows; for a coach with
+// multiple assigned goalies, this can span several goalies at once.
+let allGames = [];
+let allPeriodStats = [];
+let allShots = [];
+let allReboundControls = [];
+let allPuckPlaying = [];
+
+// Active-goalie view: whichever single goalie is currently being
+// looked at. Every existing chart/table render function reads these
+// (unchanged), so scoping them here is what makes those functions
+// safe to reuse for a coach viewing one goalie at a time instead of
+// accidentally blending multiple goalies' stats together.
+let activeGoalieId = null;
+let games = [];
+let periodStats = [];
+let shots = [];
+let reboundControls = [];
+let puckPlaying = [];
+
+let seasonGames = [];
+let seasonPeriods = [];
+let seasonShots = [];
+let seasonReboundControls = [];
+let seasonPuckPlaying = [];
+
+let charts = {};
+
+
+/* ============================================================
+   SUPABASE QUERY
+============================================================ */
+
+async function q(table){
+
+  const accessToken =
+    (currentSession && currentSession.access_token) ||
+    SUPABASE_KEY;
+
+  const response =
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/${encodeURIComponent(table)}?select=*`,
+      {
+        headers:{
+          apikey:SUPABASE_KEY,
+          Authorization:`Bearer ${accessToken}`
+        }
+      }
+    );
+
+  if(!response.ok){
+
+    throw new Error(
+      `Supabase error ${response.status}: ${table}`
+    );
+
+  }
+
+  return await response.json();
+
+}
+
+
+/* ============================================================
+   NORMALIZATION
+============================================================ */
+
+function normalize(value){
+
   return String(value ?? "")
     .trim()
     .toLowerCase()
-    .replace(/[_-]/g, " ")
-    .replace(/\s+/g, " ");
+    .replace(/[_-]/g," ")
+    .replace(/\s+/g," ");
+
 }
 
-function isCurrentSeason(value) {
-  const s = normalizeSeason(value);
-  const target = normalizeSeason(CURRENT_SEASON);
-  return s === target;
+
+function normalizeSeason(value){
+
+  const s =
+    normalize(value);
+
+  if(
+    s === "2026 preseason" ||
+    s === "2026 pre season" ||
+    s === "2026 pre-season"
+  ){
+    return "2026 preseason";
+  }
+
+  return s;
+
 }
 
-function num(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
+
+function isCurrentSeason(value){
+
+  return normalizeSeason(value) === CURRENT_SEASON;
+
 }
 
-function pct(numerator, denominator) {
-  if (!denominator) return null;
-  return Math.round((numerator / denominator) * 1000) / 10; // one decimal
+
+/* ============================================================
+   GENERIC HELPERS
+============================================================ */
+
+function num(value){
+
+  const n =
+    Number(value);
+
+  return Number.isFinite(n)
+    ? n
+    : 0;
+
 }
 
-async function supabaseQuery(table, accessToken) {
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/${encodeURIComponent(table)}?select=*`,
-    {
-      headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${accessToken}`
+
+function shotBoolean(value){
+
+  if(
+    value === true ||
+    value === 1 ||
+    value === "1"
+  ){
+    return true;
+  }
+
+  const s =
+    normalize(value);
+
+  return [
+    "true",
+    "yes",
+    "y",
+    "x"
+  ].includes(s);
+
+}
+
+
+function isGoal(shot){
+
+  return [
+    shot.outcome,
+    shot.result,
+    shot.shot_result,
+    shot.event
+  ].some(
+    v => normalize(v) === "goal"
+  );
+
+}
+
+
+function shotIsRebound(shot){
+
+  return (
+    shotBoolean(shot.rebound) ||
+    shotBoolean(shot.is_rebound) ||
+    shotBoolean(shot.rebound_shot)
+  );
+
+}
+
+
+function gameDate(game){
+
+  return (
+    game.date ||
+    game.game_date ||
+    game.gameDate ||
+    ""
+  );
+
+}
+
+
+function gameOpponent(game){
+
+  return (
+    game.opponent ||
+    game.team ||
+    game.opponent_name ||
+    "Unknown"
+  );
+
+}
+
+
+function gameResult(game){
+
+  return (
+    game.result ||
+    game.outcome ||
+    ""
+  );
+
+}
+
+
+function gameMinutes(game){
+
+  return num(
+    game.minutes ||
+    game.minutes_played ||
+    game.goalie_minutes ||
+    60
+  );
+
+}
+
+
+function gameShots(game){
+
+  return num(
+    game.shots ||
+    game.shots_against ||
+    game.shots_faced
+  );
+
+}
+
+
+function gameGoals(game){
+
+  return num(
+    game.goals_against ||
+    game.goals ||
+    game.ga
+  );
+
+}
+
+
+function gameSaves(game){
+
+  const saves =
+    game.saves ||
+    game.save_count;
+
+  if(saves !== undefined){
+    return num(saves);
+  }
+
+  return Math.max(
+    0,
+    gameShots(game) -
+    gameGoals(game)
+  );
+
+}
+
+
+/* ============================================================
+   SHOT HELPERS
+============================================================ */
+
+function shotDistance(shot){
+
+  return num(
+    shot.distance ||
+    shot.shot_distance
+  );
+
+}
+
+
+function shotLocation(shot){
+
+  return normalize(
+    shot.location ||
+    shot.shot_location
+  );
+
+}
+
+
+function shotType(shot){
+
+  return normalize(
+    shot.shot_type ||
+    shot.type
+  );
+
+}
+
+
+function isRushShot(shot){
+
+  return shotBoolean(
+    shot.rush
+  );
+
+}
+
+
+function isBreakaway(shot){
+
+  return shotBoolean(
+    shot.breakaway
+  );
+
+}
+
+
+function isScreened(shot){
+
+  return shotBoolean(
+    shot.screened
+  );
+
+}
+
+
+function isOneTimer(shot){
+
+  const type =
+    shotType(shot);
+
+  return (
+    type === "one timer" ||
+    type === "one-timer" ||
+    shotBoolean(shot.one_timer)
+  );
+
+}
+
+
+function isHighDanger(shot){
+
+  const distance =
+    shotDistance(shot);
+
+  const location =
+    shotLocation(shot);
+
+  if(
+    distance > 0 &&
+    distance <= 12
+  ){
+    return true;
+  }
+
+  return [
+    "crease",
+    "slot",
+    "high danger",
+    "high-danger"
+  ].includes(location);
+
+}
+
+
+/* ============================================================
+   CONSERVATIVE NHL-STYLE XG MODEL
+============================================================ */
+
+// Current model version, mirrors the latest row in xg_model_versions.
+// Only used for the local pre-save preview fallback below -- the
+// authoritative value for any saved shot is shot.xg, computed and
+// stamped by the database trigger (see xg_model_versions for history).
+const XG_MODEL_VERSION = "v1.1-heuristic";
+
+
+function calculateShotXG(shot){
+
+  // Authoritative path: this shot has already been scored by the
+  // database trigger at save time. Use that value rather than
+  // recomputing client-side -- this is the tamper-evident source.
+  if(shot.xg !== undefined && shot.xg !== null && shot.xg !== ""){
+    return Number(shot.xg);
+  }
+
+  // Fallback path: a shot not yet saved (e.g. live-tag preview).
+  // Same formula the database uses, kept in sync manually -- the
+  // stored xg value always wins once the shot is actually saved.
+  const distance =
+    shotDistance(shot);
+
+  let baseXG;
+
+  if(distance > 0 && distance <= 6){
+
+    baseXG = 0.120;
+
+  }
+  else if(distance > 6 && distance <= 12){
+
+    baseXG = 0.075;
+
+  }
+  else if(distance > 12 && distance <= 20){
+
+    baseXG = 0.038;
+
+  }
+  else if(distance > 20 && distance <= 30){
+
+    baseXG = 0.018;
+
+  }
+  else if(distance > 30 && distance <= 40){
+
+    baseXG = 0.008;
+
+  }
+  else if(distance > 40){
+
+    baseXG = 0.004;
+
+  }
+  else{
+
+    baseXG = 0.080;
+
+  }
+
+
+  let multiplier = 1.0;
+
+
+  const location =
+    shotLocation(shot);
+
+
+  if(location === "crease"){
+
+    multiplier *= 1.20;
+
+  }
+  else if(location === "slot"){
+
+    multiplier *= 1.10;
+
+  }
+  else if(location === "point"){
+
+    multiplier *= 0.85;
+
+  }
+
+
+  const type =
+    shotType(shot);
+
+
+  if(
+    type === "one timer" ||
+    type === "one-timer"
+  ){
+
+    multiplier *= 1.15;
+
+  }
+
+
+  if(type === "backhand"){
+
+    multiplier *= 1.05;
+
+  }
+
+
+  if(
+    type === "slap shot" ||
+    type === "slap"
+  ){
+
+    multiplier *= 1.03;
+
+  }
+
+
+  if(isRushShot(shot)){
+
+    multiplier *= 1.05;
+
+  }
+
+
+  if(shotIsRebound(shot)){
+
+    multiplier *= 1.15;
+
+  }
+
+
+  if(isScreened(shot)){
+
+    multiplier *= 1.08;
+
+  }
+
+
+  if(isBreakaway(shot)){
+
+    multiplier *= 1.45;
+
+  }
+
+
+  if(shotBoolean(shot.cross_ice)){
+
+    multiplier *= 1.10;
+
+  }
+
+
+  multiplier =
+    Math.min(
+      2.25,
+      multiplier
+    );
+
+
+  let rawXG =
+    baseXG *
+    multiplier;
+
+
+  // v1.1: no shrinkage-to-baseline -- see calculate_shot_xg() in the
+  // database and xg_model_versions for why v1.0's blending step was
+  // removed (it made A+ and C grades unreachable).
+  const calibratedXG =
+    Math.max(
+      0.005,
+      Math.min(
+        0.35,
+        rawXG
+      )
+    );
+
+
+  return calibratedXG;
+
+}
+
+
+/* ============================================================
+   SHOT GRADING
+============================================================ */
+
+function shotGrade(shot){
+
+  // Authoritative path: the database trigger already stamped a grade
+  // computed by the same version that scored shot.xg.
+  if(shot.xg_grade){
+    return shot.xg_grade;
+  }
+
+  // Fallback path (pre-save preview only). Thresholds match v1.1's
+  // calculate_shot_xg_grade() in the database.
+  const xg =
+    calculateShotXG(shot);
+
+
+  if(xg >= 0.15){
+
+    return "A+";
+
+  }
+
+
+  if(xg >= 0.08){
+
+    return "A";
+
+  }
+
+
+  if(xg >= 0.03){
+
+    return "B";
+
+  }
+
+
+  return "C";
+
+}
+
+
+/* ============================================================
+   ADVANCED SHOT STATS
+============================================================ */
+
+function calculateAdvancedForShots(data){
+
+  const totalShots =
+    data.length;
+
+
+  const goals =
+    data.filter(isGoal).length;
+
+
+  const saves =
+    Math.max(
+      0,
+      totalShots - goals
+    );
+
+
+  const xGA =
+    data.reduce(
+      (sum,shot) =>
+        sum +
+        calculateShotXG(shot),
+      0
+    );
+
+
+  const actualSV =
+    totalShots
+      ? saves /
+        totalShots *
+        100
+      : 0;
+
+
+  const expectedSV =
+    totalShots
+      ? (
+          1 -
+          xGA /
+          totalShots
+        ) *
+        100
+      : 0;
+
+
+  const gsax =
+    xGA -
+    goals;
+
+
+  const grades = {
+
+    "A+":0,
+    "A":0,
+    "B":0,
+    "C":0
+
+  };
+
+
+  data.forEach(shot => {
+
+    grades[
+      shotGrade(shot)
+    ]++;
+
+  });
+
+
+  return {
+
+    shots:totalShots,
+
+    goals,
+
+    saves,
+
+    xGA,
+
+    actualSV,
+
+    expectedSV,
+
+    gsax,
+
+    grades
+
+  };
+
+}
+
+
+/* ============================================================
+   SUBSET STATS
+============================================================ */
+
+function subsetStats(data, predicate){
+
+  const subset =
+    data.filter(predicate);
+
+  const shotsCount =
+    subset.length;
+
+  const goals =
+    subset.filter(isGoal).length;
+
+  const saves =
+    Math.max(
+      0,
+      shotsCount - goals
+    );
+
+  return {
+    shots:shotsCount,
+    goals,
+    saves,
+    sv:
+      shotsCount
+        ? saves / shotsCount * 100
+        : null
+  };
+
+}
+
+
+/* ============================================================
+   CHART HELPERS
+============================================================ */
+
+function destroyChart(id){
+
+  if(charts[id]){
+
+    charts[id].destroy();
+
+    delete charts[id];
+
+  }
+
+}
+
+
+function percentageScale(){
+
+  return {
+
+    beginAtZero:false,
+
+    suggestedMin:85,
+
+    suggestedMax:100,
+
+    grace:"5%",
+
+    ticks:{
+
+      color:"#829f93",
+
+      font:{
+        size:10
+      },
+
+      padding:7,
+
+      callback:value =>
+        `${value}%`
+
+    },
+
+    grid:{
+
+      color:"rgba(255,255,255,.035)",
+
+      lineWidth:1
+
+    },
+
+    border:{
+      display:false
+    }
+
+  };
+
+}
+
+
+function distributionScale(){
+
+  return {
+
+    beginAtZero:true,
+
+    grace:"20%",
+
+    ticks:{
+
+      color:"#829f93",
+
+      precision:0,
+
+      font:{
+        size:10
+      },
+
+      padding:7
+
+    },
+
+    grid:{
+
+      color:"rgba(255,255,255,.035)",
+
+      lineWidth:1
+
+    },
+
+    border:{
+      display:false
+    }
+
+  };
+
+}
+
+
+/*
+  GLOBAL BAR DESIGN
+
+  Moderate-width bars. Not too thick and not too thin.
+*/
+
+function barDatasetDefaults(){
+
+  return {
+
+    backgroundColor:"rgba(105,221,160,.62)",
+
+    borderColor:"#69dda0",
+
+    borderWidth:0,
+
+    borderRadius:3,
+
+    borderSkipped:false,
+
+    barPercentage:.55,
+
+    categoryPercentage:.72,
+
+    maxBarThickness:32
+
+  };
+
+}
+
+
+function chartOptions(){
+
+  return {
+
+    responsive:true,
+
+    maintainAspectRatio:false,
+
+    animation:{
+      duration:500
+    },
+
+    interaction:{
+      mode:"index",
+      intersect:false
+    },
+
+    plugins:{
+
+      legend:{
+        position:"top",
+
+        labels:{
+          color:"#a8beb4",
+
+          boxWidth:9,
+
+          boxHeight:9,
+
+          padding:14,
+
+          usePointStyle:true,
+
+          pointStyle:"line",
+
+          font:{
+            size:11,
+            weight:"600"
+          }
+        }
+      },
+
+      tooltip:{
+
+        backgroundColor:"rgba(6,23,16,.96)",
+
+        borderColor:"#285640",
+
+        borderWidth:1,
+
+        titleColor:"#edf7f1",
+
+        bodyColor:"#a8beb4",
+
+        padding:10,
+
+        cornerRadius:8,
+
+        titleFont:{
+          size:11,
+          weight:"700"
+        },
+
+        bodyFont:{
+          size:11
+        }
+
       }
+
+    },
+
+
+    datasets:{
+
+      bar:barDatasetDefaults()
+
+    },
+
+
+    elements:{
+
+      line:{
+        borderWidth:2,
+        tension:.35
+      },
+
+      point:{
+        radius:2.5,
+        hoverRadius:5,
+        borderWidth:1.5
+      },
+
+      bar:{
+        borderRadius:3,
+        borderSkipped:false
+      }
+
+    },
+
+
+    scales:{
+
+      x:{
+
+        ticks:{
+
+          color:"#829f93",
+
+          font:{
+            size:10
+          },
+
+          padding:6
+
+        },
+
+        grid:{
+          display:false
+        },
+
+        border:{
+          display:false
+        }
+
+      },
+
+      y:{
+
+        ticks:{
+
+          color:"#829f93",
+
+          font:{
+            size:10
+          },
+
+          padding:7
+
+        },
+
+        grid:{
+
+          color:"rgba(255,255,255,.035)",
+
+          lineWidth:1
+
+        },
+
+        border:{
+          display:false
+        }
+
+      }
+
+    }
+
+  };
+
+}
+
+
+/* ============================================================
+   TABS
+============================================================ */
+
+function showTab(id,button){
+
+  document
+    .querySelectorAll(".tab")
+    .forEach(tab =>
+      tab.classList.remove("active")
+    );
+
+
+  document
+    .querySelectorAll("nav button")
+    .forEach(btn =>
+      btn.classList.remove("active")
+    );
+
+
+  const target =
+    document.getElementById(id);
+
+
+  if(target){
+    target.classList.add("active");
+  }
+
+
+  if(button){
+    button.classList.add("active");
+  }
+
+
+  setTimeout(() => {
+
+    Object.values(charts)
+      .forEach(chart => {
+
+        if(chart){
+          chart.resize();
+        }
+
+      });
+
+  },50);
+
+}
+
+
+let activeStatsToggleBtn = null;
+
+
+function toggleNavDropdown(e){
+
+  e.stopPropagation();
+
+  const menu =
+    document.getElementById("stats-dropdown-menu");
+
+  const isOpen =
+    menu.classList.contains("open");
+
+  if(isOpen){
+    closeNavDropdown();
+    return;
+  }
+
+  const toggleBtn =
+    e.currentTarget ||
+    document.getElementById("stats-toggle-btn");
+
+  activeStatsToggleBtn = toggleBtn;
+
+  const rect =
+    toggleBtn.getBoundingClientRect();
+
+  menu.style.top = (rect.bottom + 6) + "px";
+  menu.style.left = rect.left + "px";
+
+  menu.classList.add("open");
+
+}
+
+
+function closeNavDropdown(){
+
+  document
+    .getElementById("stats-dropdown-menu")
+    .classList.remove("open");
+
+}
+
+
+function selectStatsTab(id, btn){
+
+  showTab(
+    id,
+    activeStatsToggleBtn || document.getElementById("stats-toggle-btn")
+  );
+
+  document
+    .querySelectorAll("#stats-dropdown-menu button")
+    .forEach(b => b.classList.remove("active"));
+
+  btn.classList.add("active");
+
+  closeNavDropdown();
+
+}
+
+
+document.addEventListener("click", function(e){
+
+  const menu =
+    document.getElementById("stats-dropdown-menu");
+
+  const toggleBtns =
+    [
+      document.getElementById("stats-toggle-btn"),
+      document.getElementById("coach-stats-toggle-btn")
+    ].filter(Boolean);
+
+  const clickedToggle =
+    toggleBtns.some(btn => btn.contains(e.target));
+
+  if(menu && !menu.contains(e.target) && !clickedToggle){
+    closeNavDropdown();
+  }
+
+});
+
+
+window.addEventListener("scroll", function(){
+  closeNavDropdown();
+}, { passive: true });
+
+
+window.addEventListener("resize", function(){
+  closeNavDropdown();
+});
+
+
+/* ============================================================
+   FILTER
+============================================================ */
+
+function filterSeasonData(){
+
+  seasonGames =
+    games.filter(
+      game =>
+        isCurrentSeason(
+          game.season
+        )
+    );
+
+
+  const validGameIds =
+    new Set(
+      seasonGames.map(
+        game =>
+          String(
+            game.id ??
+            game.game_id
+          )
+      )
+    );
+
+
+  seasonPeriods =
+    periodStats.filter(
+      row =>
+        validGameIds.has(
+          String(
+            row.game_id ??
+            row.id
+          )
+        )
+    );
+
+
+  seasonShots =
+    shots.filter(
+      row =>
+        validGameIds.has(
+          String(row.game_id)
+        )
+    );
+
+
+  seasonReboundControls =
+    reboundControls.filter(
+      row =>
+        validGameIds.has(
+          String(row.game_id)
+        )
+    );
+
+  seasonPuckPlaying =
+    puckPlaying.filter(
+      row =>
+        validGameIds.has(
+          String(row.game_id)
+        )
+    );
+
+}
+
+
+/* ============================================================
+   OVERVIEW
+============================================================ */
+
+function renderOverview(){
+
+  const totalShots =
+    seasonGames.reduce(
+      (sum,g) =>
+        sum + gameShots(g),
+      0
+    );
+
+
+  const totalGoals =
+    seasonGames.reduce(
+      (sum,g) =>
+        sum + gameGoals(g),
+      0
+    );
+
+
+  const totalSaves =
+    seasonGames.reduce(
+      (sum,g) =>
+        sum + gameSaves(g),
+      0
+    );
+
+
+  const totalMinutes =
+    seasonGames.reduce(
+      (sum,g) =>
+        sum + gameMinutes(g),
+      0
+    );
+
+
+  const sv =
+    totalShots
+      ? totalSaves /
+        totalShots *
+        100
+      : 0;
+
+
+  const gaa =
+    totalMinutes
+      ? totalGoals /
+        totalMinutes *
+        60
+      : 0;
+
+
+  const shots60 =
+    totalMinutes
+      ? totalShots /
+        totalMinutes *
+        60
+      : 0;
+
+
+  const advanced =
+    calculateAdvancedForShots(
+      seasonShots
+    );
+
+
+  const svDelta =
+    advanced.shots
+      ? advanced.actualSV -
+        advanced.expectedSV
+      : 0;
+
+
+  let wins = 0;
+  let losses = 0;
+  let ot = 0;
+
+
+  seasonGames.forEach(game => {
+
+    const result =
+      normalize(
+        gameResult(game)
+      );
+
+
+    if(
+      result === "w" ||
+      result === "win"
+    ){
+      wins++;
+    }
+    else if(
+      result === "l" ||
+      result === "loss"
+    ){
+      losses++;
+    }
+    else if(
+      result === "otl" ||
+      result === "ot" ||
+      result === "overtime loss"
+    ){
+      ot++;
+    }
+
+  });
+
+
+  const reboundTotals =
+    getReboundTotals();
+
+
+  document.getElementById(
+    "overviewSV"
+  ).textContent =
+    totalShots
+      ? `${sv.toFixed(1)}%`
+      : "—";
+
+
+  document.getElementById(
+    "overviewExpectedSV"
+  ).textContent =
+    advanced.shots
+      ? `${advanced.expectedSV.toFixed(1)}%`
+      : "—";
+
+
+  document.getElementById(
+    "overviewGSAx"
+  ).textContent =
+    advanced.shots
+      ? advanced.gsax.toFixed(2)
+      : "—";
+
+
+  document.getElementById(
+    "overviewGAA"
+  ).textContent =
+    totalShots
+      ? gaa.toFixed(2)
+      : "—";
+
+
+  document.getElementById(
+    "overviewShots"
+  ).textContent =
+    totalShots
+      ? shots60.toFixed(1)
+      : "—";
+
+
+  document.getElementById(
+    "overviewGames"
+  ).textContent =
+    seasonGames.length;
+
+
+  document.getElementById(
+    "overviewRecord"
+  ).textContent =
+    seasonGames.length
+      ? `${wins}-${losses}-${ot}`
+      : "—";
+
+
+  document.getElementById(
+    "overviewReboundPct"
+  ).textContent =
+    reboundTotals.total
+      ? `${reboundTotals.goodPct.toFixed(1)}%`
+      : "—";
+
+
+  document.getElementById(
+    "overviewTotalShots"
+  ).textContent =
+    totalShots;
+
+
+  document.getElementById(
+    "overviewSaves"
+  ).textContent =
+    totalSaves;
+
+
+  document.getElementById(
+    "overviewGoals"
+  ).textContent =
+    totalGoals;
+
+
+  document.getElementById(
+    "overviewXGA"
+  ).textContent =
+    advanced.shots
+      ? advanced.xGA.toFixed(2)
+      : "—";
+
+
+  document.getElementById(
+    "overviewSVDelta"
+  ).textContent =
+    advanced.shots
+      ? `${svDelta >= 0 ? "+" : ""}${svDelta.toFixed(1)}%`
+      : "—";
+
+
+  document.getElementById(
+    "overviewSVDelta"
+  ).className =
+    "stat-value " +
+    (
+      svDelta > 0
+        ? "good"
+        : svDelta < 0
+          ? "bad"
+          : "neutral"
+    );
+
+
+  const labels =
+    seasonGames.map(
+      (game,index) =>
+        `${index+1}. ${gameOpponent(game)}`
+    );
+
+
+  const actualGameSV =
+    seasonGames.map(game => {
+
+      const s =
+        gameShots(game);
+
+      const svs =
+        gameSaves(game);
+
+      return s
+        ? svs / s * 100
+        : null;
+
+    });
+
+
+  const expectedGameSV =
+    seasonGames.map(game => {
+
+      const gameId =
+        String(
+          game.id ??
+          game.game_id
+        );
+
+
+      const data =
+        seasonShots.filter(
+          shot =>
+            String(
+              shot.game_id
+            ) === gameId
+        );
+
+
+      const advancedGame =
+        calculateAdvancedForShots(
+          data
+        );
+
+
+      return advancedGame.shots
+        ? advancedGame.expectedSV
+        : null;
+
+    });
+
+
+  destroyChart(
+    "overviewSVExpectedChart"
+  );
+
+
+  charts.overviewSVExpectedChart =
+    new Chart(
+      document.getElementById(
+        "overviewSVExpectedChart"
+      ),
+      {
+        type:"line",
+
+        data:{
+          labels,
+
+          datasets:[
+
+            {
+              label:"Actual SV%",
+
+              data:actualGameSV,
+
+              tension:.35,
+
+              borderWidth:2,
+
+              pointRadius:2.5,
+
+              pointHoverRadius:5
+            },
+
+            {
+              label:"Expected SV%",
+
+              data:expectedGameSV,
+
+              tension:.35,
+
+              borderWidth:1.5,
+
+              borderDash:[5,5],
+
+              pointRadius:2,
+
+              pointHoverRadius:4
+            }
+
+          ]
+        },
+
+        options:{
+          ...chartOptions(),
+
+          scales:{
+            x:chartOptions().scales.x,
+            y:percentageScale()
+          }
+
+        }
+
+      }
+
+    );
+
+
+  document.getElementById(
+    "svExpectedInsight"
+  ).innerHTML =
+    advanced.shots
+      ? `<strong>${
+          svDelta >= 0
+            ? "Positive result:"
+            : "Development opportunity:"
+        }</strong>
+        Your actual SV% is
+        <strong>${Math.abs(svDelta).toFixed(1)} percentage points
+        ${svDelta >= 0 ? "above" : "below"}</strong>
+        expected based on the current shot model.`
+      : "Shot-level data is required for this comparison.";
+
+
+  const buckets = [
+    {label:".880–.899",min:.880,max:.900,count:0},
+    {label:".900–.919",min:.900,max:.920,count:0},
+    {label:".920–.939",min:.920,max:.940,count:0},
+    {label:".940–.959",min:.940,max:.960,count:0},
+    {label:".960+",min:.960,max:Infinity,count:0}
+  ];
+
+
+  seasonGames.forEach(game => {
+
+    const s =
+      gameShots(game);
+
+    const saves =
+      gameSaves(game);
+
+
+    if(!s){
+      return;
+    }
+
+
+    const pct =
+      saves / s;
+
+
+    const bucket =
+      buckets.find(
+        b =>
+          pct >= b.min &&
+          pct < b.max
+      );
+
+
+    if(bucket){
+      bucket.count++;
+    }
+
+  });
+
+
+  destroyChart(
+    "svDistributionChart"
+  );
+
+
+  charts.svDistributionChart =
+    new Chart(
+      document.getElementById(
+        "svDistributionChart"
+      ),
+      {
+        type:"bar",
+
+        data:{
+          labels:
+            buckets.map(
+              b => b.label
+            ),
+
+          datasets:[{
+
+            label:"Games",
+
+            data:
+              buckets.map(
+                b => b.count
+              )
+
+          }]
+        },
+
+        options:{
+          ...chartOptions(),
+
+          scales:{
+            x:chartOptions().scales.x,
+            y:distributionScale()
+          }
+
+        }
+
+      }
+
+    );
+
+
+  const gaValues =
+    seasonGames.map(
+      game =>
+        gameGoals(game)
+    );
+
+
+  const maxGA =
+    Math.max(
+      0,
+      ...gaValues
+    );
+
+
+  const gaLabels =
+    Array.from(
+      {length:Math.max(5,maxGA+1)},
+      (_,i) => String(i)
+    );
+
+
+  const gaCounts =
+    gaLabels.map(
+      value =>
+        gaValues.filter(
+          ga =>
+            ga === Number(value)
+        ).length
+    );
+
+
+  destroyChart(
+    "gaDistributionChart"
+  );
+
+
+  charts.gaDistributionChart =
+    new Chart(
+      document.getElementById(
+        "gaDistributionChart"
+      ),
+      {
+        type:"bar",
+
+        data:{
+          labels:
+            gaLabels.map(
+              v => `${v} GA`
+            ),
+
+          datasets:[{
+
+            label:"Games",
+
+            data:gaCounts
+
+          }]
+        },
+
+        options:{
+          ...chartOptions(),
+
+          scales:{
+            x:chartOptions().scales.x,
+            y:distributionScale()
+          }
+
+        }
+
+      }
+
+    );
+
+
+  const goalGrades = {
+    "A+":0,
+    "A":0,
+    "B":0,
+    "C":0
+  };
+
+
+  seasonShots
+    .filter(isGoal)
+    .forEach(shot => {
+
+      goalGrades[
+        shotGrade(shot)
+      ]++;
+
+    });
+
+
+  destroyChart(
+    "goalsByGradeChart"
+  );
+
+
+  charts.goalsByGradeChart =
+    new Chart(
+      document.getElementById(
+        "goalsByGradeChart"
+      ),
+      {
+        type:"bar",
+
+        data:{
+          labels:[
+            "A+",
+            "A",
+            "B",
+            "C"
+          ],
+
+          datasets:[{
+
+            label:"Goals Against",
+
+            data:[
+              goalGrades["A+"],
+              goalGrades["A"],
+              goalGrades["B"],
+              goalGrades["C"]
+            ]
+
+          }]
+        },
+
+        options:{
+          ...chartOptions(),
+
+          scales:{
+            x:chartOptions().scales.x,
+            y:distributionScale()
+          }
+
+        }
+
+      }
+
+    );
+
+
+  const totalGoalsTracked =
+    Object.values(
+      goalGrades
+    ).reduce(
+      (a,b) => a+b,
+      0
+    );
+
+
+  const qualityGoals =
+    goalGrades["A+"] +
+    goalGrades["A"];
+
+
+  document.getElementById(
+    "gradeInsight"
+  ).innerHTML =
+    totalGoalsTracked
+      ? `<strong>${qualityGoals}</strong> of
+        <strong>${totalGoalsTracked}</strong>
+        tracked goals came from A/A+ chances.
+        This helps separate goals that require technical correction
+        from goals coming from extremely dangerous chances.`
+      : "Shot-level goal data is required.";
+
+
+  renderLast5();
+
+}
+
+
+/* ============================================================
+   LAST 5
+============================================================ */
+
+function renderLast5(){
+
+  const last5 =
+    [...seasonGames]
+      .sort(
+        (a,b) =>
+          new Date(
+            gameDate(a)
+          ) -
+          new Date(
+            gameDate(b)
+          )
+      )
+      .slice(-5);
+
+
+  let shots = 0;
+  let saves = 0;
+  let goals = 0;
+  let minutes = 0;
+
+  let wins = 0;
+  let losses = 0;
+  let ot = 0;
+
+
+  last5.forEach(game => {
+
+    shots += gameShots(game);
+
+    saves += gameSaves(game);
+
+    goals += gameGoals(game);
+
+    minutes += gameMinutes(game);
+
+
+    const r =
+      normalize(
+        gameResult(game)
+      );
+
+
+    if(r === "w" || r === "win"){
+      wins++;
+    }
+    else if(r === "l" || r === "loss"){
+      losses++;
+    }
+    else if(
+      r === "otl" ||
+      r === "ot" ||
+      r === "overtime loss"
+    ){
+      ot++;
+    }
+
+  });
+
+
+  const sv =
+    shots
+      ? saves / shots * 100
+      : null;
+
+
+  const gaa =
+    minutes
+      ? goals / minutes * 60
+      : null;
+
+
+  const shots60 =
+    minutes
+      ? shots / minutes * 60
+      : null;
+
+
+  const shotData =
+    getShotsForGames(last5);
+
+
+  const advanced =
+    calculateAdvancedForShots(
+      shotData
+    );
+
+
+  document.getElementById(
+    "last5SV"
+  ).textContent =
+    sv !== null
+      ? `${sv.toFixed(1)}%`
+      : "—";
+
+
+  document.getElementById(
+    "last5GAA"
+  ).textContent =
+    gaa !== null
+      ? gaa.toFixed(2)
+      : "—";
+
+
+  document.getElementById(
+    "last5Shots"
+  ).textContent =
+    shots60 !== null
+      ? shots60.toFixed(1)
+      : "—";
+
+
+  document.getElementById(
+    "last5Record"
+  ).textContent =
+    last5.length
+      ? `${wins}-${losses}-${ot}`
+      : "—";
+
+
+  document.getElementById(
+    "last5GSAx"
+  ).textContent =
+    advanced.shots
+      ? advanced.gsax.toFixed(2)
+      : "—";
+
+}
+
+
+/* ============================================================
+   GAME LOG
+============================================================ */
+
+function renderGameLog(){
+
+  const body =
+    document.getElementById(
+      "gameLogBody"
+    );
+
+
+  body.innerHTML = "";
+
+
+  const sorted =
+    [...seasonGames].sort(
+      (a,b) =>
+        new Date(
+          gameDate(b)
+        ) -
+        new Date(
+          gameDate(a)
+        )
+    );
+
+
+  sorted.forEach(game => {
+
+    const shots =
+      gameShots(game);
+
+    const saves =
+      gameSaves(game);
+
+    const goals =
+      gameGoals(game);
+
+    const minutes =
+      gameMinutes(game);
+
+
+    const sv =
+      shots
+        ? saves / shots * 100
+        : 0;
+
+
+    const gaa =
+      minutes
+        ? goals / minutes * 60
+        : 0;
+
+
+    const result =
+      normalize(
+        gameResult(game)
+      );
+
+
+    let resultClass =
+      "result-neutral";
+
+
+    if(
+      result === "w" ||
+      result === "win"
+    ){
+      resultClass =
+        "result-win";
+    }
+    else if(
+      result === "l" ||
+      result === "loss"
+    ){
+      resultClass =
+        "result-loss";
+    }
+    else if(
+      result === "otl" ||
+      result === "ot" ||
+      result === "overtime loss"
+    ){
+      resultClass =
+        "result-otl";
+    }
+
+
+    const tr =
+      document.createElement("tr");
+
+
+    tr.innerHTML = `
+
+      <td>${gameDate(game)}</td>
+
+      <td>${gameOpponent(game)}</td>
+
+      <td>
+        <span class="result-pill ${resultClass}">
+          ${gameResult(game) || "—"}
+        </span>
+      </td>
+
+      <td>${shots}</td>
+
+      <td>${saves}</td>
+
+      <td>${goals}</td>
+
+      <td class="${
+        sv >= 92
+          ? "good"
+          : sv < 88
+            ? "bad"
+            : "neutral"
+      }">
+        ${sv.toFixed(1)}%
+      </td>
+
+      <td>${gaa.toFixed(2)}</td>
+
+      <td>${minutes.toFixed(1)}</td>
+
+      <td>
+        <button type="button" class="btn-secondary" onclick="generateGameReportPDF(${game.id})">PDF</button>
+      </td>
+
+    `;
+
+
+    body.appendChild(tr);
+
+  });
+
+}
+
+
+/* ============================================================
+   PERIODS
+============================================================ */
+
+function renderPeriods(){
+
+  const periods = {
+    "1":[],
+    "2":[],
+    "3":[],
+    "OT":[]
+  };
+
+
+  seasonPeriods.forEach(row => {
+
+    let p =
+      normalize(
+        row.period ||
+        row.period_number
+      );
+
+
+    if(p === "1st"){
+      p = "1";
+    }
+
+
+    if(p === "2nd"){
+      p = "2";
+    }
+
+
+    if(p === "3rd"){
+      p = "3";
+    }
+
+
+    if(
+      p === "overtime" ||
+      p === "ot"
+    ){
+      p = "OT";
+    }
+
+
+    if(periods[p]){
+      periods[p].push(row);
+    }
+
+  });
+
+
+  const results = {};
+
+
+  Object.keys(periods).forEach(period => {
+
+    const rows =
+      periods[period];
+
+
+    let shots = 0;
+    let goals = 0;
+    let saves = 0;
+
+
+    rows.forEach(row => {
+
+      shots += num(
+        row.shots ||
+        row.shots_against ||
+        row.shots_faced
+      );
+
+
+      goals += num(
+        row.goals_against ||
+        row.goals ||
+        row.ga
+      );
+
+
+      saves += num(
+        row.saves
+      );
+
+    });
+
+
+    if(
+      saves === 0 &&
+      shots > 0
+    ){
+
+      saves =
+        Math.max(
+          0,
+          shots - goals
+        );
+
+    }
+
+
+    results[period] = {
+
+      shots,
+
+      goals,
+
+      saves,
+
+      sv:
+        shots
+          ? saves / shots * 100
+          : 0
+
+    };
+
+  });
+
+
+  document.getElementById(
+    "period1SV"
+  ).textContent =
+    results["1"].shots
+      ? `${results["1"].sv.toFixed(1)}%`
+      : "—";
+
+
+  document.getElementById(
+    "period2SV"
+  ).textContent =
+    results["2"].shots
+      ? `${results["2"].sv.toFixed(1)}%`
+      : "—";
+
+
+  document.getElementById(
+    "period3SV"
+  ).textContent =
+    results["3"].shots
+      ? `${results["3"].sv.toFixed(1)}%`
+      : "—";
+
+
+  document.getElementById(
+    "periodOTSV"
+  ).textContent =
+    results["OT"].shots
+      ? `${results["OT"].sv.toFixed(1)}%`
+      : "—";
+
+
+  const labels =
+    ["1st","2nd","3rd","OT"];
+
+
+  /* ==========================================================
+     GOALS AGAINST BY PERIOD
+  ========================================================== */
+
+  destroyChart(
+    "periodGAChart"
+  );
+
+
+  charts.periodGAChart =
+    new Chart(
+      document.getElementById(
+        "periodGAChart"
+      ),
+      {
+        type:"bar",
+
+        data:{
+          labels,
+
+          datasets:[{
+
+            label:"Goals Against",
+
+            data:[
+              results["1"].goals,
+              results["2"].goals,
+              results["3"].goals,
+              results["OT"].goals
+            ]
+
+          }]
+
+        },
+
+        options:{
+
+          ...chartOptions(),
+
+          scales:{
+            x:chartOptions().scales.x,
+            y:distributionScale()
+          }
+
+        }
+
+      }
+
+    );
+
+
+  /* ==========================================================
+     SV% BY PERIOD
+  ========================================================== */
+
+  destroyChart(
+    "periodSVChart"
+  );
+
+
+  charts.periodSVChart =
+    new Chart(
+      document.getElementById(
+        "periodSVChart"
+      ),
+      {
+        type:"bar",
+
+        data:{
+
+          labels,
+
+          datasets:[{
+
+            label:"SV%",
+
+            data:[
+
+              results["1"].shots
+                ? results["1"].sv
+                : null,
+
+              results["2"].shots
+                ? results["2"].sv
+                : null,
+
+              results["3"].shots
+                ? results["3"].sv
+                : null,
+
+              results["OT"].shots
+                ? results["OT"].sv
+                : null
+
+            ]
+
+          }]
+
+        },
+
+        options:{
+
+          ...chartOptions(),
+
+          scales:{
+
+            x:chartOptions().scales.x,
+
+            y:percentageScale()
+
+          },
+
+          plugins:{
+
+            ...chartOptions().plugins,
+
+            tooltip:{
+
+              ...chartOptions().plugins.tooltip,
+
+              callbacks:{
+
+                label:function(context){
+
+                  return `SV%: ${context.parsed.y.toFixed(1)}%`;
+
+                }
+
+              }
+
+            }
+
+          }
+
+        }
+
+      }
+
+    );
+
+
+  /* ==========================================================
+     PERIOD TABLE
+  ========================================================== */
+
+  const body =
+    document.getElementById(
+      "periodTableBody"
+    );
+
+
+  body.innerHTML = "";
+
+
+  labels.forEach(
+    (label,index) => {
+
+      const key =
+        ["1","2","3","OT"][index];
+
+
+      const r =
+        results[key];
+
+
+      body.innerHTML += `
+
+        <tr>
+
+          <td>${label}</td>
+
+          <td>${r.shots}</td>
+
+          <td>${r.saves}</td>
+
+          <td>${r.goals}</td>
+
+          <td>
+            ${
+              r.shots
+                ? r.sv.toFixed(1)+"%"
+                : "—"
+            }
+          </td>
+
+        </tr>
+
+      `;
+
     }
   );
 
-  if (!res.ok) {
-    throw new Error(`Supabase error ${res.status} on ${table}`);
-  }
-
-  const data = await res.json();
-  return Array.isArray(data) ? data : [];
 }
 
 
-function buildStatsSummary({ games, periodStats, shots, reboundControls, puckPlaying }) {
+/* ============================================================
+   SITUATIONAL
+============================================================ */
 
-  const seasonGames = games.filter(g => isCurrentSeason(g.season));
-  const seasonGameIds = new Set(seasonGames.map(g => String(g.id)));
+function renderSituational(){
 
-  const seasonPeriods = periodStats.filter(p => seasonGameIds.has(String(p.game_id)));
-  const seasonShots = shots.filter(s => seasonGameIds.has(String(s.game_id)));
-  const seasonRebounds = reboundControls.filter(r => seasonGameIds.has(String(r.game_id)));
-  const seasonPuck = puckPlaying.filter(p => seasonGameIds.has(String(p.game_id)));
-
-  if (seasonGames.length === 0) {
-    return "No games logged yet this season.";
-  }
-
-  const gamesPlayed = seasonGames.length;
-  const wins = seasonGames.filter(g => g.result === "W").length;
-  const losses = seasonGames.filter(g => g.result === "L").length;
-  const otLosses = seasonGames.filter(g => g.result === "OTL").length;
-
-  const totalShotsAgainst = seasonGames.reduce((sum, g) => sum + num(g.shots_against), 0);
-  const totalSaves = seasonGames.reduce((sum, g) => sum + num(g.saves), 0);
-  const totalGoalsAgainst = seasonGames.reduce((sum, g) => sum + num(g.goals_against), 0);
-  const totalMinutes = seasonGames.reduce((sum, g) => sum + num(g.minutes_played), 0);
-  const shutouts = seasonGames.filter(g => g.shutout).length;
-
-  const savePct = pct(totalSaves, totalShotsAgainst);
-  const gaa = totalMinutes > 0 ? Math.round((totalGoalsAgainst / (totalMinutes / 60)) * 100) / 100 : null;
-
-  const lines = [];
-
-  lines.push(`Season: ${CURRENT_SEASON}`);
-  lines.push(`Record: ${wins}-${losses}-${otLosses} across ${gamesPlayed} games`);
-  lines.push(`Shots faced: ${totalShotsAgainst}, Saves: ${totalSaves}, Goals against: ${totalGoalsAgainst}`);
-  lines.push(`Save percentage: ${savePct !== null ? savePct + "%" : "n/a"}`);
-  lines.push(`Goals against average: ${gaa !== null ? gaa : "n/a"}`);
-  lines.push(`Shutouts: ${shutouts}`);
-
-  // Period breakdown
-  const periodGroups = {};
-  seasonPeriods.forEach(p => {
-    const key = String(p.period || "?");
-    if (!periodGroups[key]) periodGroups[key] = { shots: 0, saves: 0, goals: 0 };
-    periodGroups[key].shots += num(p.shots_against);
-    periodGroups[key].saves += num(p.saves);
-    periodGroups[key].goals += num(p.goals_against);
-  });
-
-  const periodLines = Object.keys(periodGroups).sort().map(key => {
-    const g = periodGroups[key];
-    const sv = pct(g.saves, g.shots);
-    return `Period ${key}: ${g.shots} shots, ${sv !== null ? sv + "% save rate" : "n/a"}, ${g.goals} goals against`;
-  });
-
-  if (periodLines.length > 0) {
-    lines.push("Period breakdown:");
-    lines.push(...periodLines.map(l => "  - " + l));
-  }
-
-  // Shot situational breakdown
-  const flagGroups = {
-    rush: seasonShots.filter(s => s.rush),
-    rebound: seasonShots.filter(s => s.rebound),
-    screened: seasonShots.filter(s => s.screened),
-    breakaway: seasonShots.filter(s => s.breakaway),
-    cross_ice: seasonShots.filter(s => s.cross_ice),
-    deflection: seasonShots.filter(s => s.deflection)
-  };
-
-  const flagLines = Object.entries(flagGroups)
-    .filter(([, arr]) => arr.length > 0)
-    .map(([flag, arr]) => {
-      const goals = arr.filter(s => s.outcome === "goal").length;
-      const sv = pct(arr.length - goals, arr.length);
-      return `${flag}: ${arr.length} shots, ${sv !== null ? sv + "% save rate" : "n/a"}`;
-    });
-
-  if (flagLines.length > 0) {
-    lines.push("Shot situation breakdown:");
-    lines.push(...flagLines.map(l => "  - " + l));
-  }
-
-  // Location breakdown
-  const locationGroups = {};
-  seasonShots.forEach(s => {
-    const key = s.location || "unspecified";
-    if (!locationGroups[key]) locationGroups[key] = { total: 0, goals: 0 };
-    locationGroups[key].total++;
-    if (s.outcome === "goal") locationGroups[key].goals++;
-  });
-
-  const locationLines = Object.entries(locationGroups).map(([loc, g]) => {
-    const sv = pct(g.total - g.goals, g.total);
-    return `${loc}: ${g.total} shots, ${sv !== null ? sv + "% save rate" : "n/a"}`;
-  });
-
-  if (locationLines.length > 0) {
-    lines.push("Shot location breakdown:");
-    lines.push(...locationLines.map(l => "  - " + l));
-  }
-
-  // Rebound control tendencies (season totals)
-  if (seasonRebounds.length > 0) {
-    const totals = {};
-    [
-      "glove_caught", "glove_rebound", "glove_goal",
-      "blocker_good", "blocker_bad", "blocker_goal",
-      "midsection_good", "midsection_bad", "midsection_goal",
-      "pad_stick_good", "pad_stick_bad", "pad_stick_goal"
-    ].forEach(key => {
-      totals[key] = seasonRebounds.reduce((sum, r) => sum + num(r[key]), 0);
-    });
-
-    lines.push("Rebound control totals this season:");
-    lines.push(`  - Glove: ${totals.glove_caught} caught clean, ${totals.glove_rebound} gave up a rebound, ${totals.glove_goal} led to a goal`);
-    lines.push(`  - Blocker: ${totals.blocker_good} good, ${totals.blocker_bad} bad, ${totals.blocker_goal} led to a goal`);
-    lines.push(`  - Midsection: ${totals.midsection_good} good, ${totals.midsection_bad} bad, ${totals.midsection_goal} led to a goal`);
-    lines.push(`  - Pad/Stick: ${totals.pad_stick_good} good, ${totals.pad_stick_bad} bad, ${totals.pad_stick_goal} led to a goal`);
-  }
-
-  // Puck playing
-  if (seasonPuck.length > 0) {
-    const rimsFaced = seasonPuck.reduce((sum, p) => sum + num(p.rims_faced), 0);
-    const rimsStopped = seasonPuck.reduce((sum, p) => sum + num(p.rims_stopped), 0);
-    const passAttempts = seasonPuck.reduce((sum, p) => sum + num(p.pass_attempts), 0);
-    const passesCompleted = seasonPuck.reduce((sum, p) => sum + num(p.passes_completed), 0);
-
-    lines.push("Puck playing this season:");
-    lines.push(`  - Rims faced: ${rimsFaced}, stopped: ${rimsStopped} (${pct(rimsStopped, rimsFaced) ?? "n/a"}%)`);
-    lines.push(`  - Pass attempts: ${passAttempts}, completed: ${passesCompleted} (${pct(passesCompleted, passAttempts) ?? "n/a"}%)`);
-  }
-
-  return lines.join("\n");
-
-}
+  const advanced =
+    calculateAdvancedForShots(
+      seasonShots
+    );
 
 
-export default async function handler(req, res) {
+  document.getElementById(
+    "expectedSV"
+  ).textContent =
+    advanced.shots
+      ? `${advanced.expectedSV.toFixed(1)}%`
+      : "—";
 
-  if (req.method !== "POST") {
-    res.status(405).json({ error: "Method not allowed" });
-    return;
-  }
 
-  const { accessToken, question, goalieId, viewerRole } = req.body || {};
+  document.getElementById(
+    "gsax"
+  ).textContent =
+    advanced.shots
+      ? advanced.gsax.toFixed(2)
+      : "—";
 
-  if (!accessToken || !question) {
-    res.status(400).json({ error: "Missing accessToken or question." });
-    return;
-  }
 
-  if (!goalieId) {
-    res.status(400).json({ error: "Missing goalieId." });
-    return;
-  }
+  document.getElementById(
+    "xGA"
+  ).textContent =
+    advanced.shots
+      ? advanced.xGA.toFixed(2)
+      : "—";
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    res.status(500).json({ error: "Server is not configured with an ANTHROPIC_API_KEY." });
-    return;
-  }
 
-  try {
+  document.getElementById(
+    "advancedShots"
+  ).textContent =
+    advanced.shots;
 
-    const [gamesAll, periodStatsAll, shotsAll, reboundControlsAll, puckPlayingAll] = await Promise.all([
-      supabaseQuery("Games", accessToken),
-      supabaseQuery("Period Stats", accessToken),
-      supabaseQuery("Shots", accessToken),
-      supabaseQuery("goalierebound_control", accessToken).catch(() => []),
-      supabaseQuery("puck_playing", accessToken).catch(() => [])
-    ]);
 
-    // RLS already limited the above to rows this caller is allowed to
-    // see at all (their own, OR an assigned goalie's if they're a
-    // coach, OR everything if admin). This filter narrows that down
-    // to the ONE goalie being asked about -- without it, a coach with
-    // more than one assigned goalie would get their stats silently
-    // blended together in the same summary.
-    const belongsToGoalie = (row) => row.user_id === goalieId;
+  const locationCounts = {};
+  const locationGoals = {};
 
-    const games = gamesAll.filter(belongsToGoalie);
-    const periodStats = periodStatsAll.filter(belongsToGoalie);
-    const shots = shotsAll.filter(belongsToGoalie);
-    const reboundControls = reboundControlsAll.filter(belongsToGoalie);
-    const puckPlaying = puckPlayingAll.filter(belongsToGoalie);
 
-    const statsSummary = buildStatsSummary({ games, periodStats, shots, reboundControls, puckPlaying });
+  seasonShots.forEach(shot => {
 
-    const systemPrompt =
-      viewerRole === "coach"
-        ? "You are an assistant helping a hockey coach review one of their assigned goalies' " +
-          "performance this season. Answer the coach's questions using only the stats summary " +
-          "below. Frame answers for a coach making training decisions: what to focus on this " +
-          "week, what's improving or declining, and what situations are creating the most goals " +
-          "against. Be specific and reference actual numbers from the summary. If the summary " +
-          "doesn't contain enough information to answer confidently, say so plainly rather than " +
-          "guessing.\n\n" +
-          "STATS SUMMARY:\n" + statsSummary
-        : "You are a goaltending assistant. You answer a goalie's questions about THIS SEASON's " +
-          "performance using only the stats summary below. Be specific and reference actual " +
-          "numbers from the summary. If the summary doesn't contain enough information to answer " +
-          "confidently, say so plainly rather than guessing. Keep answers focused and practical.\n\n" +
-          "STATS SUMMARY:\n" + statsSummary;
+    const location =
+      shot.location ||
+      shot.shot_location ||
+      "Unknown";
 
-    const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01"
-      },
-      body: JSON.stringify({
-        model: CLAUDE_MODEL,
-        max_tokens: 700,
-        system: systemPrompt,
-        messages: [
-          { role: "user", content: question }
-        ]
-      })
-    });
 
-    if (!anthropicRes.ok) {
-      const errText = await anthropicRes.text();
-      throw new Error(`Anthropic API error ${anthropicRes.status}: ${errText}`);
+    locationCounts[location] =
+      (locationCounts[location] || 0) + 1;
+
+
+    if(isGoal(shot)){
+
+      locationGoals[location] =
+        (locationGoals[location] || 0) + 1;
+
     }
 
-    const anthropicData = await anthropicRes.json();
+  });
 
-    const answerText =
-      (anthropicData.content || [])
-        .filter(block => block.type === "text")
-        .map(block => block.text)
-        .join("\n") || "No response generated.";
 
-    res.status(200).json({ answer: answerText });
+  const locations =
+    Object.keys(
+      locationCounts
+    );
 
-  } catch (error) {
 
-    console.error(error);
-    res.status(500).json({ error: error.message || "Something went wrong." });
+  destroyChart(
+    "locationChart"
+  );
+
+
+  charts.locationChart =
+    new Chart(
+      document.getElementById(
+        "locationChart"
+      ),
+      {
+        type:"bar",
+
+        data:{
+          labels:locations,
+
+          datasets:[{
+
+            label:"Shots",
+
+            data:
+              locations.map(
+                l => locationCounts[l]
+              )
+
+          }]
+
+        },
+
+        options:{
+
+          ...chartOptions(),
+
+          scales:{
+            x:chartOptions().scales.x,
+            y:distributionScale()
+          }
+
+        }
+
+      }
+
+    );
+
+
+  destroyChart(
+    "goalLocationChart"
+  );
+
+
+  charts.goalLocationChart =
+    new Chart(
+      document.getElementById(
+        "goalLocationChart"
+      ),
+      {
+        type:"bar",
+
+        data:{
+          labels:locations,
+
+          datasets:[{
+
+            label:"Goals",
+
+            data:
+              locations.map(
+                l =>
+                  locationGoals[l] || 0
+              )
+
+          }]
+
+        },
+
+        options:{
+
+          ...chartOptions(),
+
+          scales:{
+            x:chartOptions().scales.x,
+            y:distributionScale()
+          }
+
+        }
+
+      }
+
+    );
+
+
+  let worstLocation = null;
+  let worstRate = -1;
+
+
+  locations.forEach(location => {
+
+    const shotsCount =
+      locationCounts[location];
+
+
+    const goals =
+      locationGoals[location] || 0;
+
+
+    if(shotsCount >= 3){
+
+      const rate =
+        goals / shotsCount;
+
+
+      if(rate > worstRate){
+
+        worstRate = rate;
+
+        worstLocation = location;
+
+      }
+
+    }
+
+  });
+
+
+  document.getElementById(
+    "locationInsight"
+  ).innerHTML =
+    worstLocation
+      ? `<strong>Potential development area:</strong>
+         ${worstLocation} has the highest goal rate
+         among locations with at least 3 tracked shots
+         (${(worstRate*100).toFixed(1)}%).`
+      : "More shot data is required to identify a meaningful location trend.";
+
+
+  destroyChart(
+    "shotGradeChart"
+  );
+
+
+  charts.shotGradeChart =
+    new Chart(
+      document.getElementById(
+        "shotGradeChart"
+      ),
+      {
+        type:"bar",
+
+        data:{
+          labels:[
+            "A+",
+            "A",
+            "B",
+            "C"
+          ],
+
+          datasets:[{
+
+            label:"Shots",
+
+            data:[
+              advanced.grades["A+"],
+              advanced.grades["A"],
+              advanced.grades["B"],
+              advanced.grades["C"]
+            ]
+
+          }]
+
+        },
+
+        options:{
+
+          ...chartOptions(),
+
+          scales:{
+            x:chartOptions().scales.x,
+            y:distributionScale()
+          }
+
+        }
+
+      }
+
+    );
+
+
+  const goalGrades = {
+    "A+":0,
+    "A":0,
+    "B":0,
+    "C":0
+  };
+
+
+  seasonShots
+    .filter(isGoal)
+    .forEach(
+      shot =>
+        goalGrades[
+          shotGrade(shot)
+        ]++
+    );
+
+
+  destroyChart(
+    "shotGradeGoalChart"
+  );
+
+
+  charts.shotGradeGoalChart =
+    new Chart(
+      document.getElementById(
+        "shotGradeGoalChart"
+      ),
+      {
+        type:"bar",
+
+        data:{
+          labels:[
+            "A+",
+            "A",
+            "B",
+            "C"
+          ],
+
+          datasets:[{
+
+            label:"Goals Against",
+
+            data:[
+              goalGrades["A+"],
+              goalGrades["A"],
+              goalGrades["B"],
+              goalGrades["C"]
+            ]
+
+          }]
+
+        },
+
+        options:{
+
+          ...chartOptions(),
+
+          scales:{
+            x:chartOptions().scales.x,
+            y:distributionScale()
+          }
+
+        }
+
+      }
+
+    );
+
+
+  const totalTrackedGoals =
+    Object.values(
+      goalGrades
+    ).reduce(
+      (a,b) => a+b,
+      0
+    );
+
+
+  const difficultGoals =
+    goalGrades["A+"] +
+    goalGrades["A"];
+
+
+  document.getElementById(
+    "shotGradeGoalInsight"
+  ).innerHTML =
+    totalTrackedGoals
+      ? `<strong>${difficultGoals}</strong> of
+        <strong>${totalTrackedGoals}</strong>
+        tracked goals came from A/A+ chances.
+        Use the remaining goals to investigate whether
+        technique, tracking, positioning or rebound management
+        can be improved.`
+      : "More goal-level shot data is required.";
+
+
+  const rush =
+    subsetStats(
+      seasonShots,
+      isRushShot
+    );
+
+
+  const breakaway =
+    subsetStats(
+      seasonShots,
+      isBreakaway
+    );
+
+
+  const rebound =
+    subsetStats(
+      seasonShots,
+      shotIsRebound
+    );
+
+
+  const screened =
+    subsetStats(
+      seasonShots,
+      isScreened
+    );
+
+
+  const oneTimer =
+    subsetStats(
+      seasonShots,
+      isOneTimer
+    );
+
+
+  const highDanger =
+    subsetStats(
+      seasonShots,
+      isHighDanger
+    );
+
+
+  setSubset(
+    "rush",
+    rush
+  );
+
+
+  setSubset(
+    "breakaway",
+    breakaway
+  );
+
+
+  setSubset(
+    "rebound",
+    rebound
+  );
+
+
+  setSubset(
+    "screen",
+    screened
+  );
+
+
+  setSubset(
+    "oneTimer",
+    oneTimer
+  );
+
+
+  setSubset(
+    "highDanger",
+    highDanger
+  );
+
+
+  const candidates = [
+
+    {
+      name:"high-danger chances",
+      value:highDanger.sv,
+      shots:highDanger.shots
+    },
+
+    {
+      name:"rush chances",
+      value:rush.sv,
+      shots:rush.shots
+    },
+
+    {
+      name:"rebound shots",
+      value:rebound.sv,
+      shots:rebound.shots
+    },
+
+    {
+      name:"screened shots",
+      value:screened.sv,
+      shots:screened.shots
+    },
+
+    {
+      name:"one-timers",
+      value:oneTimer.sv,
+      shots:oneTimer.shots
+    }
+
+  ]
+  .filter(
+    x =>
+      x.value !== null &&
+      x.shots >= 3
+  )
+  .sort(
+    (a,b) =>
+      a.value - b.value
+  );
+
+
+  const priority =
+    candidates[0];
+
+
+  document.getElementById(
+    "situationalPriority"
+  ).innerHTML =
+    priority
+      ? `<strong>Current area to investigate:</strong>
+         ${priority.name} are currently your lowest-performing
+         tracked situation at <strong>${priority.value.toFixed(1)}% SV</strong>.
+         This should not automatically be treated as a weakness —
+         use video to determine whether the issue is positioning,
+         tracking, depth, movement, rebound control or execution.`
+      : "You need at least 3 tracked shots in a situation before this dashboard will identify it as a potential development priority.";
+
+}
+
+
+/* ============================================================
+   SUBSET CARD HELPER
+============================================================ */
+
+function setSubset(prefix,data){
+
+  const shotsEl =
+    document.getElementById(
+      prefix+"Shots"
+    );
+
+
+  const svEl =
+    document.getElementById(
+      prefix+"SV"
+    );
+
+
+  const goalsEl =
+    document.getElementById(
+      prefix+"Goals"
+    );
+
+
+  if(shotsEl){
+
+    shotsEl.textContent =
+      data.shots;
+
+  }
+
+
+  if(svEl){
+
+    svEl.textContent =
+      data.sv !== null
+        ? `${data.sv.toFixed(1)}%`
+        : "—";
+
+  }
+
+
+  if(goalsEl){
+
+    goalsEl.textContent =
+      data.goals;
 
   }
 
 }
+
+
+/* ============================================================
+   REBOUND TOTALS
+============================================================ */
+
+function getReboundTotals(){
+
+  let good = 0;
+  let bad = 0;
+
+
+  seasonReboundControls
+    .forEach(row => {
+
+      good +=
+        num(row.glove_caught) +
+        num(row.blocker_good) +
+        num(row.midsection_good) +
+        num(row.pad_stick_good);
+
+
+      bad +=
+        num(row.glove_rebound) +
+        num(row.blocker_bad) +
+        num(row.midsection_bad) +
+        num(row.pad_stick_bad);
+
+    });
+
+
+  const total =
+    good + bad;
+
+
+  return {
+
+    good,
+
+    bad,
+
+    total,
+
+    goodPct:
+      total
+        ? good / total * 100
+        : 0
+
+  };
+
+}
+
+
+/* ============================================================
+   REBOUND CONTROL
+============================================================ */
+
+function renderReboundControl(){
+
+  const rows =
+    seasonReboundControls;
+
+
+  let totalGood = 0;
+  let totalBad = 0;
+
+
+  const directions = {
+
+    "Glove":{
+      good:0,
+      bad:0,
+      goals:0
+    },
+
+    "Blocker":{
+      good:0,
+      bad:0,
+      goals:0
+    },
+
+    "Body":{
+      good:0,
+      bad:0,
+      goals:0
+    },
+
+    "Pad / Stick":{
+      good:0,
+      bad:0,
+      goals:0
+    }
+
+  };
+
+
+  rows.forEach(row => {
+
+    const gloveGood =
+      num(row.glove_caught);
+
+
+    const gloveBad =
+      num(row.glove_rebound);
+
+
+    const gloveGoal =
+      num(row.glove_goal);
+
+
+    const blockerGood =
+      num(row.blocker_good);
+
+
+    const blockerBad =
+      num(row.blocker_bad);
+
+
+    const blockerGoal =
+      num(row.blocker_goal);
+
+
+    const bodyGood =
+      num(row.midsection_good);
+
+
+    const bodyBad =
+      num(row.midsection_bad);
+
+
+    const bodyGoal =
+      num(row.midsection_goal);
+
+
+    const padGood =
+      num(row.pad_stick_good);
+
+
+    const padBad =
+      num(row.pad_stick_bad);
+
+
+    const padGoal =
+      num(row.pad_stick_goal);
+
+
+    directions["Glove"].good +=
+      gloveGood;
+
+
+    directions["Glove"].bad +=
+      gloveBad;
+
+
+    directions["Glove"].goals +=
+      gloveGoal;
+
+
+    directions["Blocker"].good +=
+      blockerGood;
+
+
+    directions["Blocker"].bad +=
+      blockerBad;
+
+
+    directions["Blocker"].goals +=
+      blockerGoal;
+
+
+    directions["Body"].good +=
+      bodyGood;
+
+
+    directions["Body"].bad +=
+      bodyBad;
+
+
+    directions["Body"].goals +=
+      bodyGoal;
+
+
+    directions["Pad / Stick"].good +=
+      padGood;
+
+
+    directions["Pad / Stick"].bad +=
+      padBad;
+
+
+    directions["Pad / Stick"].goals +=
+      padGoal;
+
+
+    totalGood +=
+      gloveGood +
+      blockerGood +
+      bodyGood +
+      padGood;
+
+
+    totalBad +=
+      gloveBad +
+      blockerBad +
+      bodyBad +
+      padBad;
+
+  });
+
+
+  const total =
+    totalGood + totalBad;
+
+
+  const goodPct =
+    total
+      ? totalGood /
+        total *
+        100
+      : 0;
+
+
+  document.getElementById(
+    "controlTotal"
+  ).textContent =
+    total;
+
+
+  document.getElementById(
+    "controlGood"
+  ).textContent =
+    totalGood;
+
+
+  document.getElementById(
+    "controlBad"
+  ).textContent =
+    totalBad;
+
+
+  document.getElementById(
+    "controlGoodPct"
+  ).textContent =
+    total
+      ? `${goodPct.toFixed(1)}%`
+      : "—";
+
+
+  const labels =
+    Object.keys(
+      directions
+    );
+
+
+  destroyChart(
+    "controlGoodBadChart"
+  );
+
+
+  charts.controlGoodBadChart =
+    new Chart(
+      document.getElementById(
+        "controlGoodBadChart"
+      ),
+      {
+        type:"bar",
+
+        data:{
+
+          labels:[
+            "Good",
+            "Bad"
+          ],
+
+          datasets:[{
+
+            label:"Rebound Control Events",
+
+            data:[
+              totalGood,
+              totalBad
+            ],
+
+            backgroundColor:[
+              "rgba(105,221,160,.62)",
+              "rgba(255,133,133,.62)"
+            ],
+
+            borderColor:[
+              "#69dda0",
+              "#ff8585"
+            ],
+
+            borderWidth:0
+
+          }]
+
+        },
+
+        options:{
+
+          ...chartOptions(),
+
+          scales:{
+            x:chartOptions().scales.x,
+            y:distributionScale()
+          }
+
+        }
+
+      }
+
+    );
+
+
+  destroyChart(
+    "controlDirectionChart"
+  );
+
+
+  charts.controlDirectionChart =
+    new Chart(
+      document.getElementById(
+        "controlDirectionChart"
+      ),
+      {
+        type:"bar",
+
+        data:{
+
+          labels,
+
+          datasets:[
+
+            {
+
+              label:"Good",
+
+              data:
+                labels.map(
+                  d =>
+                    directions[d].good
+                ),
+
+              backgroundColor:
+                "rgba(105,221,160,.62)",
+
+              borderColor:
+                "#69dda0",
+
+              borderWidth:0
+
+            },
+
+            {
+
+              label:"Bad",
+
+              data:
+                labels.map(
+                  d =>
+                    directions[d].bad
+                ),
+
+              backgroundColor:
+                "rgba(255,133,133,.62)",
+
+              borderColor:
+                "#ff8585",
+
+              borderWidth:0
+
+            }
+
+          ]
+
+        },
+
+        options:{
+
+          ...chartOptions(),
+
+          scales:{
+            x:chartOptions().scales.x,
+            y:distributionScale()
+          }
+
+        }
+
+      }
+
+    );
+
+
+  destroyChart(
+    "controlGoalsChart"
+  );
+
+
+  charts.controlGoalsChart =
+    new Chart(
+      document.getElementById(
+        "controlGoalsChart"
+      ),
+      {
+        type:"bar",
+
+        data:{
+
+          labels,
+
+          datasets:[{
+
+            label:"Goal-Associated Outcomes",
+
+            data:
+              labels.map(
+                d =>
+                  directions[d].goals
+              )
+
+          }]
+
+        },
+
+        options:{
+
+          ...chartOptions(),
+
+          scales:{
+            x:chartOptions().scales.x,
+            y:distributionScale()
+          }
+
+        }
+
+      }
+
+    );
+
+
+  const body =
+    document.getElementById(
+      "controlTableBody"
+    );
+
+
+  body.innerHTML = "";
+
+
+  labels.forEach(direction => {
+
+    const data =
+      directions[direction];
+
+
+    const totalDirection =
+      data.good +
+      data.bad;
+
+
+    const pct =
+      totalDirection
+        ? data.good /
+          totalDirection *
+          100
+        : 0;
+
+
+    body.innerHTML += `
+
+      <tr>
+
+        <td>${direction}</td>
+
+        <td class="good">
+          ${data.good}
+        </td>
+
+        <td class="bad">
+          ${data.bad}
+        </td>
+
+        <td>
+          ${totalDirection}
+        </td>
+
+        <td>
+          ${
+            totalDirection
+              ? pct.toFixed(1)+"%"
+              : "—"
+          }
+        </td>
+
+        <td>
+          ${data.goals}
+        </td>
+
+      </tr>
+
+    `;
+
+  });
+
+
+  console.log(
+    "Rebound Control rows:",
+    rows
+  );
+
+}
+
+
+/* ============================================================
+   INCREMENTAL STATS
+============================================================ */
+
+function renderIncremental(){
+
+  const advanced =
+    calculateAdvancedForShots(
+      seasonShots
+    );
+
+
+  const rebound =
+    getReboundTotals();
+
+
+  const highDanger =
+    subsetStats(
+      seasonShots,
+      isHighDanger
+    );
+
+
+  const rush =
+    subsetStats(
+      seasonShots,
+      isRushShot
+    );
+
+
+  const screened =
+    subsetStats(
+      seasonShots,
+      isScreened
+    );
+
+
+  const oneTimer =
+    subsetStats(
+      seasonShots,
+      isOneTimer
+    );
+
+
+  const reboundShots =
+    subsetStats(
+      seasonShots,
+      shotIsRebound
+    );
+
+
+  const totalShots =
+    seasonGames.reduce(
+      (sum,g) =>
+        sum + gameShots(g),
+      0
+    );
+
+
+  const totalGoals =
+    seasonGames.reduce(
+      (sum,g) =>
+        sum + gameGoals(g),
+      0
+    );
+
+
+  const totalMinutes =
+    seasonGames.reduce(
+      (sum,g) =>
+        sum + gameMinutes(g),
+      0
+    );
+
+
+  document.getElementById(
+    "incSVDelta"
+  ).textContent =
+    advanced.shots
+      ? `${(
+          advanced.actualSV -
+          advanced.expectedSV
+        ) >= 0 ? "+" : ""}${(
+          advanced.actualSV -
+          advanced.expectedSV
+        ).toFixed(1)}%`
+      : "—";
+
+
+  document.getElementById(
+    "incGSAx"
+  ).textContent =
+    advanced.shots
+      ? advanced.gsax.toFixed(2)
+      : "—";
+
+
+  document.getElementById(
+    "incHighDanger"
+  ).textContent =
+    highDanger.sv !== null
+      ? `${highDanger.sv.toFixed(1)}%`
+      : "—";
+
+
+  document.getElementById(
+    "incRebound"
+  ).textContent =
+    rebound.total
+      ? `${rebound.goodPct.toFixed(1)}%`
+      : "—";
+
+
+  document.getElementById(
+    "incRushSV"
+  ).textContent =
+    rush.sv !== null
+      ? `${rush.sv.toFixed(1)}%`
+      : "—";
+
+
+  document.getElementById(
+    "incRushGoals"
+  ).textContent =
+    rush.goals;
+
+
+  document.getElementById(
+    "incRushShots"
+  ).textContent =
+    rush.shots;
+
+
+  document.getElementById(
+    "incScreenSV"
+  ).textContent =
+    screened.sv !== null
+      ? `${screened.sv.toFixed(1)}%`
+      : "—";
+
+
+  document.getElementById(
+    "incOneTimerSV"
+  ).textContent =
+    oneTimer.sv !== null
+      ? `${oneTimer.sv.toFixed(1)}%`
+      : "—";
+
+
+  document.getElementById(
+    "incReboundSV"
+  ).textContent =
+    reboundShots.sv !== null
+      ? `${reboundShots.sv.toFixed(1)}%`
+      : "—";
+
+
+  document.getElementById(
+    "incShots60"
+  ).textContent =
+    totalMinutes
+      ? (
+          totalShots /
+          totalMinutes *
+          60
+        ).toFixed(1)
+      : "—";
+
+
+  document.getElementById(
+    "incGoals60"
+  ).textContent =
+    totalMinutes
+      ? (
+          totalGoals /
+          totalMinutes *
+          60
+        ).toFixed(2)
+      : "—";
+
+
+  document.getElementById(
+    "incAvgShots"
+  ).textContent =
+    seasonGames.length
+      ? (
+          totalShots /
+          seasonGames.length
+        ).toFixed(1)
+      : "—";
+
+
+  let runningShots = 0;
+  let runningSaves = 0;
+
+
+  const actualValues = [];
+  const expectedValues = [];
+
+
+  const labels =
+    seasonGames.map(
+      (game,index) =>
+        `${index+1}. ${gameOpponent(game)}`
+    );
+
+
+  seasonGames.forEach(game => {
+
+    runningShots +=
+      gameShots(game);
+
+
+    runningSaves +=
+      gameSaves(game);
+
+
+    actualValues.push(
+      runningShots
+        ? runningSaves /
+          runningShots *
+          100
+        : null
+    );
+
+
+    const cumulativeShotData =
+      seasonShots.filter(
+        shot => {
+
+          const gameIndex =
+            seasonGames.findIndex(
+              g =>
+                String(
+                  g.id ??
+                  g.game_id
+                ) ===
+                String(
+                  shot.game_id
+                )
+            );
+
+
+          return (
+            gameIndex >= 0 &&
+            gameIndex <=
+              seasonGames.indexOf(game)
+          );
+
+        }
+      );
+
+
+    const cumulativeAdvanced =
+      calculateAdvancedForShots(
+        cumulativeShotData
+      );
+
+
+    expectedValues.push(
+      cumulativeAdvanced.shots
+        ? cumulativeAdvanced.expectedSV
+        : null
+    );
+
+  });
+
+
+  destroyChart(
+    "incrementalSVChart"
+  );
+
+
+  charts.incrementalSVChart =
+    new Chart(
+      document.getElementById(
+        "incrementalSVChart"
+      ),
+      {
+        type:"line",
+
+        data:{
+
+          labels,
+
+          datasets:[
+
+            {
+
+              label:"Cumulative SV%",
+
+              data:actualValues,
+
+              tension:.35,
+
+              borderWidth:2,
+
+              pointRadius:2.5,
+
+              pointHoverRadius:5
+
+            },
+
+            {
+
+              label:"Expected SV%",
+
+              data:expectedValues,
+
+              tension:.35,
+
+              borderWidth:1.5,
+
+              borderDash:[5,5],
+
+              pointRadius:2,
+
+              pointHoverRadius:4
+
+            }
+
+          ]
+
+        },
+
+        options:{
+
+          ...chartOptions(),
+
+          scales:{
+            x:chartOptions().scales.x,
+            y:percentageScale()
+          }
+
+        }
+
+      }
+
+    );
+
+
+  let runningXGA = 0;
+  let runningGoals = 0;
+
+
+  const gsaxValues = [];
+
+
+  seasonGames.forEach(game => {
+
+    const gameId =
+      String(
+        game.id ??
+        game.game_id
+      );
+
+
+    const data =
+      seasonShots.filter(
+        shot =>
+          String(
+            shot.game_id
+          ) === gameId
+      );
+
+
+    const advancedGame =
+      calculateAdvancedForShots(
+        data
+      );
+
+
+    runningXGA +=
+      advancedGame.xGA;
+
+
+    runningGoals +=
+      advancedGame.goals;
+
+
+    gsaxValues.push(
+      runningXGA -
+      runningGoals
+    );
+
+  });
+
+
+  destroyChart(
+    "incrementalGSAxChart"
+  );
+
+
+  charts.incrementalGSAxChart =
+    new Chart(
+      document.getElementById(
+        "incrementalGSAxChart"
+      ),
+      {
+        type:"line",
+
+        data:{
+
+          labels,
+
+          datasets:[{
+
+            label:"Cumulative GSAx",
+
+            data:gsaxValues,
+
+            tension:.35,
+
+            borderWidth:2,
+
+            pointRadius:2.5,
+
+            pointHoverRadius:5
+
+          }]
+
+        },
+
+        options:{
+
+          ...chartOptions(),
+
+          scales:{
+            x:chartOptions().scales.x,
+            y:chartOptions().scales.y
+          }
+
+        }
+
+      }
+
+    );
+
+
+  const candidates = [
+
+    {
+      name:"high-danger stopping",
+      value:highDanger.sv,
+      shots:highDanger.shots
+    },
+
+    {
+      name:"rush defence",
+      value:rush.sv,
+      shots:rush.shots
+    },
+
+    {
+      name:"screened-shot stopping",
+      value:screened.sv,
+      shots:screened.shots
+    },
+
+    {
+      name:"one-timer stopping",
+      value:oneTimer.sv,
+      shots:oneTimer.shots
+    },
+
+    {
+      name:"rebound-shot stopping",
+      value:reboundShots.sv,
+      shots:reboundShots.shots
+    }
+
+  ]
+  .filter(
+    x =>
+      x.value !== null &&
+      x.shots >= 3
+  )
+  .sort(
+    (a,b) =>
+      a.value - b.value
+  );
+
+
+  const priority =
+    candidates[0];
+
+
+  document.getElementById(
+    "incrementalFocus"
+  ).innerHTML =
+    priority
+      ? `<strong>Current metric to investigate:</strong>
+         ${priority.name} is currently your lowest-performing
+         tracked situation at <strong>${priority.value.toFixed(1)}% SV</strong>.
+         Before changing technique, use video to identify the actual
+         cause of the goals. As your sample grows, this becomes a much
+         more reliable development tool.`
+      : "Continue collecting shot-level data. The incremental system becomes substantially more useful as the sample size grows.";
+
+}
+
+
+/* ============================================================
+   PUCK PLAYING
+============================================================ */
+
+function renderPuckPlaying(){
+
+  const totalRimsFaced =
+    seasonPuckPlaying.reduce(
+      (sum,row) =>
+        sum + num(row.rims_faced),
+      0
+    );
+
+  const totalRimsStopped =
+    seasonPuckPlaying.reduce(
+      (sum,row) =>
+        sum + num(row.rims_stopped),
+      0
+    );
+
+  const totalPassAttempts =
+    seasonPuckPlaying.reduce(
+      (sum,row) =>
+        sum + num(row.pass_attempts),
+      0
+    );
+
+  const totalPassesCompleted =
+    seasonPuckPlaying.reduce(
+      (sum,row) =>
+        sum + num(row.passes_completed),
+      0
+    );
+
+  const rimPct =
+    totalRimsFaced
+      ? totalRimsStopped /
+        totalRimsFaced *
+        100
+      : null;
+
+  const passPct =
+    totalPassAttempts
+      ? totalPassesCompleted /
+        totalPassAttempts *
+        100
+      : null;
+
+  document.getElementById(
+    "puckRimsStopped"
+  ).textContent =
+    totalRimsFaced
+      ? totalRimsStopped
+      : "—";
+
+  document.getElementById(
+    "puckRimPct"
+  ).textContent =
+    rimPct !== null
+      ? `${rimPct.toFixed(1)}%`
+      : "—";
+
+  document.getElementById(
+    "puckPassPct"
+  ).textContent =
+    passPct !== null
+      ? `${passPct.toFixed(1)}%`
+      : "—";
+
+  document.getElementById(
+    "puckPassesCompleted"
+  ).textContent =
+    totalPassAttempts
+      ? totalPassesCompleted
+      : "—";
+
+  document.getElementById(
+    "puckPassContext"
+  ).textContent =
+    totalPassAttempts
+      ? `${totalPassesCompleted} / ${totalPassAttempts} attempts`
+      : "No pass data";
+
+  const body =
+    document.getElementById(
+      "puckPlayingTableBody"
+    );
+
+  body.innerHTML = "";
+
+  if(!seasonPuckPlaying.length){
+
+    body.innerHTML = `
+      <tr>
+        <td colspan="8">
+          <div class="empty">
+            No puck-playing data is available for the current season yet.
+          </div>
+        </td>
+      </tr>
+    `;
+
+    return;
+  }
+
+  const byGame = {};
+
+  seasonPuckPlaying.forEach(row => {
+
+    const gameId =
+      String(row.game_id);
+
+    if(!byGame[gameId]){
+
+      byGame[gameId] = {
+        rimsFaced:0,
+        rimsStopped:0,
+        passAttempts:0,
+        passesCompleted:0
+      };
+
+    }
+
+    byGame[gameId].rimsFaced +=
+      num(row.rims_faced);
+
+    byGame[gameId].rimsStopped +=
+      num(row.rims_stopped);
+
+    byGame[gameId].passAttempts +=
+      num(row.pass_attempts);
+
+    byGame[gameId].passesCompleted +=
+      num(row.passes_completed);
+
+  });
+
+  const sortedGames =
+    [...seasonGames].sort(
+      (a,b) =>
+        new Date(gameDate(b)) -
+        new Date(gameDate(a))
+    );
+
+  sortedGames.forEach(game => {
+
+    const gameId =
+      String(
+        game.id ??
+        game.game_id
+      );
+
+    const data =
+      byGame[gameId];
+
+    if(!data){
+      return;
+    }
+
+    const rimPctGame =
+      data.rimsFaced
+        ? data.rimsStopped /
+          data.rimsFaced *
+          100
+        : null;
+
+    const passPctGame =
+      data.passAttempts
+        ? data.passesCompleted /
+          data.passAttempts *
+          100
+        : null;
+
+    const tr =
+      document.createElement("tr");
+
+    tr.innerHTML = `
+
+      <td>${gameDate(game) || "—"}</td>
+
+      <td>${gameOpponent(game)}</td>
+
+      <td>${data.rimsFaced}</td>
+
+      <td class="good">
+        ${data.rimsStopped}
+      </td>
+
+      <td class="${
+        rimPctGame === null
+          ? "neutral"
+          : rimPctGame >= 75
+            ? "good"
+            : rimPctGame < 50
+              ? "bad"
+              : "neutral"
+      }">
+        ${
+          rimPctGame !== null
+            ? rimPctGame.toFixed(1)+"%"
+            : "—"
+        }
+      </td>
+
+      <td>${data.passAttempts}</td>
+
+      <td class="good">
+        ${data.passesCompleted}
+      </td>
+
+      <td class="${
+        passPctGame === null
+          ? "neutral"
+          : passPctGame >= 75
+            ? "good"
+            : passPctGame < 50
+              ? "bad"
+              : "neutral"
+      }">
+        ${
+          passPctGame !== null
+            ? passPctGame.toFixed(1)+"%"
+            : "—"
+        }
+      </td>
+
+    `;
+
+    body.appendChild(tr);
+
+  });
+
+}
+
+
+/* ============================================================
+   GET SHOTS FOR GAMES
+============================================================ */
+
+function getShotsForGames(gameList){
+
+  const ids =
+    new Set(
+      gameList.map(
+        game =>
+          String(
+            game.id ??
+            game.game_id
+          )
+      )
+    );
+
+
+  return seasonShots.filter(
+    shot =>
+      ids.has(
+        String(
+          shot.game_id
+        )
+      )
+  );
+
+}
+
+
+/* ============================================================
+   AUTH
+============================================================ */
+
+let currentSession = null;
+
+
+function showAuthView(view){
+
+  document.getElementById("signin-form").style.display =
+    view === "signin" ? "flex" : "none";
+
+  document.getElementById("signup-form").style.display =
+    view === "signup" ? "flex" : "none";
+
+  document.getElementById("reset-form").style.display =
+    view === "reset" ? "flex" : "none";
+
+  document.getElementById("newpassword-form").style.display =
+    view === "newpassword" ? "flex" : "none";
+
+  hideAuthMessages();
+
+}
+
+
+function hideAuthMessages(){
+
+  const err = document.getElementById("auth-error");
+  const msg = document.getElementById("auth-message");
+
+  err.classList.remove("visible");
+  msg.classList.remove("visible");
+
+  err.textContent = "";
+  msg.textContent = "";
+
+}
+
+
+function showAuthError(message){
+
+  const err = document.getElementById("auth-error");
+
+  err.textContent = message;
+  err.classList.add("visible");
+
+}
+
+
+function showAuthMessage(message){
+
+  const msg = document.getElementById("auth-message");
+
+  msg.textContent = message;
+  msg.classList.add("visible");
+
+}
+
+
+function showApp(){
+
+  document.getElementById("landing-page").style.display = "none";
+  document.getElementById("app-shell").style.display = "block";
+
+}
+
+
+function showAuthScreen(){
+
+  document.getElementById("app-shell").style.display = "none";
+  document.getElementById("landing-page").style.display = "block";
+
+  showAuthView("signin");
+
+}
+
+
+function refreshUserBadge(){
+
+  const badge = document.getElementById("user-email-badge");
+
+  if(badge && currentSession && currentSession.user){
+    badge.textContent = currentSession.user.email;
+  }
+
+}
+
+
+document.getElementById("signin-form")
+  .addEventListener("submit", async function(e){
+
+    e.preventDefault();
+    hideAuthMessages();
+
+    const email =
+      document.getElementById("signin-email").value.trim();
+
+    const password =
+      document.getElementById("signin-password").value;
+
+    const btn = e.target.querySelector("button");
+    btn.disabled = true;
+
+    const { data, error } =
+      await supabaseClient.auth.signInWithPassword({
+        email,
+        password
+      });
+
+    btn.disabled = false;
+
+    if(error){
+      showAuthError(error.message);
+      return;
+    }
+
+    currentSession = data.session;
+    refreshUserBadge();
+    showApp();
+    applyRoleAndLoad();
+
+  });
+
+
+document.getElementById("signup-form")
+  .addEventListener("submit", async function(e){
+
+    e.preventDefault();
+    hideAuthMessages();
+
+    const name =
+      document.getElementById("signup-name").value.trim();
+
+    const email =
+      document.getElementById("signup-email").value.trim();
+
+    const password =
+      document.getElementById("signup-password").value;
+
+    const btn = e.target.querySelector("button");
+    btn.disabled = true;
+
+    const { data, error } =
+      await supabaseClient.auth.signUp({
+        email,
+        password,
+        options:{
+          data:{ name }
+        }
+      });
+
+    btn.disabled = false;
+
+    if(error){
+      showAuthError(error.message);
+      return;
+    }
+
+    if(data.session){
+
+      currentSession = data.session;
+      refreshUserBadge();
+      showApp();
+      applyRoleAndLoad();
+
+    }
+    else{
+
+      showAuthView("signin");
+      showAuthMessage(
+        "Account created. Check your email to confirm, then sign in."
+      );
+
+    }
+
+  });
+
+
+document.getElementById("reset-form")
+  .addEventListener("submit", async function(e){
+
+    e.preventDefault();
+    hideAuthMessages();
+
+    const email =
+      document.getElementById("reset-email").value.trim();
+
+    const btn = e.target.querySelector("button");
+    btn.disabled = true;
+
+    const { error } =
+      await supabaseClient.auth.resetPasswordForEmail(
+        email,
+        {
+          redirectTo:
+            window.location.origin + window.location.pathname
+        }
+      );
+
+    btn.disabled = false;
+
+    if(error){
+      showAuthError(error.message);
+      return;
+    }
+
+    showAuthView("signin");
+    showAuthMessage(
+      "Password reset email sent. Check your inbox."
+    );
+
+  });
+
+
+document.getElementById("newpassword-form")
+  .addEventListener("submit", async function(e){
+
+    e.preventDefault();
+    hideAuthMessages();
+
+    const password =
+      document.getElementById("newpassword-password").value;
+
+    const btn = e.target.querySelector("button");
+    btn.disabled = true;
+
+    const { error } =
+      await supabaseClient.auth.updateUser({ password });
+
+    btn.disabled = false;
+
+    if(error){
+      showAuthError(error.message);
+      return;
+    }
+
+    showAuthMessage("Password updated. You're signed in.");
+    showApp();
+    applyRoleAndLoad();
+
+  });
+
+
+async function handleLogout(){
+
+  await supabaseClient.auth.signOut();
+  currentSession = null;
+  showAuthScreen();
+
+}
+
+
+supabaseClient.auth.onAuthStateChange(function(event, session){
+
+  if(event === "PASSWORD_RECOVERY"){
+    currentSession = session;
+    showAuthScreen();
+    showAuthView("newpassword");
+  }
+
+});
+
+
+/* ============================================================
+   ROLE / COACH DASHBOARD
+============================================================ */
+
+let currentRole = "goalie";
+let currentProfile = null;
+let coachGoalieProfiles = [];
+let coachNotesData = [];
+
+// Only used while there's a single assigned goalie (see note below).
+let coachPrimaryGoalieId = null;
+
+
+async function qFiltered(table, filterQuery){
+
+  const accessToken =
+    (currentSession && currentSession.access_token) ||
+    SUPABASE_KEY;
+
+  const response =
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/${encodeURIComponent(table)}?select=*&${filterQuery}`,
+      {
+        headers:{
+          apikey:SUPABASE_KEY,
+          Authorization:`Bearer ${accessToken}`
+        }
+      }
+    );
+
+  if(!response.ok){
+    throw new Error(`Supabase error ${response.status}: ${table}`);
+  }
+
+  return await response.json();
+
+}
+
+
+async function fetchOwnProfile(){
+
+  if(!currentSession || !currentSession.user){
+    return null;
+  }
+
+  const rows =
+    await qFiltered(
+      "profiles",
+      `id=eq.${currentSession.user.id}`
+    );
+
+  return Array.isArray(rows) && rows.length ? rows[0] : null;
+
+}
+
+
+function setNavForRole(){
+
+  const goalieNav = document.getElementById("goalie-nav");
+  const coachNav = document.getElementById("coach-nav");
+  const adminNav = document.getElementById("admin-nav");
+  const brandTitle = document.getElementById("brand-title");
+  const brandSubtitle = document.getElementById("brand-subtitle");
+
+  goalieNav.style.display = "none";
+  coachNav.style.display = "none";
+  adminNav.style.display = "none";
+
+  brandTitle.textContent = "GoalieIQ Analytics";
+
+  if(currentRole === "admin"){
+
+    adminNav.style.display = "";
+    brandSubtitle.textContent = "Admin Console";
+
+    showTab(
+      "adminhome",
+      adminNav.querySelector("button")
+    );
+
+  }
+  else if(currentRole === "coach"){
+
+    coachNav.style.display = "";
+    brandSubtitle.textContent = "Coach Dashboard";
+
+    showTab(
+      "coachhome",
+      coachNav.querySelector("button")
+    );
+
+  }
+  else{
+
+    goalieNav.style.display = "";
+
+    brandSubtitle.textContent =
+      (currentProfile && currentProfile.full_name)
+        ? currentProfile.full_name + " · Goaltending Performance"
+        : "Goaltending Performance Platform";
+
+    showTab(
+      "overview",
+      goalieNav.querySelector("button")
+    );
+
+  }
+
+}
+
+
+async function applyRoleAndLoad(){
+
+  currentProfile = await fetchOwnProfile();
+  currentRole = (currentProfile && currentProfile.role) || "goalie";
+
+  setNavForRole();
+
+  // loadDashboard() populates allGames/allPeriodStats/allShots/
+  // allReboundControls/allPuckPlaying from Supabase -- everything the
+  // caller can see under RLS (their own rows, OR (for a coach) every
+  // actively-assigned goalie's rows, OR everything if admin).
+  await loadDashboard();
+
+  if(currentRole === "coach"){
+
+    await loadCoachExtras();
+    // No single goalie selected yet -- "My Goalies" is the landing
+    // tab; applyActiveGoalieFilter() runs when a card is clicked
+    // (see openGoalie()), scoping the shared tabs to just that goalie.
+
+  }
+  else if(currentRole === "admin"){
+
+    await loadAdminExtras();
+
+  }
+  else{
+
+    // A goalie viewing their own dashboard is always looking at
+    // themselves.
+    activeGoalieId =
+      currentSession && currentSession.user && currentSession.user.id;
+
+    applyActiveGoalieFilter();
+
+  }
+
+  // Reference content, not role-scoped -- load for everyone.
+  await loadXGVersionHistory();
+
+}
+
+
+async function loadXGVersionHistory(){
+
+  const container = document.getElementById("xgVersionHistory");
+
+  if(!container){ return; }
+
+  try{
+
+    const versions =
+      await qFiltered("xg_model_versions", "order=effective_at.desc");
+
+    if(!versions.length){
+
+      container.innerHTML =
+        `<div class="empty-state">No version history recorded yet.</div>`;
+
+      return;
+
+    }
+
+    container.innerHTML =
+      versions.map(v => {
+
+        const date =
+          v.effective_at
+            ? new Date(v.effective_at).toLocaleDateString()
+            : "";
+
+        return `
+          <div class="note-item">
+            <div class="note-date">
+              <strong>${v.version}</strong> · ${date}
+            </div>
+            <div class="note-text">${v.summary}</div>
+            ${v.notes ? `<div class="metric-context" style="margin-top:8px">${v.notes}</div>` : ""}
+          </div>
+        `;
+
+      }).join("");
+
+  }
+  catch(err){
+
+    console.error("xG version history loading error:", err);
+
+    container.innerHTML =
+      `<div class="empty-state">Couldn't load version history.</div>`;
+
+  }
+
+}
+
+
+/* ------------------------------------------------------------
+   Per-goalie summary (used by the "My Goalies" cards)
+------------------------------------------------------------ */
+
+function computeGoalieSummary(goalieId){
+
+  const goalieGames =
+    allGames.filter(
+      g => g.user_id === goalieId && isCurrentSeason(g.season)
+    );
+
+  const goalieShots =
+    allShots.filter(s => s.user_id === goalieId);
+
+  const gamesPlayed = goalieGames.length;
+
+  const totalShotsAgainst =
+    goalieGames.reduce((sum,g) => sum + num(g.shots_against), 0);
+
+  const totalSaves =
+    goalieGames.reduce((sum,g) => sum + num(g.saves), 0);
+
+  const totalGoalsAgainst =
+    goalieGames.reduce((sum,g) => sum + num(g.goals_against), 0);
+
+  const totalMinutes =
+    goalieGames.reduce((sum,g) => sum + num(g.minutes_played), 0);
+
+  const svPct =
+    totalShotsAgainst ? (totalSaves / totalShotsAgainst * 100) : null;
+
+  const gaa =
+    totalMinutes > 0
+      ? (totalGoalsAgainst / (totalMinutes / 60))
+      : null;
+
+  const advanced =
+    goalieShots.length
+      ? calculateAdvancedForShots(goalieShots)
+      : null;
+
+  const sortedGames =
+    [...goalieGames].sort(
+      (a,b) => new Date(b.date) - new Date(a.date)
+    );
+
+  const lastGame = sortedGames[0] || null;
+
+  const last3 = sortedGames.slice(0,3);
+
+  const last3Shots =
+    last3.reduce((sum,g) => sum + num(g.shots_against), 0);
+
+  const last3Saves =
+    last3.reduce((sum,g) => sum + num(g.saves), 0);
+
+  const last3SV =
+    last3Shots ? (last3Saves / last3Shots * 100) : null;
+
+  let trend = null;
+
+  if(svPct !== null && last3SV !== null && last3.length >= 2){
+
+    if(last3SV - svPct >= 2){
+      trend = "up";
+    }
+    else if(svPct - last3SV >= 2){
+      trend = "down";
+    }
+    else{
+      trend = "flat";
+    }
+
+  }
+
+  return {
+    gamesPlayed,
+    svPct,
+    gaa,
+    gsax: advanced ? advanced.gsax : null,
+    lastGame,
+    trend
+  };
+
+}
+
+
+/* ------------------------------------------------------------
+   Coach Overview ("My Goalies")
+------------------------------------------------------------ */
+
+async function loadCoachExtras(){
+
+  const errorBox = document.getElementById("dashboard-error");
+
+  try{
+
+    // Own profile always passes RLS via the self-view policy; every
+    // other profile that comes back only passes because of the
+    // "Coaches can view assigned goalie profiles" policy (is_my_goalie).
+    // So "everything that isn't me" IS exactly my assigned goalies --
+    // this deliberately doesn't key off role, since one person (e.g.
+    // an owner/admin account) can also be the tracked goalie.
+    const allProfiles = await q("profiles");
+    const ownId = currentSession && currentSession.user && currentSession.user.id;
+
+    coachGoalieProfiles =
+      allProfiles.filter(p => p.id !== ownId);
+
+    coachPrimaryGoalieId =
+      coachGoalieProfiles.length === 1
+        ? coachGoalieProfiles[0].id
+        : null;
+
+  }
+  catch(err){
+
+    console.error("Coach profile loading error:", err);
+    coachGoalieProfiles = [];
+
+    errorBox.innerHTML += `
+      <div class="error-box">
+        <strong>Couldn't load your goalies.</strong>
+        <br>${err.message}
+      </div>
+    `;
+
+  }
+
+  renderCoachHome();
+
+  await loadCoachNotes();
+
+}
+
+
+function formatSV(svPct){
+  return svPct === null ? "—" : svPct.toFixed(1) + "%";
+}
+
+function formatGAA(gaa){
+  return gaa === null ? "—" : gaa.toFixed(2);
+}
+
+function formatGSAx(gsax){
+  if(gsax === null){ return "—"; }
+  const rounded = Math.round(gsax * 10) / 10;
+  return (rounded > 0 ? "+" : "") + rounded.toFixed(1);
+}
+
+function trendBadge(trend){
+
+  if(trend === "up"){
+    return `<span class="trend-badge trend-up">↑ Improving</span>`;
+  }
+
+  if(trend === "down"){
+    return `<span class="trend-badge trend-down">↓ Declining</span>`;
+  }
+
+  if(trend === "flat"){
+    return `<span class="trend-badge trend-flat">→ Steady</span>`;
+  }
+
+  return `<span class="trend-badge trend-flat">Not enough data</span>`;
+
+}
+
+
+function renderCoachHome(){
+
+  const grid = document.getElementById("coachGoalieGrid");
+
+  if(!coachGoalieProfiles.length){
+
+    grid.innerHTML = `
+      <div class="empty-state">
+        You don't have any goalies assigned yet.
+      </div>
+    `;
+
+    document.getElementById("coachGoalieCount").textContent = "0";
+    document.getElementById("coachGamesAnalyzed").textContent = "—";
+    document.getElementById("coachAvgSV").textContent = "—";
+    document.getElementById("coachAvgGAA").textContent = "—";
+
+    return;
+
+  }
+
+  const summaries =
+    coachGoalieProfiles.map(p => ({
+      profile: p,
+      summary: computeGoalieSummary(p.id)
+    }));
+
+  document.getElementById("coachGoalieCount").textContent =
+    coachGoalieProfiles.length;
+
+  const totalGames =
+    summaries.reduce((sum,s) => sum + s.summary.gamesPlayed, 0);
+
+  document.getElementById("coachGamesAnalyzed").textContent =
+    totalGames;
+
+  const svValues =
+    summaries.map(s => s.summary.svPct).filter(v => v !== null);
+
+  document.getElementById("coachAvgSV").textContent =
+    svValues.length
+      ? formatSV(svValues.reduce((a,b) => a+b, 0) / svValues.length)
+      : "—";
+
+  const gaaValues =
+    summaries.map(s => s.summary.gaa).filter(v => v !== null);
+
+  document.getElementById("coachAvgGAA").textContent =
+    gaaValues.length
+      ? formatGAA(gaaValues.reduce((a,b) => a+b, 0) / gaaValues.length)
+      : "—";
+
+  grid.innerHTML =
+    summaries.map(({profile, summary}) => {
+
+      const lastGameLabel =
+        summary.lastGame
+          ? `vs ${summary.lastGame.opponent || "opponent"} (${summary.lastGame.date || ""})`
+          : "No games yet";
+
+      return `
+        <div class="card goalie-card" onclick="openGoalie('${profile.id}')">
+
+          <div class="goalie-card-top">
+            <div>
+              <div class="goalie-name">${profile.full_name || "Unnamed Goalie"}</div>
+              <div class="goalie-meta">${profile.team || "No team set"} · ${profile.season || CURRENT_SEASON}</div>
+            </div>
+            ${trendBadge(summary.trend)}
+          </div>
+
+          <div class="goalie-card-stats">
+
+            <div>
+              <div class="metric ${summary.svPct !== null ? "good" : ""}">${formatSV(summary.svPct)}</div>
+              <div class="metric-label">SV%</div>
+            </div>
+
+            <div>
+              <div class="metric">${formatGAA(summary.gaa)}</div>
+              <div class="metric-label">GAA</div>
+            </div>
+
+            <div>
+              <div class="metric ${summary.gsax !== null && summary.gsax > 0 ? "good" : ""}">${formatGSAx(summary.gsax)}</div>
+              <div class="metric-label">GSAx</div>
+            </div>
+
+            <div>
+              <div class="metric">${summary.gamesPlayed}</div>
+              <div class="metric-label">Games</div>
+            </div>
+
+          </div>
+
+          <div class="goalie-card-footer">
+            <span>Last game: ${lastGameLabel}</span>
+            <span>View analytics →</span>
+          </div>
+
+        </div>
+      `;
+
+    }).join("");
+
+}
+
+
+function computeGoalieReboundSummary(goalieId){
+
+  const rows = allReboundControls.filter(r => r.user_id === goalieId);
+
+  if(!rows.length){ return null; }
+
+  const totals = {};
+
+  [
+    "glove_caught","glove_rebound","glove_goal",
+    "blocker_good","blocker_bad","blocker_goal",
+    "midsection_good","midsection_bad","midsection_goal",
+    "pad_stick_good","pad_stick_bad","pad_stick_goal"
+  ].forEach(key => {
+    totals[key] = rows.reduce((sum,r) => sum + num(r[key]), 0);
+  });
+
+  const good = totals.blocker_good + totals.midsection_good + totals.pad_stick_good;
+  const bad = totals.blocker_bad + totals.midsection_bad + totals.pad_stick_bad;
+  const tracked = good + bad;
+
+  const goalsFromRebounds =
+    totals.blocker_goal + totals.midsection_goal +
+    totals.pad_stick_goal + totals.glove_goal;
+
+  return {
+    goodPct: tracked ? (good / tracked * 100) : null,
+    badPct: tracked ? (bad / tracked * 100) : null,
+    goalsFromRebounds
+  };
+
+}
+
+
+function computeGoaliePuckSummary(goalieId){
+
+  const rows = allPuckPlaying.filter(p => p.user_id === goalieId);
+
+  if(!rows.length){ return null; }
+
+  const rimsFaced = rows.reduce((sum,r) => sum + num(r.rims_faced), 0);
+  const rimsStopped = rows.reduce((sum,r) => sum + num(r.rims_stopped), 0);
+  const passAttempts = rows.reduce((sum,r) => sum + num(r.pass_attempts), 0);
+  const passesCompleted = rows.reduce((sum,r) => sum + num(r.passes_completed), 0);
+
+  return {
+    rimsStoppedPct: rimsFaced ? (rimsStopped / rimsFaced * 100) : null,
+    passCompletionPct: passAttempts ? (passesCompleted / passAttempts * 100) : null
+  };
+
+}
+
+
+function resultPillClass(result){
+
+  if(result === "W"){ return "result-win"; }
+  if(result === "L"){ return "result-loss"; }
+  if(result === "OTL"){ return "result-otl"; }
+  return "result-neutral";
+
+}
+
+
+function renderGoalieProfile(goalieId){
+
+  const profile = coachGoalieProfiles.find(p => p.id === goalieId);
+
+  if(!profile){ return; }
+
+  document.getElementById("goalieProfileName").textContent =
+    profile.full_name || "Unnamed Goalie";
+
+  document.getElementById("goalieProfileMeta").textContent =
+    `${profile.team || "No team set"} · ${profile.season || CURRENT_SEASON}`;
+
+  const summary = computeGoalieSummary(goalieId);
+
+  document.getElementById("gpSV").textContent = formatSV(summary.svPct);
+  document.getElementById("gpGAA").textContent = formatGAA(summary.gaa);
+  document.getElementById("gpGSAx").textContent = formatGSAx(summary.gsax);
+  document.getElementById("gpGames").textContent = summary.gamesPlayed;
+
+  const recentGames =
+    allGames
+      .filter(g => g.user_id === goalieId && isCurrentSeason(g.season))
+      .sort((a,b) => new Date(b.date) - new Date(a.date))
+      .slice(0,5);
+
+  const gamesBody = document.getElementById("gpRecentGamesBody");
+
+  if(!recentGames.length){
+
+    gamesBody.innerHTML =
+      `<tr><td colspan="7"><div class="empty-state">No games recorded yet.</div></td></tr>`;
+
+  }
+  else{
+
+    gamesBody.innerHTML =
+      recentGames.map(g => {
+
+        const sv =
+          num(g.shots_against)
+            ? (num(g.saves) / num(g.shots_against) * 100)
+            : null;
+
+        return `
+          <tr>
+            <td>${g.date || ""}</td>
+            <td>${g.opponent || ""}</td>
+            <td><span class="result-pill ${resultPillClass(g.result)}">${g.result || "-"}</span></td>
+            <td>${num(g.shots_against)}</td>
+            <td>${num(g.saves)}</td>
+            <td>${sv !== null ? sv.toFixed(1) + "%" : "—"}</td>
+            <td><button type="button" class="btn-secondary" onclick="generateGameReportPDF(${g.id})">PDF</button></td>
+          </tr>
+        `;
+
+      }).join("");
+
+  }
+
+  const rebound = computeGoalieReboundSummary(goalieId);
+  const reboundEl = document.getElementById("gpReboundSummary");
+
+  reboundEl.innerHTML =
+    rebound
+      ? `
+        <div class="stat-row">
+          <span class="stat-name">Good Rebound %</span>
+          <span class="stat-value good">${rebound.goodPct !== null ? rebound.goodPct.toFixed(1) + "%" : "—"}</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">Bad Rebound %</span>
+          <span class="stat-value ${rebound.badPct !== null && rebound.badPct > 30 ? "bad" : ""}">${rebound.badPct !== null ? rebound.badPct.toFixed(1) + "%" : "—"}</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">Goals From Rebounds</span>
+          <span class="stat-value">${rebound.goalsFromRebounds}</span>
+        </div>
+      `
+      : `<div class="empty-state">No rebound tracking data has been entered yet.</div>`;
+
+  const puck = computeGoaliePuckSummary(goalieId);
+  const puckEl = document.getElementById("gpPuckSummary");
+
+  puckEl.innerHTML =
+    puck
+      ? `
+        <div class="stat-row">
+          <span class="stat-name">Rims Stopped %</span>
+          <span class="stat-value">${puck.rimsStoppedPct !== null ? puck.rimsStoppedPct.toFixed(1) + "%" : "—"}</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">Pass Completion %</span>
+          <span class="stat-value">${puck.passCompletionPct !== null ? puck.passCompletionPct.toFixed(1) + "%" : "—"}</span>
+        </div>
+      `
+      : `<div class="empty-state">No puck-playing data has been entered yet.</div>`;
+
+}
+
+
+function openGoalie(goalieId){
+
+  coachPrimaryGoalieId = goalieId;
+
+  // This is the fix for the multi-goalie scoping issue: set which
+  // goalie is "active" and re-derive games/periodStats/shots/etc.
+  // (and re-render every shared tab) scoped to just this goalie, so
+  // the "Go Deeper" links (Game Log, Periods, etc.) can no longer
+  // blend multiple goalies' data together.
+  activeGoalieId = goalieId;
+  applyActiveGoalieFilter();
+
+  renderGoalieProfile(goalieId);
+
+  // Keep the Coach Notes picker/list in sync in case the coach jumps
+  // there next via the "Coach Notes →" button, without needing a
+  // network refetch (coachNotesData is already loaded).
+  renderCoachNotesGoaliePicker();
+  renderCoachNotesList();
+
+  showTab("goalieprofile");
+
+}
+
+
+/* ------------------------------------------------------------
+   Coach Notes
+------------------------------------------------------------ */
+
+function renderCoachNotesGoaliePicker(){
+
+  const select = document.getElementById("coachNotesGoalieSelect");
+  const pickerCard = document.getElementById("coachNotesPickerCard");
+
+  if(!select || !pickerCard){ return; }
+
+  if(!coachGoalieProfiles.length){
+
+    pickerCard.innerHTML =
+      `<div class="empty-state">You don't have any goalies assigned yet.</div>`;
+
+    return;
+
+  }
+
+  // pickerCard may have been replaced with an empty-state on a
+  // previous render (before any goalies existed) -- make sure the
+  // label/select are actually present before using them.
+  if(!document.getElementById("coachNotesGoalieSelect")){
+
+    pickerCard.innerHTML = `
+      <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:8px;">Goalie</label>
+      <select id="coachNotesGoalieSelect" onchange="selectCoachNotesGoalie(this.value)" style="width:100%;max-width:320px;background:#0c261c;border:1px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
+    `;
+
+  }
+
+  const freshSelect = document.getElementById("coachNotesGoalieSelect");
+
+  freshSelect.innerHTML =
+    coachGoalieProfiles
+      .map(p => `<option value="${p.id}">${p.full_name || p.id}</option>`)
+      .join("");
+
+  if(!coachPrimaryGoalieId || !coachGoalieProfiles.some(p => p.id === coachPrimaryGoalieId)){
+    coachPrimaryGoalieId = coachGoalieProfiles[0].id;
+  }
+
+  freshSelect.value = coachPrimaryGoalieId;
+
+}
+
+
+function selectCoachNotesGoalie(goalieId){
+
+  coachPrimaryGoalieId = goalieId;
+  renderCoachNotesList();
+
+}
+
+
+function renderCoachNotesList(){
+
+  const list = document.getElementById("coachNotesList");
+
+  if(!list){ return; }
+
+  const notesForGoalie =
+    coachNotesData.filter(n => n.goalie_id === coachPrimaryGoalieId);
+
+  if(!notesForGoalie.length){
+
+    list.innerHTML =
+      `<div class="empty-state">No notes yet for this goalie.</div>`;
+
+    return;
+
+  }
+
+  list.innerHTML =
+    notesForGoalie.map(note => {
+
+      const dateLabel =
+        note.created_at
+          ? new Date(note.created_at).toLocaleDateString()
+          : "";
+
+      return `
+        <div class="note-item">
+          <div class="note-date">${dateLabel}</div>
+          <div class="note-text"></div>
+        </div>
+      `;
+
+    }).join("");
+
+  // Set note text via textContent to avoid any HTML injection from
+  // stored note text.
+  const items = list.querySelectorAll(".note-text");
+  notesForGoalie.forEach((note, i) => {
+    if(items[i]){ items[i].textContent = note.text; }
+  });
+
+}
+
+
+async function loadCoachNotes(){
+
+  renderCoachNotesGoaliePicker();
+
+  try{
+
+    // RLS already scopes this to the signed-in coach's own notes,
+    // across every goalie they're assigned to.
+    coachNotesData = await qFiltered("coach_notes", "order=created_at.desc");
+
+  }
+  catch(err){
+
+    console.error("Coach notes loading error:", err);
+    coachNotesData = [];
+
+  }
+
+  renderCoachNotesList();
+
+}
+
+
+async function saveCoachNote(){
+
+  const textEl = document.getElementById("coachNoteText");
+  const statusEl = document.getElementById("coachNoteStatus");
+  const btn = document.getElementById("coachNoteSaveBtn");
+
+  const text = textEl.value.trim();
+
+  if(!text){
+    statusEl.textContent = "Write a note first.";
+    return;
+  }
+
+  if(!coachPrimaryGoalieId){
+    statusEl.textContent = "No goalie assigned to attach this note to.";
+    return;
+  }
+
+  btn.disabled = true;
+  statusEl.textContent = "Saving...";
+
+  try{
+
+    const accessToken =
+      (currentSession && currentSession.access_token) || SUPABASE_KEY;
+
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/coach_notes`,
+      {
+        method:"POST",
+        headers:{
+          apikey:SUPABASE_KEY,
+          Authorization:`Bearer ${accessToken}`,
+          "Content-Type":"application/json",
+          Prefer:"return=minimal"
+        },
+        body: JSON.stringify({
+          coach_id: currentSession.user.id,
+          goalie_id: coachPrimaryGoalieId,
+          text
+        })
+      }
+    );
+
+    if(!response.ok){
+      throw new Error(`Supabase error ${response.status}`);
+    }
+
+    textEl.value = "";
+    statusEl.textContent = "Saved.";
+
+    await loadCoachNotes();
+
+  }
+  catch(err){
+
+    console.error("Save note error:", err);
+    statusEl.textContent = "Could not save note: " + err.message;
+
+  }
+  finally{
+
+    btn.disabled = false;
+
+  }
+
+}
+
+
+/* ------------------------------------------------------------
+   Admin Dashboard
+------------------------------------------------------------ */
+
+let adminProfiles = [];
+let adminAssignments = [];
+
+
+async function loadAdminExtras(){
+
+  const errorBox = document.getElementById("dashboard-error");
+
+  try{
+
+    // is_admin() bypasses RLS on profiles/coach_goalie_assignments,
+    // so an admin genuinely gets every row here -- unlike the coach
+    // path, this is not scoped by assignment.
+    adminProfiles = await q("profiles");
+    adminAssignments = await q("coach_goalie_assignments");
+
+  }
+  catch(err){
+
+    console.error("Admin data loading error:", err);
+    adminProfiles = [];
+    adminAssignments = [];
+
+    errorBox.innerHTML += `
+      <div class="error-box">
+        <strong>Couldn't load platform data.</strong>
+        <br>${err.message}
+      </div>
+    `;
+
+  }
+
+  renderAdminHome();
+  renderAdminCoaches();
+  renderAdminGoalies();
+  renderAdminAssignments();
+
+}
+
+
+function renderAdminHome(){
+
+  const coaches = adminProfiles.filter(p => p.role === "coach");
+  const goalies = adminProfiles.filter(p => p.role === "goalie");
+
+  document.getElementById("adminTotalGoalies").textContent = goalies.length;
+  document.getElementById("adminTotalCoaches").textContent = coaches.length;
+
+  // games is populated by loadDashboard(); is_admin() means it
+  // contains every goalie's games platform-wide for this role.
+  document.getElementById("adminTotalGames").textContent = allGames.length;
+
+  document.getElementById("adminActiveAssignments").textContent =
+    adminAssignments.filter(a => a.active).length;
+
+}
+
+
+function renderAdminCoaches(){
+
+  const coaches = adminProfiles.filter(p => p.role === "coach");
+  const tbody = document.getElementById("adminCoachesBody");
+
+  if(!coaches.length){
+
+    tbody.innerHTML =
+      `<tr><td colspan="3"><div class="empty-state">No coach accounts yet.</div></td></tr>`;
+
+    return;
+
+  }
+
+  tbody.innerHTML =
+    coaches.map(c => {
+
+      const assignedCount =
+        adminAssignments.filter(a => a.coach_id === c.id && a.active).length;
+
+      const created =
+        c.created_at ? new Date(c.created_at).toLocaleDateString() : "—";
+
+      return `
+        <tr>
+          <td>${c.full_name || "Unnamed"}</td>
+          <td>${assignedCount}</td>
+          <td>${created}</td>
+        </tr>
+      `;
+
+    }).join("");
+
+}
+
+
+function renderAdminGoalies(){
+
+  const goalies = adminProfiles.filter(p => p.role === "goalie");
+  const tbody = document.getElementById("adminGoaliesBody");
+
+  if(!goalies.length){
+
+    tbody.innerHTML =
+      `<tr><td colspan="4"><div class="empty-state">No goalie accounts yet.</div></td></tr>`;
+
+    return;
+
+  }
+
+  tbody.innerHTML =
+    goalies.map(g => {
+
+      const gameCount =
+        allGames.filter(gm => gm.user_id === g.id).length;
+
+      const coachCount =
+        adminAssignments.filter(a => a.goalie_id === g.id && a.active).length;
+
+      return `
+        <tr>
+          <td>${g.full_name || "Unnamed"}</td>
+          <td>${g.team || "—"}</td>
+          <td>${gameCount}</td>
+          <td>${coachCount}</td>
+        </tr>
+      `;
+
+    }).join("");
+
+}
+
+
+function renderAdminAssignments(){
+
+  const coaches = adminProfiles.filter(p => p.role === "coach");
+  const goalies = adminProfiles.filter(p => p.role === "goalie");
+
+  const coachSelect = document.getElementById("adminAssignCoachSelect");
+  const goalieSelect = document.getElementById("adminAssignGoalieSelect");
+
+  coachSelect.innerHTML =
+    coaches.length
+      ? coaches.map(c => `<option value="${c.id}">${c.full_name || c.id}</option>`).join("")
+      : `<option value="">No coaches yet</option>`;
+
+  goalieSelect.innerHTML =
+    goalies.length
+      ? goalies.map(g => `<option value="${g.id}">${g.full_name || g.id}</option>`).join("")
+      : `<option value="">No goalies yet</option>`;
+
+  const tbody = document.getElementById("adminAssignmentsBody");
+
+  if(!adminAssignments.length){
+
+    tbody.innerHTML =
+      `<tr><td colspan="4"><div class="empty-state">No assignments yet.</div></td></tr>`;
+
+    return;
+
+  }
+
+  tbody.innerHTML =
+    adminAssignments.map(a => {
+
+      const coach = adminProfiles.find(p => p.id === a.coach_id);
+      const goalie = adminProfiles.find(p => p.id === a.goalie_id);
+
+      const statusPill =
+        a.active
+          ? `<span class="result-pill result-win">Active</span>`
+          : `<span class="result-pill result-neutral">Inactive</span>`;
+
+      return `
+        <tr>
+          <td>${coach ? coach.full_name : a.coach_id}</td>
+          <td>${goalie ? goalie.full_name : a.goalie_id}</td>
+          <td>${statusPill}</td>
+          <td>
+            <button class="btn-secondary" onclick="toggleAssignment(${a.id}, ${!a.active})">
+              ${a.active ? "Deactivate" : "Reactivate"}
+            </button>
+            <button class="btn-danger" onclick="deleteAssignment(${a.id})">
+              Delete
+            </button>
+          </td>
+        </tr>
+      `;
+
+    }).join("");
+
+}
+
+
+async function createAssignment(){
+
+  const coachId = document.getElementById("adminAssignCoachSelect").value;
+  const goalieId = document.getElementById("adminAssignGoalieSelect").value;
+  const statusEl = document.getElementById("adminAssignStatus");
+
+  if(!coachId || !goalieId){
+    statusEl.textContent = "Pick both a coach and a goalie.";
+    return;
+  }
+
+  statusEl.textContent = "Saving...";
+
+  try{
+
+    const accessToken =
+      (currentSession && currentSession.access_token) || SUPABASE_KEY;
+
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/coach_goalie_assignments`,
+      {
+        method:"POST",
+        headers:{
+          apikey:SUPABASE_KEY,
+          Authorization:`Bearer ${accessToken}`,
+          "Content-Type":"application/json",
+          Prefer:"return=minimal"
+        },
+        body: JSON.stringify({
+          coach_id: coachId,
+          goalie_id: goalieId,
+          active: true
+        })
+      }
+    );
+
+    if(!response.ok){
+      throw new Error(`Supabase error ${response.status}`);
+    }
+
+    statusEl.textContent = "Assignment created.";
+
+    await loadAdminExtras();
+
+  }
+  catch(err){
+
+    console.error("Create assignment error:", err);
+    statusEl.textContent = "Could not create assignment: " + err.message;
+
+  }
+
+}
+
+
+async function toggleAssignment(id, newActive){
+
+  try{
+
+    const accessToken =
+      (currentSession && currentSession.access_token) || SUPABASE_KEY;
+
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/coach_goalie_assignments?id=eq.${id}`,
+      {
+        method:"PATCH",
+        headers:{
+          apikey:SUPABASE_KEY,
+          Authorization:`Bearer ${accessToken}`,
+          "Content-Type":"application/json",
+          Prefer:"return=minimal"
+        },
+        body: JSON.stringify({ active: newActive })
+      }
+    );
+
+    if(!response.ok){
+      throw new Error(`Supabase error ${response.status}`);
+    }
+
+    await loadAdminExtras();
+
+  }
+  catch(err){
+
+    console.error("Toggle assignment error:", err);
+
+  }
+
+}
+
+
+async function deleteAssignment(id){
+
+  if(!confirm("Delete this assignment? The coach will immediately lose access to this goalie's data.")){
+    return;
+  }
+
+  try{
+
+    const accessToken =
+      (currentSession && currentSession.access_token) || SUPABASE_KEY;
+
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/coach_goalie_assignments?id=eq.${id}`,
+      {
+        method:"DELETE",
+        headers:{
+          apikey:SUPABASE_KEY,
+          Authorization:`Bearer ${accessToken}`
+        }
+      }
+    );
+
+    if(!response.ok){
+      throw new Error(`Supabase error ${response.status}`);
+    }
+
+    await loadAdminExtras();
+
+  }
+  catch(err){
+
+    console.error("Delete assignment error:", err);
+
+  }
+
+}
+
+
+/* ------------------------------------------------------------
+   Game Report (PDF)
+------------------------------------------------------------ */
+
+function getReportGoalieDisplayInfo(){
+
+  // Whoever's data is currently active (a goalie viewing themselves,
+  // or a coach who has opened a specific goalie's profile).
+  if(currentRole === "coach"){
+
+    const profile =
+      coachGoalieProfiles.find(p => p.id === activeGoalieId);
+
+    return {
+      name: (profile && profile.full_name) || "Unknown Goalie",
+      team: (profile && profile.team) || "",
+      season: (profile && profile.season) || CURRENT_SEASON
+    };
+
+  }
+
+  return {
+    name: (currentProfile && currentProfile.full_name) || "Goalie",
+    team: (currentProfile && currentProfile.team) || "",
+    season: (currentProfile && currentProfile.season) || CURRENT_SEASON
+  };
+
+}
+
+
+function computeGameReportData(gameId){
+
+  const game =
+    games.find(g => String(g.id) === String(gameId));
+
+  if(!game){ return null; }
+
+  const gamePeriods =
+    periodStats.filter(p => String(p.game_id) === String(gameId));
+
+  const gameShotsList =
+    shots.filter(s => String(s.game_id) === String(gameId));
+
+  const gameRebounds =
+    reboundControls.filter(r => String(r.game_id) === String(gameId));
+
+  const gamePuck =
+    puckPlaying.filter(p => String(p.game_id) === String(gameId));
+
+  const shotsAgainst = gameShots(game);
+  const saves = gameSaves(game);
+  const goals = gameGoals(game);
+  const minutes = gameMinutes(game);
+
+  const svPct = shotsAgainst ? (saves / shotsAgainst * 100) : null;
+  const gaa = minutes ? (goals / minutes * 60) : null;
+
+  const advanced =
+    gameShotsList.length
+      ? calculateAdvancedForShots(gameShotsList)
+      : null;
+
+  // Period breakdown
+  const periodOrder = ["1","2","3","OT"];
+  const periodGroups = {};
+
+  gamePeriods.forEach(row => {
+
+    let p = normalize(row.period || row.period_number);
+    if(p === "1st"){ p = "1"; }
+    if(p === "2nd"){ p = "2"; }
+    if(p === "3rd"){ p = "3"; }
+    if(!periodOrder.includes(p)){ p = "?"; }
+
+    if(!periodGroups[p]){ periodGroups[p] = {shots:0, saves:0, goals:0}; }
+
+    periodGroups[p].shots += num(row.shots_against);
+    periodGroups[p].saves += num(row.saves);
+    periodGroups[p].goals += num(row.goals_against);
+
+  });
+
+  const periodRows =
+    [...periodOrder, "?"]
+      .filter(p => periodGroups[p])
+      .map(p => {
+        const g = periodGroups[p];
+        const sv = g.shots ? (g.saves / g.shots * 100) : null;
+        return {
+          label: p === "?" ? "Unspecified" : (p === "OT" ? "OT" : p + (p==="1"?"st":p==="2"?"nd":"rd")),
+          shots: g.shots, saves: g.saves, goals: g.goals, svPct: sv
+        };
+      });
+
+  // Situational breakdown
+  const situations = [
+    { key:"rush", label:"Rush", test: isRushShot },
+    { key:"rebound", label:"Rebound", test: shotIsRebound },
+    { key:"screened", label:"Screened", test: isScreened },
+    { key:"breakaway", label:"Breakaway", test: isBreakaway },
+    { key:"cross_ice", label:"Cross-Ice", test: s => shotBoolean(s.cross_ice) }
+  ];
+
+  const situationalRows =
+    situations
+      .map(sit => {
+        const subset = gameShotsList.filter(sit.test);
+        if(!subset.length){ return null; }
+        const g = subset.filter(isGoal).length;
+        const sv = subset.length ? ((subset.length - g) / subset.length * 100) : null;
+        return { label: sit.label, shots: subset.length, goals: g, svPct: sv };
+      })
+      .filter(Boolean);
+
+  // Shot location breakdown
+  const locationGroups = {};
+
+  gameShotsList.forEach(shot => {
+    const loc = shotLocation(shot) || "unspecified";
+    if(!locationGroups[loc]){ locationGroups[loc] = {shots:0, goals:0}; }
+    locationGroups[loc].shots++;
+    if(isGoal(shot)){ locationGroups[loc].goals++; }
+  });
+
+  const locationRows =
+    Object.entries(locationGroups).map(([loc, g]) => {
+      const sv = g.shots ? ((g.shots - g.goals) / g.shots * 100) : null;
+      return { label: loc, shots: g.shots, goals: g.goals, svPct: sv };
+    });
+
+  // Rebound control totals
+  let reboundSummary = null;
+
+  if(gameRebounds.length){
+
+    const totals = {};
+
+    [
+      "glove_caught","glove_rebound","glove_goal",
+      "blocker_good","blocker_bad","blocker_goal",
+      "midsection_good","midsection_bad","midsection_goal",
+      "pad_stick_good","pad_stick_bad","pad_stick_goal"
+    ].forEach(key => {
+      totals[key] = gameRebounds.reduce((sum,r) => sum + num(r[key]), 0);
+    });
+
+    reboundSummary = totals;
+
+  }
+
+  // Puck playing totals
+  let puckSummary = null;
+
+  if(gamePuck.length){
+
+    puckSummary = {
+      rimsFaced: gamePuck.reduce((s,r) => s + num(r.rims_faced), 0),
+      rimsStopped: gamePuck.reduce((s,r) => s + num(r.rims_stopped), 0),
+      passAttempts: gamePuck.reduce((s,r) => s + num(r.pass_attempts), 0),
+      passesCompleted: gamePuck.reduce((s,r) => s + num(r.passes_completed), 0)
+    };
+
+  }
+
+  return {
+    game, shotsAgainst, saves, goals, minutes, svPct, gaa, advanced,
+    periodRows, situationalRows, locationRows, reboundSummary, puckSummary,
+    shotCount: gameShotsList.length
+  };
+
+}
+
+
+function pdfEnsureSpace(doc, y, needed){
+
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  if(y + needed > pageHeight - 50){
+    doc.addPage();
+    return 56;
+  }
+
+  return y;
+
+}
+
+
+function pdfSectionHeading(doc, y, text){
+
+  y = pdfEnsureSpace(doc, y, 30);
+
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(12);
+  doc.setTextColor(15,55,40);
+  doc.text(text, 42, y);
+
+  doc.setDrawColor(210,210,210);
+  doc.line(42, y + 5, 553, y + 5);
+
+  return y + 22;
+
+}
+
+
+function pdfStatRow(doc, y, label, value, x1, x2){
+
+  y = pdfEnsureSpace(doc, y, 16);
+
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(9.5);
+  doc.setTextColor(90,90,90);
+  doc.text(String(label), x1 || 48, y);
+
+  doc.setFont("helvetica","bold");
+  doc.setTextColor(25,25,25);
+  doc.text(String(value), x2 || 300, y);
+
+  return y + 15;
+
+}
+
+
+function pdfTableRow(doc, y, cells, widths, isHeader){
+
+  y = pdfEnsureSpace(doc, y, 16);
+
+  let x = 48;
+
+  doc.setFont("helvetica", isHeader ? "bold" : "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(isHeader ? 60 : 40, isHeader ? 60 : 40, isHeader ? 60 : 40);
+
+  cells.forEach((cell, i) => {
+    doc.text(String(cell), x, y);
+    x += widths[i];
+  });
+
+  return y + 15;
+
+}
+
+
+function formatPdfPct(v){
+  return v === null || v === undefined ? "n/a" : v.toFixed(1) + "%";
+}
+
+
+async function generateGameReportPDF(gameId){
+
+  if(!window.jspdf){
+    alert("PDF library did not load. Check your connection and try again.");
+    return;
+  }
+
+  const data = computeGameReportData(gameId);
+
+  if(!data){
+    alert("Could not find that game.");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:"pt", format:"a4" });
+
+  const goalieInfo = getReportGoalieDisplayInfo();
+  const game = data.game;
+
+  let y = 56;
+
+  // Header
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(18);
+  doc.setTextColor(15,55,40);
+  doc.text("GoalieIQ Analytics", 42, y);
+
+  doc.setFontSize(11);
+  doc.setTextColor(120,120,120);
+  doc.text("Game Report", 42, y + 16);
+
+  y += 40;
+
+  doc.setDrawColor(15,55,40);
+  doc.setLineWidth(1.2);
+  doc.line(42, y, 553, y);
+  y += 26;
+
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(14);
+  doc.setTextColor(20,20,20);
+  doc.text(`${goalieInfo.name}`, 42, y);
+  y += 16;
+
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(10);
+  doc.setTextColor(90,90,90);
+  doc.text(`${goalieInfo.team || "No team set"} · ${goalieInfo.season}`, 42, y);
+  y += 24;
+
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(11);
+  doc.setTextColor(30,30,30);
+  doc.text(`${gameDate(game) || "No date"}  vs  ${gameOpponent(game)}`, 42, y);
+  y += 15;
+
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(10);
+  doc.setTextColor(90,90,90);
+  doc.text(`Result: ${gameResult(game) || "—"}    Season: ${game.season || CURRENT_SEASON}`, 42, y);
+  y += 26;
+
+  // Performance Summary
+  y = pdfSectionHeading(doc, y, "Performance Summary");
+  y = pdfStatRow(doc, y, "Shots Against", data.shotsAgainst);
+  y = pdfStatRow(doc, y, "Saves", data.saves);
+  y = pdfStatRow(doc, y, "Goals Against", data.goals);
+  y = pdfStatRow(doc, y, "Save Percentage", formatPdfPct(data.svPct));
+  y = pdfStatRow(doc, y, "GAA (this game)", data.gaa !== null ? data.gaa.toFixed(2) : "n/a");
+  y = pdfStatRow(doc, y, "Minutes Played", data.minutes ? data.minutes.toFixed(1) : "n/a");
+
+  if(data.advanced){
+    y = pdfStatRow(doc, y, "Expected Goals Against (xGA)", data.advanced.xGA.toFixed(2));
+    y = pdfStatRow(doc, y, "Expected SV%", formatPdfPct(data.advanced.expectedSV));
+    y = pdfStatRow(doc, y, "GSAx (Goals Saved Above Expected)", (data.advanced.gsax >= 0 ? "+" : "") + data.advanced.gsax.toFixed(2));
+    y += 4;
+    y = pdfStatRow(doc, y, "Shot Grades — A+ / A / B / C",
+      `${data.advanced.grades["A+"]} / ${data.advanced.grades["A"]} / ${data.advanced.grades["B"]} / ${data.advanced.grades["C"]}`);
+  }
+  else{
+    y = pdfStatRow(doc, y, "Shot-level detail", "No shots tagged for this game.");
+  }
+
+  y += 10;
+
+  // Period Breakdown
+  if(data.periodRows.length){
+
+    y = pdfSectionHeading(doc, y, "Period Breakdown");
+    y = pdfTableRow(doc, y, ["Period","Shots","Saves","GA","SV%"], [90,80,80,80,80], true);
+
+    data.periodRows.forEach(p => {
+      y = pdfTableRow(doc, y,
+        [p.label, p.shots, p.saves, p.goals, formatPdfPct(p.svPct)],
+        [90,80,80,80,80]
+      );
+    });
+
+    y += 10;
+
+  }
+
+  // Situational Breakdown
+  if(data.situationalRows.length){
+
+    y = pdfSectionHeading(doc, y, "Situational Breakdown");
+    y = pdfTableRow(doc, y, ["Situation","Shots","Goals","SV%"], [140,80,80,80], true);
+
+    data.situationalRows.forEach(s => {
+      y = pdfTableRow(doc, y, [s.label, s.shots, s.goals, formatPdfPct(s.svPct)], [140,80,80,80]);
+    });
+
+    y += 10;
+
+  }
+
+  // Shot Location Breakdown
+  if(data.locationRows.length){
+
+    y = pdfSectionHeading(doc, y, "Shot Location Breakdown");
+    y = pdfTableRow(doc, y, ["Location","Shots","Goals","SV%"], [140,80,80,80], true);
+
+    data.locationRows.forEach(l => {
+      y = pdfTableRow(doc, y, [l.label, l.shots, l.goals, formatPdfPct(l.svPct)], [140,80,80,80]);
+    });
+
+    y += 10;
+
+  }
+
+  // Rebound Control
+  if(data.reboundSummary){
+
+    const t = data.reboundSummary;
+
+    y = pdfSectionHeading(doc, y, "Rebound Control");
+    y = pdfStatRow(doc, y, "Glove", `${t.glove_caught} caught, ${t.glove_rebound} rebound, ${t.glove_goal} goal`);
+    y = pdfStatRow(doc, y, "Blocker", `${t.blocker_good} good, ${t.blocker_bad} bad, ${t.blocker_goal} goal`);
+    y = pdfStatRow(doc, y, "Midsection", `${t.midsection_good} good, ${t.midsection_bad} bad, ${t.midsection_goal} goal`);
+    y = pdfStatRow(doc, y, "Pad/Stick", `${t.pad_stick_good} good, ${t.pad_stick_bad} bad, ${t.pad_stick_goal} goal`);
+    y += 10;
+
+  }
+  else{
+
+    y = pdfSectionHeading(doc, y, "Rebound Control");
+    y = pdfStatRow(doc, y, "", "No rebound tracking data entered for this game.");
+    y += 10;
+
+  }
+
+  // Puck Playing
+  if(data.puckSummary){
+
+    const p = data.puckSummary;
+    const rimsPct = p.rimsFaced ? (p.rimsStopped / p.rimsFaced * 100) : null;
+    const passPct = p.passAttempts ? (p.passesCompleted / p.passAttempts * 100) : null;
+
+    y = pdfSectionHeading(doc, y, "Puck Playing");
+    y = pdfStatRow(doc, y, "Rims Faced / Stopped", `${p.rimsFaced} / ${p.rimsStopped} (${formatPdfPct(rimsPct)})`);
+    y = pdfStatRow(doc, y, "Pass Attempts / Completed", `${p.passAttempts} / ${p.passesCompleted} (${formatPdfPct(passPct)})`);
+    y += 10;
+
+  }
+  else{
+
+    y = pdfSectionHeading(doc, y, "Puck Playing");
+    y = pdfStatRow(doc, y, "", "No puck-playing data entered for this game.");
+    y += 10;
+
+  }
+
+  // Footer on every page
+  const pageCount = doc.internal.getNumberOfPages();
+
+  for(let i = 1; i <= pageCount; i++){
+
+    doc.setPage(i);
+
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    doc.setDrawColor(230,230,230);
+    doc.line(42, pageHeight - 40, 553, pageHeight - 40);
+
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(8);
+    doc.setTextColor(140,140,140);
+
+    doc.text(
+      `Generated ${new Date().toLocaleString()} · xG model ${XG_MODEL_VERSION} · GoalieIQ Analytics`,
+      42, pageHeight - 26
+    );
+
+    doc.text(`Page ${i} of ${pageCount}`, 500, pageHeight - 26);
+
+  }
+
+  const fileName =
+    `${(goalieInfo.name || "goalie").replace(/\s+/g,"_")}_${gameDate(game) || "game"}_vs_${gameOpponent(game).replace(/\s+/g,"_")}.pdf`;
+
+  doc.save(fileName);
+
+}
+
+
+async function initAuth(){
+
+  const { data } =
+    await supabaseClient.auth.getSession();
+
+  currentSession = data.session;
+
+  if(currentSession){
+
+    refreshUserBadge();
+    showApp();
+    applyRoleAndLoad();
+
+  }
+  else{
+
+    showAuthScreen();
+
+  }
+
+}
+
+
+/* ============================================================
+   LOAD DASHBOARD
+============================================================ */
+
+async function loadDashboard(){
+
+  const errorBox =
+    document.getElementById(
+      "dashboard-error"
+    );
+
+
+  try{
+
+    errorBox.innerHTML = "";
+
+
+    const results =
+      await Promise.all([
+
+        q("Games"),
+
+        q("Period Stats"),
+
+        q("Shots")
+
+      ]);
+
+
+    allGames =
+      Array.isArray(results[0])
+        ? results[0]
+        : [];
+
+
+    allPeriodStats =
+      Array.isArray(results[1])
+        ? results[1]
+        : [];
+
+
+    allShots =
+      Array.isArray(results[2])
+        ? results[2]
+        : [];
+
+
+    try{
+
+      allReboundControls =
+        await q(
+          "goalierebound_control"
+        );
+
+
+      if(
+        !Array.isArray(
+          allReboundControls
+        )
+      ){
+
+        allReboundControls = [];
+
+      }
+
+    }
+    catch(reboundError){
+
+      allReboundControls = [];
+
+
+      console.error(
+        "Rebound Control loading error:",
+        reboundError
+      );
+
+
+      errorBox.innerHTML = `
+
+        <div class="error-box">
+
+          <strong>
+            Rebound Control could not load.
+          </strong>
+
+          <br>
+
+          Supabase is currently refusing access
+          to the
+          <strong>goalierebound_control</strong>
+          table.
+
+          <br><br>
+
+          The rest of the dashboard will still load.
+
+          <br><br>
+
+          Check the Supabase Data API exposure and
+          SELECT/RLS permissions for that table.
+
+        </div>
+
+      `;
+
+    }
+
+
+    try{
+
+      allPuckPlaying =
+        await q(
+          "puck_playing"
+        );
+
+
+      if(
+        !Array.isArray(
+          allPuckPlaying
+        )
+      ){
+
+        allPuckPlaying = [];
+
+      }
+
+    }
+    catch(puckError){
+
+      allPuckPlaying = [];
+
+
+      console.error(
+        "Puck Playing loading error:",
+        puckError
+      );
+
+
+      errorBox.innerHTML += `
+
+        <div class="error-box">
+
+          <strong>
+            Puck Playing could not load.
+          </strong>
+
+          <br><br>
+
+          Supabase is currently refusing access
+          to the
+          <strong>puck_playing</strong>
+          table.
+
+          <br><br>
+
+          Check the Supabase Data API exposure and
+          SELECT/RLS permissions for that table.
+
+          <br><br>
+
+          The rest of the dashboard will still load.
+
+        </div>
+
+      `;
+
+    }
+
+    // NOTE: rendering is intentionally NOT done here anymore. This
+    // function's only job is loading everything the signed-in user
+    // can see into the all* arrays. Deciding which single goalie's
+    // data to actually display (and rendering it) is handled by
+    // applyActiveGoalieFilter(), called from applyRoleAndLoad() for
+    // a goalie's own dashboard, or from openGoalie() when a coach
+    // picks a specific goalie to view.
+
+
+  }
+  catch(error){
+
+    console.error(error);
+
+
+    errorBox.innerHTML = `
+
+      <div class="error-box">
+
+        <strong>
+          Dashboard Error
+        </strong>
+
+        <br><br>
+
+        ${error.message}
+
+      </div>
+
+    `;
+
+  }
+
+}
+
+
+/* ============================================================
+   ACTIVE GOALIE FILTER
+============================================================ */
+
+function applyActiveGoalieFilter(){
+
+  if(!activeGoalieId){
+
+    games = [];
+    periodStats = [];
+    shots = [];
+    reboundControls = [];
+    puckPlaying = [];
+
+  }
+  else{
+
+    games =
+      allGames.filter(g => g.user_id === activeGoalieId);
+
+    periodStats =
+      allPeriodStats.filter(p => p.user_id === activeGoalieId);
+
+    shots =
+      allShots.filter(s => s.user_id === activeGoalieId);
+
+    reboundControls =
+      allReboundControls.filter(r => r.user_id === activeGoalieId);
+
+    puckPlaying =
+      allPuckPlaying.filter(p => p.user_id === activeGoalieId);
+
+  }
+
+  filterSeasonData();
+
+  renderOverview();
+
+  renderGameLog();
+
+  renderPeriods();
+
+  renderSituational();
+
+  renderReboundControl();
+
+  renderIncremental();
+
+  renderPuckPlaying();
+
+  renderMyGamesList();
+
+}
+
+
+/* ============================================================
+   DEBUG
+============================================================ */
+
+window.debugReboundControl =
+  function(){
+
+    console.log(
+      "All rebound-control rows:",
+      reboundControls
+    );
+
+
+    console.log(
+      "Season rebound-control rows:",
+      seasonReboundControls
+    );
+
+
+    console.log(
+      "Games:",
+      seasonGames
+    );
+
+
+    console.log(
+      "Current season:",
+      CURRENT_SEASON
+    );
+
+  };
+
+
+/* ============================================================
+   ADD GAME FORM
+============================================================ */
+
+function addPeriodRow(){
+
+  const container =
+    document.getElementById("period-rows");
+
+  const row =
+    document.createElement("div");
+
+  row.className = "repeater-row";
+
+  row.innerHTML = `
+    <div class="field-grid">
+
+      <div class="field">
+        <label>Period</label>
+        <input type="text" data-field="period" placeholder="1, 2, 3, OT">
+      </div>
+
+      <div class="field">
+        <label>Minutes Played</label>
+        <input type="number" data-field="minutes_played" min="0" step="0.1">
+      </div>
+
+      <div class="field">
+        <label>Shots Against</label>
+        <input type="number" data-field="shots_against" min="0">
+      </div>
+
+      <div class="field">
+        <label>Saves</label>
+        <input type="number" data-field="saves" min="0">
+      </div>
+
+      <div class="field">
+        <label>Goals Against</label>
+        <input type="number" data-field="goals_against" min="0">
+      </div>
+
+      <div class="field">
+        <label>Notes</label>
+        <input type="text" data-field="Notes">
+      </div>
+
+    </div>
+
+    <button type="button" class="repeater-remove" onclick="this.closest('.repeater-row').remove()">
+      Remove period
+    </button>
+  `;
+
+  container.appendChild(row);
+
+}
+
+
+function addShotRow(){
+
+  const container =
+    document.getElementById("shot-rows");
+
+  const row =
+    document.createElement("div");
+
+  row.className = "repeater-row";
+
+  row.innerHTML = `
+    <div class="field-grid">
+
+      <div class="field">
+        <label>Period</label>
+        <input type="text" data-field="period" placeholder="1, 2, 3, OT">
+      </div>
+
+      <div class="field">
+        <label>Distance</label>
+        <input type="number" data-field="distance" min="0" step="0.1">
+      </div>
+
+      <div class="field">
+        <label>Location</label>
+        <input type="text" data-field="location" placeholder="slot, point, etc.">
+      </div>
+
+      <div class="field">
+        <label>Shot Type</label>
+        <input type="text" data-field="shot_type" placeholder="wrist, slap, etc.">
+      </div>
+
+      <div class="field">
+        <label>Outcome</label>
+        <select data-field="outcome">
+          <option value="save">Save</option>
+          <option value="goal">Goal</option>
+        </select>
+      </div>
+
+      <div class="field checkbox-field">
+        <input type="checkbox" data-field="rush">
+        <label>Rush</label>
+      </div>
+
+      <div class="field checkbox-field">
+        <input type="checkbox" data-field="rebound">
+        <label>Rebound</label>
+      </div>
+
+      <div class="field checkbox-field">
+        <input type="checkbox" data-field="screened">
+        <label>Screened</label>
+      </div>
+
+      <div class="field checkbox-field">
+        <input type="checkbox" data-field="breakaway">
+        <label>Breakaway</label>
+      </div>
+
+      <div class="field checkbox-field">
+        <input type="checkbox" data-field="cross_ice">
+        <label>Cross Ice</label>
+      </div>
+
+      <div class="field checkbox-field">
+        <input type="checkbox" data-field="deflection">
+        <label>Deflection</label>
+      </div>
+
+    </div>
+
+    <button type="button" class="repeater-remove" onclick="this.closest('.repeater-row').remove()">
+      Remove shot
+    </button>
+  `;
+
+  container.appendChild(row);
+
+}
+
+
+function hideAddGameMessages(){
+
+  const err = document.getElementById("addgame-error");
+  const msg = document.getElementById("addgame-message");
+
+  err.classList.remove("visible");
+  msg.classList.remove("visible");
+
+  err.textContent = "";
+  msg.textContent = "";
+
+}
+
+
+function showAddGameError(message){
+
+  const err = document.getElementById("addgame-error");
+
+  err.textContent = message;
+  err.classList.add("visible");
+
+}
+
+
+function showAddGameMessage(message){
+
+  const msg = document.getElementById("addgame-message");
+
+  msg.textContent = message;
+  msg.classList.add("visible");
+
+}
+
+
+function numOrNull(value){
+
+  if(value === "" || value === null || value === undefined){
+    return null;
+  }
+
+  const n = Number(value);
+
+  return Number.isFinite(n) ? n : null;
+
+}
+
+
+function textOrNull(value){
+
+  const v = String(value ?? "").trim();
+
+  return v === "" ? null : v;
+
+}
+
+
+function rowIsBlank(fields){
+
+  return Object.values(fields).every(
+    v => v === null || v === "" || v === false
+  );
+
+}
+
+
+/* ============================================================
+   MY GAMES LIST / EDIT / DELETE
+============================================================ */
+
+let editingGameId = null;
+
+
+function renderMyGamesList(){
+
+  const container =
+    document.getElementById("my-games-list");
+
+  if(!container){
+    return;
+  }
+
+  const sorted =
+    [...games].sort((a, b) => {
+      const da = String(a.date || "");
+      const db = String(b.date || "");
+      return db.localeCompare(da);
+    });
+
+  if(sorted.length === 0){
+    container.innerHTML = `<div class="card empty">No games yet. Add one below.</div>`;
+    return;
+  }
+
+  container.innerHTML = sorted.map(game => {
+
+    const dateLabel = game.date || "No date";
+    const oppLabel = game.opponent || "Unknown opponent";
+    const resultLabel = game.result || "";
+    const scoreLabel =
+      (game.team_goals ?? "?") + " - " + (game["opponent goals"] ?? "?");
+
+    return `
+      <div class="card mygame-item">
+        <div class="mygame-item-info">
+          <span class="mygame-title">${dateLabel} vs ${oppLabel}</span>
+          <span class="mygame-sub">${resultLabel} &middot; ${scoreLabel} &middot; ${game.shots_against ?? "?"} SA, ${game.saves ?? "?"} SV</span>
+        </div>
+        <div class="mygame-item-actions">
+          <button type="button" class="btn-secondary" onclick="generateGameReportPDF(${game.id})">Report</button>
+          <button type="button" class="btn-secondary" onclick="editGame(${game.id})">Edit</button>
+          <button type="button" class="btn-danger" onclick="deleteGame(${game.id})">Delete</button>
+        </div>
+      </div>
+    `;
+
+  }).join("");
+
+}
+
+
+function editGame(gameId){
+
+  const game =
+    games.find(g => String(g.id) === String(gameId));
+
+  if(!game){
+    showAddGameError("Could not find that game.");
+    return;
+  }
+
+  editingGameId = gameId;
+
+  document.getElementById("addgame-form-heading").textContent =
+    "Editing Game";
+
+  document.getElementById("addgame-form-subheading").textContent =
+    `Editing ${game.date || ""} vs ${game.opponent || "opponent"}. Saving will replace this game's period, shot, rebound-control, and puck-playing rows with whatever is currently in this form.`;
+
+  document.getElementById("addgame-submit").textContent =
+    "Update Game";
+
+  document.getElementById("addgame-cancel-edit").style.display =
+    "inline-block";
+
+  document.getElementById("ag-date").value = game.date || "";
+  document.getElementById("ag-season").value = game.season || "";
+  document.getElementById("ag-team").value = game.team || "";
+  document.getElementById("ag-opponent").value = game.opponent || "";
+  document.getElementById("ag-home-away").value = game.home_away || "";
+  document.getElementById("ag-result").value = game.result || "";
+  document.getElementById("ag-team-goals").value = game.team_goals ?? "";
+  document.getElementById("ag-opponent-goals").value = game["opponent goals"] ?? "";
+  document.getElementById("ag-shots-against").value = game.shots_against ?? "";
+  document.getElementById("ag-saves").value = game.saves ?? "";
+  document.getElementById("ag-goals-against").value = game.goals_against ?? "";
+  document.getElementById("ag-minutes").value = game.minutes_played ?? "";
+  document.getElementById("ag-shutout").checked = !!game.shutout;
+  document.getElementById("ag-notes").value = game.notes || "";
+
+  const periodContainer =
+    document.getElementById("period-rows");
+
+  periodContainer.innerHTML = "";
+
+  periodStats
+    .filter(p => String(p.game_id) === String(gameId))
+    .forEach(p => {
+      addPeriodRow();
+      const row = periodContainer.lastElementChild;
+      row.querySelector('[data-field="period"]').value = p.period || "";
+      row.querySelector('[data-field="minutes_played"]').value = p.minutes_played ?? "";
+      row.querySelector('[data-field="shots_against"]').value = p.shots_against ?? "";
+      row.querySelector('[data-field="saves"]').value = p.saves ?? "";
+      row.querySelector('[data-field="goals_against"]').value = p.goals_against ?? "";
+      row.querySelector('[data-field="Notes"]').value = p.Notes || "";
+    });
+
+  const shotContainer =
+    document.getElementById("shot-rows");
+
+  shotContainer.innerHTML = "";
+
+  shots
+    .filter(s => String(s.game_id) === String(gameId))
+    .forEach(s => {
+      addShotRow();
+      const row = shotContainer.lastElementChild;
+      row.querySelector('[data-field="period"]').value = s.period || "";
+      row.querySelector('[data-field="distance"]').value = s.distance ?? "";
+      row.querySelector('[data-field="location"]').value = s.location || "";
+      row.querySelector('[data-field="shot_type"]').value = s.shot_type || "";
+      row.querySelector('[data-field="outcome"]').value = s.outcome || "save";
+      row.querySelector('[data-field="rush"]').checked = !!s.rush;
+      row.querySelector('[data-field="rebound"]').checked = !!s.rebound;
+      row.querySelector('[data-field="screened"]').checked = !!s.screened;
+      row.querySelector('[data-field="breakaway"]').checked = !!s.breakaway;
+      row.querySelector('[data-field="cross_ice"]').checked = !!s.cross_ice;
+      row.querySelector('[data-field="deflection"]').checked = !!s.deflection;
+    });
+
+  const rebound =
+    reboundControls.find(r => String(r.game_id) === String(gameId));
+
+  document.getElementById("rc-glove-caught").value = rebound?.glove_caught ?? "";
+  document.getElementById("rc-glove-rebound").value = rebound?.glove_rebound ?? "";
+  document.getElementById("rc-glove-goal").value = rebound?.glove_goal ?? "";
+  document.getElementById("rc-blocker-good").value = rebound?.blocker_good ?? "";
+  document.getElementById("rc-blocker-bad").value = rebound?.blocker_bad ?? "";
+  document.getElementById("rc-blocker-goal").value = rebound?.blocker_goal ?? "";
+  document.getElementById("rc-midsection-good").value = rebound?.midsection_good ?? "";
+  document.getElementById("rc-midsection-bad").value = rebound?.midsection_bad ?? "";
+  document.getElementById("rc-midsection-goal").value = rebound?.midsection_goal ?? "";
+  document.getElementById("rc-padstick-good").value = rebound?.pad_stick_good ?? "";
+  document.getElementById("rc-padstick-bad").value = rebound?.pad_stick_bad ?? "";
+  document.getElementById("rc-padstick-goal").value = rebound?.pad_stick_goal ?? "";
+
+  const puck =
+    puckPlaying.find(p => String(p.game_id) === String(gameId));
+
+  document.getElementById("pp-rims-faced").value = puck?.rims_faced ?? "";
+  document.getElementById("pp-rims-stopped").value = puck?.rims_stopped ?? "";
+  document.getElementById("pp-pass-attempts").value = puck?.pass_attempts ?? "";
+  document.getElementById("pp-passes-completed").value = puck?.passes_completed ?? "";
+
+  document.getElementById("addgame-form")
+    .scrollIntoView({ behavior: "smooth" });
+
+}
+
+
+function cancelEditGame(){
+
+  editingGameId = null;
+
+  document.getElementById("addgame-form").reset();
+  document.getElementById("period-rows").innerHTML = "";
+  document.getElementById("shot-rows").innerHTML = "";
+
+  document.getElementById("addgame-form-heading").textContent =
+    "Add a New Game";
+
+  document.getElementById("addgame-form-subheading").textContent =
+    "Required for every game.";
+
+  document.getElementById("addgame-submit").textContent =
+    "Save Game";
+
+  document.getElementById("addgame-cancel-edit").style.display =
+    "none";
+
+  hideAddGameMessages();
+
+}
+
+
+async function deleteGame(gameId){
+
+  const game =
+    games.find(g => String(g.id) === String(gameId));
+
+  const label =
+    game ? `${game.date || ""} vs ${game.opponent || "opponent"}` : "this game";
+
+  if(!confirm(`Delete ${label}? This also deletes its period, shot, rebound-control, and puck-playing rows. This cannot be undone.`)){
+    return;
+  }
+
+  try{
+
+    await supabaseClient.from("Period Stats").delete().eq("game_id", gameId);
+    await supabaseClient.from("Shots").delete().eq("game_id", gameId);
+    await supabaseClient.from("goalierebound_control").delete().eq("game_id", gameId);
+    await supabaseClient.from("puck_playing").delete().eq("game_id", gameId);
+
+    const { error: gameError } =
+      await supabaseClient.from("Games").delete().eq("id", gameId);
+
+    if(gameError){
+      throw gameError;
+    }
+
+    if(editingGameId === gameId){
+      cancelEditGame();
+    }
+
+    await loadDashboard();
+
+  }
+  catch(error){
+
+    console.error(error);
+    alert("Could not delete this game: " + (error.message || "unknown error"));
+
+  }
+
+}
+
+
+/* ============================================================
+   LIVE TAG
+============================================================ */
+
+const REBOUND_TALLY_KEYS = [
+  "glove_caught","glove_rebound","glove_goal",
+  "blocker_good","blocker_bad","blocker_goal",
+  "midsection_good","midsection_bad","midsection_goal",
+  "pad_stick_good","pad_stick_bad","pad_stick_goal"
+];
+
+const REBOUND_TALLY_LABELS = {
+  glove_caught:"Glove Caught",
+  glove_rebound:"Glove Rebound",
+  glove_goal:"Glove Goal",
+  blocker_good:"Blocker Good",
+  blocker_bad:"Blocker Bad",
+  blocker_goal:"Blocker Goal",
+  midsection_good:"Midsection Good",
+  midsection_bad:"Midsection Bad",
+  midsection_goal:"Midsection Goal",
+  pad_stick_good:"Pad/Stick Good",
+  pad_stick_bad:"Pad/Stick Bad",
+  pad_stick_goal:"Pad/Stick Goal"
+};
+
+function freshLiveTagState(){
+
+  const reboundTally = {};
+  REBOUND_TALLY_KEYS.forEach(k => reboundTally[k] = 0);
+
+  return {
+    currentPeriod: "1",
+    outcome: "save",
+    location: null,
+    shot_type: null,
+    flags: { rush:false, rebound:false, screened:false, breakaway:false, cross_ice:false, deflection:false },
+    reboundTag: "skip",
+    shots: [],
+    reboundTally,
+    puckTally: { rims_faced:0, rims_stopped:0, pass_attempts:0, passes_completed:0 }
+  };
+
+}
+
+let liveTagState = freshLiveTagState();
+
+
+function setLiveTagPeriod(period){
+
+  liveTagState.currentPeriod = period;
+
+  document
+    .querySelectorAll("#livetag-period-selector .period-btn")
+    .forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.period === period);
+    });
+
+}
+
+
+function selectLiveTagOutcome(value){
+
+  liveTagState.outcome = value;
+
+  document
+    .querySelectorAll("#lt-outcome-buttons .tag-btn")
+    .forEach(btn => {
+      btn.classList.toggle("selected", btn.dataset.value === value);
+    });
+
+}
+
+
+function selectLiveTagChoice(field, value, btnEl){
+
+  liveTagState[field] = value;
+
+  Array.from(btnEl.parentElement.children).forEach(btn => {
+    btn.classList.toggle("selected", btn === btnEl);
+  });
+
+}
+
+
+function toggleLiveTagFlag(flag, btnEl){
+
+  liveTagState.flags[flag] = !liveTagState.flags[flag];
+  btnEl.classList.toggle("selected", liveTagState.flags[flag]);
+
+}
+
+
+function resetLiveTagShotPicker(){
+
+  liveTagState.outcome = "save";
+  liveTagState.location = null;
+  liveTagState.shot_type = null;
+  liveTagState.flags = { rush:false, rebound:false, screened:false, breakaway:false, cross_ice:false, deflection:false };
+  liveTagState.reboundTag = "skip";
+
+  document.querySelectorAll("#lt-outcome-buttons .tag-btn").forEach(btn => {
+    btn.classList.toggle("selected", btn.dataset.value === "save");
+  });
+
+  document.querySelectorAll("#lt-location-buttons .tag-btn").forEach(btn => {
+    btn.classList.remove("selected");
+  });
+
+  document.querySelectorAll("#lt-type-buttons .tag-btn").forEach(btn => {
+    btn.classList.remove("selected");
+  });
+
+  document.querySelectorAll("#lt-toggle-buttons .tag-btn").forEach(btn => {
+    btn.classList.remove("selected");
+  });
+
+  document.querySelectorAll("#lt-rebound-buttons .tag-btn").forEach(btn => {
+    btn.classList.toggle("selected", btn.dataset.value === "skip");
+  });
+
+}
+
+
+function addLiveTagShot(){
+
+  const shot = {
+    period: liveTagState.currentPeriod,
+    outcome: liveTagState.outcome,
+    location: liveTagState.location,
+    shot_type: liveTagState.shot_type,
+    rush: liveTagState.flags.rush,
+    rebound: liveTagState.flags.rebound,
+    screened: liveTagState.flags.screened,
+    breakaway: liveTagState.flags.breakaway,
+    cross_ice: liveTagState.flags.cross_ice,
+    deflection: liveTagState.flags.deflection,
+    reboundTag: liveTagState.reboundTag
+  };
+
+  liveTagState.shots.unshift(shot);
+
+  if(shot.reboundTag && shot.reboundTag !== "skip"){
+    liveTagState.reboundTally[shot.reboundTag]++;
+  }
+
+  resetLiveTagShotPicker();
+  renderLiveTagUI();
+
+}
+
+
+function removeLiveTagShot(index){
+
+  const shot = liveTagState.shots[index];
+
+  if(!shot){
+    return;
+  }
+
+  if(shot.reboundTag && shot.reboundTag !== "skip"){
+    liveTagState.reboundTally[shot.reboundTag] =
+      Math.max(0, liveTagState.reboundTally[shot.reboundTag] - 1);
+  }
+
+  liveTagState.shots.splice(index, 1);
+
+  renderLiveTagUI();
+
+}
+
+
+function stepLiveTagCounter(kind, field, delta){
+
+  const tally =
+    kind === "puck" ? liveTagState.puckTally : null;
+
+  if(!tally){
+    return;
+  }
+
+  tally[field] = Math.max(0, (tally[field] || 0) + delta);
+
+  const el =
+    document.getElementById("lt-count-" + field);
+
+  if(el){
+    el.textContent = tally[field];
+  }
+
+}
+
+
+function renderLiveTagUI(){
+
+  const totalShots = liveTagState.shots.length;
+  const totalGoals = liveTagState.shots.filter(s => s.outcome === "goal").length;
+  const totalSaves = totalShots - totalGoals;
+
+  document.getElementById("livetag-total-shots").textContent = totalShots;
+  document.getElementById("livetag-total-saves").textContent = totalSaves;
+  document.getElementById("livetag-total-goals").textContent = totalGoals;
+
+  const listEl =
+    document.getElementById("livetag-shot-list");
+
+  if(totalShots === 0){
+
+    listEl.innerHTML = `<div class="empty">No shots tagged yet.</div>`;
+
+  }
+  else{
+
+    listEl.innerHTML = liveTagState.shots.map((shot, index) => {
+
+      const bits = [
+        shot.location,
+        shot.shot_type,
+        shot.rush ? "Rush" : null,
+        shot.rebound ? "Rebound" : null,
+        shot.screened ? "Screened" : null,
+        shot.breakaway ? "Breakaway" : null,
+        shot.cross_ice ? "Cross Ice" : null,
+        shot.deflection ? "Deflection" : null
+      ].filter(Boolean).join(", ");
+
+      return `
+        <div class="shotlog-row">
+          <div class="shotlog-desc">
+            <strong>P${shot.period} — ${shot.outcome === "goal" ? "Goal" : "Save"}</strong>
+            ${bits ? " — " + bits : ""}
+          </div>
+          <button type="button" class="repeater-remove" onclick="removeLiveTagShot(${index})">Remove</button>
+        </div>
+      `;
+
+    }).join("");
+
+  }
+
+  const summaryEl =
+    document.getElementById("livetag-rebound-summary");
+
+  const activeTally =
+    REBOUND_TALLY_KEYS
+      .filter(k => liveTagState.reboundTally[k] > 0)
+      .map(k => `${REBOUND_TALLY_LABELS[k]}: ${liveTagState.reboundTally[k]}`);
+
+  summaryEl.textContent =
+    activeTally.length > 0 ? activeTally.join(" · ") : "Nothing tagged yet.";
+
+}
+
+
+function resetLiveTagSession(){
+
+  if(liveTagState.shots.length > 0 || Object.values(liveTagState.puckTally).some(v => v > 0)){
+    if(!confirm("Discard everything tagged so far and start a new game?")){
+      return;
+    }
+  }
+
+  liveTagState = freshLiveTagState();
+
+  document.getElementById("lt-date").value = "";
+  document.getElementById("lt-season").value = "2026 preseason";
+  document.getElementById("lt-team").value = "";
+  document.getElementById("lt-opponent").value = "";
+  document.getElementById("lt-home-away").value = "";
+  document.getElementById("lt-result").value = "";
+  document.getElementById("lt-team-goals").value = "";
+  document.getElementById("lt-opponent-goals").value = "";
+  document.getElementById("lt-p1-minutes").value = "15";
+  document.getElementById("lt-p2-minutes").value = "15";
+  document.getElementById("lt-p3-minutes").value = "15";
+  document.getElementById("lt-ot-minutes").value = "0";
+
+  ["rims_faced","rims_stopped","pass_attempts","passes_completed"].forEach(field => {
+    document.getElementById("lt-count-" + field).textContent = "0";
+  });
+
+  setLiveTagPeriod("1");
+  resetLiveTagShotPicker();
+  renderLiveTagUI();
+
+  hideLiveTagMessages();
+
+}
+
+
+function hideLiveTagMessages(){
+
+  const err = document.getElementById("livetag-error");
+  const msg = document.getElementById("livetag-message");
+
+  err.classList.remove("visible");
+  msg.classList.remove("visible");
+
+  err.textContent = "";
+  msg.textContent = "";
+
+}
+
+
+function showLiveTagError(message){
+
+  const err = document.getElementById("livetag-error");
+
+  err.textContent = message;
+  err.classList.add("visible");
+
+}
+
+
+function showLiveTagMessage(message){
+
+  const msg = document.getElementById("livetag-message");
+
+  msg.textContent = message;
+  msg.classList.add("visible");
+
+}
+
+
+async function finishLiveTagGame(){
+
+  hideLiveTagMessages();
+
+  if(!currentSession || !currentSession.user){
+    showLiveTagError("You must be signed in to save a game.");
+    return;
+  }
+
+  if(liveTagState.shots.length === 0){
+    if(!confirm("No shots have been tagged. Save this game anyway?")){
+      return;
+    }
+  }
+
+  const userId = currentSession.user.id;
+
+  const opponent =
+    textOrNull(document.getElementById("lt-opponent").value);
+
+  if(!opponent){
+    showLiveTagError("Opponent is required.");
+    return;
+  }
+
+  const finishBtn =
+    document.getElementById("livetag-finish-btn");
+
+  finishBtn.disabled = true;
+
+
+  try{
+
+    const shotsAgainst = liveTagState.shots.length;
+    const goalsAgainst = liveTagState.shots.filter(s => s.outcome === "goal").length;
+    const saves = shotsAgainst - goalsAgainst;
+
+    const periodMinutes = {
+      "1": numOrNull(document.getElementById("lt-p1-minutes").value) || 0,
+      "2": numOrNull(document.getElementById("lt-p2-minutes").value) || 0,
+      "3": numOrNull(document.getElementById("lt-p3-minutes").value) || 0,
+      "OT": numOrNull(document.getElementById("lt-ot-minutes").value) || 0
+    };
+
+    const totalMinutes =
+      periodMinutes["1"] + periodMinutes["2"] + periodMinutes["3"] + periodMinutes["OT"];
+
+    const gamePayload = {
+      user_id: userId,
+      date: textOrNull(document.getElementById("lt-date").value),
+      season: textOrNull(document.getElementById("lt-season").value),
+      team: textOrNull(document.getElementById("lt-team").value),
+      opponent: opponent,
+      home_away: textOrNull(document.getElementById("lt-home-away").value),
+      result: textOrNull(document.getElementById("lt-result").value),
+      team_goals: numOrNull(document.getElementById("lt-team-goals").value),
+      "opponent goals": numOrNull(document.getElementById("lt-opponent-goals").value),
+      shots_against: shotsAgainst,
+      saves: saves,
+      goals_against: goalsAgainst,
+      minutes_played: totalMinutes > 0 ? totalMinutes : null,
+      shutout: shotsAgainst > 0 && goalsAgainst === 0,
+      notes: null
+    };
+
+    const { data: newGame, error: gameError } =
+      await supabaseClient
+        .from("Games")
+        .insert(gamePayload)
+        .select()
+        .single();
+
+    if(gameError){
+      throw gameError;
+    }
+
+    const gameId = newGame.id;
+
+
+    const periodPayloads = [];
+
+    ["1","2","3","OT"].forEach(p => {
+
+      const periodShots =
+        liveTagState.shots.filter(s => s.period === p);
+
+      const minutes = periodMinutes[p];
+
+      if(periodShots.length === 0 && minutes === 0){
+        return;
+      }
+
+      const pGoals = periodShots.filter(s => s.outcome === "goal").length;
+
+      periodPayloads.push({
+        game_id: gameId,
+        user_id: userId,
+        period: p,
+        minutes_played: minutes || null,
+        shots_against: periodShots.length,
+        saves: periodShots.length - pGoals,
+        goals_against: pGoals,
+        Notes: null
+      });
+
+    });
+
+    if(periodPayloads.length > 0){
+
+      const { error: periodError } =
+        await supabaseClient.from("Period Stats").insert(periodPayloads);
+
+      if(periodError){
+        throw periodError;
+      }
+
+    }
+
+
+    if(liveTagState.shots.length > 0){
+
+      const shotPayloads =
+        liveTagState.shots.map(shot => ({
+          game_id: gameId,
+          user_id: userId,
+          period: shot.period,
+          distance: null,
+          location: shot.location,
+          shot_type: shot.shot_type,
+          outcome: shot.outcome,
+          rush: shot.rush,
+          rebound: shot.rebound,
+          screened: shot.screened,
+          breakaway: shot.breakaway,
+          cross_ice: shot.cross_ice,
+          deflection: shot.deflection
+        }));
+
+      const { error: shotError } =
+        await supabaseClient.from("Shots").insert(shotPayloads);
+
+      if(shotError){
+        throw shotError;
+      }
+
+    }
+
+
+    const hasReboundTally =
+      REBOUND_TALLY_KEYS.some(k => liveTagState.reboundTally[k] > 0);
+
+    if(hasReboundTally){
+
+      const { error: reboundError } =
+        await supabaseClient
+          .from("goalierebound_control")
+          .insert({
+            ...liveTagState.reboundTally,
+            game_id: gameId,
+            user_id: userId
+          });
+
+      if(reboundError){
+        throw reboundError;
+      }
+
+    }
+
+
+    const hasPuckTally =
+      Object.values(liveTagState.puckTally).some(v => v > 0);
+
+    if(hasPuckTally){
+
+      const { error: puckError } =
+        await supabaseClient
+          .from("puck_playing")
+          .insert({
+            ...liveTagState.puckTally,
+            game_id: gameId,
+            user_id: userId
+          });
+
+      if(puckError){
+        throw puckError;
+      }
+
+    }
+
+
+    liveTagState = freshLiveTagState();
+    resetLiveTagSession();
+
+    const myGamesBtn =
+      document.querySelector('nav button[onclick*="\'addgame\'"]');
+
+    showTab("addgame", myGamesBtn);
+
+    await loadDashboard();
+
+    showAddGameMessage("Game saved from Live Tag.");
+
+  }
+  catch(error){
+
+    console.error(error);
+    showLiveTagError(error.message || "Something went wrong saving this game.");
+
+  }
+  finally{
+
+    finishBtn.disabled = false;
+
+  }
+
+}
+
+
+document.getElementById("addgame-form")
+  .addEventListener("submit", async function(e){
+
+    e.preventDefault();
+    hideAddGameMessages();
+
+    if(!currentSession || !currentSession.user){
+      showAddGameError("You must be signed in to add a game.");
+      return;
+    }
+
+    const userId = currentSession.user.id;
+
+    const opponent =
+      textOrNull(document.getElementById("ag-opponent").value);
+
+    if(!opponent){
+      showAddGameError("Opponent is required.");
+      return;
+    }
+
+    const submitBtn =
+      document.getElementById("addgame-submit");
+
+    submitBtn.disabled = true;
+
+
+    try{
+
+      const gamePayload = {
+        user_id: userId,
+        date: textOrNull(document.getElementById("ag-date").value),
+        season: textOrNull(document.getElementById("ag-season").value),
+        team: textOrNull(document.getElementById("ag-team").value),
+        opponent: opponent,
+        home_away: textOrNull(document.getElementById("ag-home-away").value),
+        result: textOrNull(document.getElementById("ag-result").value),
+        team_goals: numOrNull(document.getElementById("ag-team-goals").value),
+        "opponent goals": numOrNull(document.getElementById("ag-opponent-goals").value),
+        shots_against: numOrNull(document.getElementById("ag-shots-against").value),
+        saves: numOrNull(document.getElementById("ag-saves").value),
+        goals_against: numOrNull(document.getElementById("ag-goals-against").value),
+        minutes_played: numOrNull(document.getElementById("ag-minutes").value),
+        shutout: document.getElementById("ag-shutout").checked,
+        notes: textOrNull(document.getElementById("ag-notes").value)
+      };
+
+      let gameId;
+
+      if(editingGameId){
+
+        const { data: updatedGame, error: gameError } =
+          await supabaseClient
+            .from("Games")
+            .update(gamePayload)
+            .eq("id", editingGameId)
+            .select()
+            .single();
+
+        if(gameError){
+          throw gameError;
+        }
+
+        gameId = updatedGame.id;
+
+        const deletions = await Promise.all([
+          supabaseClient.from("Period Stats").delete().eq("game_id", gameId),
+          supabaseClient.from("Shots").delete().eq("game_id", gameId),
+          supabaseClient.from("goalierebound_control").delete().eq("game_id", gameId),
+          supabaseClient.from("puck_playing").delete().eq("game_id", gameId)
+        ]);
+
+        const deletionError =
+          deletions.find(d => d.error)?.error;
+
+        if(deletionError){
+          throw deletionError;
+        }
+
+      }
+      else{
+
+        const { data: newGame, error: gameError } =
+          await supabaseClient
+            .from("Games")
+            .insert(gamePayload)
+            .select()
+            .single();
+
+        if(gameError){
+          throw gameError;
+        }
+
+        gameId = newGame.id;
+
+      }
+
+
+      const periodPayloads = [];
+
+      document.querySelectorAll("#period-rows .repeater-row").forEach(row => {
+
+        const fields = {
+          period: textOrNull(row.querySelector('[data-field="period"]').value),
+          minutes_played: numOrNull(row.querySelector('[data-field="minutes_played"]').value),
+          shots_against: numOrNull(row.querySelector('[data-field="shots_against"]').value),
+          saves: numOrNull(row.querySelector('[data-field="saves"]').value),
+          goals_against: numOrNull(row.querySelector('[data-field="goals_against"]').value),
+          Notes: textOrNull(row.querySelector('[data-field="Notes"]').value)
+        };
+
+        if(!rowIsBlank(fields)){
+          periodPayloads.push({
+            ...fields,
+            game_id: gameId,
+            user_id: userId
+          });
+        }
+
+      });
+
+      if(periodPayloads.length > 0){
+
+        const { error: periodError } =
+          await supabaseClient
+            .from("Period Stats")
+            .insert(periodPayloads);
+
+        if(periodError){
+          throw periodError;
+        }
+
+      }
+
+
+      const shotPayloads = [];
+
+      document.querySelectorAll("#shot-rows .repeater-row").forEach(row => {
+
+        const fields = {
+          period: textOrNull(row.querySelector('[data-field="period"]').value),
+          distance: numOrNull(row.querySelector('[data-field="distance"]').value),
+          location: textOrNull(row.querySelector('[data-field="location"]').value),
+          shot_type: textOrNull(row.querySelector('[data-field="shot_type"]').value),
+          outcome: textOrNull(row.querySelector('[data-field="outcome"]').value),
+          rush: row.querySelector('[data-field="rush"]').checked,
+          rebound: row.querySelector('[data-field="rebound"]').checked,
+          screened: row.querySelector('[data-field="screened"]').checked,
+          breakaway: row.querySelector('[data-field="breakaway"]').checked,
+          cross_ice: row.querySelector('[data-field="cross_ice"]').checked,
+          deflection: row.querySelector('[data-field="deflection"]').checked
+        };
+
+        shotPayloads.push({
+          ...fields,
+          game_id: gameId,
+          user_id: userId
+        });
+
+      });
+
+      if(shotPayloads.length > 0){
+
+        const { error: shotError } =
+          await supabaseClient
+            .from("Shots")
+            .insert(shotPayloads);
+
+        if(shotError){
+          throw shotError;
+        }
+
+      }
+
+
+      const reboundFields = {
+        glove_caught: numOrNull(document.getElementById("rc-glove-caught").value),
+        glove_rebound: numOrNull(document.getElementById("rc-glove-rebound").value),
+        glove_goal: numOrNull(document.getElementById("rc-glove-goal").value),
+        blocker_good: numOrNull(document.getElementById("rc-blocker-good").value),
+        blocker_bad: numOrNull(document.getElementById("rc-blocker-bad").value),
+        blocker_goal: numOrNull(document.getElementById("rc-blocker-goal").value),
+        midsection_good: numOrNull(document.getElementById("rc-midsection-good").value),
+        midsection_bad: numOrNull(document.getElementById("rc-midsection-bad").value),
+        midsection_goal: numOrNull(document.getElementById("rc-midsection-goal").value),
+        pad_stick_good: numOrNull(document.getElementById("rc-padstick-good").value),
+        pad_stick_bad: numOrNull(document.getElementById("rc-padstick-bad").value),
+        pad_stick_goal: numOrNull(document.getElementById("rc-padstick-goal").value)
+      };
+
+      if(!rowIsBlank(reboundFields)){
+
+        const { error: reboundError } =
+          await supabaseClient
+            .from("goalierebound_control")
+            .insert({
+              ...reboundFields,
+              game_id: gameId,
+              user_id: userId
+            });
+
+        if(reboundError){
+          throw reboundError;
+        }
+
+      }
+
+
+      const puckFields = {
+        rims_faced: numOrNull(document.getElementById("pp-rims-faced").value),
+        rims_stopped: numOrNull(document.getElementById("pp-rims-stopped").value),
+        pass_attempts: numOrNull(document.getElementById("pp-pass-attempts").value),
+        passes_completed: numOrNull(document.getElementById("pp-passes-completed").value)
+      };
+
+      if(!rowIsBlank(puckFields)){
+
+        const { error: puckError } =
+          await supabaseClient
+            .from("puck_playing")
+            .insert({
+              ...puckFields,
+              game_id: gameId,
+              user_id: userId
+            });
+
+        if(puckError){
+          throw puckError;
+        }
+
+      }
+
+
+      const wasEditing = !!editingGameId;
+
+      cancelEditGame();
+
+      showAddGameMessage(
+        wasEditing ? "Game updated. Refreshing dashboard..." : "Game saved. Refreshing dashboard..."
+      );
+
+      await loadDashboard();
+
+    }
+    catch(error){
+
+      console.error(error);
+      showAddGameError(error.message || "Something went wrong saving this game.");
+
+    }
+    finally{
+
+      submitBtn.disabled = false;
+
+    }
+
+  });
+
+
+/* ============================================================
+   AI COACH
+============================================================ */
+
+function appendCoachMessage(role, text, extraClass){
+
+  const chat =
+    document.getElementById("coach-chat");
+
+  const div =
+    document.createElement("div");
+
+  div.className =
+    "coach-message " + role + (extraClass ? " " + extraClass : "");
+
+  div.textContent = text;
+
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+
+  return div;
+
+}
+
+
+async function sendCoachQuestion(){
+
+  const input =
+    document.getElementById("coach-input");
+
+  const question =
+    input.value.trim();
+
+  if(!question){
+    return;
+  }
+
+  if(!currentSession || !currentSession.access_token){
+    appendCoachMessage("assistant", "You need to be signed in to ask the coach a question.", "error");
+    return;
+  }
+
+  // Who is this question about? A goalie is always asking about
+  // themselves. A coach is asking about whichever goalie they most
+  // recently opened -- if they haven't opened one yet, there's
+  // nothing to scope the answer to, so ask them to pick one rather
+  // than silently guessing (or worse, blending multiple goalies).
+  let goalieId = null;
+
+  if(currentRole === "coach"){
+
+    goalieId = coachPrimaryGoalieId;
+
+    if(!goalieId){
+      appendCoachMessage(
+        "assistant",
+        "Open a goalie's profile first (My Goalies → pick a goalie → Ask AI Coach), then ask here.",
+        "error"
+      );
+      return;
+    }
+
+  }
+  else{
+
+    goalieId = currentSession.user.id;
+
+  }
+
+  const sendBtn =
+    document.getElementById("coach-send-btn");
+
+  sendBtn.disabled = true;
+  input.value = "";
+
+  appendCoachMessage("user", question);
+
+  const loadingEl =
+    appendCoachMessage("assistant", "Thinking...", "loading");
+
+  try{
+
+    const res =
+      await fetch("/api/coach", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accessToken: currentSession.access_token,
+          question: question,
+          goalieId: goalieId,
+          viewerRole: currentRole
+        })
+      });
+
+    const data =
+      await res.json();
+
+    loadingEl.remove();
+
+    if(!res.ok){
+      appendCoachMessage("assistant", data.error || "Something went wrong.", "error");
+    }
+    else{
+      appendCoachMessage("assistant", data.answer);
+    }
+
+  }
+  catch(error){
+
+    console.error(error);
+    loadingEl.remove();
+    appendCoachMessage("assistant", "Could not reach the coach right now. Try again in a moment.", "error");
+
+  }
+  finally{
+
+    sendBtn.disabled = false;
+
+  }
+
+}
+
+
+document.getElementById("coach-input")
+  .addEventListener("keydown", function(e){
+
+    if(e.key === "Enter" && !e.shiftKey){
+      e.preventDefault();
+      sendCoachQuestion();
+    }
+
+  });
+
+
+/* ============================================================
+   START
+============================================================ */
+
+initAuth();
+
+</script>
+
+</body>
+</html>
