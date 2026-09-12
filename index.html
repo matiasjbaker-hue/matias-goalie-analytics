@@ -2953,6 +2953,36 @@ tr:hover td{
   </div>
 
 
+  <div class="grid grid-3 section-space">
+
+    <div class="card">
+
+      <h3>Deflections</h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Shots</span>
+          <span class="stat-value" id="deflectionShots">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">SV%</span>
+          <span class="stat-value" id="deflectionSV">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Goals</span>
+          <span class="stat-value" id="deflectionGoals">—</span>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
   <div class="card section-space">
 
     <h3>Development Priority</h3>
@@ -4028,7 +4058,7 @@ tr:hover td{
           (closer shots score more often). <strong>Adjustments:</strong>
           multiplied up or down based on location (crease/slot/point),
           shot type (one-timer, backhand, slap shot), and situation
-          (rush, rebound, screened, breakaway, cross-ice).
+          (rush, rebound, screened, breakaway, cross-ice, deflection).
         </p>
 
         <p>
@@ -4489,7 +4519,7 @@ function isHighDanger(shot){
 // Only used for the local pre-save preview fallback below -- the
 // authoritative value for any saved shot is shot.xg, computed and
 // stamped by the database trigger (see xg_model_versions for history).
-const XG_MODEL_VERSION = "v1.1-heuristic";
+const XG_MODEL_VERSION = "v1.2-heuristic";
 
 
 function calculateShotXG(shot){
@@ -4632,6 +4662,16 @@ function calculateShotXG(shot){
   if(shotBoolean(shot.cross_ice)){
 
     multiplier *= 1.10;
+
+  }
+
+
+  // v1.2: deflections change trajectory unpredictably close to the
+  // net and cut down reaction time -- treated as comparably dangerous
+  // to a crease-area shot. Matches calculate_shot_xg() in the database.
+  if(shotBoolean(shot.deflection)){
+
+    multiplier *= 1.20;
 
   }
 
@@ -6990,6 +7030,13 @@ function renderSituational(){
     );
 
 
+  const deflection =
+    subsetStats(
+      seasonShots,
+      s => shotBoolean(s.deflection)
+    );
+
+
   setSubset(
     "rush",
     rush
@@ -7026,6 +7073,12 @@ function renderSituational(){
   );
 
 
+  setSubset(
+    "deflection",
+    deflection
+  );
+
+
   const candidates = [
 
     {
@@ -7056,6 +7109,12 @@ function renderSituational(){
       name:"one-timers",
       value:oneTimer.sv,
       shots:oneTimer.shots
+    },
+
+    {
+      name:"deflections",
+      value:deflection.sv,
+      shots:deflection.shots
     }
 
   ]
@@ -9975,7 +10034,8 @@ function computeGameReportData(gameId){
     { key:"rebound", label:"Rebound", test: shotIsRebound },
     { key:"screened", label:"Screened", test: isScreened },
     { key:"breakaway", label:"Breakaway", test: isBreakaway },
-    { key:"cross_ice", label:"Cross-Ice", test: s => shotBoolean(s.cross_ice) }
+    { key:"cross_ice", label:"Cross-Ice", test: s => shotBoolean(s.cross_ice) },
+    { key:"deflection", label:"Deflection", test: s => shotBoolean(s.deflection) }
   ];
 
   const situationalRows =
