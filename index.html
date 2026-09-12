@@ -9,6 +9,10 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<!-- Resumable (TUS) uploads for large game film -- see uploadGameVideo().
+     If this 404s, check https://www.jsdelivr.com/package/npm/tus-js-client
+     for the current UMD file path/version and update this src. -->
+<script src="https://cdn.jsdelivr.net/npm/tus-js-client@4/dist/tus.min.js"></script>
 
 <style>
 
@@ -4287,6 +4291,9 @@ tr:hover td{
 
 const SUPABASE_URL =
   "https://iiuqxxrrruvwvfehrzic.supabase.co";
+
+const SUPABASE_PROJECT_REF =
+  "iiuqxxrrruvwvfehrzic";
 
 const SUPABASE_KEY =
   "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
@@ -11535,18 +11542,56 @@ async function deleteGame(gameId){
     return;
   }
 
+  // Each delete is checked for both a thrown error AND actually
+  // affecting rows -- Postgres RLS silently returns zero affected
+  // rows rather than an error when a policy blocks a delete, so
+  // "no error" alone doesn't mean "it worked". Requesting .select()
+  // back lets us tell the difference and surface a real message
+  // instead of the delete silently doing nothing.
+  async function deleteRows(table, matchGameId){
+
+    const { data, error } =
+      await supabaseClient
+        .from(table)
+        .delete()
+        .eq("game_id", matchGameId)
+        .select();
+
+    if(error){
+      throw new Error(`${table}: ${error.message}`);
+    }
+
+    return data ? data.length : 0;
+
+  }
+
   try{
 
-    await supabaseClient.from("Period Stats").delete().eq("game_id", gameId);
-    await supabaseClient.from("Shots").delete().eq("game_id", gameId);
-    await supabaseClient.from("goalierebound_control").delete().eq("game_id", gameId);
-    await supabaseClient.from("puck_playing").delete().eq("game_id", gameId);
+    await deleteRows("Period Stats", gameId);
+    await deleteRows("Shots", gameId);
+    await deleteRows("goalierebound_control", gameId);
+    await deleteRows("puck_playing", gameId);
+    await deleteRows("coach_notes", gameId);
+    await deleteRows("shot_drafts", gameId);
+    // game_videos is set-null on the game, not deleted -- a
+    // customer's uploaded film shouldn't vanish just because the
+    // game record it was tied to gets removed.
 
-    const { error: gameError } =
-      await supabaseClient.from("Games").delete().eq("id", gameId);
+    const { data: deletedGames, error: gameError } =
+      await supabaseClient
+        .from("Games")
+        .delete()
+        .eq("id", gameId)
+        .select();
 
     if(gameError){
-      throw gameError;
+      throw new Error(gameError.message);
+    }
+
+    if(!deletedGames || !deletedGames.length){
+      throw new Error(
+        "Nothing was deleted -- you may not have permission to delete this game, or it may already be gone."
+      );
     }
 
     if(editingGameId === gameId){
@@ -12625,6 +12670,67 @@ async function renderCustomerVideoList(){
 }
 
 
+// Resumable (TUS) upload -- required for large game film. A plain
+// single-request upload is fine for small files, but a 1-3+ hour
+// browser upload over home internet WILL get interrupted eventually
+// (Wi-Fi blip, laptop sleep, tab closed by accident); TUS resumes
+// from where it left off instead of forcing a full restart, and
+// gives us real progress to show instead of a blind spinner.
+function uploadFileResumable(storagePath, file, onProgress){
+
+  return new Promise((resolve, reject) => {
+
+    const upload = new tus.Upload(file, {
+
+      endpoint: `https://${SUPABASE_PROJECT_REF}.storage.supabase.co/storage/v1/upload/resumable`,
+
+      retryDelays: [0, 3000, 5000, 10000, 20000],
+
+      headers: {
+        authorization: `Bearer ${currentSession.access_token}`,
+        apikey: SUPABASE_KEY
+      },
+
+      uploadDataDuringCreation: true,
+      removeFingerprintOnSuccess: true,
+
+      // Supabase's resumable endpoint expects 6MB chunks.
+      chunkSize: 6 * 1024 * 1024,
+
+      metadata: {
+        bucketName: "game-footage",
+        objectName: storagePath,
+        contentType: file.type || "video/mp4",
+        cacheControl: "3600"
+      },
+
+      onError: (error) => reject(error),
+
+      onProgress: (bytesUploaded, bytesTotal) => {
+        if(onProgress){
+          onProgress(bytesUploaded, bytesTotal);
+        }
+      },
+
+      onSuccess: () => resolve()
+
+    });
+
+    // Resume an interrupted upload of this exact file if one exists
+    // (tus-js-client fingerprints by file name/size/type) instead of
+    // starting over from zero.
+    upload.findPreviousUploads().then((previousUploads) => {
+      if(previousUploads.length){
+        upload.resumeFromPreviousUpload(previousUploads[0]);
+      }
+      upload.start();
+    });
+
+  });
+
+}
+
+
 async function uploadGameVideo(){
 
   if(!currentSession || !currentSession.user){
@@ -12726,13 +12832,21 @@ async function uploadGameVideo(){
       `${userId}/${Date.now()}_${file.name}`;
 
     const { error: uploadError } =
-      await supabaseClient
-        .storage
-        .from("game-footage")
-        .upload(storagePath, file);
+      await (async () => {
+        try{
+          await uploadFileResumable(storagePath, file, (uploaded, total) => {
+            const pct = total ? Math.floor((uploaded / total) * 100) : 0;
+            statusEl.textContent = `Uploading... ${pct}%`;
+          });
+          return { error: null };
+        }
+        catch(err){
+          return { error: err };
+        }
+      })();
 
     if(uploadError){
-      throw new Error(uploadError.message);
+      throw new Error(uploadError.message || String(uploadError));
     }
 
     const { data: inserted, error: insertError } =
