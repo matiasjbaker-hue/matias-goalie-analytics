@@ -1,17 +1,21 @@
 // ============================================================
 // VIDEO PIPELINE — STEP 1: INDEX
 // ============================================================
-// Takes a game_videos row that already has a file sitting in the
-// Supabase "game-footage" storage bucket, and kicks off indexing
-// on memories.ai's Video Datalake. This only STARTS indexing --
-// indexing a full game can take a few minutes, so this function
-// returns quickly and step 2 (analyze-game-video.js) is called
-// separately once indexing is done.
+// Takes a game_videos row whose file already lives in Cloudflare R2
+// (uploaded via r2-start-upload.js / r2-complete-upload.js), and
+// kicks off indexing on memories.ai's Video Datalake. This only
+// STARTS indexing -- indexing a full game can take a few minutes,
+// so this function returns quickly and step 2
+// (analyze-game-video.js) is called separately once indexing is
+// done.
 //
 // Setup required:
 //   - MEMORIES_AI_API_KEY environment variable in Vercel, from
 //     your memories.ai account (console.memories.ai or similar --
 //     check their current dashboard when you sign up).
+//   - R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
+//     R2_BUCKET_NAME -- same R2 credentials used by
+//     r2-start-upload.js.
 //   - Same ANTHROPIC_API_KEY and Supabase project already used by
 //     api/coach.js and api/game-report.js.
 //
@@ -29,11 +33,25 @@
 // the current request shape for your account. If a field name has
 // changed, this is the only file you need to touch.
 
+import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+
 const SUPABASE_URL = "https://iiuqxxrrruvwvfehrzic.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
 
 const MEMORIES_AI_HOST = "https://api.memories.ai/datalake/v1";
 const MEMORIES_AI_COLLECTION_NAME = "goalieiq-game-footage";
+
+function r2Client() {
+  return new S3Client({
+    region: "auto",
+    endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    credentials: {
+      accessKeyId: process.env.R2_ACCESS_KEY_ID,
+      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+    },
+  });
+}
 
 // --- Supabase helpers -------------------------------------------------
 
@@ -82,28 +100,17 @@ async function supabasePatch(table, filter, body, accessToken) {
 }
 
 // Signed URL so memories.ai (an external service) can fetch the
-// private "game-footage" object without the bucket being public.
-async function getSignedStorageUrl(storagePath, accessToken) {
-  const res = await fetch(
-    `${SUPABASE_URL}/storage/v1/object/sign/game-footage/${storagePath}`,
-    {
-      method: "POST",
-      headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      // Long expiry -- indexing a full game can take a while and we
-      // don't want the URL to die mid-index.
-      body: JSON.stringify({ expiresIn: 60 * 60 * 6 }),
-    }
+// video straight from R2, without R2 needing to be a public bucket.
+async function getR2SignedUrl(objectKey) {
+  const client = r2Client();
+  return getSignedUrl(
+    client,
+    new GetObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME,
+      Key: objectKey,
+    }),
+    { expiresIn: 60 * 60 * 6 } // 6 hours -- generous for indexing time
   );
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Signed URL failed: ${res.status} ${errText}`);
-  }
-  const data = await res.json();
-  return `${SUPABASE_URL}/storage/v1${data.signedURL}`;
 }
 
 // --- memories.ai helpers ----------------------------------------------
@@ -164,10 +171,16 @@ export default async function handler(req, res) {
     return;
   }
 
-  if (!process.env.MEMORIES_AI_API_KEY) {
+  if (
+    !process.env.MEMORIES_AI_API_KEY ||
+    !process.env.R2_ACCOUNT_ID ||
+    !process.env.R2_ACCESS_KEY_ID ||
+    !process.env.R2_SECRET_ACCESS_KEY ||
+    !process.env.R2_BUCKET_NAME
+  ) {
     res.status(503).json({
       error:
-        "Video indexing isn't configured yet -- add MEMORIES_AI_API_KEY in Vercel project settings.",
+        "Video indexing isn't configured yet -- check MEMORIES_AI_API_KEY, R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_BUCKET_NAME in Vercel project settings.",
     });
     return;
   }
@@ -189,10 +202,7 @@ export default async function handler(req, res) {
       res.status(404).json({ error: "game_videos row not found." });
       return;
     }
-    const signedUrl = await getSignedStorageUrl(
-      gameVideo.storage_path,
-      accessToken
-    );
+    const signedUrl = await getR2SignedUrl(gameVideo.storage_path);
     const collectionId = await getOrCreateCollection();
 
     // Kick off indexing. This is the priced call ($0.05/min of video --
