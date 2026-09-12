@@ -1,35 +1,77 @@
 // ============================================================
 // VIDEO PIPELINE — STEP 2: FIND SHOTS + DRAFT STATS
 // ============================================================
-// Call this once index-game-video.js's TwelveLabs task has finished
-// indexing -- try a minute or two after upload; a 409 "still
-// indexing" response just means try again later.
+// This is now the ONLY step that talks to TwelveLabs. Pegasus 1.5
+// analyzes a video directly from a URL in one synchronous call and
+// returns text in the response -- no index, no upload task, no
+// polling. (See index-game-video.js for why the earlier index/task
+// step went away.)
 //
 // Division of labor, on purpose:
-//   1. TwelveLabs (Pegasus model) watches the whole video and, in
-//      ONE call, returns a list of shot-on-goal moments with
-//      timestamps and a plain-language description of each -- this
-//      is the same "find needles in a long video" role memories.ai
-//      played, just from a different vendor.
+//   1. TwelveLabs (Pegasus 1.5) watches the whole video and, in ONE
+//      call, returns a list of shot-on-goal moments with timestamps
+//      and a plain-language description of each.
 //   2. Claude turns each plain-language description into the exact
 //      structured fields your Shots table needs, and is told
 //      explicitly to say "unclear" rather than guess. This part is
-//      UNCHANGED from the memories.ai version -- same model/API key
-//      your app already uses in api/coach.js and api/game-report.js,
-//      so it has a known, tested request/response shape. Only step
-//      1's TwelveLabs field names carry any real uncertainty (see
-//      the note in index-game-video.js).
+//      UNCHANGED from every earlier version of this pipeline -- same
+//      model/API key your app already uses in api/coach.js and
+//      api/game-report.js.
 //
 // This whole function is admin-only (enforced both here and by RLS
 // on shot_drafts) -- customers never trigger this, and nothing it
 // writes ever touches the real "Shots" table or fires the xG
 // trigger. It only ever writes to shot_drafts, which the admin
 // reviews and confirms one at a time in the Video Review tab.
+//
+// IMPORTANT -- READ BEFORE RELYING ON THIS:
+// Built from TwelveLabs' current docs/release notes (Pegasus 1.5,
+// general analysis mode), not tested against a live account.
+// Specifically unverified: the exact field name holding the
+// response text (guessed as `data`, matching their older API's
+// convention) and whether a ~90-minute synchronous call reliably
+// finishes within Vercel's function time limit. If a full game
+// times out even with the extended maxDuration below, the fix is
+// to switch this one call to TwelveLabs' asynchronous analyze-task
+// endpoint instead -- everything downstream (Claude extraction,
+// shot_drafts) is unaffected either way.
+
+// Vercel-specific: request the longest execution window your plan
+// allows, since this makes one long-running call per analysis.
+export const config = {
+  maxDuration: 300, // seconds -- Vercel Pro's max; lower on Hobby
+};
+
+import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const SUPABASE_URL = "https://iiuqxxrrruvwvfehrzic.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
 const TWELVELABS_HOST = "https://api.twelvelabs.io/v1.3";
 const CLAUDE_MODEL = "claude-sonnet-5";
+
+function r2Client() {
+  return new S3Client({
+    region: "auto",
+    endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    credentials: {
+      accessKeyId: process.env.R2_ACCESS_KEY_ID,
+      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+    },
+  });
+}
+
+async function getR2SignedUrl(objectKey) {
+  const client = r2Client();
+  return getSignedUrl(
+    client,
+    new GetObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME,
+      Key: objectKey,
+    }),
+    { expiresIn: 60 * 30 } // 30 min -- only needs to last one analyze call
+  );
+}
 
 async function verifyAccessToken(accessToken) {
   const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
@@ -113,28 +155,7 @@ async function supabasePatch(table, filter, body, accessToken) {
   return res.json();
 }
 
-// --- TwelveLabs: check indexing status, then ask for a shot list ------
-//
-// VERIFY WHEN YOU HAVE A KEY: this is built from TwelveLabs' current
-// docs/code samples, not tested against a live account. The task
-// status/video_id shape (task.status, task.video_id) is well
-// documented and should be solid. The /analyze request/response
-// shape below is closer to their frontier -- if the response comes
-// back differently, this function (and only this function) needs
-// adjusting; the Claude-extraction step downstream is unaffected.
-
-async function getTaskStatus(taskId) {
-  const res = await fetch(`${TWELVELABS_HOST}/tasks/${taskId}`, {
-    headers: { "x-api-key": process.env.TWELVELABS_API_KEY },
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(
-      `TwelveLabs task status check failed: ${res.status} ${JSON.stringify(data)}`
-    );
-  }
-  return data;
-}
+// --- TwelveLabs: one synchronous call for the whole video --------------
 
 const SHOT_LIST_PROMPT = `List every shot attempt on goal in this hockey video. For each one, give the approximate start time in seconds into the video, and a plain-language description of what happens (who has the puck, where they shoot from, what happens right before and after -- rebounds, screens, deflections, breakaways, whether it's a goal or a save).
 
@@ -145,7 +166,7 @@ Respond with ONLY a JSON array, no markdown fences, no preamble, in this exact s
 ]
 If you find no clear shot attempts, respond with an empty array: []`;
 
-async function getShotListFromTwelveLabs(videoId) {
+async function getShotListFromTwelveLabs(videoUrl) {
   const res = await fetch(`${TWELVELABS_HOST}/analyze`, {
     method: "POST",
     headers: {
@@ -153,8 +174,11 @@ async function getShotListFromTwelveLabs(videoId) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      video_id: videoId,
+      model_name: "pegasus1.5",
+      analysis_mode: "general",
+      video: { type: "url", url: videoUrl },
       prompt: SHOT_LIST_PROMPT,
+      temperature: 0,
     }),
   });
   const data = await res.json().catch(() => ({}));
@@ -164,10 +188,9 @@ async function getShotListFromTwelveLabs(videoId) {
     );
   }
 
-  // VERIFY: TwelveLabs' analyze response field is typically `data`
-  // (a text string) -- adjust here if your account's response wraps
-  // it differently.
-  const text = data.data || data.text || "";
+  // VERIFY: adjust this if your account's response wraps the text
+  // under a different field name.
+  const text = data.data || data.text || data.output_text || "";
   const cleaned = text.replace(/```json|```/g, "").trim();
 
   let parsed;
@@ -189,8 +212,8 @@ async function getShotListFromTwelveLabs(videoId) {
 }
 
 // --- Claude: turn one moment's description into structured stats ------
-// (unchanged from the memories.ai version -- same model, same key,
-// same prompt)
+// (unchanged from every earlier version of this pipeline -- same
+// model, same key, same prompt)
 
 const SHOT_EXTRACTION_SYSTEM_PROMPT = `You convert a short description of a hockey shot-on-goal moment into structured data for a goalie analytics app. You are given a plain-language description generated by a separate video-indexing system -- you are not watching the video yourself, only reading its description.
 
@@ -267,10 +290,17 @@ export default async function handler(req, res) {
     return;
   }
 
-  if (!process.env.TWELVELABS_API_KEY || !process.env.ANTHROPIC_API_KEY) {
+  if (
+    !process.env.TWELVELABS_API_KEY ||
+    !process.env.ANTHROPIC_API_KEY ||
+    !process.env.R2_ACCOUNT_ID ||
+    !process.env.R2_ACCESS_KEY_ID ||
+    !process.env.R2_SECRET_ACCESS_KEY ||
+    !process.env.R2_BUCKET_NAME
+  ) {
     res.status(503).json({
       error:
-        "Video analysis isn't fully configured -- check TWELVELABS_API_KEY and ANTHROPIC_API_KEY in Vercel project settings.",
+        "Video analysis isn't fully configured -- check TWELVELABS_API_KEY, ANTHROPIC_API_KEY, and the R2_* variables in Vercel project settings.",
     });
     return;
   }
@@ -300,33 +330,9 @@ export default async function handler(req, res) {
       res.status(404).json({ error: "game_videos row not found." });
       return;
     }
-    if (!gameVideo.memories_video_no) {
-      res.status(409).json({
-        error: "This video hasn't been submitted for indexing yet.",
-      });
-      return;
-    }
 
-    // memories_video_no holds a TwelveLabs task id (see the note in
-    // index-game-video.js on why the column is still named that).
-    const task = await getTaskStatus(gameVideo.memories_video_no);
-
-    if (task.status !== "ready") {
-      res.status(409).json({
-        error: `Still indexing on TwelveLabs (status: ${task.status || "unknown"}). Try again shortly.`,
-      });
-      return;
-    }
-
-    const videoId = task.video_id;
-    if (!videoId) {
-      res.status(500).json({
-        error: "TwelveLabs task is ready but returned no video_id.",
-      });
-      return;
-    }
-
-    const moments = await getShotListFromTwelveLabs(videoId);
+    const signedUrl = await getR2SignedUrl(gameVideo.storage_path);
+    const moments = await getShotListFromTwelveLabs(signedUrl);
 
     const drafted = [];
     for (const moment of moments) {
