@@ -9,10 +9,6 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<!-- Resumable (TUS) uploads for large game film -- see uploadGameVideo().
-     If this 404s, check https://www.jsdelivr.com/package/npm/tus-js-client
-     for the current UMD file path/version and update this src. -->
-<script src="https://cdn.jsdelivr.net/npm/tus-js-client@4/dist/tus.min.js"></script>
 
 <style>
 
@@ -4291,9 +4287,6 @@ tr:hover td{
 
 const SUPABASE_URL =
   "https://iiuqxxrrruvwvfehrzic.supabase.co";
-
-const SUPABASE_PROJECT_REF =
-  "iiuqxxrrruvwvfehrzic";
 
 const SUPABASE_KEY =
   "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
@@ -12670,63 +12663,133 @@ async function renderCustomerVideoList(){
 }
 
 
-// Resumable (TUS) upload -- required for large game film. A plain
+// R2 multipart upload -- required for large game film. A plain
 // single-request upload is fine for small files, but a 1-3+ hour
 // browser upload over home internet WILL get interrupted eventually
-// (Wi-Fi blip, laptop sleep, tab closed by accident); TUS resumes
-// from where it left off instead of forcing a full restart, and
-// gives us real progress to show instead of a blind spinner.
-function uploadFileResumable(storagePath, file, onProgress){
+// (Wi-Fi blip, laptop sleep, tab closed by accident). This uploads
+// the file in independent parts, tracks which parts finished in
+// localStorage, and can resume from the last completed part instead
+// of restarting from zero -- even after closing the tab, as long as
+// the same file is picked again.
+function r2FileFingerprint(file){
+  return `r2upload:${file.name}:${file.size}:${file.lastModified}`;
+}
 
-  return new Promise((resolve, reject) => {
 
-    const upload = new tus.Upload(file, {
+async function uploadFileToR2(file, onProgress){
 
-      endpoint: `https://${SUPABASE_PROJECT_REF}.storage.supabase.co/storage/v1/upload/resumable`,
+  const fingerprint =
+    r2FileFingerprint(file);
 
-      retryDelays: [0, 3000, 5000, 10000, 20000],
+  let session =
+    JSON.parse(localStorage.getItem(fingerprint) || "null");
 
-      headers: {
-        authorization: `Bearer ${currentSession.access_token}`,
-        apikey: SUPABASE_KEY
-      },
+  if(!session){
 
-      uploadDataDuringCreation: true,
-      removeFingerprintOnSuccess: true,
+    const startRes =
+      await fetch("/api/video/r2-start-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accessToken: currentSession.access_token,
+          fileName: file.name,
+          fileSizeBytes: file.size,
+          contentType: file.type || "video/mp4"
+        })
+      });
 
-      // Supabase's resumable endpoint expects 6MB chunks.
-      chunkSize: 6 * 1024 * 1024,
+    const startData =
+      await startRes.json();
 
-      metadata: {
-        bucketName: "game-footage",
-        objectName: storagePath,
-        contentType: file.type || "video/mp4",
-        cacheControl: "3600"
-      },
+    if(!startRes.ok){
+      throw new Error(startData.error || "Could not start the upload.");
+    }
 
-      onError: (error) => reject(error),
+    session = {
+      key: startData.key,
+      uploadId: startData.uploadId,
+      partSize: startData.partSize,
+      partUrls: startData.partUrls,
+      completedParts: {} // partNumber -> ETag
+    };
 
-      onProgress: (bytesUploaded, bytesTotal) => {
-        if(onProgress){
-          onProgress(bytesUploaded, bytesTotal);
-        }
-      },
+    localStorage.setItem(fingerprint, JSON.stringify(session));
 
-      onSuccess: () => resolve()
+  }
 
+  const totalParts =
+    session.partUrls.length;
+
+  let bytesUploaded =
+    Object.keys(session.completedParts).length * session.partSize;
+
+  for(const { partNumber, url } of session.partUrls){
+
+    if(session.completedParts[partNumber]){
+      continue; // already done in a previous attempt
+    }
+
+    const start =
+      (partNumber - 1) * session.partSize;
+
+    const end =
+      Math.min(start + session.partSize, file.size);
+
+    const blob =
+      file.slice(start, end);
+
+    const putRes =
+      await fetch(url, { method: "PUT", body: blob });
+
+    if(!putRes.ok){
+      throw new Error(`Part ${partNumber} of ${totalParts} failed to upload.`);
+    }
+
+    const etag =
+      putRes.headers.get("ETag");
+
+    if(!etag){
+      throw new Error(
+        `Part ${partNumber} uploaded but no ETag came back -- check the R2 bucket's CORS config exposes the ETag header.`
+      );
+    }
+
+    session.completedParts[partNumber] = etag;
+    localStorage.setItem(fingerprint, JSON.stringify(session));
+
+    bytesUploaded += blob.size;
+
+    if(onProgress){
+      onProgress(bytesUploaded, file.size);
+    }
+
+  }
+
+  const completeRes =
+    await fetch("/api/video/r2-complete-upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        accessToken: currentSession.access_token,
+        key: session.key,
+        uploadId: session.uploadId,
+        parts: Object.entries(session.completedParts).map(([partNumber, ETag]) => ({
+          PartNumber: Number(partNumber),
+          ETag: ETag
+        }))
+      })
     });
 
-    // Resume an interrupted upload of this exact file if one exists
-    // (tus-js-client fingerprints by file name/size/type) instead of
-    // starting over from zero.
-    upload.findPreviousUploads().then((previousUploads) => {
-      if(previousUploads.length){
-        upload.resumeFromPreviousUpload(previousUploads[0]);
-      }
-      upload.start();
-    });
+  const completeData =
+    await completeRes.json();
 
-  });
+  if(!completeRes.ok){
+    throw new Error(completeData.error || "Could not finish the upload.");
+  }
+
+  localStorage.removeItem(fingerprint);
+
+  return session.key;
 
 }
 
@@ -12828,25 +12891,16 @@ async function uploadGameVideo(){
     const userId =
       currentSession.user.id;
 
-    const storagePath =
-      `${userId}/${Date.now()}_${file.name}`;
+    let storagePath;
 
-    const { error: uploadError } =
-      await (async () => {
-        try{
-          await uploadFileResumable(storagePath, file, (uploaded, total) => {
-            const pct = total ? Math.floor((uploaded / total) * 100) : 0;
-            statusEl.textContent = `Uploading... ${pct}%`;
-          });
-          return { error: null };
-        }
-        catch(err){
-          return { error: err };
-        }
-      })();
-
-    if(uploadError){
-      throw new Error(uploadError.message || String(uploadError));
+    try{
+      storagePath = await uploadFileToR2(file, (uploaded, total) => {
+        const pct = total ? Math.floor((uploaded / total) * 100) : 0;
+        statusEl.textContent = `Uploading... ${pct}%`;
+      });
+    }
+    catch(uploadErr){
+      throw new Error(uploadErr.message || String(uploadErr));
     }
 
     const { data: inserted, error: insertError } =
