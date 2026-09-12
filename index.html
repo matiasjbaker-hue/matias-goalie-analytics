@@ -8,6 +8,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
 
@@ -2096,6 +2097,7 @@ tr:hover td{
             <th>Shots</th>
             <th>Saves</th>
             <th>SV%</th>
+            <th>Report</th>
           </tr>
         </thead>
         <tbody id="gpRecentGamesBody"></tbody>
@@ -2556,6 +2558,7 @@ tr:hover td{
             <th>SV%</th>
             <th>GAA</th>
             <th>Minutes</th>
+            <th>Report</th>
           </tr>
 
         </thead>
@@ -6220,6 +6223,10 @@ function renderGameLog(){
 
       <td>${minutes.toFixed(1)}</td>
 
+      <td>
+        <button type="button" class="btn-secondary" onclick="generateGameReportPDF(${game.id})">PDF</button>
+      </td>
+
     `;
 
 
@@ -9254,7 +9261,7 @@ function renderGoalieProfile(goalieId){
   if(!recentGames.length){
 
     gamesBody.innerHTML =
-      `<tr><td colspan="6"><div class="empty-state">No games recorded yet.</div></td></tr>`;
+      `<tr><td colspan="7"><div class="empty-state">No games recorded yet.</div></td></tr>`;
 
   }
   else{
@@ -9275,6 +9282,7 @@ function renderGoalieProfile(goalieId){
             <td>${num(g.shots_against)}</td>
             <td>${num(g.saves)}</td>
             <td>${sv !== null ? sv.toFixed(1) + "%" : "—"}</td>
+            <td><button type="button" class="btn-secondary" onclick="generateGameReportPDF(${g.id})">PDF</button></td>
           </tr>
         `;
 
@@ -9867,6 +9875,459 @@ async function deleteAssignment(id){
 }
 
 
+/* ------------------------------------------------------------
+   Game Report (PDF)
+------------------------------------------------------------ */
+
+function getReportGoalieDisplayInfo(){
+
+  // Whoever's data is currently active (a goalie viewing themselves,
+  // or a coach who has opened a specific goalie's profile).
+  if(currentRole === "coach"){
+
+    const profile =
+      coachGoalieProfiles.find(p => p.id === activeGoalieId);
+
+    return {
+      name: (profile && profile.full_name) || "Unknown Goalie",
+      team: (profile && profile.team) || "",
+      season: (profile && profile.season) || CURRENT_SEASON
+    };
+
+  }
+
+  return {
+    name: (currentProfile && currentProfile.full_name) || "Goalie",
+    team: (currentProfile && currentProfile.team) || "",
+    season: (currentProfile && currentProfile.season) || CURRENT_SEASON
+  };
+
+}
+
+
+function computeGameReportData(gameId){
+
+  const game =
+    games.find(g => String(g.id) === String(gameId));
+
+  if(!game){ return null; }
+
+  const gamePeriods =
+    periodStats.filter(p => String(p.game_id) === String(gameId));
+
+  const gameShotsList =
+    shots.filter(s => String(s.game_id) === String(gameId));
+
+  const gameRebounds =
+    reboundControls.filter(r => String(r.game_id) === String(gameId));
+
+  const gamePuck =
+    puckPlaying.filter(p => String(p.game_id) === String(gameId));
+
+  const shotsAgainst = gameShots(game);
+  const saves = gameSaves(game);
+  const goals = gameGoals(game);
+  const minutes = gameMinutes(game);
+
+  const svPct = shotsAgainst ? (saves / shotsAgainst * 100) : null;
+  const gaa = minutes ? (goals / minutes * 60) : null;
+
+  const advanced =
+    gameShotsList.length
+      ? calculateAdvancedForShots(gameShotsList)
+      : null;
+
+  // Period breakdown
+  const periodOrder = ["1","2","3","OT"];
+  const periodGroups = {};
+
+  gamePeriods.forEach(row => {
+
+    let p = normalize(row.period || row.period_number);
+    if(p === "1st"){ p = "1"; }
+    if(p === "2nd"){ p = "2"; }
+    if(p === "3rd"){ p = "3"; }
+    if(!periodOrder.includes(p)){ p = "?"; }
+
+    if(!periodGroups[p]){ periodGroups[p] = {shots:0, saves:0, goals:0}; }
+
+    periodGroups[p].shots += num(row.shots_against);
+    periodGroups[p].saves += num(row.saves);
+    periodGroups[p].goals += num(row.goals_against);
+
+  });
+
+  const periodRows =
+    [...periodOrder, "?"]
+      .filter(p => periodGroups[p])
+      .map(p => {
+        const g = periodGroups[p];
+        const sv = g.shots ? (g.saves / g.shots * 100) : null;
+        return {
+          label: p === "?" ? "Unspecified" : (p === "OT" ? "OT" : p + (p==="1"?"st":p==="2"?"nd":"rd")),
+          shots: g.shots, saves: g.saves, goals: g.goals, svPct: sv
+        };
+      });
+
+  // Situational breakdown
+  const situations = [
+    { key:"rush", label:"Rush", test: isRushShot },
+    { key:"rebound", label:"Rebound", test: shotIsRebound },
+    { key:"screened", label:"Screened", test: isScreened },
+    { key:"breakaway", label:"Breakaway", test: isBreakaway },
+    { key:"cross_ice", label:"Cross-Ice", test: s => shotBoolean(s.cross_ice) }
+  ];
+
+  const situationalRows =
+    situations
+      .map(sit => {
+        const subset = gameShotsList.filter(sit.test);
+        if(!subset.length){ return null; }
+        const g = subset.filter(isGoal).length;
+        const sv = subset.length ? ((subset.length - g) / subset.length * 100) : null;
+        return { label: sit.label, shots: subset.length, goals: g, svPct: sv };
+      })
+      .filter(Boolean);
+
+  // Shot location breakdown
+  const locationGroups = {};
+
+  gameShotsList.forEach(shot => {
+    const loc = shotLocation(shot) || "unspecified";
+    if(!locationGroups[loc]){ locationGroups[loc] = {shots:0, goals:0}; }
+    locationGroups[loc].shots++;
+    if(isGoal(shot)){ locationGroups[loc].goals++; }
+  });
+
+  const locationRows =
+    Object.entries(locationGroups).map(([loc, g]) => {
+      const sv = g.shots ? ((g.shots - g.goals) / g.shots * 100) : null;
+      return { label: loc, shots: g.shots, goals: g.goals, svPct: sv };
+    });
+
+  // Rebound control totals
+  let reboundSummary = null;
+
+  if(gameRebounds.length){
+
+    const totals = {};
+
+    [
+      "glove_caught","glove_rebound","glove_goal",
+      "blocker_good","blocker_bad","blocker_goal",
+      "midsection_good","midsection_bad","midsection_goal",
+      "pad_stick_good","pad_stick_bad","pad_stick_goal"
+    ].forEach(key => {
+      totals[key] = gameRebounds.reduce((sum,r) => sum + num(r[key]), 0);
+    });
+
+    reboundSummary = totals;
+
+  }
+
+  // Puck playing totals
+  let puckSummary = null;
+
+  if(gamePuck.length){
+
+    puckSummary = {
+      rimsFaced: gamePuck.reduce((s,r) => s + num(r.rims_faced), 0),
+      rimsStopped: gamePuck.reduce((s,r) => s + num(r.rims_stopped), 0),
+      passAttempts: gamePuck.reduce((s,r) => s + num(r.pass_attempts), 0),
+      passesCompleted: gamePuck.reduce((s,r) => s + num(r.passes_completed), 0)
+    };
+
+  }
+
+  return {
+    game, shotsAgainst, saves, goals, minutes, svPct, gaa, advanced,
+    periodRows, situationalRows, locationRows, reboundSummary, puckSummary,
+    shotCount: gameShotsList.length
+  };
+
+}
+
+
+function pdfEnsureSpace(doc, y, needed){
+
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  if(y + needed > pageHeight - 50){
+    doc.addPage();
+    return 56;
+  }
+
+  return y;
+
+}
+
+
+function pdfSectionHeading(doc, y, text){
+
+  y = pdfEnsureSpace(doc, y, 30);
+
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(12);
+  doc.setTextColor(15,55,40);
+  doc.text(text, 42, y);
+
+  doc.setDrawColor(210,210,210);
+  doc.line(42, y + 5, 553, y + 5);
+
+  return y + 22;
+
+}
+
+
+function pdfStatRow(doc, y, label, value, x1, x2){
+
+  y = pdfEnsureSpace(doc, y, 16);
+
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(9.5);
+  doc.setTextColor(90,90,90);
+  doc.text(String(label), x1 || 48, y);
+
+  doc.setFont("helvetica","bold");
+  doc.setTextColor(25,25,25);
+  doc.text(String(value), x2 || 300, y);
+
+  return y + 15;
+
+}
+
+
+function pdfTableRow(doc, y, cells, widths, isHeader){
+
+  y = pdfEnsureSpace(doc, y, 16);
+
+  let x = 48;
+
+  doc.setFont("helvetica", isHeader ? "bold" : "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(isHeader ? 60 : 40, isHeader ? 60 : 40, isHeader ? 60 : 40);
+
+  cells.forEach((cell, i) => {
+    doc.text(String(cell), x, y);
+    x += widths[i];
+  });
+
+  return y + 15;
+
+}
+
+
+function formatPdfPct(v){
+  return v === null || v === undefined ? "n/a" : v.toFixed(1) + "%";
+}
+
+
+async function generateGameReportPDF(gameId){
+
+  if(!window.jspdf){
+    alert("PDF library did not load. Check your connection and try again.");
+    return;
+  }
+
+  const data = computeGameReportData(gameId);
+
+  if(!data){
+    alert("Could not find that game.");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:"pt", format:"a4" });
+
+  const goalieInfo = getReportGoalieDisplayInfo();
+  const game = data.game;
+
+  let y = 56;
+
+  // Header
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(18);
+  doc.setTextColor(15,55,40);
+  doc.text("GoalieIQ Analytics", 42, y);
+
+  doc.setFontSize(11);
+  doc.setTextColor(120,120,120);
+  doc.text("Game Report", 42, y + 16);
+
+  y += 40;
+
+  doc.setDrawColor(15,55,40);
+  doc.setLineWidth(1.2);
+  doc.line(42, y, 553, y);
+  y += 26;
+
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(14);
+  doc.setTextColor(20,20,20);
+  doc.text(`${goalieInfo.name}`, 42, y);
+  y += 16;
+
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(10);
+  doc.setTextColor(90,90,90);
+  doc.text(`${goalieInfo.team || "No team set"} · ${goalieInfo.season}`, 42, y);
+  y += 24;
+
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(11);
+  doc.setTextColor(30,30,30);
+  doc.text(`${gameDate(game) || "No date"}  vs  ${gameOpponent(game)}`, 42, y);
+  y += 15;
+
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(10);
+  doc.setTextColor(90,90,90);
+  doc.text(`Result: ${gameResult(game) || "—"}    Season: ${game.season || CURRENT_SEASON}`, 42, y);
+  y += 26;
+
+  // Performance Summary
+  y = pdfSectionHeading(doc, y, "Performance Summary");
+  y = pdfStatRow(doc, y, "Shots Against", data.shotsAgainst);
+  y = pdfStatRow(doc, y, "Saves", data.saves);
+  y = pdfStatRow(doc, y, "Goals Against", data.goals);
+  y = pdfStatRow(doc, y, "Save Percentage", formatPdfPct(data.svPct));
+  y = pdfStatRow(doc, y, "GAA (this game)", data.gaa !== null ? data.gaa.toFixed(2) : "n/a");
+  y = pdfStatRow(doc, y, "Minutes Played", data.minutes ? data.minutes.toFixed(1) : "n/a");
+
+  if(data.advanced){
+    y = pdfStatRow(doc, y, "Expected Goals Against (xGA)", data.advanced.xGA.toFixed(2));
+    y = pdfStatRow(doc, y, "Expected SV%", formatPdfPct(data.advanced.expectedSV));
+    y = pdfStatRow(doc, y, "GSAx (Goals Saved Above Expected)", (data.advanced.gsax >= 0 ? "+" : "") + data.advanced.gsax.toFixed(2));
+    y += 4;
+    y = pdfStatRow(doc, y, "Shot Grades — A+ / A / B / C",
+      `${data.advanced.grades["A+"]} / ${data.advanced.grades["A"]} / ${data.advanced.grades["B"]} / ${data.advanced.grades["C"]}`);
+  }
+  else{
+    y = pdfStatRow(doc, y, "Shot-level detail", "No shots tagged for this game.");
+  }
+
+  y += 10;
+
+  // Period Breakdown
+  if(data.periodRows.length){
+
+    y = pdfSectionHeading(doc, y, "Period Breakdown");
+    y = pdfTableRow(doc, y, ["Period","Shots","Saves","GA","SV%"], [90,80,80,80,80], true);
+
+    data.periodRows.forEach(p => {
+      y = pdfTableRow(doc, y,
+        [p.label, p.shots, p.saves, p.goals, formatPdfPct(p.svPct)],
+        [90,80,80,80,80]
+      );
+    });
+
+    y += 10;
+
+  }
+
+  // Situational Breakdown
+  if(data.situationalRows.length){
+
+    y = pdfSectionHeading(doc, y, "Situational Breakdown");
+    y = pdfTableRow(doc, y, ["Situation","Shots","Goals","SV%"], [140,80,80,80], true);
+
+    data.situationalRows.forEach(s => {
+      y = pdfTableRow(doc, y, [s.label, s.shots, s.goals, formatPdfPct(s.svPct)], [140,80,80,80]);
+    });
+
+    y += 10;
+
+  }
+
+  // Shot Location Breakdown
+  if(data.locationRows.length){
+
+    y = pdfSectionHeading(doc, y, "Shot Location Breakdown");
+    y = pdfTableRow(doc, y, ["Location","Shots","Goals","SV%"], [140,80,80,80], true);
+
+    data.locationRows.forEach(l => {
+      y = pdfTableRow(doc, y, [l.label, l.shots, l.goals, formatPdfPct(l.svPct)], [140,80,80,80]);
+    });
+
+    y += 10;
+
+  }
+
+  // Rebound Control
+  if(data.reboundSummary){
+
+    const t = data.reboundSummary;
+
+    y = pdfSectionHeading(doc, y, "Rebound Control");
+    y = pdfStatRow(doc, y, "Glove", `${t.glove_caught} caught, ${t.glove_rebound} rebound, ${t.glove_goal} goal`);
+    y = pdfStatRow(doc, y, "Blocker", `${t.blocker_good} good, ${t.blocker_bad} bad, ${t.blocker_goal} goal`);
+    y = pdfStatRow(doc, y, "Midsection", `${t.midsection_good} good, ${t.midsection_bad} bad, ${t.midsection_goal} goal`);
+    y = pdfStatRow(doc, y, "Pad/Stick", `${t.pad_stick_good} good, ${t.pad_stick_bad} bad, ${t.pad_stick_goal} goal`);
+    y += 10;
+
+  }
+  else{
+
+    y = pdfSectionHeading(doc, y, "Rebound Control");
+    y = pdfStatRow(doc, y, "", "No rebound tracking data entered for this game.");
+    y += 10;
+
+  }
+
+  // Puck Playing
+  if(data.puckSummary){
+
+    const p = data.puckSummary;
+    const rimsPct = p.rimsFaced ? (p.rimsStopped / p.rimsFaced * 100) : null;
+    const passPct = p.passAttempts ? (p.passesCompleted / p.passAttempts * 100) : null;
+
+    y = pdfSectionHeading(doc, y, "Puck Playing");
+    y = pdfStatRow(doc, y, "Rims Faced / Stopped", `${p.rimsFaced} / ${p.rimsStopped} (${formatPdfPct(rimsPct)})`);
+    y = pdfStatRow(doc, y, "Pass Attempts / Completed", `${p.passAttempts} / ${p.passesCompleted} (${formatPdfPct(passPct)})`);
+    y += 10;
+
+  }
+  else{
+
+    y = pdfSectionHeading(doc, y, "Puck Playing");
+    y = pdfStatRow(doc, y, "", "No puck-playing data entered for this game.");
+    y += 10;
+
+  }
+
+  // Footer on every page
+  const pageCount = doc.internal.getNumberOfPages();
+
+  for(let i = 1; i <= pageCount; i++){
+
+    doc.setPage(i);
+
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    doc.setDrawColor(230,230,230);
+    doc.line(42, pageHeight - 40, 553, pageHeight - 40);
+
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(8);
+    doc.setTextColor(140,140,140);
+
+    doc.text(
+      `Generated ${new Date().toLocaleString()} · xG model ${XG_MODEL_VERSION} · GoalieIQ Analytics`,
+      42, pageHeight - 26
+    );
+
+    doc.text(`Page ${i} of ${pageCount}`, 500, pageHeight - 26);
+
+  }
+
+  const fileName =
+    `${(goalieInfo.name || "goalie").replace(/\s+/g,"_")}_${gameDate(game) || "game"}_vs_${gameOpponent(game).replace(/\s+/g,"_")}.pdf`;
+
+  doc.save(fileName);
+
+}
+
+
 async function initAuth(){
 
   const { data } =
@@ -10432,6 +10893,7 @@ function renderMyGamesList(){
           <span class="mygame-sub">${resultLabel} &middot; ${scoreLabel} &middot; ${game.shots_against ?? "?"} SA, ${game.saves ?? "?"} SV</span>
         </div>
         <div class="mygame-item-actions">
+          <button type="button" class="btn-secondary" onclick="generateGameReportPDF(${game.id})">Report</button>
           <button type="button" class="btn-secondary" onclick="editGame(${game.id})">Edit</button>
           <button type="button" class="btn-danger" onclick="deleteGame(${game.id})">Delete</button>
         </div>
