@@ -13064,7 +13064,7 @@ async function runVideoAnalysis(gameVideoId){
 
     if(!res.ok){
 
-      // A 409 here just means memories.ai isn't done indexing yet --
+      // A 409 here just means TwelveLabs isn't done indexing yet --
       // that's expected, not a real error, so word it gently.
       alert(data.error || "Could not analyze this video yet.");
       return;
