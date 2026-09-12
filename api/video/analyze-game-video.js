@@ -164,7 +164,18 @@ function parseShotListFromTask(task) {
     );
   }
 
-  if (!Array.isArray(parsed)) return [];
+  // Handle the model wrapping the array under a key (e.g. {"shots":[...]})
+  // instead of returning a bare array, despite the prompt asking for one.
+  if (!Array.isArray(parsed) && parsed && typeof parsed === "object") {
+    const arrayField = Object.values(parsed).find((v) => Array.isArray(v));
+    if (arrayField) parsed = arrayField;
+  }
+
+  if (!Array.isArray(parsed)) {
+    throw new Error(
+      `TwelveLabs' shot list parsed as JSON but wasn't an array (or an object wrapping one). Raw text: ${text}`
+    );
+  }
 
   return parsed.map((m) => ({
     start: m.start_seconds ?? m.start ?? 0,
@@ -282,83 +293,3 @@ export default async function handler(req, res) {
     );
     const gameVideo = rows[0];
     if (!gameVideo) {
-      res.status(404).json({ error: "game_videos row not found." });
-      return;
-    }
-    if (!gameVideo.memories_video_no) {
-      res.status(409).json({
-        error: "This video hasn't been submitted for analysis yet.",
-      });
-      return;
-    }
-
-    const task = await getAnalysisTask(gameVideo.memories_video_no);
-
-    if (task.status === "failed") {
-      res.status(500).json({
-        error: `TwelveLabs analysis failed for this video. Raw task: ${JSON.stringify(task)}`,
-      });
-      return;
-    }
-
-    if (task.status !== "ready") {
-      res.status(409).json({
-        error: `Still processing on TwelveLabs (status: ${task.status || "unknown"}). Try again in a bit.`,
-      });
-      return;
-    }
-
-    const moments = parseShotListFromTask(task);
-
-    const drafted = [];
-    for (const moment of moments) {
-      let extracted;
-      try {
-        extracted = await extractShotFromMoment(moment);
-      } catch (e) {
-        console.error("Extraction failed for one moment, skipping:", e);
-        continue;
-      }
-
-      const draftRow = {
-        game_video_id: gameVideo.id,
-        game_id: gameVideo.game_id,
-        user_id: gameVideo.user_id,
-        start_seconds: moment.start,
-        end_seconds: moment.end,
-        outcome: extracted.outcome === "unclear" ? null : extracted.outcome,
-        distance: extracted.distance ?? null,
-        location: extracted.location === "unclear" ? null : extracted.location,
-        shot_type:
-          extracted.shot_type === "unclear" ? null : extracted.shot_type,
-        rush: toBoolOrNull(extracted.rush),
-        rebound: toBoolOrNull(extracted.rebound),
-        screened: toBoolOrNull(extracted.screened),
-        breakaway: toBoolOrNull(extracted.breakaway),
-        cross_ice: toBoolOrNull(extracted.cross_ice),
-        deflection: toBoolOrNull(extracted.deflection),
-        uncertain_fields: extracted.uncertain_fields || "",
-        status: "pending",
-      };
-
-      const inserted = await supabasePost("shot_drafts", draftRow, accessToken);
-      drafted.push(inserted[0]);
-    }
-
-    await supabasePatch(
-      "game_videos",
-      `id=eq.${encodeURIComponent(gameVideoId)}`,
-      { status: "analyzed", updated_at: new Date().toISOString() },
-      accessToken
-    );
-
-    res.status(200).json({
-      status: "analyzed",
-      draftCount: drafted.length,
-      drafts: drafted,
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message || "Something went wrong." });
-  }
-}
