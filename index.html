@@ -6264,7 +6264,7 @@ function renderGameLog(){
       <td>${minutes.toFixed(1)}</td>
 
       <td>
-        <button type="button" class="btn-secondary" onclick="generateGameReportPDF(${game.id})">PDF</button>
+        <button type="button" class="btn-secondary" onclick="generateGameReportPDF(${game.id}, this)">PDF</button>
       </td>
 
     `;
@@ -9341,7 +9341,7 @@ function renderGoalieProfile(goalieId){
             <td>${num(g.shots_against)}</td>
             <td>${num(g.saves)}</td>
             <td>${sv !== null ? sv.toFixed(1) + "%" : "—"}</td>
-            <td><button type="button" class="btn-secondary" onclick="generateGameReportPDF(${g.id})">PDF</button></td>
+            <td><button type="button" class="btn-secondary" onclick="generateGameReportPDF(${g.id}, this)">PDF</button></td>
           </tr>
         `;
 
@@ -10182,7 +10182,181 @@ function formatPdfPct(v){
 }
 
 
-async function generateGameReportPDF(gameId){
+function buildGameNarrativeInputText(data, goalieInfo){
+
+  const game = data.game;
+  const lines = [];
+
+  lines.push(`Goalie: ${goalieInfo.name}${goalieInfo.team ? " (" + goalieInfo.team + ")" : ""}`);
+  lines.push(`Game: ${gameDate(game) || "unknown date"} vs ${gameOpponent(game)}`);
+  lines.push(`Result: ${gameResult(game) || "unknown"}`);
+  lines.push(`Shots against: ${data.shotsAgainst}, Saves: ${data.saves}, Goals against: ${data.goals}`);
+  lines.push(`Save percentage: ${formatPdfPct(data.svPct)}`);
+  lines.push(`GAA (this game): ${data.gaa !== null ? data.gaa.toFixed(2) : "n/a"}`);
+
+  if(data.advanced){
+
+    lines.push(`Expected goals against (xGA): ${data.advanced.xGA.toFixed(2)}`);
+    lines.push(`Expected save percentage: ${formatPdfPct(data.advanced.expectedSV)}`);
+    lines.push(`GSAx: ${data.advanced.gsax >= 0 ? "+" : ""}${data.advanced.gsax.toFixed(2)}`);
+    lines.push(`Shot grades -- A+: ${data.advanced.grades["A+"]}, A: ${data.advanced.grades["A"]}, B: ${data.advanced.grades["B"]}, C: ${data.advanced.grades["C"]}`);
+
+  }
+  else{
+
+    lines.push("No shot-level data tagged for this game.");
+
+  }
+
+  if(data.periodRows.length){
+
+    lines.push("Period breakdown:");
+
+    data.periodRows.forEach(p => {
+      lines.push(`  ${p.label}: ${p.shots} shots, ${p.saves} saves, ${p.goals} goals against, SV% ${formatPdfPct(p.svPct)}`);
+    });
+
+  }
+
+  if(data.situationalRows.length){
+
+    lines.push("Situational breakdown:");
+
+    data.situationalRows.forEach(s => {
+      lines.push(`  ${s.label}: ${s.shots} shots, ${s.goals} goals, SV% ${formatPdfPct(s.svPct)}`);
+    });
+
+  }
+
+  if(data.locationRows.length){
+
+    lines.push("Shot location breakdown:");
+
+    data.locationRows.forEach(l => {
+      lines.push(`  ${l.label}: ${l.shots} shots, ${l.goals} goals, SV% ${formatPdfPct(l.svPct)}`);
+    });
+
+  }
+
+  if(data.reboundSummary){
+
+    const t = data.reboundSummary;
+
+    lines.push(
+      `Rebound control -- Glove: ${t.glove_caught} caught, ${t.glove_rebound} rebound, ${t.glove_goal} goal; ` +
+      `Blocker: ${t.blocker_good} good, ${t.blocker_bad} bad, ${t.blocker_goal} goal; ` +
+      `Midsection: ${t.midsection_good} good, ${t.midsection_bad} bad, ${t.midsection_goal} goal; ` +
+      `Pad/Stick: ${t.pad_stick_good} good, ${t.pad_stick_bad} bad, ${t.pad_stick_goal} goal.`
+    );
+
+  }
+
+  if(data.puckSummary){
+
+    const p = data.puckSummary;
+
+    lines.push(
+      `Puck playing -- Rims faced/stopped: ${p.rimsFaced}/${p.rimsStopped}; ` +
+      `Pass attempts/completed: ${p.passAttempts}/${p.passesCompleted}.`
+    );
+
+  }
+
+  return lines.join("\n");
+
+}
+
+
+function parseGameNarrative(text){
+
+  const sections = { wentWell: [], areasToImprove: [], priorities: [] };
+
+  if(!text){ return sections; }
+
+  const wentWellMatch = text.match(/WENT WELL:([\s\S]*?)(AREAS TO IMPROVE:|$)/i);
+  const improveMatch = text.match(/AREAS TO IMPROVE:([\s\S]*?)(PRIORITIES FOR NEXT PRACTICE:|$)/i);
+  const priorityMatch = text.match(/PRIORITIES FOR NEXT PRACTICE:([\s\S]*)$/i);
+
+  const toBullets = block =>
+    (block || "")
+      .split("\n")
+      .map(l => l.trim())
+      .filter(l => l.startsWith("-"))
+      .map(l => l.replace(/^-\s*/, ""));
+
+  sections.wentWell = toBullets(wentWellMatch && wentWellMatch[1]);
+  sections.areasToImprove = toBullets(improveMatch && improveMatch[1]);
+  sections.priorities = toBullets(priorityMatch && priorityMatch[1]);
+
+  return sections;
+
+}
+
+
+async function fetchGameNarrative(summaryText){
+
+  if(!currentSession || !currentSession.access_token){
+    return null;
+  }
+
+  try{
+
+    const res = await fetch("/api/game-report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        accessToken: currentSession.access_token,
+        summaryText: summaryText,
+        viewerRole: currentRole
+      })
+    });
+
+    if(!res.ok){
+      console.error("Game narrative request failed:", res.status);
+      return null;
+    }
+
+    const responseData = await res.json();
+    return parseGameNarrative(responseData.narrative);
+
+  }
+  catch(err){
+
+    console.error("Game narrative error:", err);
+    return null;
+
+  }
+
+}
+
+
+function pdfBulletList(doc, y, bullets){
+
+  if(!bullets || !bullets.length){
+    return pdfStatRow(doc, y, "", "Not enough data to say.");
+  }
+
+  bullets.forEach(b => {
+
+    y = pdfEnsureSpace(doc, y, 28);
+
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(9.5);
+    doc.setTextColor(40,40,40);
+
+    const wrapped = doc.splitTextToSize("•  " + b, 500);
+    doc.text(wrapped, 48, y);
+
+    y += wrapped.length * 12 + 5;
+
+  });
+
+  return y + 6;
+
+}
+
+
+async function generateGameReportPDF(gameId, buttonEl){
 
   if(!window.jspdf){
     alert("PDF library did not load. Check your connection and try again.");
@@ -10196,10 +10370,33 @@ async function generateGameReportPDF(gameId){
     return;
   }
 
+  const originalButtonText = buttonEl ? buttonEl.textContent : null;
+
+  if(buttonEl){
+    buttonEl.disabled = true;
+    buttonEl.textContent = "Generating...";
+  }
+
+  const goalieInfo = getReportGoalieDisplayInfo();
+
+  // Grounded narrative: the same real, already-computed numbers going
+  // into the tables below are all the model is given -- it's asked
+  // not to invent anything beyond them. Best-effort: if this fails
+  // (no network, API not configured, etc.) the PDF still generates
+  // with the data sections, just without the narrative.
+  const narrative =
+    await fetchGameNarrative(
+      buildGameNarrativeInputText(data, goalieInfo)
+    );
+
+  if(buttonEl){
+    buttonEl.disabled = false;
+    buttonEl.textContent = originalButtonText;
+  }
+
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:"pt", format:"a4" });
 
-  const goalieInfo = getReportGoalieDisplayInfo();
   const game = data.game;
 
   let y = 56;
@@ -10267,6 +10464,50 @@ async function generateGameReportPDF(gameId){
   }
 
   y += 10;
+
+  // Coach's Analysis (grounded narrative)
+  y = pdfSectionHeading(doc, y, "Coach's Analysis");
+
+  if(narrative){
+
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(10);
+    doc.setTextColor(20,90,55);
+    y = pdfEnsureSpace(doc, y, 16);
+    doc.text("What Went Well", 48, y);
+    y += 15;
+
+    y = pdfBulletList(doc, y, narrative.wentWell);
+    y += 4;
+
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(10);
+    doc.setTextColor(150,90,20);
+    y = pdfEnsureSpace(doc, y, 16);
+    doc.text("Areas to Improve", 48, y);
+    y += 15;
+
+    y = pdfBulletList(doc, y, narrative.areasToImprove);
+    y += 4;
+
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(10);
+    doc.setTextColor(20,20,20);
+    y = pdfEnsureSpace(doc, y, 16);
+    doc.text("Priorities for Next Practice", 48, y);
+    y += 15;
+
+    y = pdfBulletList(doc, y, narrative.priorities);
+    y += 6;
+
+  }
+  else{
+
+    y = pdfStatRow(doc, y, "", "Analysis unavailable for this report -- the data sections below are still accurate.");
+
+  }
+
+  y += 4;
 
   // Period Breakdown
   if(data.periodRows.length){
@@ -10953,7 +11194,7 @@ function renderMyGamesList(){
           <span class="mygame-sub">${resultLabel} &middot; ${scoreLabel} &middot; ${game.shots_against ?? "?"} SA, ${game.saves ?? "?"} SV</span>
         </div>
         <div class="mygame-item-actions">
-          <button type="button" class="btn-secondary" onclick="generateGameReportPDF(${game.id})">Report</button>
+          <button type="button" class="btn-secondary" onclick="generateGameReportPDF(${game.id}, this)">Report</button>
           <button type="button" class="btn-secondary" onclick="editGame(${game.id})">Edit</button>
           <button type="button" class="btn-danger" onclick="deleteGame(${game.id})">Delete</button>
         </div>
