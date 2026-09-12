@@ -18,9 +18,11 @@
 //      names carry any real uncertainty (see the note in
 //      index-game-video.js).
 //
-// Nothing this function writes ever touches the real "Shots" table
-// or fires the xG trigger -- it only ever writes to shot_drafts,
-// which the coach reviews and confirms one at a time in the UI.
+// This whole function is admin-only (enforced both here and by RLS
+// on shot_drafts) -- customers never trigger this, and nothing it
+// writes ever touches the real "Shots" table or fires the xG
+// trigger. It only ever writes to shot_drafts, which the admin
+// reviews and confirms one at a time in the Video Review tab.
 
 const SUPABASE_URL = "https://iiuqxxrrruvwvfehrzic.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
@@ -44,6 +46,26 @@ async function verifyAccessToken(accessToken) {
   if (!res.ok) return null;
   const data = await res.json();
   return data && data.id ? data : null;
+}
+
+// This whole step is admin-only, by design: customers never see
+// drafted shots or timestamps, only Nik reviewing/editing them.
+// Row Level Security on shot_drafts already enforces this at the
+// database level (see the "admin ... shot_drafts" policies) -- this
+// check just gives a clear error instead of a confusing RLS failure.
+async function isAdminUser(userId, accessToken) {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/profiles?select=role&id=eq.${encodeURIComponent(userId)}`,
+    {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+  if (!res.ok) return false;
+  const rows = await res.json();
+  return rows[0] && rows[0].role === "admin";
 }
 
 async function supabaseGet(table, filter, accessToken) {
@@ -228,6 +250,14 @@ export default async function handler(req, res) {
       return;
     }
 
+    const callerIsAdmin = await isAdminUser(user.id, accessToken);
+    if (!callerIsAdmin) {
+      res.status(403).json({
+        error: "Only an admin account can run shot analysis on a video.",
+      });
+      return;
+    }
+
     const rows = await supabaseGet(
       "game_videos",
       `id=eq.${encodeURIComponent(gameVideoId)}`,
@@ -260,6 +290,7 @@ export default async function handler(req, res) {
       const draftRow = {
         game_video_id: gameVideo.id,
         game_id: gameVideo.game_id,
+        user_id: gameVideo.user_id,
         start_seconds: moment.start,
         end_seconds: moment.end,
         outcome: extracted.outcome === "unclear" ? null : extracted.outcome,
