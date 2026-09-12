@@ -4062,9 +4062,21 @@ tr:hover td{
         <p>
           <strong>Base rate:</strong> starts from shot distance
           (closer shots score more often). <strong>Adjustments:</strong>
-          multiplied up or down based on location (crease/slot/point),
-          shot type (one-timer, backhand, slap shot), and situation
-          (rush, rebound, screened, breakaway, cross-ice, deflection).
+          multiplied up or down based on location (Crease, Slot, Circle,
+          Point, Perimeter), shot type (one-timer, backhand, slap shot),
+          and situation (rush, rebound, screened, breakaway, cross-ice,
+          deflection).
+        </p>
+
+        <p>
+          <strong>Location also stands in for shot angle</strong> --
+          Slot is roughly straight-on, Circle is a medium angle, and
+          Perimeter is the worst angle (along the boards), on top of
+          each tag's role as a proximity signal for Crease and Point.
+          This is a coarse proxy, not a measured angle: the platform
+          doesn't capture shot coordinates, and a single tag like
+          "Circle" can span a real range of angles depending which
+          faceoff dot the shot came from.
         </p>
 
         <p>
@@ -4525,7 +4537,7 @@ function isHighDanger(shot){
 // Only used for the local pre-save preview fallback below -- the
 // authoritative value for any saved shot is shot.xg, computed and
 // stamped by the database trigger (see xg_model_versions for history).
-const XG_MODEL_VERSION = "v1.2-heuristic";
+const XG_MODEL_VERSION = "v1.3-heuristic";
 
 
 function calculateShotXG(shot){
@@ -4589,19 +4601,42 @@ function calculateShotXG(shot){
     shotLocation(shot);
 
 
+  // v1.3: location doubles as a coarse angle proxy (Slot-family =
+  // straight-on, Circle/Dot-family = medium angle, Perimeter/Wall/Goal
+  // line = worst angle), on top of its existing role as a proximity
+  // signal for Crease/Point. FIXED IN THIS PASS: exact-string matching
+  // missed real labels like "Top of circle", "Low slot", "Goal line",
+  // "Wall", "Hashmark", "Dot" -- 34 of 52 shots got a silent unadjusted
+  // 1.0x before this fix. Pattern-matched to catch label variants.
+  // Matches calculate_shot_xg() in the database. Still a proxy, not a
+  // measured angle -- see the Methodology tab and xg_model_versions.
   if(location === "crease"){
 
     multiplier *= 1.20;
 
   }
-  else if(location === "slot"){
+  else if(location === "point"){
+
+    multiplier *= 0.85;
+
+  }
+  else if(location.includes("slot") || location.includes("hash")){
 
     multiplier *= 1.10;
 
   }
-  else if(location === "point"){
+  else if(location.includes("circle") || location.includes("dot")){
 
-    multiplier *= 0.85;
+    multiplier *= 0.90;
+
+  }
+  else if(
+    location.includes("perimeter") ||
+    location.includes("wall") ||
+    location.includes("goal line")
+  ){
+
+    multiplier *= 0.75;
 
   }
 
