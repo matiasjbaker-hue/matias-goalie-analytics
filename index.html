@@ -1159,6 +1159,12 @@ tr:hover td{
   color:var(--red);
 }
 
+.coach-message.assistant.info{
+  border-color:var(--border2);
+  color:var(--muted);
+  font-style:italic;
+}
+
 .coach-input-row{
   display:flex;
   gap:10px;
@@ -10503,7 +10509,7 @@ async function generateGameReportPDF(gameId, buttonEl){
   }
   else{
 
-    y = pdfStatRow(doc, y, "", "Analysis unavailable for this report -- the data sections below are still accurate.");
+    y = pdfStatRow(doc, y, "", "AI analysis is being finalized -- the data sections below are still fully accurate.");
 
   }
 
@@ -12285,7 +12291,11 @@ async function sendCoachQuestion(){
     loadingEl.remove();
 
     if(!res.ok){
-      appendCoachMessage("assistant", data.error || "Something went wrong.", "error");
+      appendCoachMessage(
+        "assistant",
+        data.error || "Something went wrong.",
+        res.status === 503 ? "info" : "error"
+      );
     }
     else{
       appendCoachMessage("assistant", data.answer);
