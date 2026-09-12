@@ -1,16 +1,17 @@
 // ============================================================
 // VIDEO PIPELINE — STEP 2: FIND SHOTS + DRAFT STATS
 // ============================================================
-// This is now the ONLY step that talks to TwelveLabs. Pegasus 1.5
-// analyzes a video directly from a URL in one synchronous call and
-// returns text in the response -- no index, no upload task, no
-// polling. (See index-game-video.js for why the earlier index/task
-// step went away.)
+// Call this after index-game-video.js has created a TwelveLabs
+// analysis task. This function just CHECKS the task's status --
+// if it's not ready yet, it returns a 409 and the admin can click
+// "Find shots" again in a bit. Once ready, it reads the result,
+// runs each moment through Claude for structured extraction, and
+// writes shot_drafts.
 //
 // Division of labor, on purpose:
-//   1. TwelveLabs (Pegasus 1.5) watches the whole video and, in ONE
-//      call, returns a list of shot-on-goal moments with timestamps
-//      and a plain-language description of each.
+//   1. TwelveLabs (Pegasus 1.5, async analysis) watches the whole
+//      video and returns a list of shot-on-goal moments with
+//      timestamps and a plain-language description of each.
 //   2. Claude turns each plain-language description into the exact
 //      structured fields your Shots table needs, and is told
 //      explicitly to say "unclear" rather than guess. This part is
@@ -25,53 +26,19 @@
 // reviews and confirms one at a time in the Video Review tab.
 //
 // IMPORTANT -- READ BEFORE RELYING ON THIS:
-// Built from TwelveLabs' current docs/release notes (Pegasus 1.5,
-// general analysis mode), not tested against a live account.
-// Specifically unverified: the exact field name holding the
-// response text (guessed as `data`, matching their older API's
-// convention) and whether a ~90-minute synchronous call reliably
-// finishes within Vercel's function time limit. If a full game
-// times out even with the extended maxDuration below, the fix is
-// to switch this one call to TwelveLabs' asynchronous analyze-task
-// endpoint instead -- everything downstream (Claude extraction,
-// shot_drafts) is unaffected either way.
-
-// Vercel-specific: request the longest execution window your plan
-// allows, since this makes one long-running call per analysis.
-export const config = {
-  maxDuration: 300, // seconds -- Vercel Pro's max; lower on Hobby
-};
-
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+// Built from TwelveLabs' current async-analysis docs, not tested
+// against a live account yet. The one detail most likely to need a
+// tweak: where the finished result text lives on the task object.
+// Their own sample code reads it as task.result.data (nested, not a
+// flat top-level field) -- that's what's used below, with a couple
+// fallback field names checked too. If a "no recognizable text
+// field" error comes back, it'll include the raw task object so the
+// real path can be read directly.
 
 const SUPABASE_URL = "https://iiuqxxrrruvwvfehrzic.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
 const TWELVELABS_HOST = "https://api.twelvelabs.io/v1.3";
 const CLAUDE_MODEL = "claude-sonnet-5";
-
-function r2Client() {
-  return new S3Client({
-    region: "auto",
-    endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-    credentials: {
-      accessKeyId: process.env.R2_ACCESS_KEY_ID,
-      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
-    },
-  });
-}
-
-async function getR2SignedUrl(objectKey) {
-  const client = r2Client();
-  return getSignedUrl(
-    client,
-    new GetObjectCommand({
-      Bucket: process.env.R2_BUCKET_NAME,
-      Key: objectKey,
-    }),
-    { expiresIn: 60 * 30 } // 30 min -- only needs to last one analyze call
-  );
-}
 
 async function verifyAccessToken(accessToken) {
   const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
@@ -155,50 +122,34 @@ async function supabasePatch(table, filter, body, accessToken) {
   return res.json();
 }
 
-// --- TwelveLabs: one synchronous call for the whole video --------------
+// --- TwelveLabs: check the async task, pull the result -----------------
 
-const SHOT_LIST_PROMPT = `List every shot attempt on goal in this hockey video. For each one, give the approximate start time in seconds into the video, and a plain-language description of what happens (who has the puck, where they shoot from, what happens right before and after -- rebounds, screens, deflections, breakaways, whether it's a goal or a save).
-
-Respond with ONLY a JSON array, no markdown fences, no preamble, in this exact shape:
-[
-  { "start_seconds": 42, "description": "..." },
-  { "start_seconds": 130, "description": "..." }
-]
-If you find no clear shot attempts, respond with an empty array: []`;
-
-async function getShotListFromTwelveLabs(videoUrl) {
-  const res = await fetch(`${TWELVELABS_HOST}/analyze`, {
-    method: "POST",
-    headers: {
-      "x-api-key": process.env.TWELVELABS_API_KEY,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model_name: "pegasus1.5",
-      analysis_mode: "general",
-      video: { type: "url", url: videoUrl },
-      prompt: SHOT_LIST_PROMPT,
-      temperature: 0,
-    }),
+async function getAnalysisTask(taskId) {
+  const res = await fetch(`${TWELVELABS_HOST}/analyze/tasks/${taskId}`, {
+    headers: { "x-api-key": process.env.TWELVELABS_API_KEY },
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(
-      `TwelveLabs /analyze failed: ${res.status} ${JSON.stringify(data)}`
+      `TwelveLabs task status check failed: ${res.status} ${JSON.stringify(data)}`
     );
   }
+  return data;
+}
 
-  // VERIFY: adjust this if your account's response wraps the text
-  // under a different field name.
-  const text = data.data || data.text || data.output_text || "";
+function parseShotListFromTask(task) {
+  // VERIFY: TwelveLabs' own sample code reads this as task.result.data
+  // (nested). A couple of flatter fallbacks are checked too in case
+  // your account's response shape differs.
+  const text =
+    (task.result && task.result.data) ||
+    task.data ||
+    task.output_text ||
+    "";
 
-  if(!text){
-    // None of the guessed field names matched -- rather than fail
-    // with an opaque "empty JSON" error, show the actual response
-    // shape so the real field name can be read directly instead of
-    // guessed a fourth time.
+  if (!text) {
     throw new Error(
-      `TwelveLabs /analyze returned no recognizable text field. Raw response: ${JSON.stringify(data)}`
+      `TwelveLabs task is ready but has no recognizable result text. Raw task: ${JSON.stringify(task)}`
     );
   }
 
@@ -209,7 +160,7 @@ async function getShotListFromTwelveLabs(videoUrl) {
     parsed = JSON.parse(cleaned);
   } catch (e) {
     throw new Error(
-      `Could not parse TwelveLabs' shot list as JSON: ${e.message}`
+      `Could not parse TwelveLabs' shot list as JSON: ${e.message}. Raw text: ${text}`
     );
   }
 
@@ -301,17 +252,10 @@ export default async function handler(req, res) {
     return;
   }
 
-  if (
-    !process.env.TWELVELABS_API_KEY ||
-    !process.env.ANTHROPIC_API_KEY ||
-    !process.env.R2_ACCOUNT_ID ||
-    !process.env.R2_ACCESS_KEY_ID ||
-    !process.env.R2_SECRET_ACCESS_KEY ||
-    !process.env.R2_BUCKET_NAME
-  ) {
+  if (!process.env.TWELVELABS_API_KEY || !process.env.ANTHROPIC_API_KEY) {
     res.status(503).json({
       error:
-        "Video analysis isn't fully configured -- check TWELVELABS_API_KEY, ANTHROPIC_API_KEY, and the R2_* variables in Vercel project settings.",
+        "Video analysis isn't fully configured -- check TWELVELABS_API_KEY and ANTHROPIC_API_KEY in Vercel project settings.",
     });
     return;
   }
@@ -341,9 +285,30 @@ export default async function handler(req, res) {
       res.status(404).json({ error: "game_videos row not found." });
       return;
     }
+    if (!gameVideo.memories_video_no) {
+      res.status(409).json({
+        error: "This video hasn't been submitted for analysis yet.",
+      });
+      return;
+    }
 
-    const signedUrl = await getR2SignedUrl(gameVideo.storage_path);
-    const moments = await getShotListFromTwelveLabs(signedUrl);
+    const task = await getAnalysisTask(gameVideo.memories_video_no);
+
+    if (task.status === "failed") {
+      res.status(500).json({
+        error: `TwelveLabs analysis failed for this video. Raw task: ${JSON.stringify(task)}`,
+      });
+      return;
+    }
+
+    if (task.status !== "ready") {
+      res.status(409).json({
+        error: `Still processing on TwelveLabs (status: ${task.status || "unknown"}). Try again in a bit.`,
+      });
+      return;
+    }
+
+    const moments = parseShotListFromTask(task);
 
     const drafted = [];
     for (const moment of moments) {
