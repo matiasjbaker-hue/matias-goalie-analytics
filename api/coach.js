@@ -228,7 +228,7 @@ export default async function handler(req, res) {
   }
 
   if (!process.env.ANTHROPIC_API_KEY) {
-    res.status(500).json({ error: "Server is not configured with an ANTHROPIC_API_KEY." });
+    res.status(503).json({ error: "AI Coach is being finalized and will be available soon." });
     return;
   }
 
