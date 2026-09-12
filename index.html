@@ -2015,10 +2015,15 @@ tr:hover td{
 
   <div class="page-title">
     <h2>Coach Notes</h2>
-    <p>Private notes only you can see, tied to your assigned goalie.</p>
+    <p>Private notes only you can see, tied to a specific goalie.</p>
   </div>
 
-  <div class="grid grid-2">
+  <div class="card" id="coachNotesPickerCard">
+    <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:8px;">Goalie</label>
+    <select id="coachNotesGoalieSelect" onchange="selectCoachNotesGoalie(this.value)" style="width:100%;max-width:320px;background:#0c261c;border:1px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
+  </div>
+
+  <div class="grid grid-2 section-space">
 
     <div class="card coach-note-form">
       <h3>Add a Note</h3>
@@ -9332,6 +9337,12 @@ function openGoalie(goalieId){
 
   renderGoalieProfile(goalieId);
 
+  // Keep the Coach Notes picker/list in sync in case the coach jumps
+  // there next via the "Coach Notes →" button, without needing a
+  // network refetch (coachNotesData is already loaded).
+  renderCoachNotesGoaliePicker();
+  renderCoachNotesList();
+
   showTab("goalieprofile");
 
 }
@@ -9341,13 +9352,111 @@ function openGoalie(goalieId){
    Coach Notes
 ------------------------------------------------------------ */
 
-async function loadCoachNotes(){
+function renderCoachNotesGoaliePicker(){
+
+  const select = document.getElementById("coachNotesGoalieSelect");
+  const pickerCard = document.getElementById("coachNotesPickerCard");
+
+  if(!select || !pickerCard){ return; }
+
+  if(!coachGoalieProfiles.length){
+
+    pickerCard.innerHTML =
+      `<div class="empty-state">You don't have any goalies assigned yet.</div>`;
+
+    return;
+
+  }
+
+  // pickerCard may have been replaced with an empty-state on a
+  // previous render (before any goalies existed) -- make sure the
+  // label/select are actually present before using them.
+  if(!document.getElementById("coachNotesGoalieSelect")){
+
+    pickerCard.innerHTML = `
+      <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:8px;">Goalie</label>
+      <select id="coachNotesGoalieSelect" onchange="selectCoachNotesGoalie(this.value)" style="width:100%;max-width:320px;background:#0c261c;border:1px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
+    `;
+
+  }
+
+  const freshSelect = document.getElementById("coachNotesGoalieSelect");
+
+  freshSelect.innerHTML =
+    coachGoalieProfiles
+      .map(p => `<option value="${p.id}">${p.full_name || p.id}</option>`)
+      .join("");
+
+  if(!coachPrimaryGoalieId || !coachGoalieProfiles.some(p => p.id === coachPrimaryGoalieId)){
+    coachPrimaryGoalieId = coachGoalieProfiles[0].id;
+  }
+
+  freshSelect.value = coachPrimaryGoalieId;
+
+}
+
+
+function selectCoachNotesGoalie(goalieId){
+
+  coachPrimaryGoalieId = goalieId;
+  renderCoachNotesList();
+
+}
+
+
+function renderCoachNotesList(){
 
   const list = document.getElementById("coachNotesList");
 
+  if(!list){ return; }
+
+  const notesForGoalie =
+    coachNotesData.filter(n => n.goalie_id === coachPrimaryGoalieId);
+
+  if(!notesForGoalie.length){
+
+    list.innerHTML =
+      `<div class="empty-state">No notes yet for this goalie.</div>`;
+
+    return;
+
+  }
+
+  list.innerHTML =
+    notesForGoalie.map(note => {
+
+      const dateLabel =
+        note.created_at
+          ? new Date(note.created_at).toLocaleDateString()
+          : "";
+
+      return `
+        <div class="note-item">
+          <div class="note-date">${dateLabel}</div>
+          <div class="note-text"></div>
+        </div>
+      `;
+
+    }).join("");
+
+  // Set note text via textContent to avoid any HTML injection from
+  // stored note text.
+  const items = list.querySelectorAll(".note-text");
+  notesForGoalie.forEach((note, i) => {
+    if(items[i]){ items[i].textContent = note.text; }
+  });
+
+}
+
+
+async function loadCoachNotes(){
+
+  renderCoachNotesGoaliePicker();
+
   try{
 
-    // RLS already scopes this to the signed-in coach's own notes.
+    // RLS already scopes this to the signed-in coach's own notes,
+    // across every goalie they're assigned to.
     coachNotesData = await qFiltered("coach_notes", "order=created_at.desc");
 
   }
@@ -9358,41 +9467,7 @@ async function loadCoachNotes(){
 
   }
 
-  if(!coachNotesData.length){
-
-    list.innerHTML = `<div class="empty-state">No notes yet.</div>`;
-    return;
-
-  }
-
-  list.innerHTML =
-    coachNotesData.map(note => {
-
-      const goalieProfile =
-        coachGoalieProfiles.find(p => p.id === note.goalie_id);
-
-      const dateLabel =
-        note.created_at
-          ? new Date(note.created_at).toLocaleDateString()
-          : "";
-
-      return `
-        <div class="note-item">
-          <div class="note-date">
-            ${dateLabel}${goalieProfile ? " · " + goalieProfile.full_name : ""}
-          </div>
-          <div class="note-text"></div>
-        </div>
-      `;
-
-    }).join("");
-
-  // Set note text via textContent to avoid any HTML injection from
-  // stored note text.
-  const items = list.querySelectorAll(".note-text");
-  coachNotesData.forEach((note, i) => {
-    if(items[i]){ items[i].textContent = note.text; }
-  });
+  renderCoachNotesList();
 
 }
 
