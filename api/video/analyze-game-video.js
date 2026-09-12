@@ -191,6 +191,17 @@ async function getShotListFromTwelveLabs(videoUrl) {
   // VERIFY: adjust this if your account's response wraps the text
   // under a different field name.
   const text = data.data || data.text || data.output_text || "";
+
+  if(!text){
+    // None of the guessed field names matched -- rather than fail
+    // with an opaque "empty JSON" error, show the actual response
+    // shape so the real field name can be read directly instead of
+    // guessed a fourth time.
+    throw new Error(
+      `TwelveLabs /analyze returned no recognizable text field. Raw response: ${JSON.stringify(data)}`
+    );
+  }
+
   const cleaned = text.replace(/```json|```/g, "").trim();
 
   let parsed;
