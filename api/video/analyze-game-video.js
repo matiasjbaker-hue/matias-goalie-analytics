@@ -1,22 +1,24 @@
 // ============================================================
 // VIDEO PIPELINE — STEP 2: FIND SHOTS + DRAFT STATS
 // ============================================================
-// Call this once index-game-video.js has finished indexing (check
-// game_videos.status -- for now, just try this a minute or two
-// after upload; a "still indexing" response means try again later).
+// Call this once index-game-video.js's TwelveLabs task has finished
+// indexing -- try a minute or two after upload; a 409 "still
+// indexing" response just means try again later.
 //
 // Division of labor, on purpose:
-//   1. memories.ai finds WHERE the shot moments are and describes
-//      what it sees in plain language (it's good at finding needles
-//      in a long video -- that's its actual strength).
+//   1. TwelveLabs (Pegasus model) watches the whole video and, in
+//      ONE call, returns a list of shot-on-goal moments with
+//      timestamps and a plain-language description of each -- this
+//      is the same "find needles in a long video" role memories.ai
+//      played, just from a different vendor.
 //   2. Claude turns each plain-language description into the exact
 //      structured fields your Shots table needs, and is told
-//      explicitly to say "unclear" rather than guess. This is the
-//      same model/API key your app already uses in api/coach.js and
-//      api/game-report.js, so this part has a known, tested
-//      request/response shape -- only step 1's memories.ai field
-//      names carry any real uncertainty (see the note in
-//      index-game-video.js).
+//      explicitly to say "unclear" rather than guess. This part is
+//      UNCHANGED from the memories.ai version -- same model/API key
+//      your app already uses in api/coach.js and api/game-report.js,
+//      so it has a known, tested request/response shape. Only step
+//      1's TwelveLabs field names carry any real uncertainty (see
+//      the note in index-game-video.js).
 //
 // This whole function is admin-only (enforced both here and by RLS
 // on shot_drafts) -- customers never trigger this, and nothing it
@@ -26,15 +28,8 @@
 
 const SUPABASE_URL = "https://iiuqxxrrruvwvfehrzic.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
-const MEMORIES_AI_HOST = "https://api.memories.ai/datalake/v1";
+const TWELVELABS_HOST = "https://api.twelvelabs.io/v1.3";
 const CLAUDE_MODEL = "claude-sonnet-5";
-
-// Cap how many candidate moments we run through Claude in one call
-// of this function, so a single request can't run past Vercel's
-// function time limit on a very high-shot-volume game. If a game
-// has more candidates than this, call the function again -- it
-// skips shot_drafts rows it's already created for this video.
-const MAX_MOMENTS_PER_RUN = 60;
 
 async function verifyAccessToken(accessToken) {
   const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
@@ -118,47 +113,84 @@ async function supabasePatch(table, filter, body, accessToken) {
   return res.json();
 }
 
-// --- memories.ai: find candidate shot moments --------------------------
+// --- TwelveLabs: check indexing status, then ask for a shot list ------
 //
-// VERIFY WHEN YOU HAVE A KEY: the /search request/response shape
-// below (query text in, list of {ref, start, end, caption} moments
-// out) is built from memories.ai's published examples, not tested
-// against a live account. If your account's response uses different
-// field names, adjust the two lines marked below -- everything
-// downstream of that just reads `moment.start`, `moment.end`,
-// `moment.caption` however you map them.
+// VERIFY WHEN YOU HAVE A KEY: this is built from TwelveLabs' current
+// docs/code samples, not tested against a live account. The task
+// status/video_id shape (task.status, task.video_id) is well
+// documented and should be solid. The /analyze request/response
+// shape below is closer to their frontier -- if the response comes
+// back differently, this function (and only this function) needs
+// adjusting; the Claude-extraction step downstream is unaffected.
 
-async function findCandidateShotMoments(memoriesVideoId) {
-  const res = await fetch(`${MEMORIES_AI_HOST}/search`, {
+async function getTaskStatus(taskId) {
+  const res = await fetch(`${TWELVELABS_HOST}/tasks/${taskId}`, {
+    headers: { "x-api-key": process.env.TWELVELABS_API_KEY },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      `TwelveLabs task status check failed: ${res.status} ${JSON.stringify(data)}`
+    );
+  }
+  return data;
+}
+
+const SHOT_LIST_PROMPT = `List every shot attempt on goal in this hockey video. For each one, give the approximate start time in seconds into the video, and a plain-language description of what happens (who has the puck, where they shoot from, what happens right before and after -- rebounds, screens, deflections, breakaways, whether it's a goal or a save).
+
+Respond with ONLY a JSON array, no markdown fences, no preamble, in this exact shape:
+[
+  { "start_seconds": 42, "description": "..." },
+  { "start_seconds": 130, "description": "..." }
+]
+If you find no clear shot attempts, respond with an empty array: []`;
+
+async function getShotListFromTwelveLabs(videoId) {
+  const res = await fetch(`${TWELVELABS_HOST}/analyze`, {
     method: "POST",
     headers: {
-      Authorization: process.env.MEMORIES_AI_API_KEY,
+      "x-api-key": process.env.TWELVELABS_API_KEY,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      video_ids: [memoriesVideoId],
-      query:
-        "a player shooting the puck on net toward the goalie, including rebounds, deflections, and breakaways",
-      top_k: MAX_MOMENTS_PER_RUN,
+      video_id: videoId,
+      prompt: SHOT_LIST_PROMPT,
     }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(`memories.ai /search failed: ${res.status} ${JSON.stringify(data)}`);
+    throw new Error(
+      `TwelveLabs /analyze failed: ${res.status} ${JSON.stringify(data)}`
+    );
   }
 
-  // VERIFY: adjust this mapping to match your account's actual
-  // response shape once you can see a real payload.
-  const rawMoments = data.results || data.moments || data.data || [];
-  return rawMoments.map((m) => ({
-    ref: m.ref || m.moment_ref || m.id,
-    start: m.start ?? m.start_time ?? m.start_seconds ?? 0,
-    end: m.end ?? m.end_time ?? m.end_seconds ?? null,
-    caption: m.caption || m.description || m.summary || "",
+  // VERIFY: TwelveLabs' analyze response field is typically `data`
+  // (a text string) -- adjust here if your account's response wraps
+  // it differently.
+  const text = data.data || data.text || "";
+  const cleaned = text.replace(/```json|```/g, "").trim();
+
+  let parsed;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch (e) {
+    throw new Error(
+      `Could not parse TwelveLabs' shot list as JSON: ${e.message}`
+    );
+  }
+
+  if (!Array.isArray(parsed)) return [];
+
+  return parsed.map((m) => ({
+    start: m.start_seconds ?? m.start ?? 0,
+    end: (m.start_seconds ?? m.start ?? 0) + 5, // short default window
+    caption: m.description || m.caption || "",
   }));
 }
 
 // --- Claude: turn one moment's description into structured stats ------
+// (unchanged from the memories.ai version -- same model, same key,
+// same prompt)
 
 const SHOT_EXTRACTION_SYSTEM_PROMPT = `You convert a short description of a hockey shot-on-goal moment into structured data for a goalie analytics app. You are given a plain-language description generated by a separate video-indexing system -- you are not watching the video yourself, only reading its description.
 
@@ -235,10 +267,10 @@ export default async function handler(req, res) {
     return;
   }
 
-  if (!process.env.MEMORIES_AI_API_KEY || !process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.TWELVELABS_API_KEY || !process.env.ANTHROPIC_API_KEY) {
     res.status(503).json({
       error:
-        "Video analysis isn't fully configured -- check MEMORIES_AI_API_KEY and ANTHROPIC_API_KEY in Vercel project settings.",
+        "Video analysis isn't fully configured -- check TWELVELABS_API_KEY and ANTHROPIC_API_KEY in Vercel project settings.",
     });
     return;
   }
@@ -275,7 +307,26 @@ export default async function handler(req, res) {
       return;
     }
 
-    const moments = await findCandidateShotMoments(gameVideo.memories_video_no);
+    // memories_video_no holds a TwelveLabs task id (see the note in
+    // index-game-video.js on why the column is still named that).
+    const task = await getTaskStatus(gameVideo.memories_video_no);
+
+    if (task.status !== "ready") {
+      res.status(409).json({
+        error: `Still indexing on TwelveLabs (status: ${task.status || "unknown"}). Try again shortly.`,
+      });
+      return;
+    }
+
+    const videoId = task.video_id;
+    if (!videoId) {
+      res.status(500).json({
+        error: "TwelveLabs task is ready but returned no video_id.",
+      });
+      return;
+    }
+
+    const moments = await getShotListFromTwelveLabs(videoId);
 
     const drafted = [];
     for (const moment of moments) {
