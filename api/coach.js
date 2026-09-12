@@ -215,10 +215,15 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { accessToken, question } = req.body || {};
+  const { accessToken, question, goalieId, viewerRole } = req.body || {};
 
   if (!accessToken || !question) {
     res.status(400).json({ error: "Missing accessToken or question." });
+    return;
+  }
+
+  if (!goalieId) {
+    res.status(400).json({ error: "Missing goalieId." });
     return;
   }
 
@@ -229,7 +234,7 @@ export default async function handler(req, res) {
 
   try {
 
-    const [games, periodStats, shots, reboundControls, puckPlaying] = await Promise.all([
+    const [gamesAll, periodStatsAll, shotsAll, reboundControlsAll, puckPlayingAll] = await Promise.all([
       supabaseQuery("Games", accessToken),
       supabaseQuery("Period Stats", accessToken),
       supabaseQuery("Shots", accessToken),
@@ -237,20 +242,37 @@ export default async function handler(req, res) {
       supabaseQuery("puck_playing", accessToken).catch(() => [])
     ]);
 
-    if (games.length === 0 && periodStats.length === 0 && shots.length === 0) {
-      // Either a bad/expired token (RLS returned nothing) or genuinely no data.
-      // Either way, we don't error — we just tell the model there's nothing to work with.
-    }
+    // RLS already limited the above to rows this caller is allowed to
+    // see at all (their own, OR an assigned goalie's if they're a
+    // coach, OR everything if admin). This filter narrows that down
+    // to the ONE goalie being asked about -- without it, a coach with
+    // more than one assigned goalie would get their stats silently
+    // blended together in the same summary.
+    const belongsToGoalie = (row) => row.user_id === goalieId;
+
+    const games = gamesAll.filter(belongsToGoalie);
+    const periodStats = periodStatsAll.filter(belongsToGoalie);
+    const shots = shotsAll.filter(belongsToGoalie);
+    const reboundControls = reboundControlsAll.filter(belongsToGoalie);
+    const puckPlaying = puckPlayingAll.filter(belongsToGoalie);
 
     const statsSummary = buildStatsSummary({ games, periodStats, shots, reboundControls, puckPlaying });
 
     const systemPrompt =
-      "You are a goaltending coach's assistant. You answer a goalie's or coach's questions " +
-      "about THIS SEASON's performance using only the stats summary provided below. " +
-      "Be specific and reference actual numbers from the summary. If the summary doesn't " +
-      "contain enough information to answer confidently, say so plainly rather than guessing. " +
-      "Keep answers focused and practical — this is for a goalie or their coach, not a general audience.\n\n" +
-      "STATS SUMMARY:\n" + statsSummary;
+      viewerRole === "coach"
+        ? "You are an assistant helping a hockey coach review one of their assigned goalies' " +
+          "performance this season. Answer the coach's questions using only the stats summary " +
+          "below. Frame answers for a coach making training decisions: what to focus on this " +
+          "week, what's improving or declining, and what situations are creating the most goals " +
+          "against. Be specific and reference actual numbers from the summary. If the summary " +
+          "doesn't contain enough information to answer confidently, say so plainly rather than " +
+          "guessing.\n\n" +
+          "STATS SUMMARY:\n" + statsSummary
+        : "You are a goaltending assistant. You answer a goalie's questions about THIS SEASON's " +
+          "performance using only the stats summary below. Be specific and reference actual " +
+          "numbers from the summary. If the summary doesn't contain enough information to answer " +
+          "confidently, say so plainly rather than guessing. Keep answers focused and practical.\n\n" +
+          "STATS SUMMARY:\n" + statsSummary;
 
     const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
