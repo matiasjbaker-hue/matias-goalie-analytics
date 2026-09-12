@@ -1865,6 +1865,10 @@ tr:hover td{
       My Games
     </button>
 
+    <button onclick="showTab('videopipeline',this)">
+      Video
+    </button>
+
     <button onclick="showTab('coach',this)">
       Coach
     </button>
@@ -3940,6 +3944,68 @@ tr:hover td{
 
 
 <!-- ========================================================= -->
+<!-- VIDEO PIPELINE: upload film, review AI-drafted shots -->
+<!-- ========================================================= -->
+
+<section id="videopipeline" class="tab">
+
+  <div class="page-title">
+    <h2>Video</h2>
+    <p>Upload game film and review AI-drafted shots before they count toward your stats. Nothing here affects your real stats until you confirm a draft.</p>
+  </div>
+
+  <div class="card">
+
+    <h3>Upload game film</h3>
+
+    <div class="field-grid">
+
+      <div class="field">
+        <label for="video-game-select">Game</label>
+        <select id="video-game-select"></select>
+      </div>
+
+      <div class="field">
+        <label for="video-file-input">Video file</label>
+        <input type="file" id="video-file-input" accept="video/*">
+      </div>
+
+    </div>
+
+    <div id="video-upload-status" class="empty-state" style="display:none"></div>
+
+    <button type="button" id="video-upload-btn" onclick="uploadGameVideo()">
+      Upload &amp; start indexing
+    </button>
+
+  </div>
+
+  <div class="section-heading">
+    <h3>Uploaded videos</h3>
+    <p>Status moves from uploaded &rarr; indexing &rarr; analyzed. "Find shots" is available once indexing finishes.</p>
+  </div>
+
+  <div class="card">
+    <div id="video-list-container">
+      <div class="empty-state">No videos uploaded yet.</div>
+    </div>
+  </div>
+
+  <div class="section-heading">
+    <h3>Drafted shots awaiting review</h3>
+    <p>Each card is one AI-drafted shot. Anything marked "unclear" needs your eye before confirming. Confirming inserts it as a real shot; discarding throws it away with no effect on your stats.</p>
+  </div>
+
+  <div class="card">
+    <div id="shot-drafts-container">
+      <div class="empty-state">No drafted shots yet.</div>
+    </div>
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
 <!-- AI COACH -->
 <!-- ========================================================= -->
 
@@ -5244,6 +5310,11 @@ function showTab(id,button){
 
   if(button){
     button.classList.add("active");
+  }
+
+
+  if(id === "videopipeline"){
+    loadVideoPipelineData();
   }
 
 
@@ -12362,6 +12433,562 @@ document.getElementById("coach-input")
     }
 
   });
+
+
+/* ============================================================
+   VIDEO PIPELINE: upload film, review AI-drafted shots
+============================================================ */
+
+function statusBadge(status){
+
+  const label =
+    ({
+      uploaded: "Uploaded",
+      indexing: "Indexing…",
+      indexed: "Indexed",
+      analyzed: "Analyzed",
+      failed: "Failed"
+    })[status] || status;
+
+  return `<span class="metric-label">${label}</span>`;
+
+}
+
+
+async function loadVideoPipelineData(){
+
+  const select =
+    document.getElementById("video-game-select");
+
+  if(select && games && games.length){
+
+    select.innerHTML =
+      games
+        .map(g =>
+          `<option value="${g.id}">${gameDate(g)} vs ${gameOpponent(g)}</option>`
+        )
+        .join("");
+
+  }
+  else if(select){
+
+    select.innerHTML =
+      `<option value="">No games yet -- add one under My Games first</option>`;
+
+  }
+
+  await Promise.all([
+    renderGameVideosList(),
+    renderShotDrafts()
+  ]);
+
+}
+
+
+async function renderGameVideosList(){
+
+  const container =
+    document.getElementById("video-list-container");
+
+  if(!container){
+    return;
+  }
+
+  let videos;
+
+  try{
+    videos = await qFiltered("game_videos", "order=created_at.desc");
+  }
+  catch(error){
+    container.innerHTML = `<div class="empty-state">Could not load videos.</div>`;
+    return;
+  }
+
+  if(!videos.length){
+    container.innerHTML = `<div class="empty-state">No videos uploaded yet.</div>`;
+    return;
+  }
+
+  container.innerHTML =
+    videos
+      .map(v => {
+
+        const canAnalyze =
+          v.status === "indexing" || v.status === "indexed";
+
+        return `
+          <div class="card mygame-item">
+            <div class="mygame-item-info">
+              <span class="mygame-title">${v.storage_path.split("/").pop()}</span>
+              <span class="mygame-sub">${statusBadge(v.status)}</span>
+            </div>
+            <div class="mygame-item-actions">
+              ${
+                canAnalyze
+                  ? `<button type="button" class="btn-secondary" onclick="runVideoAnalysis(${v.id})">Find shots</button>`
+                  : ""
+              }
+              ${
+                v.status === "analyzed"
+                  ? `<span class="empty-state">Done -- see drafts below</span>`
+                  : ""
+              }
+              ${
+                v.status === "failed"
+                  ? `<span class="empty-state" title="${v.error_message || ""}">Failed -- ${v.error_message || "unknown error"}</span>`
+                  : ""
+              }
+            </div>
+          </div>
+        `;
+
+      })
+      .join("");
+
+}
+
+
+async function uploadGameVideo(){
+
+  if(!currentSession || !currentSession.user){
+    alert("You need to be signed in to upload video.");
+    return;
+  }
+
+  const gameId =
+    document.getElementById("video-game-select").value;
+
+  const fileInput =
+    document.getElementById("video-file-input");
+
+  const file =
+    fileInput.files[0];
+
+  if(!gameId){
+    alert("Pick a game first.");
+    return;
+  }
+
+  if(!file){
+    alert("Choose a video file first.");
+    return;
+  }
+
+  const statusEl =
+    document.getElementById("video-upload-status");
+
+  const uploadBtn =
+    document.getElementById("video-upload-btn");
+
+  uploadBtn.disabled = true;
+  statusEl.style.display = "block";
+  statusEl.textContent = "Uploading to storage...";
+
+  try{
+
+    const userId =
+      currentSession.user.id;
+
+    const storagePath =
+      `${userId}/${Date.now()}_${file.name}`;
+
+    const { error: uploadError } =
+      await supabaseClient
+        .storage
+        .from("game-footage")
+        .upload(storagePath, file);
+
+    if(uploadError){
+      throw new Error(uploadError.message);
+    }
+
+    statusEl.textContent = "Creating video record...";
+
+    const { data: inserted, error: insertError } =
+      await supabaseClient
+        .from("game_videos")
+        .insert({
+          game_id: gameId,
+          storage_path: storagePath,
+          status: "uploaded"
+        })
+        .select();
+
+    if(insertError){
+      throw new Error(insertError.message);
+    }
+
+    const gameVideoId =
+      inserted[0].id;
+
+    statusEl.textContent = "Starting indexing on memories.ai (this can take a few minutes for a full game)...";
+
+    const res =
+      await fetch("/api/video/index-game-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accessToken: currentSession.access_token,
+          gameVideoId: gameVideoId
+        })
+      });
+
+    const data =
+      await res.json();
+
+    if(!res.ok){
+      throw new Error(data.error || "Indexing failed to start.");
+    }
+
+    statusEl.textContent = "Indexing started. Check back in a few minutes, then click \"Find shots\" below.";
+    fileInput.value = "";
+
+    await renderGameVideosList();
+
+  }
+  catch(error){
+
+    console.error(error);
+    statusEl.textContent = `Error: ${error.message}`;
+
+  }
+  finally{
+
+    uploadBtn.disabled = false;
+
+  }
+
+}
+
+
+async function runVideoAnalysis(gameVideoId){
+
+  if(!currentSession || !currentSession.access_token){
+    alert("You need to be signed in.");
+    return;
+  }
+
+  try{
+
+    const res =
+      await fetch("/api/video/analyze-game-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accessToken: currentSession.access_token,
+          gameVideoId: gameVideoId
+        })
+      });
+
+    const data =
+      await res.json();
+
+    if(!res.ok){
+
+      // A 409 here just means memories.ai isn't done indexing yet --
+      // that's expected, not a real error, so word it gently.
+      alert(data.error || "Could not analyze this video yet.");
+      return;
+
+    }
+
+    alert(`Drafted ${data.draftCount} shot(s). Review them below.`);
+
+    await Promise.all([
+      renderGameVideosList(),
+      renderShotDrafts()
+    ]);
+
+  }
+  catch(error){
+
+    console.error(error);
+    alert("Something went wrong finding shots in this video.");
+
+  }
+
+}
+
+
+const DRAFT_LOCATIONS =
+  ["Crease","Slot","Circle","Point","Perimeter"];
+
+const DRAFT_SHOT_TYPES =
+  ["wrist shot","slap shot","backhand","one-timer"];
+
+const DRAFT_BOOL_FIELDS =
+  ["rush","rebound","screened","breakaway","cross_ice","deflection"];
+
+
+function draftSelectOptions(options, current){
+
+  return (
+    `<option value="">Unclear</option>` +
+    options
+      .map(o =>
+        `<option value="${o}" ${o === current ? "selected" : ""}>${o}</option>`
+      )
+      .join("")
+  );
+
+}
+
+
+function draftBoolSelect(fieldName, draftId, current){
+
+  const opts = [
+    { v:"", label:"Unclear" },
+    { v:"true", label:"Yes" },
+    { v:"false", label:"No" }
+  ];
+
+  return `
+    <select id="draft-${draftId}-${fieldName}">
+      ${
+        opts
+          .map(o =>
+            `<option value="${o.v}" ${
+              (current === null && o.v === "") ||
+              (current === true && o.v === "true") ||
+              (current === false && o.v === "false")
+                ? "selected"
+                : ""
+            }>${o.label}</option>`
+          )
+          .join("")
+      }
+    </select>
+  `;
+
+}
+
+
+async function renderShotDrafts(){
+
+  const container =
+    document.getElementById("shot-drafts-container");
+
+  if(!container){
+    return;
+  }
+
+  let drafts;
+
+  try{
+    drafts = await qFiltered("shot_drafts", "status=eq.pending&order=start_seconds.asc");
+  }
+  catch(error){
+    container.innerHTML = `<div class="empty-state">Could not load drafted shots.</div>`;
+    return;
+  }
+
+  if(!drafts.length){
+    container.innerHTML = `<div class="empty-state">No drafted shots yet.</div>`;
+    return;
+  }
+
+  container.innerHTML =
+    drafts
+      .map(d => {
+
+        const timeLabel =
+          d.start_seconds !== null
+            ? `${Math.floor(d.start_seconds / 60)}:${String(Math.floor(d.start_seconds % 60)).padStart(2,"0")}`
+            : "unknown time";
+
+        const uncertainNote =
+          d.uncertain_fields
+            ? `<p class="empty-state">Model marked unclear: ${d.uncertain_fields}</p>`
+            : "";
+
+        return `
+          <div class="card" style="margin-bottom:12px">
+
+            <p><strong>~${timeLabel}</strong> into the video</p>
+            ${uncertainNote}
+
+            <div class="field-grid">
+
+              <div class="field">
+                <label>Outcome</label>
+                <select id="draft-${d.id}-outcome">
+                  <option value="">Unclear</option>
+                  <option value="goal" ${d.outcome === "goal" ? "selected" : ""}>Goal</option>
+                  <option value="save" ${d.outcome === "save" ? "selected" : ""}>Save</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label>Distance (ft)</label>
+                <input type="number" id="draft-${d.id}-distance" value="${d.distance ?? ""}">
+              </div>
+
+              <div class="field">
+                <label>Location</label>
+                <select id="draft-${d.id}-location">
+                  ${draftSelectOptions(DRAFT_LOCATIONS, d.location)}
+                </select>
+              </div>
+
+              <div class="field">
+                <label>Shot type</label>
+                <select id="draft-${d.id}-shot_type">
+                  ${draftSelectOptions(DRAFT_SHOT_TYPES, d.shot_type)}
+                </select>
+              </div>
+
+              ${
+                DRAFT_BOOL_FIELDS
+                  .map(f => `
+                    <div class="field">
+                      <label>${f.replace("_"," ")}</label>
+                      ${draftBoolSelect(f, d.id, d[f])}
+                    </div>
+                  `)
+                  .join("")
+              }
+
+            </div>
+
+            <button type="button" onclick="confirmShotDraft(${d.id})">Confirm &amp; save</button>
+            <button type="button" onclick="discardShotDraft(${d.id})">Discard</button>
+
+          </div>
+        `;
+
+      })
+      .join("");
+
+}
+
+
+function draftFieldValue(draftId, fieldName){
+
+  const el =
+    document.getElementById(`draft-${draftId}-${fieldName}`);
+
+  if(!el){
+    return null;
+  }
+
+  if(el.value === ""){
+    return null;
+  }
+
+  if(el.value === "true"){
+    return true;
+  }
+
+  if(el.value === "false"){
+    return false;
+  }
+
+  return el.value;
+
+}
+
+
+async function confirmShotDraft(draftId){
+
+  if(!currentSession || !currentSession.user){
+    alert("You need to be signed in.");
+    return;
+  }
+
+  try{
+
+    const { data: draftRows, error: fetchError } =
+      await supabaseClient
+        .from("shot_drafts")
+        .select("*")
+        .eq("id", draftId);
+
+    if(fetchError || !draftRows || !draftRows.length){
+      throw new Error("Could not find that draft anymore.");
+    }
+
+    const draft =
+      draftRows[0];
+
+    const shotPayload = {
+      user_id: currentSession.user.id,
+      game_id: draft.game_id,
+      distance: (() => {
+        const v = draftFieldValue(draftId, "distance");
+        return v === null || v === "" ? null : Number(v);
+      })(),
+      location: draftFieldValue(draftId, "location"),
+      shot_type: draftFieldValue(draftId, "shot_type"),
+      rush: draftFieldValue(draftId, "rush"),
+      rebound: draftFieldValue(draftId, "rebound"),
+      screened: draftFieldValue(draftId, "screened"),
+      breakaway: draftFieldValue(draftId, "breakaway"),
+      cross_ice: draftFieldValue(draftId, "cross_ice"),
+      deflection: draftFieldValue(draftId, "deflection"),
+      outcome: draftFieldValue(draftId, "outcome")
+    };
+
+    const { data: insertedShot, error: insertError } =
+      await supabaseClient
+        .from("Shots")
+        .insert(shotPayload)
+        .select();
+
+    if(insertError){
+      throw new Error(insertError.message);
+    }
+
+    const { error: updateError } =
+      await supabaseClient
+        .from("shot_drafts")
+        .update({
+          status: "confirmed",
+          confirmed_shot_id: insertedShot[0].shot_id
+        })
+        .eq("id", draftId);
+
+    if(updateError){
+      throw new Error(updateError.message);
+    }
+
+    await renderShotDrafts();
+
+  }
+  catch(error){
+
+    console.error(error);
+    alert(`Could not confirm this shot: ${error.message}`);
+
+  }
+
+}
+
+
+async function discardShotDraft(draftId){
+
+  try{
+
+    const { error } =
+      await supabaseClient
+        .from("shot_drafts")
+        .update({ status: "discarded" })
+        .eq("id", draftId);
+
+    if(error){
+      throw new Error(error.message);
+    }
+
+    await renderShotDrafts();
+
+  }
+  catch(error){
+
+    console.error(error);
+    alert(`Could not discard this draft: ${error.message}`);
+
+  }
+
+}
 
 
 /* ============================================================
