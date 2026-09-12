@@ -13017,7 +13017,7 @@ async function renderAdminVideoList(){
             <div class="mygame-item-actions">
               ${
                 canAnalyze
-                  ? `<button type="button" class="btn-secondary" onclick="runVideoAnalysis(${v.id})">Find shots</button>`
+                  ? `<button type="button" class="btn-secondary" onclick="runVideoAnalysis(${v.id}, this)">Find shots</button>`
                   : ""
               }
               ${
@@ -13040,11 +13040,21 @@ async function renderAdminVideoList(){
 }
 
 
-async function runVideoAnalysis(gameVideoId){
+async function runVideoAnalysis(gameVideoId, button){
 
   if(!currentSession || !currentSession.access_token){
     alert("You need to be signed in.");
     return;
+  }
+
+  const originalLabel =
+    button ? button.textContent : null;
+
+  if(button){
+    button.disabled = true;
+    // Quick status check now (the actual analysis runs async on
+    // TwelveLabs' side) -- still nice to show something happened.
+    button.textContent = "Checking...";
   }
 
   try{
@@ -13083,6 +13093,14 @@ async function runVideoAnalysis(gameVideoId){
 
     console.error(error);
     alert("Something went wrong finding shots in this video.");
+
+  }
+  finally{
+
+    if(button){
+      button.disabled = false;
+      button.textContent = originalLabel;
+    }
 
   }
 
