@@ -3,35 +3,40 @@
 // ============================================================
 // Takes a game_videos row whose file already lives in Cloudflare R2
 // (uploaded via r2-start-upload.js / r2-complete-upload.js), and
-// kicks off indexing on memories.ai's Video Datalake. This only
-// STARTS indexing -- indexing a full game can take a few minutes,
-// so this function returns quickly and step 2
-// (analyze-game-video.js) is called separately once indexing is
-// done.
+// kicks off indexing on TwelveLabs. This only STARTS indexing --
+// indexing a full game can take a few minutes, so this function
+// returns quickly and step 2 (analyze-game-video.js) is called
+// separately once indexing is done.
+//
+// Why TwelveLabs instead of memories.ai: same role in the pipeline
+// (find and understand shot moments in a long video), but TwelveLabs
+// is purpose-built for exactly this and is meaningfully cheaper
+// (~$0.033-0.042/min indexing vs memories.ai's $0.05/min), plus a
+// 600-minute free tier that doesn't expire -- at your current volume
+// (a few 90-minute games a month) that's likely 6+ months before you
+// pay anything at all.
 //
 // Setup required:
-//   - MEMORIES_AI_API_KEY environment variable in Vercel, from
-//     your memories.ai account (console.memories.ai or similar --
-//     check their current dashboard when you sign up).
-//   - R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
-//     R2_BUCKET_NAME -- same R2 credentials used by
-//     r2-start-upload.js.
-//   - Same ANTHROPIC_API_KEY and Supabase project already used by
-//     api/coach.js and api/game-report.js.
+//   - TWELVELABS_API_KEY environment variable in Vercel. Sign up at
+//     twelvelabs.io, create a key from the dashboard's API Keys page.
+//   - Same R2_* and ANTHROPIC_API_KEY variables already used
+//     elsewhere in this pipeline.
 //
-// IMPORTANT -- READ BEFORE DEPLOYING:
-// memories.ai's API is mid-migration: their older v1 API
-// (api.memories.ai/serve/api/v1) is documented as sunset, and the
-// new "Video Datalake" v2 API (api.memories.ai/datalake/v1) is
-// what they're pushing developers toward. The collection/video
-// request shapes below are built from their published docs and
-// examples, but I don't have a memories.ai account to test end to
-// end. Before relying on this in production: sign up, grab your
-// key, and run ONE request by hand (curl or Postman) against
-// MEMORIES_AI_HOST + "/collections" to confirm the exact field
-// names still match what's below -- their dashboard will show you
-// the current request shape for your account. If a field name has
-// changed, this is the only file you need to touch.
+// IMPORTANT -- READ BEFORE RELYING ON THIS:
+// Built from TwelveLabs' current (v1.3) published docs and code
+// samples, but I don't have a TwelveLabs account to test end to end.
+// Two things worth a quick manual check once you have a key:
+//   1. The model name below ("pegasus1.2") -- TwelveLabs updates
+//      model versions periodically; check their dashboard/docs for
+//      the current recommended model name if index creation fails.
+//   2. That the /tasks endpoint still accepts a video_url pointing
+//      at a signed R2 URL (their newer asset-upload flow warns that
+//      some cloud-storage "sharing links" aren't supported -- a
+//      presigned direct-object URL like ours should be fine since
+//      it points straight at the file, not a share-page, but worth
+//      confirming with one real upload).
+// If either has changed, this file and the matching call in
+// analyze-game-video.js are the only places to touch.
 
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -39,8 +44,9 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 const SUPABASE_URL = "https://iiuqxxrrruvwvfehrzic.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
 
-const MEMORIES_AI_HOST = "https://api.memories.ai/datalake/v1";
-const MEMORIES_AI_COLLECTION_NAME = "goalieiq-game-footage";
+const TWELVELABS_HOST = "https://api.twelvelabs.io/v1.3";
+const TWELVELABS_INDEX_NAME = "goalieiq-game-footage";
+const TWELVELABS_MODEL = "pegasus1.2";
 
 function r2Client() {
   return new S3Client({
@@ -99,7 +105,7 @@ async function supabasePatch(table, filter, body, accessToken) {
   return res.json();
 }
 
-// Signed URL so memories.ai (an external service) can fetch the
+// Signed URL so TwelveLabs (an external service) can fetch the
 // video straight from R2, without R2 needing to be a public bucket.
 async function getR2SignedUrl(objectKey) {
   const client = r2Client();
@@ -113,48 +119,75 @@ async function getR2SignedUrl(objectKey) {
   );
 }
 
-// --- memories.ai helpers ----------------------------------------------
+// --- TwelveLabs helpers -------------------------------------------------
 
-async function memoriesAI(path, body) {
-  const res = await fetch(`${MEMORIES_AI_HOST}${path}`, {
-    method: "POST",
+async function twelveLabsJSON(path, method, body) {
+  const res = await fetch(`${TWELVELABS_HOST}${path}`, {
+    method,
     headers: {
-      Authorization: process.env.MEMORIES_AI_API_KEY,
+      "x-api-key": process.env.TWELVELABS_API_KEY,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(body),
+    body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(
-      `memories.ai ${path} failed: ${res.status} ${JSON.stringify(data)}`
+      `TwelveLabs ${path} failed: ${res.status} ${JSON.stringify(data)}`
     );
   }
   return data;
 }
 
-// Reuse one collection across every uploaded game rather than
-// creating a new one per video -- keeps your memories.ai account
-// tidy and makes cross-game search possible later if you want it.
-async function getOrCreateCollection() {
-  // Free, no-cost call -- see pricing table, GET /collections is free.
+// Reuse one index across every uploaded game rather than creating a
+// new one per video -- keeps your TwelveLabs account tidy.
+async function getOrCreateIndex() {
+  // Free, no-cost call.
   const listRes = await fetch(
-    `${MEMORIES_AI_HOST}/collections?name=${encodeURIComponent(
-      MEMORIES_AI_COLLECTION_NAME
+    `${TWELVELABS_HOST}/indexes?index_name=${encodeURIComponent(
+      TWELVELABS_INDEX_NAME
     )}`,
-    { headers: { Authorization: process.env.MEMORIES_AI_API_KEY } }
+    { headers: { "x-api-key": process.env.TWELVELABS_API_KEY } }
   );
   const listData = await listRes.json().catch(() => ({}));
   const existing =
-    (listData.data || listData.collections || []).find(
-      (c) => c.name === MEMORIES_AI_COLLECTION_NAME
+    (listData.data || []).find(
+      (idx) => idx.index_name === TWELVELABS_INDEX_NAME
     ) || null;
-  if (existing) return existing.id;
+  if (existing) return existing.id || existing._id;
 
-  const created = await memoriesAI("/collections", {
-    name: MEMORIES_AI_COLLECTION_NAME,
+  const created = await twelveLabsJSON("/indexes", "POST", {
+    index_name: TWELVELABS_INDEX_NAME,
+    models: [
+      {
+        model_name: TWELVELABS_MODEL,
+        model_options: ["visual", "audio"],
+      },
+    ],
   });
-  return created.id;
+  return created.id || created._id;
+}
+
+// Kicks off upload + indexing in one call. TwelveLabs' /tasks
+// endpoint requires multipart/form-data even when using a URL
+// instead of a raw file.
+async function createIndexingTask(indexId, videoUrl) {
+  const form = new FormData();
+  form.append("index_id", indexId);
+  form.append("video_url", videoUrl);
+
+  const res = await fetch(`${TWELVELABS_HOST}/tasks`, {
+    method: "POST",
+    headers: { "x-api-key": process.env.TWELVELABS_API_KEY },
+    body: form,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(
+      `TwelveLabs /tasks failed: ${res.status} ${JSON.stringify(data)}`
+    );
+  }
+  return data;
 }
 
 // --- handler ------------------------------------------------------------
@@ -172,7 +205,7 @@ export default async function handler(req, res) {
   }
 
   if (
-    !process.env.MEMORIES_AI_API_KEY ||
+    !process.env.TWELVELABS_API_KEY ||
     !process.env.R2_ACCOUNT_ID ||
     !process.env.R2_ACCESS_KEY_ID ||
     !process.env.R2_SECRET_ACCESS_KEY ||
@@ -180,7 +213,7 @@ export default async function handler(req, res) {
   ) {
     res.status(503).json({
       error:
-        "Video indexing isn't configured yet -- check MEMORIES_AI_API_KEY, R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_BUCKET_NAME in Vercel project settings.",
+        "Video indexing isn't configured yet -- check TWELVELABS_API_KEY, R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_BUCKET_NAME in Vercel project settings.",
     });
     return;
   }
@@ -202,26 +235,27 @@ export default async function handler(req, res) {
       res.status(404).json({ error: "game_videos row not found." });
       return;
     }
+
     const signedUrl = await getR2SignedUrl(gameVideo.storage_path);
-    const collectionId = await getOrCreateCollection();
+    const indexId = await getOrCreateIndex();
 
-    // Kick off indexing. This is the priced call ($0.05/min of video --
-    // see memories.ai pricing). Fire-and-forget from this function's
-    // point of view: we store the returned video id and mark status
-    // "indexing", then step 2 checks/uses it once ready.
-    const indexResult = await memoriesAI("/videos", {
-      collection_id: collectionId,
-      source_url: signedUrl,
-    });
+    // Kick off indexing. This is the priced call (~$0.033-0.042/min
+    // of video, 600 min/month free). Fire-and-forget from this
+    // function's point of view: we store the returned task id and
+    // mark status "indexing", then step 2 polls/uses it once ready.
+    const task = await createIndexingTask(indexId, signedUrl);
+    const taskId = task.id || task._id;
 
-    const memoriesVideoId =
-      indexResult.id || indexResult.video_id || indexResult.videoNo || null;
-
+    // Column name is a holdover from the memories.ai version of this
+    // pipeline -- it just holds "this video's opaque reference id
+    // from whichever vendor is configured" and isn't worth a schema
+    // migration to rename. It holds a TwelveLabs task id now; step 2
+    // resolves the actual video_id from this once the task is ready.
     await supabasePatch(
       "game_videos",
       `id=eq.${encodeURIComponent(gameVideoId)}`,
       {
-        memories_video_no: memoriesVideoId,
+        memories_video_no: taskId,
         status: "indexing",
         updated_at: new Date().toISOString(),
       },
@@ -230,7 +264,7 @@ export default async function handler(req, res) {
 
     res.status(200).json({
       status: "indexing",
-      memoriesVideoId,
+      taskId,
     });
   } catch (error) {
     console.error(error);
