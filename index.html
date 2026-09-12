@@ -12671,6 +12671,7 @@ async function uploadGameVideo(){
           .from("Games")
           .insert({
             user_id: currentSession.user.id,
+            created_at: new Date().toISOString().slice(0, 10),
             date: date,
             opponent: opponent,
             home_away: homeAway
