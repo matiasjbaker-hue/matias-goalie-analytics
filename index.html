@@ -4117,6 +4117,21 @@ const supabaseClient =
    DATA
 ============================================================ */
 
+// Master data: everything the signed-in user is allowed to see via
+// RLS -- for a goalie that's just their own rows; for a coach with
+// multiple assigned goalies, this can span several goalies at once.
+let allGames = [];
+let allPeriodStats = [];
+let allShots = [];
+let allReboundControls = [];
+let allPuckPlaying = [];
+
+// Active-goalie view: whichever single goalie is currently being
+// looked at. Every existing chart/table render function reads these
+// (unchanged), so scoping them here is what makes those functions
+// safe to reuse for a coach viewing one goalie at a time instead of
+// accidentally blending multiple goalies' stats together.
+let activeGoalieId = null;
 let games = [];
 let periodStats = [];
 let shots = [];
@@ -8775,18 +8790,34 @@ async function applyRoleAndLoad(){
 
   setNavForRole();
 
-  // loadDashboard() populates games/periodStats/shots/reboundControls/
-  // puckPlaying from Supabase. RLS scopes these to: the caller's own
-  // rows, OR (for a coach) rows belonging to an actively-assigned
-  // goalie, OR everything if the caller is an admin. So this call is
-  // correct and safe for every role without any change.
+  // loadDashboard() populates allGames/allPeriodStats/allShots/
+  // allReboundControls/allPuckPlaying from Supabase -- everything the
+  // caller can see under RLS (their own rows, OR (for a coach) every
+  // actively-assigned goalie's rows, OR everything if admin).
   await loadDashboard();
 
   if(currentRole === "coach"){
+
     await loadCoachExtras();
+    // No single goalie selected yet -- "My Goalies" is the landing
+    // tab; applyActiveGoalieFilter() runs when a card is clicked
+    // (see openGoalie()), scoping the shared tabs to just that goalie.
+
   }
   else if(currentRole === "admin"){
+
     await loadAdminExtras();
+
+  }
+  else{
+
+    // A goalie viewing their own dashboard is always looking at
+    // themselves.
+    activeGoalieId =
+      currentSession && currentSession.user && currentSession.user.id;
+
+    applyActiveGoalieFilter();
+
   }
 
   // Reference content, not role-scoped -- load for everyone.
@@ -8855,12 +8886,12 @@ async function loadXGVersionHistory(){
 function computeGoalieSummary(goalieId){
 
   const goalieGames =
-    games.filter(
+    allGames.filter(
       g => g.user_id === goalieId && isCurrentSeason(g.season)
     );
 
   const goalieShots =
-    shots.filter(s => s.user_id === goalieId);
+    allShots.filter(s => s.user_id === goalieId);
 
   const gamesPlayed = goalieGames.length;
 
@@ -9127,7 +9158,7 @@ function renderCoachHome(){
 
 function computeGoalieReboundSummary(goalieId){
 
-  const rows = reboundControls.filter(r => r.user_id === goalieId);
+  const rows = allReboundControls.filter(r => r.user_id === goalieId);
 
   if(!rows.length){ return null; }
 
@@ -9161,7 +9192,7 @@ function computeGoalieReboundSummary(goalieId){
 
 function computeGoaliePuckSummary(goalieId){
 
-  const rows = puckPlaying.filter(p => p.user_id === goalieId);
+  const rows = allPuckPlaying.filter(p => p.user_id === goalieId);
 
   if(!rows.length){ return null; }
 
@@ -9208,7 +9239,7 @@ function renderGoalieProfile(goalieId){
   document.getElementById("gpGames").textContent = summary.gamesPlayed;
 
   const recentGames =
-    games
+    allGames
       .filter(g => g.user_id === goalieId && isCurrentSeason(g.season))
       .sort((a,b) => new Date(b.date) - new Date(a.date))
       .slice(0,5);
@@ -9289,14 +9320,15 @@ function renderGoalieProfile(goalieId){
 
 function openGoalie(goalieId){
 
-  // NOTE: with exactly one goalie assigned per coach today, the
-  // "Go Deeper" links into Game Log/etc. already show the right
-  // data as-is (RLS scopes the underlying queries to that one
-  // goalie). Once a coach can have multiple goalies, those render
-  // functions need to filter by goalieId instead of reading the
-  // global arrays directly -- flagging this now rather than having
-  // it silently break later.
   coachPrimaryGoalieId = goalieId;
+
+  // This is the fix for the multi-goalie scoping issue: set which
+  // goalie is "active" and re-derive games/periodStats/shots/etc.
+  // (and re-render every shared tab) scoped to just this goalie, so
+  // the "Go Deeper" links (Game Log, Periods, etc.) can no longer
+  // blend multiple goalies' data together.
+  activeGoalieId = goalieId;
+  applyActiveGoalieFilter();
 
   renderGoalieProfile(goalieId);
 
@@ -9488,7 +9520,7 @@ function renderAdminHome(){
 
   // games is populated by loadDashboard(); is_admin() means it
   // contains every goalie's games platform-wide for this role.
-  document.getElementById("adminTotalGames").textContent = games.length;
+  document.getElementById("adminTotalGames").textContent = allGames.length;
 
   document.getElementById("adminActiveAssignments").textContent =
     adminAssignments.filter(a => a.active).length;
@@ -9550,7 +9582,7 @@ function renderAdminGoalies(){
     goalies.map(g => {
 
       const gameCount =
-        games.filter(gm => gm.user_id === g.id).length;
+        allGames.filter(gm => gm.user_id === g.id).length;
 
       const coachCount =
         adminAssignments.filter(a => a.goalie_id === g.id && a.active).length;
@@ -9812,19 +9844,19 @@ async function loadDashboard(){
       ]);
 
 
-    games =
+    allGames =
       Array.isArray(results[0])
         ? results[0]
         : [];
 
 
-    periodStats =
+    allPeriodStats =
       Array.isArray(results[1])
         ? results[1]
         : [];
 
 
-    shots =
+    allShots =
       Array.isArray(results[2])
         ? results[2]
         : [];
@@ -9832,7 +9864,7 @@ async function loadDashboard(){
 
     try{
 
-      reboundControls =
+      allReboundControls =
         await q(
           "goalierebound_control"
         );
@@ -9840,18 +9872,18 @@ async function loadDashboard(){
 
       if(
         !Array.isArray(
-          reboundControls
+          allReboundControls
         )
       ){
 
-        reboundControls = [];
+        allReboundControls = [];
 
       }
 
     }
     catch(reboundError){
 
-      reboundControls = [];
+      allReboundControls = [];
 
 
       console.error(
@@ -9893,7 +9925,7 @@ async function loadDashboard(){
 
     try{
 
-      puckPlaying =
+      allPuckPlaying =
         await q(
           "puck_playing"
         );
@@ -9901,18 +9933,18 @@ async function loadDashboard(){
 
       if(
         !Array.isArray(
-          puckPlaying
+          allPuckPlaying
         )
       ){
 
-        puckPlaying = [];
+        allPuckPlaying = [];
 
       }
 
     }
     catch(puckError){
 
-      puckPlaying = [];
+      allPuckPlaying = [];
 
 
       console.error(
@@ -9951,25 +9983,13 @@ async function loadDashboard(){
 
     }
 
-
-    filterSeasonData();
-
-
-    renderOverview();
-
-    renderGameLog();
-
-    renderPeriods();
-
-    renderSituational();
-
-    renderReboundControl();
-
-    renderIncremental();
-
-    renderPuckPlaying();
-
-    renderMyGamesList();
+    // NOTE: rendering is intentionally NOT done here anymore. This
+    // function's only job is loading everything the signed-in user
+    // can see into the all* arrays. Deciding which single goalie's
+    // data to actually display (and rendering it) is handled by
+    // applyActiveGoalieFilter(), called from applyRoleAndLoad() for
+    // a goalie's own dashboard, or from openGoalie() when a coach
+    // picks a specific goalie to view.
 
 
   }
@@ -9995,6 +10015,61 @@ async function loadDashboard(){
     `;
 
   }
+
+}
+
+
+/* ============================================================
+   ACTIVE GOALIE FILTER
+============================================================ */
+
+function applyActiveGoalieFilter(){
+
+  if(!activeGoalieId){
+
+    games = [];
+    periodStats = [];
+    shots = [];
+    reboundControls = [];
+    puckPlaying = [];
+
+  }
+  else{
+
+    games =
+      allGames.filter(g => g.user_id === activeGoalieId);
+
+    periodStats =
+      allPeriodStats.filter(p => p.user_id === activeGoalieId);
+
+    shots =
+      allShots.filter(s => s.user_id === activeGoalieId);
+
+    reboundControls =
+      allReboundControls.filter(r => r.user_id === activeGoalieId);
+
+    puckPlaying =
+      allPuckPlaying.filter(p => p.user_id === activeGoalieId);
+
+  }
+
+  filterSeasonData();
+
+  renderOverview();
+
+  renderGameLog();
+
+  renderPeriods();
+
+  renderSituational();
+
+  renderReboundControl();
+
+  renderIncremental();
+
+  renderPuckPlaying();
+
+  renderMyGamesList();
 
 }
 
@@ -11314,6 +11389,33 @@ async function sendCoachQuestion(){
     return;
   }
 
+  // Who is this question about? A goalie is always asking about
+  // themselves. A coach is asking about whichever goalie they most
+  // recently opened -- if they haven't opened one yet, there's
+  // nothing to scope the answer to, so ask them to pick one rather
+  // than silently guessing (or worse, blending multiple goalies).
+  let goalieId = null;
+
+  if(currentRole === "coach"){
+
+    goalieId = coachPrimaryGoalieId;
+
+    if(!goalieId){
+      appendCoachMessage(
+        "assistant",
+        "Open a goalie's profile first (My Goalies → pick a goalie → Ask AI Coach), then ask here.",
+        "error"
+      );
+      return;
+    }
+
+  }
+  else{
+
+    goalieId = currentSession.user.id;
+
+  }
+
   const sendBtn =
     document.getElementById("coach-send-btn");
 
@@ -11333,7 +11435,9 @@ async function sendCoachQuestion(){
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           accessToken: currentSession.access_token,
-          question: question
+          question: question,
+          goalieId: goalieId,
+          viewerRole: currentRole
         })
       });
 
