@@ -1929,6 +1929,10 @@ tr:hover td{
       Assignments
     </button>
 
+    <button onclick="showTab('adminvideoreview',this)">
+      Video Review
+    </button>
+
     <button onclick="showTab('about',this)">
       About
     </button>
@@ -3944,14 +3948,14 @@ tr:hover td{
 
 
 <!-- ========================================================= -->
-<!-- VIDEO PIPELINE: upload film, review AI-drafted shots -->
+<!-- VIDEO UPLOAD (customer-facing -- upload only, no drafts) -->
 <!-- ========================================================= -->
 
 <section id="videopipeline" class="tab">
 
   <div class="page-title">
     <h2>Video</h2>
-    <p>Upload game film and review AI-drafted shots before they count toward your stats. Nothing here affects your real stats until you confirm a draft.</p>
+    <p>Upload your game film here and we'll take care of the rest -- your stats will show up once we've gone through it.</p>
   </div>
 
   <div class="card">
@@ -3961,9 +3965,46 @@ tr:hover td{
     <div class="field-grid">
 
       <div class="field">
+        <label>
+          <input type="checkbox" id="video-new-game-toggle" onchange="toggleVideoNewGameFields()">
+          This is a new game (not in My Games yet)
+        </label>
+      </div>
+
+    </div>
+
+    <div id="video-existing-game-field" class="field-grid">
+
+      <div class="field">
         <label for="video-game-select">Game</label>
         <select id="video-game-select"></select>
       </div>
+
+    </div>
+
+    <div id="video-new-game-fields" class="field-grid" style="display:none">
+
+      <div class="field">
+        <label for="video-new-game-date">Date</label>
+        <input type="date" id="video-new-game-date">
+      </div>
+
+      <div class="field">
+        <label for="video-new-game-opponent">Opponent</label>
+        <input type="text" id="video-new-game-opponent" placeholder="Opponent name">
+      </div>
+
+      <div class="field">
+        <label for="video-new-game-homeaway">Home/Away</label>
+        <select id="video-new-game-homeaway">
+          <option value="Home">Home</option>
+          <option value="Away">Away</option>
+        </select>
+      </div>
+
+    </div>
+
+    <div class="field-grid">
 
       <div class="field">
         <label for="video-file-input">Video file</label>
@@ -3975,14 +4016,14 @@ tr:hover td{
     <div id="video-upload-status" class="empty-state" style="display:none"></div>
 
     <button type="button" id="video-upload-btn" onclick="uploadGameVideo()">
-      Upload &amp; start indexing
+      Upload
     </button>
 
   </div>
 
   <div class="section-heading">
-    <h3>Uploaded videos</h3>
-    <p>Status moves from uploaded &rarr; indexing &rarr; analyzed. "Find shots" is available once indexing finishes.</p>
+    <h3>Your uploads</h3>
+    <p>We'll handle turning this into stats -- nothing else needed from you.</p>
   </div>
 
   <div class="card">
@@ -3991,9 +4032,34 @@ tr:hover td{
     </div>
   </div>
 
+</section>
+
+
+<!-- ========================================================= -->
+<!-- VIDEO REVIEW (admin-only -- real status, drafts, timestamps) -->
+<!-- ========================================================= -->
+
+<section id="adminvideoreview" class="tab">
+
+  <div class="page-title">
+    <h2>Video Review</h2>
+    <p>Every uploaded video across all customers. Nothing here reaches a customer's real stats until you confirm a draft below.</p>
+  </div>
+
+  <div class="section-heading">
+    <h3>Uploaded videos</h3>
+    <p>Status moves from uploaded &rarr; indexing &rarr; analyzed. "Find shots" is available once indexing finishes.</p>
+  </div>
+
+  <div class="card">
+    <div id="admin-video-list-container">
+      <div class="empty-state">No videos uploaded yet.</div>
+    </div>
+  </div>
+
   <div class="section-heading">
     <h3>Drafted shots awaiting review</h3>
-    <p>Each card is one AI-drafted shot. Anything marked "unclear" needs your eye before confirming. Confirming inserts it as a real shot; discarding throws it away with no effect on your stats.</p>
+    <p>Each card is one AI-drafted shot, tagged with which goalie's game it belongs to. Anything marked "unclear" needs your eye before confirming. Confirming inserts it as a real shot for that goalie; discarding throws it away with no effect on anyone's stats.</p>
   </div>
 
   <div class="card">
@@ -5315,6 +5381,10 @@ function showTab(id,button){
 
   if(id === "videopipeline"){
     loadVideoPipelineData();
+  }
+
+  if(id === "adminvideoreview"){
+    loadAdminVideoReviewData();
   }
 
 
@@ -12436,7 +12506,7 @@ document.getElementById("coach-input")
 
 
 /* ============================================================
-   VIDEO PIPELINE: upload film, review AI-drafted shots
+   VIDEO PIPELINE: upload film (customer), review drafts (admin)
 ============================================================ */
 
 function statusBadge(status){
@@ -12454,6 +12524,39 @@ function statusBadge(status){
 
 }
 
+
+// Plain-language status for the customer-facing list -- no internal
+// pipeline jargon, no button, nothing for them to do.
+function friendlyStatus(status){
+
+  return (
+    {
+      uploaded: "Received -- queued for processing",
+      indexing: "Being processed",
+      indexed: "Being processed",
+      analyzed: "Processed -- stats coming soon",
+      failed: "We hit a snag -- we've been notified and will follow up"
+    }[status] || "Being processed"
+  );
+
+}
+
+
+function toggleVideoNewGameFields(){
+
+  const isNew =
+    document.getElementById("video-new-game-toggle").checked;
+
+  document.getElementById("video-existing-game-field").style.display =
+    isNew ? "none" : "";
+
+  document.getElementById("video-new-game-fields").style.display =
+    isNew ? "" : "none";
+
+}
+
+
+/* --- customer-facing tab --------------------------------------------- */
 
 async function loadVideoPipelineData(){
 
@@ -12473,19 +12576,16 @@ async function loadVideoPipelineData(){
   else if(select){
 
     select.innerHTML =
-      `<option value="">No games yet -- add one under My Games first</option>`;
+      `<option value="">No games yet -- check "This is a new game" below</option>`;
 
   }
 
-  await Promise.all([
-    renderGameVideosList(),
-    renderShotDrafts()
-  ]);
+  await renderCustomerVideoList();
 
 }
 
 
-async function renderGameVideosList(){
+async function renderCustomerVideoList(){
 
   const container =
     document.getElementById("video-list-container");
@@ -12497,6 +12597,229 @@ async function renderGameVideosList(){
   let videos;
 
   try{
+    // RLS already scopes this to the signed-in user's own videos.
+    videos = await qFiltered("game_videos", "order=created_at.desc");
+  }
+  catch(error){
+    container.innerHTML = `<div class="empty-state">Could not load your uploads.</div>`;
+    return;
+  }
+
+  if(!videos.length){
+    container.innerHTML = `<div class="empty-state">No videos uploaded yet.</div>`;
+    return;
+  }
+
+  container.innerHTML =
+    videos
+      .map(v => `
+        <div class="card mygame-item">
+          <div class="mygame-item-info">
+            <span class="mygame-title">${v.storage_path.split("/").pop()}</span>
+            <span class="mygame-sub">${friendlyStatus(v.status)}</span>
+          </div>
+        </div>
+      `)
+      .join("");
+
+}
+
+
+async function uploadGameVideo(){
+
+  if(!currentSession || !currentSession.user){
+    alert("You need to be signed in to upload video.");
+    return;
+  }
+
+  const isNewGame =
+    document.getElementById("video-new-game-toggle").checked;
+
+  const fileInput =
+    document.getElementById("video-file-input");
+
+  const file =
+    fileInput.files[0];
+
+  if(!file){
+    alert("Choose a video file first.");
+    return;
+  }
+
+  let gameId = null;
+
+  if(isNewGame){
+
+    const date =
+      textOrNull(document.getElementById("video-new-game-date").value);
+
+    const opponent =
+      textOrNull(document.getElementById("video-new-game-opponent").value);
+
+    if(!opponent){
+      alert("Enter an opponent for the new game.");
+      return;
+    }
+
+    const homeAway =
+      document.getElementById("video-new-game-homeaway").value;
+
+    try{
+
+      const { data: newGame, error: newGameError } =
+        await supabaseClient
+          .from("Games")
+          .insert({
+            user_id: currentSession.user.id,
+            date: date,
+            opponent: opponent,
+            home_away: homeAway
+          })
+          .select();
+
+      if(newGameError){
+        throw new Error(newGameError.message);
+      }
+
+      gameId = newGame[0].id;
+
+      // So the rest of the app (My Games, stats, etc.) picks this up
+      // without waiting for a full reload.
+      games.push(newGame[0]);
+
+    }
+    catch(error){
+      alert(`Could not create the new game: ${error.message}`);
+      return;
+    }
+
+  }
+  else{
+
+    gameId =
+      document.getElementById("video-game-select").value;
+
+    if(!gameId){
+      alert("Pick a game, or check \"This is a new game\" above.");
+      return;
+    }
+
+  }
+
+  const statusEl =
+    document.getElementById("video-upload-status");
+
+  const uploadBtn =
+    document.getElementById("video-upload-btn");
+
+  uploadBtn.disabled = true;
+  statusEl.style.display = "block";
+  statusEl.textContent = "Uploading...";
+
+  try{
+
+    const userId =
+      currentSession.user.id;
+
+    const storagePath =
+      `${userId}/${Date.now()}_${file.name}`;
+
+    const { error: uploadError } =
+      await supabaseClient
+        .storage
+        .from("game-footage")
+        .upload(storagePath, file);
+
+    if(uploadError){
+      throw new Error(uploadError.message);
+    }
+
+    const { data: inserted, error: insertError } =
+      await supabaseClient
+        .from("game_videos")
+        .insert({
+          user_id: userId,
+          game_id: gameId,
+          storage_path: storagePath,
+          status: "uploaded"
+        })
+        .select();
+
+    if(insertError){
+      throw new Error(insertError.message);
+    }
+
+    const gameVideoId =
+      inserted[0].id;
+
+    // Kick off indexing right away -- from the customer's point of
+    // view this is just part of "Upload", not a separate step.
+    const res =
+      await fetch("/api/video/index-game-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accessToken: currentSession.access_token,
+          gameVideoId: gameVideoId
+        })
+      });
+
+    const data =
+      await res.json();
+
+    if(!res.ok){
+      throw new Error(data.error || "Upload succeeded but processing could not start.");
+    }
+
+    statusEl.textContent = "Uploaded! We'll take it from here -- your stats will show up once we've gone through the film.";
+    fileInput.value = "";
+    document.getElementById("video-new-game-toggle").checked = false;
+    toggleVideoNewGameFields();
+
+    await renderCustomerVideoList();
+
+  }
+  catch(error){
+
+    console.error(error);
+    statusEl.textContent = `Error: ${error.message}`;
+
+  }
+  finally{
+
+    uploadBtn.disabled = false;
+
+  }
+
+}
+
+
+/* --- admin-only tab ---------------------------------------------------- */
+
+async function loadAdminVideoReviewData(){
+
+  await Promise.all([
+    renderAdminVideoList(),
+    renderShotDrafts()
+  ]);
+
+}
+
+
+async function renderAdminVideoList(){
+
+  const container =
+    document.getElementById("admin-video-list-container");
+
+  if(!container){
+    return;
+  }
+
+  let videos;
+
+  try{
+    // is_admin() in RLS means this sees every customer's videos, not
+    // just the admin's own.
     videos = await qFiltered("game_videos", "order=created_at.desc");
   }
   catch(error){
@@ -12548,119 +12871,6 @@ async function renderGameVideosList(){
 }
 
 
-async function uploadGameVideo(){
-
-  if(!currentSession || !currentSession.user){
-    alert("You need to be signed in to upload video.");
-    return;
-  }
-
-  const gameId =
-    document.getElementById("video-game-select").value;
-
-  const fileInput =
-    document.getElementById("video-file-input");
-
-  const file =
-    fileInput.files[0];
-
-  if(!gameId){
-    alert("Pick a game first.");
-    return;
-  }
-
-  if(!file){
-    alert("Choose a video file first.");
-    return;
-  }
-
-  const statusEl =
-    document.getElementById("video-upload-status");
-
-  const uploadBtn =
-    document.getElementById("video-upload-btn");
-
-  uploadBtn.disabled = true;
-  statusEl.style.display = "block";
-  statusEl.textContent = "Uploading to storage...";
-
-  try{
-
-    const userId =
-      currentSession.user.id;
-
-    const storagePath =
-      `${userId}/${Date.now()}_${file.name}`;
-
-    const { error: uploadError } =
-      await supabaseClient
-        .storage
-        .from("game-footage")
-        .upload(storagePath, file);
-
-    if(uploadError){
-      throw new Error(uploadError.message);
-    }
-
-    statusEl.textContent = "Creating video record...";
-
-    const { data: inserted, error: insertError } =
-      await supabaseClient
-        .from("game_videos")
-        .insert({
-          game_id: gameId,
-          storage_path: storagePath,
-          status: "uploaded"
-        })
-        .select();
-
-    if(insertError){
-      throw new Error(insertError.message);
-    }
-
-    const gameVideoId =
-      inserted[0].id;
-
-    statusEl.textContent = "Starting indexing on memories.ai (this can take a few minutes for a full game)...";
-
-    const res =
-      await fetch("/api/video/index-game-video", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          accessToken: currentSession.access_token,
-          gameVideoId: gameVideoId
-        })
-      });
-
-    const data =
-      await res.json();
-
-    if(!res.ok){
-      throw new Error(data.error || "Indexing failed to start.");
-    }
-
-    statusEl.textContent = "Indexing started. Check back in a few minutes, then click \"Find shots\" below.";
-    fileInput.value = "";
-
-    await renderGameVideosList();
-
-  }
-  catch(error){
-
-    console.error(error);
-    statusEl.textContent = `Error: ${error.message}`;
-
-  }
-  finally{
-
-    uploadBtn.disabled = false;
-
-  }
-
-}
-
-
 async function runVideoAnalysis(gameVideoId){
 
   if(!currentSession || !currentSession.access_token){
@@ -12695,7 +12905,7 @@ async function runVideoAnalysis(gameVideoId){
     alert(`Drafted ${data.draftCount} shot(s). Review them below.`);
 
     await Promise.all([
-      renderGameVideosList(),
+      renderAdminVideoList(),
       renderShotDrafts()
     ]);
 
@@ -12775,6 +12985,9 @@ async function renderShotDrafts(){
   let drafts;
 
   try{
+    // RLS restricts this table to admin accounts only -- a customer
+    // hitting this function (they can't, there's no UI path to it,
+    // but even directly) would just get zero rows back.
     drafts = await qFiltered("shot_drafts", "status=eq.pending&order=start_seconds.asc");
   }
   catch(error){
@@ -12910,8 +13123,15 @@ async function confirmShotDraft(draftId){
     const draft =
       draftRows[0];
 
+    if(!draft.user_id){
+      throw new Error("This draft has no owning goalie on file -- fix that before confirming.");
+    }
+
     const shotPayload = {
-      user_id: currentSession.user.id,
+      // The goalie this game actually belongs to -- NOT whoever is
+      // clicking Confirm. An admin reviewing a customer's drafts
+      // must never accidentally attribute the shot to themselves.
+      user_id: draft.user_id,
       game_id: draft.game_id,
       distance: (() => {
         const v = draftFieldValue(draftId, "distance");
