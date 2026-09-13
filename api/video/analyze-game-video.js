@@ -231,7 +231,14 @@ async function extractShotFromMoment(moment) {
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`Claude extraction failed: ${res.status} ${errText}`);
+    let flatMessage = errText;
+    try {
+      const parsedErr = JSON.parse(errText);
+      flatMessage = (parsedErr.error && parsedErr.error.message) || errText;
+    } catch (_) {
+      // errText wasn't JSON -- fall back to the raw text as-is
+    }
+    throw new Error(`Claude extraction failed: ${res.status} - ${flatMessage}`);
   }
 
   const data = await res.json();
