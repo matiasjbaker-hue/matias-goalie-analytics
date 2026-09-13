@@ -4059,7 +4059,7 @@ tr:hover td{
 
   <div class="section-heading">
     <h3>Drafted shots awaiting review</h3>
-    <p>Each card is one AI-drafted shot, tagged with which goalie's game it belongs to. Anything marked "unclear" needs your eye before confirming. Confirming inserts it as a real shot for that goalie; discarding throws it away with no effect on anyone's stats.</p>
+    <p>Each card is one shot moment TwelveLabs found, tagged with which goalie's game it belongs to and a plain-language description of what happens -- read it (and watch the clip at that timestamp) and fill in the stats yourself. Confirming inserts it as a real shot for that goalie; discarding throws it away with no effect on anyone's stats.</p>
   </div>
 
   <div class="card">
@@ -13081,13 +13081,7 @@ async function runVideoAnalysis(gameVideoId, button){
 
     }
 
-    let message = `TwelveLabs found ${data.momentsFound ?? "?"} candidate moment(s). Drafted ${data.draftCount} shot(s).`;
-
-    if(data.extractionErrors && data.extractionErrors.length){
-      message += `\n\nSome moments failed to process:\n- ${data.extractionErrors.join("\n- ")}`;
-    }
-
-    alert(message);
+    alert(`Found ${data.draftCount} shot moment(s). Review them below.`);
 
     await Promise.all([
       renderAdminVideoList(),
@@ -13207,10 +13201,16 @@ async function renderShotDrafts(){
             ? `<p class="empty-state">Model marked unclear: ${d.uncertain_fields}</p>`
             : "";
 
+        const aiDescriptionNote =
+          d.ai_description
+            ? `<p style="font-style:italic">"${d.ai_description}"</p>`
+            : "";
+
         return `
           <div class="card" style="margin-bottom:12px">
 
             <p><strong>~${timeLabel}</strong> into the video</p>
+            ${aiDescriptionNote}
             ${uncertainNote}
 
             <div class="field-grid">
