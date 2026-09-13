@@ -13030,12 +13030,73 @@ async function renderAdminVideoList(){
                   ? `<span class="empty-state" title="${v.error_message || ""}">Failed -- ${v.error_message || "unknown error"}</span>`
                   : ""
               }
+              <button type="button" class="btn-danger" onclick="deleteGameVideo(${v.id}, this)">Delete</button>
             </div>
           </div>
         `;
 
       })
       .join("");
+
+}
+
+
+async function deleteGameVideo(gameVideoId, button){
+
+  if(!currentSession || !currentSession.access_token){
+    alert("You need to be signed in.");
+    return;
+  }
+
+  if(!confirm("Delete this uploaded video? This also deletes any drafted shots tied to it, and removes the actual file from storage. This cannot be undone.")){
+    return;
+  }
+
+  if(button){
+    button.disabled = true;
+    button.textContent = "Deleting...";
+  }
+
+  try{
+
+    const res =
+      await fetch("/api/video/delete-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accessToken: currentSession.access_token,
+          gameVideoId: gameVideoId
+        })
+      });
+
+    const data =
+      await res.json();
+
+    if(!res.ok){
+      alert(data.error || "Could not delete this video.");
+      if(button){
+        button.disabled = false;
+        button.textContent = "Delete";
+      }
+      return;
+    }
+
+    await Promise.all([
+      renderAdminVideoList(),
+      renderShotDrafts()
+    ]);
+
+  }
+  catch(error){
+
+    console.error(error);
+    alert("Something went wrong deleting this video.");
+    if(button){
+      button.disabled = false;
+      button.textContent = "Delete";
+    }
+
+  }
 
 }
 
