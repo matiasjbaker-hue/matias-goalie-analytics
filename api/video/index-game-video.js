@@ -23,28 +23,43 @@
 //
 // IMPORTANT -- READ BEFORE RELYING ON THIS:
 // Built from TwelveLabs' current (v1.3) docs for the async analysis
-// endpoint, not tested against a live account yet. If task creation
-// fails, check the raw error message this throws -- it includes
-// TwelveLabs' full response body, which will name the actual
-// problem (e.g. a field name or the video URL not being reachable).
+// endpoint, not tested against a live account yet. Two things worth
+// a quick manual check once you have a key:
+//   1. The model name below ("pegasus1.5") -- TwelveLabs updates
+//      model versions periodically; check their dashboard/docs for
+//      the current recommended model name if task creation fails.
+//   2. That the /analyze/tasks endpoint still accepts a video_url
+//      pointing at a signed R2 URL.
+// If either has changed, this file and the matching call in
+// analyze-game-video.js are the only places to touch.
 
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-const SUPABASE_URL = "https://iiuqxxrrruvwvfevfehrzic.supabase.co".replace("iiuqxxrrruvwvfevfehrzic","iiuqxxrrruvwvfehrzic");
+const SUPABASE_URL = "https://iiuqxxrrruvwvfehrzic.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
+
 const TWELVELABS_HOST = "https://api.twelvelabs.io/v1.3";
 
-// Shared with analyze-game-video.js conceptually -- this is what
-// TwelveLabs is asked to produce once the task completes.
-export const SHOT_LIST_PROMPT = `List every shot attempt on goal in this hockey video. For each one, give the approximate start time in seconds into the video, and a plain-language description of what happens (who has the puck, where they shoot from, what happens right before and after -- rebounds, screens, deflections, breakaways, whether it's a goal or a save).
+// Shared conceptually with analyze-game-video.js -- this is what
+// TwelveLabs is asked to produce once the task completes. Takes the
+// team jersey color since the camera shows the whole rink -- without
+// telling it which net to focus on, it reports shots at both ends
+// indiscriminately.
+export function buildShotListPrompt(jerseyColor) {
+  return `This video is filmed from a single wide-angle camera showing the entire rink, so BOTH teams' nets are visible throughout. The goalie being tracked plays for the team wearing ${jerseyColor} jerseys.
+
+ONLY report shot attempts taken AT the net defended by the ${jerseyColor}-jersey goalie -- i.e. shots by the opposing team trying to score on the ${jerseyColor} team. Do NOT report shots at the other end of the rink (shots by the ${jerseyColor} team at the opposing net) -- those belong to a different goalie and are not relevant here.
+
+For each relevant shot, give the approximate start time in seconds into the video, and a plain-language description of what happens (who has the puck, where they shoot from, what happens right before and after -- rebounds, screens, deflections, breakaways, whether it's a goal or a save).
 
 Respond with ONLY a JSON array, no markdown fences, no preamble, in this exact shape:
 [
   { "start_seconds": 42, "description": "..." },
   { "start_seconds": 130, "description": "..." }
 ]
-If you find no clear shot attempts, respond with an empty array: []`;
+If you find no clear shot attempts against the ${jerseyColor} goalie, respond with an empty array: []`;
+}
 
 function r2Client() {
   return new S3Client({
@@ -65,9 +80,6 @@ async function getR2SignedUrl(objectKey) {
       Bucket: process.env.R2_BUCKET_NAME,
       Key: objectKey,
     }),
-    // Generous expiry -- TwelveLabs fetches the video asynchronously
-    // on its own schedule, not necessarily the instant this call is
-    // made.
     { expiresIn: 60 * 60 * 6 }
   );
 }
@@ -116,7 +128,7 @@ async function supabasePatch(table, filter, body, accessToken) {
   return res.json();
 }
 
-async function createAnalysisTask(videoUrl) {
+async function createAnalysisTask(videoUrl, jerseyColor) {
   const res = await fetch(`${TWELVELABS_HOST}/analyze/tasks`, {
     method: "POST",
     headers: {
@@ -127,7 +139,7 @@ async function createAnalysisTask(videoUrl) {
       model_name: "pegasus1.5",
       analysis_mode: "general",
       video: { type: "url", url: videoUrl },
-      prompt: SHOT_LIST_PROMPT,
+      prompt: buildShotListPrompt(jerseyColor),
       temperature: 0,
     }),
   });
@@ -185,7 +197,12 @@ export default async function handler(req, res) {
     }
 
     const signedUrl = await getR2SignedUrl(gameVideo.storage_path);
-    const task = await createAnalysisTask(signedUrl);
+
+    // Fallback for any video uploaded before this field existed --
+    // still lets the pipeline run, just without the net-scoping fix.
+    const jerseyColor = gameVideo.team_jersey_color || "unknown";
+
+    const task = await createAnalysisTask(signedUrl, jerseyColor);
     const taskId = task.id || task._id || task.task_id;
 
     if (!taskId) {
@@ -194,6 +211,11 @@ export default async function handler(req, res) {
       );
     }
 
+    // Column name is a holdover from the memories.ai version of this
+    // pipeline -- it just holds "this video's opaque reference id
+    // from whichever vendor is configured" and isn't worth a schema
+    // migration to rename. It holds a TwelveLabs task id now; step 2
+    // resolves the actual video_id from this once the task is ready.
     await supabasePatch(
       "game_videos",
       `id=eq.${encodeURIComponent(gameVideoId)}`,
