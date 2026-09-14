@@ -4088,11 +4088,18 @@ tr:hover td{
     <div class="field-grid">
 
       <div class="field">
+        <label for="video-jersey-color">Your goalie's team jersey color (this game)</label>
+        <input type="text" id="video-jersey-color" placeholder="e.g. white, red, black">
+      </div>
+
+      <div class="field">
         <label for="video-file-input">Video file</label>
         <input type="file" id="video-file-input" accept="video/*">
       </div>
 
     </div>
+
+    <p class="empty-state" style="padding:0 0 12px;text-align:left">Since the camera shows the whole rink, this tells us which net to actually pay attention to -- otherwise shots at both ends get mixed together.</p>
 
     <div id="video-upload-status" class="empty-state" style="display:none"></div>
 
@@ -4200,27 +4207,60 @@ tr:hover td{
 
     <div class="card">
 
-      <h3>Matias Baker</h3>
+      <h3 id="about-player-name">Player</h3>
 
-      <div class="about-list">
+      <div class="about-list" id="about-player-view">
 
         <p>
           <strong>Position:</strong> Goaltender
         </p>
 
         <p>
-          <strong>Birth Year:</strong> 2008
+          <strong>Birth Year:</strong> <span id="about-birth-year">—</span>
         </p>
 
         <p>
-          <strong>Team:</strong> Pelham Panthers
+          <strong>Team:</strong> <span id="about-team">—</span>
         </p>
 
         <p>
-          <strong>Season:</strong> 2026–27
+          <strong>Season:</strong> <span id="about-season">—</span>
         </p>
 
       </div>
+
+      <div id="about-player-edit" style="display:none">
+
+        <div class="field-grid">
+
+          <div class="field">
+            <label for="about-edit-name">Full name</label>
+            <input type="text" id="about-edit-name">
+          </div>
+
+          <div class="field">
+            <label for="about-edit-birthyear">Birth year</label>
+            <input type="number" id="about-edit-birthyear">
+          </div>
+
+          <div class="field">
+            <label for="about-edit-team">Team</label>
+            <input type="text" id="about-edit-team">
+          </div>
+
+          <div class="field">
+            <label for="about-edit-season">Season</label>
+            <input type="text" id="about-edit-season" placeholder="e.g. 2026-27">
+          </div>
+
+        </div>
+
+        <button type="button" class="btn-primary" onclick="saveAboutProfile(this)">Save</button>
+        <button type="button" class="btn-secondary" onclick="toggleAboutEdit(false)">Cancel</button>
+
+      </div>
+
+      <button type="button" class="btn-secondary" id="about-edit-toggle" style="margin-top:12px" onclick="toggleAboutEdit(true)">Edit my info</button>
 
     </div>
 
@@ -5470,6 +5510,10 @@ function showTab(id,button){
     loadAdminVideoReviewData();
   }
 
+  if(id === "about"){
+    renderAboutCard();
+  }
+
 
   setTimeout(() => {
 
@@ -5690,7 +5734,7 @@ function renderOverview(){
       ? totalSaves /
         totalShots *
         100
-      : 0;
+      : null;
 
 
   const gaa =
@@ -6449,13 +6493,13 @@ function renderGameLog(){
     const sv =
       shots
         ? saves / shots * 100
-        : 0;
+        : null;
 
 
     const gaa =
       minutes
         ? goals / minutes * 60
-        : 0;
+        : null;
 
 
     const result =
@@ -6515,18 +6559,20 @@ function renderGameLog(){
       <td>${goals}</td>
 
       <td class="${
-        sv >= 92
-          ? "good"
-          : sv < 88
-            ? "bad"
-            : "neutral"
+        sv === null
+          ? ""
+          : sv >= 92
+            ? "good"
+            : sv < 88
+              ? "bad"
+              : "neutral"
       }">
-        ${sv.toFixed(1)}%
+        ${sv === null ? "—" : sv.toFixed(1) + "%"}
       </td>
 
-      <td>${gaa.toFixed(2)}</td>
+      <td>${gaa === null ? "—" : gaa.toFixed(2)}</td>
 
-      <td>${minutes.toFixed(1)}</td>
+      <td>${minutes ? minutes.toFixed(1) : "—"}</td>
 
       <td>
         <button type="button" class="btn-secondary" onclick="generateGameReportPDF(${game.id}, this)">PDF</button>
@@ -6657,7 +6703,7 @@ function renderPeriods(){
       sv:
         shots
           ? saves / shots * 100
-          : 0
+          : null
 
     };
 
@@ -7509,7 +7555,7 @@ function getReboundTotals(){
     goodPct:
       total
         ? good / total * 100
-        : 0
+        : null
 
   };
 
@@ -7682,7 +7728,7 @@ function renderReboundControl(){
       ? totalGood /
         total *
         100
-      : 0;
+      : null;
 
 
   document.getElementById(
@@ -11545,6 +11591,97 @@ async function submitFeedback(button){
 }
 
 
+function renderAboutCard(){
+
+  if(!currentProfile){
+    return;
+  }
+
+  document.getElementById("about-player-name").textContent =
+    currentProfile.full_name || "Add your name";
+
+  document.getElementById("about-birth-year").textContent =
+    currentProfile.birth_year || "—";
+
+  document.getElementById("about-team").textContent =
+    currentProfile.team || "—";
+
+  document.getElementById("about-season").textContent =
+    currentProfile.season || "—";
+
+}
+
+
+function toggleAboutEdit(show){
+
+  document.getElementById("about-player-view").style.display = show ? "none" : "block";
+  document.getElementById("about-player-edit").style.display = show ? "block" : "none";
+  document.getElementById("about-edit-toggle").style.display = show ? "none" : "inline-block";
+
+  if(show && currentProfile){
+
+    document.getElementById("about-edit-name").value = currentProfile.full_name || "";
+    document.getElementById("about-edit-birthyear").value = currentProfile.birth_year || "";
+    document.getElementById("about-edit-team").value = currentProfile.team || "";
+    document.getElementById("about-edit-season").value = currentProfile.season || "";
+
+  }
+
+}
+
+
+async function saveAboutProfile(button){
+
+  if(!currentSession || !currentSession.user){
+    showToast("You need to be signed in.", "error");
+    return;
+  }
+
+  const payload = {
+    full_name: textOrNull(document.getElementById("about-edit-name").value),
+    birth_year: numOrNull(document.getElementById("about-edit-birthyear").value),
+    team: textOrNull(document.getElementById("about-edit-team").value),
+    season: textOrNull(document.getElementById("about-edit-season").value)
+  };
+
+  button.disabled = true;
+  button.textContent = "Saving...";
+
+  try{
+
+    const { error } =
+      await supabaseClient
+        .from("profiles")
+        .update(payload)
+        .eq("id", currentSession.user.id);
+
+    if(error){
+      throw new Error(error.message);
+    }
+
+    currentProfile = { ...currentProfile, ...payload };
+
+    renderAboutCard();
+    toggleAboutEdit(false);
+    showToast("Saved.");
+
+  }
+  catch(error){
+
+    console.error(error);
+    showToast("Could not save: " + error.message, "error");
+
+  }
+  finally{
+
+    button.disabled = false;
+    button.textContent = "Save";
+
+  }
+
+}
+
+
 function textOrNull(value){
 
   const v = String(value ?? "").trim();
@@ -13040,6 +13177,14 @@ async function uploadGameVideo(){
   const file =
     fileInput.files[0];
 
+  const jerseyColor =
+    textOrNull(document.getElementById("video-jersey-color").value);
+
+  if(!jerseyColor){
+    showToast("Enter your goalie's team jersey color for this game.", "error");
+    return;
+  }
+
   if(!file){
     showToast("Choose a video file first.", "error");
     return;
@@ -13140,6 +13285,7 @@ async function uploadGameVideo(){
           user_id: userId,
           game_id: gameId,
           storage_path: storagePath,
+          team_jersey_color: jerseyColor,
           status: "uploaded"
         })
         .select();
@@ -13172,6 +13318,7 @@ async function uploadGameVideo(){
 
     statusEl.textContent = "Uploaded! We'll take it from here -- your stats will show up once we've gone through the film.";
     fileInput.value = "";
+    document.getElementById("video-jersey-color").value = "";
     document.getElementById("video-new-game-toggle").checked = false;
     toggleVideoNewGameFields();
 
