@@ -1318,6 +1318,49 @@ tr:hover td{
   font-size:13px;
 }
 
+#toast-container{
+  position:fixed;
+  top:16px;
+  right:16px;
+  z-index:9999;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  max-width:360px;
+  width:calc(100% - 32px);
+}
+
+.toast{
+  background:var(--card2);
+  border:1px solid var(--border2);
+  border-left:4px solid var(--green);
+  border-radius:8px;
+  padding:14px 16px;
+  color:var(--text);
+  font-size:14px;
+  line-height:1.4;
+  box-shadow:0 8px 24px rgba(0,0,0,0.35);
+  animation:toast-in 0.2s ease-out;
+}
+
+.toast.toast-error{
+  border-left-color:var(--red);
+}
+
+.toast.toast-fade-out{
+  animation:toast-out 0.2s ease-in forwards;
+}
+
+@keyframes toast-in{
+  from{ opacity:0; transform:translateY(-8px); }
+  to{ opacity:1; transform:translateY(0); }
+}
+
+@keyframes toast-out{
+  from{ opacity:1; transform:translateY(0); }
+  to{ opacity:0; transform:translateY(-8px); }
+}
+
 .back-link{
   display:inline-block;
   color:var(--green2);
@@ -1586,6 +1629,11 @@ tr:hover td{
 </head>
 
 <body>
+
+<!-- Toast notifications -- replaces alert() popups for a less jarring,
+     on-brand way to show success/error feedback. See showToast() in
+     the main script. -->
+<div id="toast-container" aria-live="polite"></div>
 
 <!-- ========================================================= -->
 <!-- LANDING PAGE -->
@@ -2282,7 +2330,7 @@ tr:hover td{
       </div>
 
       <div style="display:flex;align-items:flex-end;">
-        <button class="btn-primary" style="width:100%" onclick="createAssignment()">Create Assignment</button>
+        <button class="btn-primary" style="width:100%" onclick="createAssignment(this)">Create Assignment</button>
       </div>
 
     </div>
@@ -9971,10 +10019,10 @@ function renderAdminAssignments(){
           <td>${goalie ? goalie.full_name : a.goalie_id}</td>
           <td>${statusPill}</td>
           <td>
-            <button class="btn-secondary" onclick="toggleAssignment(${a.id}, ${!a.active})">
+            <button class="btn-secondary" onclick="toggleAssignment(${a.id}, ${!a.active}, this)">
               ${a.active ? "Deactivate" : "Reactivate"}
             </button>
-            <button class="btn-danger" onclick="deleteAssignment(${a.id})">
+            <button class="btn-danger" onclick="deleteAssignment(${a.id}, this)">
               Delete
             </button>
           </td>
@@ -9986,7 +10034,7 @@ function renderAdminAssignments(){
 }
 
 
-async function createAssignment(){
+async function createAssignment(button){
 
   const coachId = document.getElementById("adminAssignCoachSelect").value;
   const goalieId = document.getElementById("adminAssignGoalieSelect").value;
@@ -9998,6 +10046,10 @@ async function createAssignment(){
   }
 
   statusEl.textContent = "Saving...";
+
+  if(button){
+    button.disabled = true;
+  }
 
   try{
 
@@ -10037,11 +10089,22 @@ async function createAssignment(){
     statusEl.textContent = "Could not create assignment: " + err.message;
 
   }
+  finally{
+
+    if(button){
+      button.disabled = false;
+    }
+
+  }
 
 }
 
 
-async function toggleAssignment(id, newActive){
+async function toggleAssignment(id, newActive, button){
+
+  if(button){
+    button.disabled = true;
+  }
 
   try{
 
@@ -10072,16 +10135,26 @@ async function toggleAssignment(id, newActive){
   catch(err){
 
     console.error("Toggle assignment error:", err);
+    showToast("Could not update this assignment: " + err.message, "error");
+
+    if(button){
+      button.disabled = false;
+    }
 
   }
 
 }
 
 
-async function deleteAssignment(id){
+async function deleteAssignment(id, button){
 
   if(!confirm("Delete this assignment? The coach will immediately lose access to this goalie's data.")){
     return;
+  }
+
+  if(button){
+    button.disabled = true;
+    button.textContent = "Deleting...";
   }
 
   try{
@@ -10110,6 +10183,12 @@ async function deleteAssignment(id){
   catch(err){
 
     console.error("Delete assignment error:", err);
+    showToast("Could not delete this assignment: " + err.message, "error");
+
+    if(button){
+      button.disabled = false;
+      button.textContent = "Delete";
+    }
 
   }
 
@@ -10541,14 +10620,14 @@ function pdfBulletList(doc, y, bullets){
 async function generateGameReportPDF(gameId, buttonEl){
 
   if(!window.jspdf){
-    alert("PDF library did not load. Check your connection and try again.");
+    showToast("PDF library did not load. Check your connection and try again.", "error");
     return;
   }
 
   const data = computeGameReportData(gameId);
 
   if(!data){
-    alert("Could not find that game.");
+    showToast("Could not find that game.", "error");
     return;
   }
 
@@ -11315,6 +11394,44 @@ function numOrNull(value){
 }
 
 
+// Replaces alert() for non-blocking, on-brand feedback. Errors get
+// a red accent and stay up longer; success/info messages are green
+// and brief. Use this instead of alert() everywhere going forward.
+function showToast(message, type){
+
+  const container =
+    document.getElementById("toast-container");
+
+  if(!container){
+    // Fallback -- should never happen, but never fail silently.
+    alert(message);
+    return;
+  }
+
+  const toast =
+    document.createElement("div");
+
+  toast.className =
+    `toast ${type === "error" ? "toast-error" : ""}`;
+
+  toast.textContent = message;
+
+  container.appendChild(toast);
+
+  const duration =
+    type === "error" ? 6000 : 3500;
+
+  setTimeout(() => {
+
+    toast.classList.add("toast-fade-out");
+
+    setTimeout(() => toast.remove(), 200);
+
+  }, duration);
+
+}
+
+
 function textOrNull(value){
 
   const v = String(value ?? "").trim();
@@ -11597,7 +11714,7 @@ async function deleteGame(gameId){
   catch(error){
 
     console.error(error);
-    alert("Could not delete this game: " + (error.message || "unknown error"));
+    showToast("Could not delete this game: " + (error.message || "unknown error"), "error");
 
   }
 
@@ -12797,7 +12914,7 @@ async function uploadFileToR2(file, onProgress){
 async function uploadGameVideo(){
 
   if(!currentSession || !currentSession.user){
-    alert("You need to be signed in to upload video.");
+    showToast("You need to be signed in to upload video.", "error");
     return;
   }
 
@@ -12811,7 +12928,7 @@ async function uploadGameVideo(){
     fileInput.files[0];
 
   if(!file){
-    alert("Choose a video file first.");
+    showToast("Choose a video file first.", "error");
     return;
   }
 
@@ -12826,7 +12943,7 @@ async function uploadGameVideo(){
       textOrNull(document.getElementById("video-new-game-opponent").value);
 
     if(!opponent){
-      alert("Enter an opponent for the new game.");
+      showToast("Enter an opponent for the new game.", "error");
       return;
     }
 
@@ -12859,7 +12976,7 @@ async function uploadGameVideo(){
 
     }
     catch(error){
-      alert(`Could not create the new game: ${error.message}`);
+      showToast(`Could not create the new game: ${error.message}`, "error");
       return;
     }
 
@@ -12870,7 +12987,7 @@ async function uploadGameVideo(){
       document.getElementById("video-game-select").value;
 
     if(!gameId){
-      alert("Pick a game, or check \"This is a new game\" above.");
+      showToast("Pick a game, or check \"This is a new game\" above.", "error");
       return;
     }
 
@@ -13044,7 +13161,7 @@ async function renderAdminVideoList(){
 async function deleteGameVideo(gameVideoId, button){
 
   if(!currentSession || !currentSession.access_token){
-    alert("You need to be signed in.");
+    showToast("You need to be signed in.", "error");
     return;
   }
 
@@ -13073,7 +13190,7 @@ async function deleteGameVideo(gameVideoId, button){
       await res.json();
 
     if(!res.ok){
-      alert(data.error || "Could not delete this video.");
+      showToast(data.error || "Could not delete this video.", "error");
       if(button){
         button.disabled = false;
         button.textContent = "Delete";
@@ -13090,7 +13207,7 @@ async function deleteGameVideo(gameVideoId, button){
   catch(error){
 
     console.error(error);
-    alert("Something went wrong deleting this video.");
+    showToast("Something went wrong deleting this video.", "error");
     if(button){
       button.disabled = false;
       button.textContent = "Delete";
@@ -13104,7 +13221,7 @@ async function deleteGameVideo(gameVideoId, button){
 async function runVideoAnalysis(gameVideoId, button){
 
   if(!currentSession || !currentSession.access_token){
-    alert("You need to be signed in.");
+    showToast("You need to be signed in.", "error");
     return;
   }
 
@@ -13137,12 +13254,12 @@ async function runVideoAnalysis(gameVideoId, button){
 
       // A 409 here just means TwelveLabs isn't done indexing yet --
       // that's expected, not a real error, so word it gently.
-      alert(data.error || "Could not analyze this video yet.");
+      showToast(data.error || "Could not analyze this video yet.");
       return;
 
     }
 
-    alert(`Found ${data.draftCount} shot moment(s). Review them below.`);
+    showToast(`Found ${data.draftCount} shot moment(s). Review them below.`);
 
     await Promise.all([
       renderAdminVideoList(),
@@ -13153,7 +13270,7 @@ async function runVideoAnalysis(gameVideoId, button){
   catch(error){
 
     console.error(error);
-    alert("Something went wrong finding shots in this video.");
+    showToast("Something went wrong finding shots in this video.", "error");
 
   }
   finally{
@@ -13317,8 +13434,8 @@ async function renderShotDrafts(){
 
             </div>
 
-            <button type="button" onclick="confirmShotDraft(${d.id})">Confirm &amp; save</button>
-            <button type="button" onclick="discardShotDraft(${d.id})">Discard</button>
+            <button type="button" onclick="confirmShotDraft(${d.id}, this)">Confirm &amp; save</button>
+            <button type="button" onclick="discardShotDraft(${d.id}, this)">Discard</button>
 
           </div>
         `;
@@ -13355,11 +13472,16 @@ function draftFieldValue(draftId, fieldName){
 }
 
 
-async function confirmShotDraft(draftId){
+async function confirmShotDraft(draftId, button){
 
   if(!currentSession || !currentSession.user){
-    alert("You need to be signed in.");
+    showToast("You need to be signed in.", "error");
     return;
+  }
+
+  if(button){
+    button.disabled = true;
+    button.textContent = "Saving...";
   }
 
   try{
@@ -13431,14 +13553,24 @@ async function confirmShotDraft(draftId){
   catch(error){
 
     console.error(error);
-    alert(`Could not confirm this shot: ${error.message}`);
+    showToast(`Could not confirm this shot: ${error.message}`, "error");
+
+    if(button){
+      button.disabled = false;
+      button.textContent = "Confirm & save";
+    }
 
   }
 
 }
 
 
-async function discardShotDraft(draftId){
+async function discardShotDraft(draftId, button){
+
+  if(button){
+    button.disabled = true;
+    button.textContent = "Discarding...";
+  }
 
   try{
 
@@ -13458,7 +13590,12 @@ async function discardShotDraft(draftId){
   catch(error){
 
     console.error(error);
-    alert(`Could not discard this draft: ${error.message}`);
+    showToast(`Could not discard this draft: ${error.message}`, "error");
+
+    if(button){
+      button.disabled = false;
+      button.textContent = "Discard";
+    }
 
   }
 
