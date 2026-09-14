@@ -1635,6 +1635,39 @@ tr:hover td{
      the main script. -->
 <div id="toast-container" aria-live="polite"></div>
 
+<!-- Feedback widget -- simple, always-available way for early users
+     to report problems or ideas. Hidden until signed in (toggled in
+     showAuthenticatedApp()/showAuthScreen()). -->
+<button id="feedback-fab" onclick="openFeedbackModal()" style="display:none;position:fixed;bottom:20px;right:20px;z-index:9998;background:var(--card2);border:1px solid var(--border2);color:var(--text);border-radius:999px;padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.3);">
+  💬 Feedback
+</button>
+
+<div id="feedback-modal-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9997;align-items:center;justify-content:center;">
+  <div class="card" style="max-width:420px;width:calc(100% - 32px);">
+    <h3>Send feedback</h3>
+    <p class="empty-state" style="padding:0 0 12px;text-align:left">Bugs, ideas, or anything confusing -- goes straight to the team.</p>
+    <div class="field-grid">
+      <div class="field">
+        <label for="feedback-category">Type</label>
+        <select id="feedback-category">
+          <option value="bug">Something's broken</option>
+          <option value="idea">Feature idea</option>
+          <option value="confusing">Something's confusing</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="feedback-message">Message</label>
+        <textarea id="feedback-message" rows="4" style="width:100%;resize:vertical"></textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button type="button" class="btn-primary" onclick="submitFeedback(this)">Send</button>
+      <button type="button" class="btn-secondary" onclick="closeFeedbackModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- ========================================================= -->
 <!-- LANDING PAGE -->
 <!-- ========================================================= -->
@@ -4098,6 +4131,8 @@ tr:hover td{
     <h3>Uploaded videos</h3>
     <p>Status moves from uploaded &rarr; indexing &rarr; analyzed. "Find shots" is available once indexing finishes.</p>
   </div>
+
+  <button type="button" class="btn-secondary" style="margin-bottom:12px" onclick="clearFailedVideos(this)">Clear failed uploads</button>
 
   <div class="card">
     <div id="admin-video-list-container">
@@ -8774,6 +8809,9 @@ function showApp(){
   document.getElementById("landing-page").style.display = "none";
   document.getElementById("app-shell").style.display = "block";
 
+  const fab = document.getElementById("feedback-fab");
+  if(fab){ fab.style.display = "block"; }
+
 }
 
 
@@ -8781,6 +8819,9 @@ function showAuthScreen(){
 
   document.getElementById("app-shell").style.display = "none";
   document.getElementById("landing-page").style.display = "block";
+
+  const fab = document.getElementById("feedback-fab");
+  if(fab){ fab.style.display = "none"; }
 
   showAuthView("signin");
 
@@ -9550,7 +9591,7 @@ function renderGoalieProfile(goalieId){
   if(!recentGames.length){
 
     gamesBody.innerHTML =
-      `<tr><td colspan="7"><div class="empty-state">No games recorded yet.</div></td></tr>`;
+      `<tr><td colspan="7"><div class="empty-state">No games recorded yet. Add your first game under "My Games" or "Enter Stats" to start tracking performance.</div></td></tr>`;
 
   }
   else{
@@ -9598,7 +9639,7 @@ function renderGoalieProfile(goalieId){
           <span class="stat-value">${rebound.goalsFromRebounds}</span>
         </div>
       `
-      : `<div class="empty-state">No rebound tracking data has been entered yet.</div>`;
+      : `<div class="empty-state">No rebound tracking data has been entered yet. Add rebound control tracking the next time you log a game under "Enter Stats" or "My Games".</div>`;
 
   const puck = computeGoaliePuckSummary(goalieId);
   const puckEl = document.getElementById("gpPuckSummary");
@@ -9615,7 +9656,7 @@ function renderGoalieProfile(goalieId){
           <span class="stat-value">${puck.passCompletionPct !== null ? puck.passCompletionPct.toFixed(1) + "%" : "—"}</span>
         </div>
       `
-      : `<div class="empty-state">No puck-playing data has been entered yet.</div>`;
+      : `<div class="empty-state">No puck-playing data has been entered yet. Add puck-playing tracking the next time you log a game under "Enter Stats" or "My Games".</div>`;
 
 }
 
@@ -9659,7 +9700,7 @@ function renderCoachNotesGoaliePicker(){
   if(!coachGoalieProfiles.length){
 
     pickerCard.innerHTML =
-      `<div class="empty-state">You don't have any goalies assigned yet.</div>`;
+      `<div class="empty-state">You don't have any goalies assigned yet. Once your admin assigns you a goalie, they'll show up here.</div>`;
 
     return;
 
@@ -9713,7 +9754,7 @@ function renderCoachNotesList(){
   if(!notesForGoalie.length){
 
     list.innerHTML =
-      `<div class="empty-state">No notes yet for this goalie.</div>`;
+      `<div class="empty-state">No notes yet for this goalie. Add one above to start tracking your observations over time.</div>`;
 
     return;
 
@@ -9996,7 +10037,7 @@ function renderAdminAssignments(){
   if(!adminAssignments.length){
 
     tbody.innerHTML =
-      `<tr><td colspan="4"><div class="empty-state">No assignments yet.</div></td></tr>`;
+      `<tr><td colspan="4"><div class="empty-state">No assignments yet. Use the form above to connect a coach with a goalie.</div></td></tr>`;
 
     return;
 
@@ -11428,6 +11469,78 @@ function showToast(message, type){
     setTimeout(() => toast.remove(), 200);
 
   }, duration);
+
+}
+
+
+function openFeedbackModal(){
+
+  document.getElementById("feedback-modal-backdrop").style.display = "flex";
+
+}
+
+
+function closeFeedbackModal(){
+
+  document.getElementById("feedback-modal-backdrop").style.display = "none";
+  document.getElementById("feedback-message").value = "";
+
+}
+
+
+async function submitFeedback(button){
+
+  if(!currentSession || !currentSession.user){
+    showToast("You need to be signed in to send feedback.", "error");
+    return;
+  }
+
+  const message =
+    document.getElementById("feedback-message").value.trim();
+
+  if(!message){
+    showToast("Write a message first.", "error");
+    return;
+  }
+
+  const category =
+    document.getElementById("feedback-category").value;
+
+  button.disabled = true;
+  button.textContent = "Sending...";
+
+  try{
+
+    const { error } =
+      await supabaseClient
+        .from("feedback")
+        .insert({
+          user_id: currentSession.user.id,
+          role: currentRole,
+          category,
+          message
+        });
+
+    if(error){
+      throw new Error(error.message);
+    }
+
+    closeFeedbackModal();
+    showToast("Thanks -- feedback sent!");
+
+  }
+  catch(error){
+
+    console.error(error);
+    showToast("Could not send feedback: " + error.message, "error");
+
+  }
+  finally{
+
+    button.disabled = false;
+    button.textContent = "Send";
+
+  }
 
 }
 
@@ -13147,6 +13260,7 @@ async function renderAdminVideoList(){
                   ? `<span class="empty-state" title="${v.error_message || ""}">Failed -- ${v.error_message || "unknown error"}</span>`
                   : ""
               }
+              <button type="button" class="btn-secondary" onclick="downloadGameVideo(${v.id}, this)">Download</button>
               <button type="button" class="btn-danger" onclick="deleteGameVideo(${v.id}, this)">Delete</button>
             </div>
           </div>
@@ -13154,6 +13268,134 @@ async function renderAdminVideoList(){
 
       })
       .join("");
+
+}
+
+
+async function clearFailedVideos(button){
+
+  if(!currentSession || !currentSession.access_token){
+    showToast("You need to be signed in.", "error");
+    return;
+  }
+
+  let failedVideos;
+
+  try{
+    failedVideos = await qFiltered("game_videos", "status=eq.failed");
+  }
+  catch(error){
+    showToast("Could not check for failed uploads.", "error");
+    return;
+  }
+
+  if(!failedVideos.length){
+    showToast("No failed uploads to clear.");
+    return;
+  }
+
+  if(!confirm(`Delete ${failedVideos.length} failed upload(s)? This cannot be undone.`)){
+    return;
+  }
+
+  if(button){
+    button.disabled = true;
+    button.textContent = "Clearing...";
+  }
+
+  let cleared = 0;
+
+  for(const video of failedVideos){
+
+    try{
+
+      const res =
+        await fetch("/api/video/delete-video", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            accessToken: currentSession.access_token,
+            gameVideoId: video.id
+          })
+        });
+
+      if(res.ok){
+        cleared++;
+      }
+
+    }
+    catch(error){
+      console.error("Failed to clear video", video.id, error);
+    }
+
+  }
+
+  if(button){
+    button.disabled = false;
+    button.textContent = "Clear failed uploads";
+  }
+
+  showToast(`Cleared ${cleared} of ${failedVideos.length} failed upload(s).`);
+
+  await renderAdminVideoList();
+
+}
+
+
+async function downloadGameVideo(gameVideoId, button){
+
+  if(!currentSession || !currentSession.access_token){
+    showToast("You need to be signed in.", "error");
+    return;
+  }
+
+  const originalLabel = button ? button.textContent : null;
+
+  if(button){
+    button.disabled = true;
+    button.textContent = "Preparing...";
+  }
+
+  try{
+
+    const res =
+      await fetch("/api/video/get-download-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accessToken: currentSession.access_token,
+          gameVideoId: gameVideoId
+        })
+      });
+
+    const data =
+      await res.json();
+
+    if(!res.ok){
+      showToast(data.error || "Could not get a download link for this video.", "error");
+      return;
+    }
+
+    // Open in a new tab rather than navigating away -- the signed
+    // URL itself forces a download via its content-disposition
+    // header, so this doesn't need to be a real page.
+    window.open(data.url, "_blank");
+
+  }
+  catch(error){
+
+    console.error(error);
+    showToast("Something went wrong getting the download link.", "error");
+
+  }
+  finally{
+
+    if(button){
+      button.disabled = false;
+      button.textContent = originalLabel;
+    }
+
+  }
 
 }
 
