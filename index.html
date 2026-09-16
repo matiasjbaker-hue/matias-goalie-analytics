@@ -373,6 +373,12 @@ main{
   height:250px;
 }
 
+.chart-caption{
+  font-size:12px;
+  color:#7f9a8e;
+  margin:2px 0 12px;
+}
+
 .chart-wrap canvas{
   display:block !important;
   width:100% !important;
@@ -557,6 +563,96 @@ tr:hover td{
 
 .callout strong{
   color:#edf7f1;
+}
+
+
+.recent-form-card{
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+}
+
+.recent-form-header{
+  display:flex;
+  align-items:center;
+  gap:16px;
+  flex-wrap:wrap;
+}
+
+.recent-form-badge{
+  flex-shrink:0;
+  padding:10px 18px;
+  border-radius:10px;
+  font-size:15px;
+  font-weight:800;
+  letter-spacing:.4px;
+}
+
+.recent-form-badge.good{
+  background:rgba(105,221,160,.14);
+  border:1px solid rgba(105,221,160,.3);
+  color:#69dda0;
+}
+
+.recent-form-badge.bad{
+  background:rgba(255,133,133,.14);
+  border:1px solid rgba(255,133,133,.3);
+  color:#ff8585;
+}
+
+.recent-form-badge.neutral{
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.12);
+  color:#a8beb4;
+}
+
+.recent-form-summary{
+  color:#dcece3;
+  font-size:14px;
+  line-height:1.6;
+  flex:1;
+  min-width:240px;
+}
+
+.recent-form-signals{
+  gap:12px;
+}
+
+.signal-card{
+  padding:14px 16px;
+  border-radius:10px;
+  background:#0d3021;
+  border:1px solid #285640;
+}
+
+.signal-label{
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.5px;
+  color:#88a599;
+  margin-bottom:6px;
+}
+
+.signal-values{
+  display:flex;
+  align-items:baseline;
+  gap:8px;
+  font-size:18px;
+  font-weight:800;
+}
+
+.signal-values .arrow{
+  font-size:14px;
+}
+
+.signal-values.up{ color:#69dda0; }
+.signal-values.down{ color:#ff8585; }
+.signal-values.flat{ color:#a8beb4; }
+
+.signal-prior{
+  font-size:12px;
+  color:#7f9a8e;
+  margin-top:4px;
 }
 
 
@@ -3225,6 +3321,31 @@ tr:hover td{
 
 
   <div class="section-heading">
+    <h3>Recent Form</h3>
+    <p>The direct answer: is performance trending up or down over the last several games?</p>
+  </div>
+
+  <div class="card recent-form-card">
+
+    <div class="recent-form-header">
+      <div class="recent-form-badge neutral" id="recentFormBadge">—</div>
+      <div class="recent-form-summary" id="recentFormSummary">Not enough games logged yet to establish a trend.</div>
+    </div>
+
+    <div class="grid grid-3 recent-form-signals" id="recentFormSignals"></div>
+
+  </div>
+
+  <div class="card chart-card section-space">
+    <h3 id="recentFormChartTitle">Save % — Last Games</h3>
+    <p class="chart-caption" id="recentFormChartCaption">Darker bars are the most recent games used in the assessment above.</p>
+    <div class="chart-wrap">
+      <canvas id="recentFormChart"></canvas>
+    </div>
+  </div>
+
+
+  <div class="section-heading">
     <h3>Stopping</h3>
     <p>Measure whether your actual stopping ability is improving beyond the quality of shots you face.</p>
   </div>
@@ -3344,8 +3465,8 @@ tr:hover td{
 
 
   <div class="section-heading">
-    <h3>Progression</h3>
-    <p>Track whether your actual performance is moving in the right direction as more games are added.</p>
+    <h3>Season-Long View</h3>
+    <p>Full-season context (every game, in order) to complement the recent-form read above.</p>
   </div>
 
 
@@ -3353,7 +3474,7 @@ tr:hover td{
 
     <div class="card chart-card">
 
-      <h3>Cumulative SV% vs Expected SV%</h3>
+      <h3>SV% Above Expected — Every Game</h3>
 
       <div class="chart-wrap">
         <canvas id="incrementalSVChart"></canvas>
@@ -8087,7 +8208,338 @@ function renderReboundControl(){
    INCREMENTAL STATS
 ============================================================ */
 
+/* ============================================================
+   RECENT FORM
+   Answers one direct question: over the last several games, is
+   performance trending up, down, or flat? Compares a "recent"
+   window of games against the window immediately before it.
+============================================================ */
+
+function sortGamesByDate(list){
+
+  return [...list].sort(
+    (a,b) => new Date(a.date) - new Date(b.date)
+  );
+
+}
+
+
+function shotsForGameList(gameList){
+
+  const ids =
+    new Set(
+      gameList.map(
+        g => String(g.id ?? g.game_id)
+      )
+    );
+
+  return seasonShots.filter(
+    shot => ids.has(String(shot.game_id))
+  );
+
+}
+
+
+function computeFormWindow(gameList){
+
+  const shotsAgainst =
+    gameList.reduce((sum,g) => sum + gameShots(g), 0);
+
+  const saves =
+    gameList.reduce((sum,g) => sum + gameSaves(g), 0);
+
+  const goalsAgainst =
+    gameList.reduce((sum,g) => sum + gameGoals(g), 0);
+
+  const minutes =
+    gameList.reduce((sum,g) => sum + gameMinutes(g), 0);
+
+  const rawSV =
+    shotsAgainst ? (saves / shotsAgainst * 100) : null;
+
+  const gaa =
+    minutes ? (goalsAgainst / minutes * 60) : null;
+
+  const shotRows =
+    shotsForGameList(gameList);
+
+  const advanced =
+    calculateAdvancedForShots(shotRows);
+
+  const svAboveExpected =
+    advanced.shots ? (advanced.actualSV - advanced.expectedSV) : null;
+
+  return {
+    games: gameList.length,
+    rawSV,
+    gaa,
+    svAboveExpected,
+    shotSample: shotRows.length
+  };
+
+}
+
+
+// effective delta is always "positive = improvement" regardless of
+// whether a lower raw number is actually the good direction (GAA).
+function classifySignal(rawDelta, threshold, lowerIsBetter){
+
+  const effective =
+    lowerIsBetter ? -rawDelta : rawDelta;
+
+  if(effective > threshold){ return "up"; }
+  if(effective < -threshold){ return "down"; }
+  return "flat";
+
+}
+
+
+function renderRecentForm(){
+
+  const sorted =
+    sortGamesByDate(seasonGames);
+
+  const total =
+    sorted.length;
+
+  const badge =
+    document.getElementById("recentFormBadge");
+
+  const summary =
+    document.getElementById("recentFormSummary");
+
+  const signalsEl =
+    document.getElementById("recentFormSignals");
+
+  if(total < 4){
+
+    badge.textContent = "NOT ENOUGH DATA";
+    badge.className = "recent-form-badge neutral";
+
+    summary.textContent =
+      `Log at least 4 games this season to see a recent-form trend (currently ${total} logged).`;
+
+    signalsEl.innerHTML = "";
+
+    renderRecentFormChart(sorted, [], []);
+
+    return;
+
+  }
+
+  const windowSize =
+    total >= 10 ? 5 : Math.max(2, Math.floor(total / 2));
+
+  const recentGames =
+    sorted.slice(-windowSize);
+
+  const priorGames =
+    total >= windowSize * 2
+      ? sorted.slice(-windowSize * 2, -windowSize)
+      : sorted.slice(0, total - windowSize);
+
+  const recent =
+    computeFormWindow(recentGames);
+
+  const prior =
+    computeFormWindow(priorGames);
+
+  const enoughShotSample =
+    recent.shotSample >= 10 && prior.shotSample >= 10;
+
+  const signalDefs = [
+    {
+      key:"rawSV",
+      label:"Save %",
+      format:v => `${v.toFixed(1)}%`,
+      threshold:1.0,
+      lowerIsBetter:false,
+      available: recent.rawSV !== null && prior.rawSV !== null
+    },
+    {
+      key:"gaa",
+      label:"GAA",
+      format:v => v.toFixed(2),
+      threshold:0.15,
+      lowerIsBetter:true,
+      available: recent.gaa !== null && prior.gaa !== null
+    },
+    {
+      key:"svAboveExpected",
+      label:"SV% Above Expected",
+      format:v => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`,
+      threshold:1.0,
+      lowerIsBetter:false,
+      available: enoughShotSample && recent.svAboveExpected !== null && prior.svAboveExpected !== null
+    }
+  ];
+
+  const signals =
+    signalDefs
+      .filter(def => def.available)
+      .map(def => {
+
+        const recentVal = recent[def.key];
+        const priorVal = prior[def.key];
+        const rawDelta = recentVal - priorVal;
+        const direction = classifySignal(rawDelta, def.threshold, def.lowerIsBetter);
+
+        return {
+          ...def,
+          recentVal,
+          priorVal,
+          rawDelta,
+          direction
+        };
+
+      });
+
+  let upCount = 0;
+  let downCount = 0;
+
+  signals.forEach(s => {
+    if(s.direction === "up"){ upCount++; }
+    if(s.direction === "down"){ downCount++; }
+  });
+
+  let verdict = "STEADY";
+  let verdictClass = "neutral";
+
+  if(upCount > downCount && upCount > 0){
+    verdict = "IMPROVING";
+    verdictClass = "good";
+  }
+  else if(downCount > upCount && downCount > 0){
+    verdict = "DECLINING";
+    verdictClass = "bad";
+  }
+
+  badge.textContent = verdict;
+  badge.className = `recent-form-badge ${verdictClass}`;
+
+  const movers =
+    signals.filter(s => s.direction !== "flat");
+
+  if(!movers.length){
+
+    summary.textContent =
+      `Performance has stayed roughly flat over your last ${recentGames.length} games compared to the ${priorGames.length} before that — no clear trend yet.`;
+
+  }
+  else{
+
+    const parts =
+      movers.map(s => {
+
+        const verb =
+          s.direction === "up" ? "improved" : "dropped";
+
+        return `${s.label} ${verb} (${def_format(s)})`;
+
+      });
+
+    summary.textContent =
+      `Comparing your last ${recentGames.length} games to the ${priorGames.length} before that: ${parts.join("; ")}.`;
+
+  }
+
+  function def_format(s){
+    return `${s.format(s.priorVal)} → ${s.format(s.recentVal)}`;
+  }
+
+  signalsEl.innerHTML =
+    signals.map(s => `
+      <div class="signal-card">
+        <div class="signal-label">${s.label}</div>
+        <div class="signal-values ${s.direction}">
+          <span class="arrow">${s.direction === "up" ? "▲" : s.direction === "down" ? "▼" : "–"}</span>
+          <span>${s.format(s.recentVal)}</span>
+        </div>
+        <div class="signal-prior">was ${s.format(s.priorVal)} in the previous ${priorGames.length} games</div>
+      </div>
+    `).join("");
+
+  renderRecentFormChart(sorted, recentGames, priorGames);
+
+}
+
+
+function renderRecentFormChart(sorted, recentGames, priorGames){
+
+  const windowGames =
+    sorted.slice(-10);
+
+  const recentIds =
+    new Set(recentGames.map(g => String(g.id ?? g.game_id)));
+
+  const priorIds =
+    new Set(priorGames.map(g => String(g.id ?? g.game_id)));
+
+  const labels =
+    windowGames.map(g => `${g.date ? g.date.slice(5) : ""} ${gameOpponent(g)}`);
+
+  const values =
+    windowGames.map(g => {
+      const shots = gameShots(g);
+      const saves = gameSaves(g);
+      return shots ? (saves / shots * 100) : null;
+    });
+
+  const colors =
+    windowGames.map(g => {
+
+      const id = String(g.id ?? g.game_id);
+
+      if(recentIds.has(id)){ return "#69dda0"; }
+      if(priorIds.has(id)){ return "#5a7a6d"; }
+      return "rgba(168,190,180,.35)";
+
+    });
+
+  const caption =
+    document.getElementById("recentFormChartCaption");
+
+  if(caption){
+
+    caption.textContent =
+      recentGames.length
+        ? `Bright bars = the last ${recentGames.length} games used above. Muted bars = the ${priorGames.length} games compared against.`
+        : "Log a few more games to see a recent-form comparison here.";
+
+  }
+
+  destroyChart("recentFormChart");
+
+  charts.recentFormChart =
+    new Chart(
+      document.getElementById("recentFormChart"),
+      {
+        type:"bar",
+        data:{
+          labels,
+          datasets:[{
+            label:"Save %",
+            data:values,
+            backgroundColor:colors,
+            borderRadius:4
+          }]
+        },
+        options:{
+          ...chartOptions(),
+          scales:{
+            x:chartOptions().scales.x,
+            y:percentageScale()
+          }
+        }
+      }
+    );
+
+}
+
+
 function renderIncremental(){
+
+  renderRecentForm();
 
   const advanced =
     calculateAdvancedForShots(
@@ -8275,78 +8727,46 @@ function renderIncremental(){
       : "—";
 
 
-  let runningShots = 0;
-  let runningSaves = 0;
-
-
-  const actualValues = [];
-  const expectedValues = [];
-
+  const sortedSeasonGames =
+    sortGamesByDate(seasonGames);
 
   const labels =
-    seasonGames.map(
+    sortedSeasonGames.map(
       (game,index) =>
         `${index+1}. ${gameOpponent(game)}`
     );
 
+  const svAboveExpectedValues = [];
+  const svAboveExpectedColors = [];
 
-  seasonGames.forEach(game => {
+  sortedSeasonGames.forEach(game => {
 
-    runningShots +=
-      gameShots(game);
+    const gameId =
+      String(game.id ?? game.game_id);
 
-
-    runningSaves +=
-      gameSaves(game);
-
-
-    actualValues.push(
-      runningShots
-        ? runningSaves /
-          runningShots *
-          100
-        : null
-    );
-
-
-    const cumulativeShotData =
+    const gameShotData =
       seasonShots.filter(
-        shot => {
-
-          const gameIndex =
-            seasonGames.findIndex(
-              g =>
-                String(
-                  g.id ??
-                  g.game_id
-                ) ===
-                String(
-                  shot.game_id
-                )
-            );
-
-
-          return (
-            gameIndex >= 0 &&
-            gameIndex <=
-              seasonGames.indexOf(game)
-          );
-
-        }
+        shot => String(shot.game_id) === gameId
       );
 
+    const gameAdvanced =
+      calculateAdvancedForShots(gameShotData);
 
-    const cumulativeAdvanced =
-      calculateAdvancedForShots(
-        cumulativeShotData
-      );
+    if(gameAdvanced.shots){
 
+      const delta =
+        gameAdvanced.actualSV - gameAdvanced.expectedSV;
 
-    expectedValues.push(
-      cumulativeAdvanced.shots
-        ? cumulativeAdvanced.expectedSV
-        : null
-    );
+      svAboveExpectedValues.push(delta);
+      svAboveExpectedColors.push(delta >= 0 ? "#69dda0" : "#ff8585");
+
+    }
+    else{
+
+      svAboveExpectedValues.push(null);
+      svAboveExpectedColors.push("rgba(168,190,180,.35)");
+
+    }
 
   });
 
@@ -8362,49 +8782,23 @@ function renderIncremental(){
         "incrementalSVChart"
       ),
       {
-        type:"line",
+        type:"bar",
 
         data:{
 
           labels,
 
-          datasets:[
+          datasets:[{
 
-            {
+            label:"SV% Above Expected",
 
-              label:"Cumulative SV%",
+            data:svAboveExpectedValues,
 
-              data:actualValues,
+            backgroundColor:svAboveExpectedColors,
 
-              tension:.35,
+            borderRadius:4
 
-              borderWidth:2,
-
-              pointRadius:2.5,
-
-              pointHoverRadius:5
-
-            },
-
-            {
-
-              label:"Expected SV%",
-
-              data:expectedValues,
-
-              tension:.35,
-
-              borderWidth:1.5,
-
-              borderDash:[5,5],
-
-              pointRadius:2,
-
-              pointHoverRadius:4
-
-            }
-
-          ]
+          }]
 
         },
 
@@ -8414,7 +8808,7 @@ function renderIncremental(){
 
           scales:{
             x:chartOptions().scales.x,
-            y:percentageScale()
+            y:chartOptions().scales.y
           }
 
         }
@@ -8431,7 +8825,7 @@ function renderIncremental(){
   const gsaxValues = [];
 
 
-  seasonGames.forEach(game => {
+  sortedSeasonGames.forEach(game => {
 
     const gameId =
       String(
