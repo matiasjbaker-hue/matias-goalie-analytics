@@ -1915,7 +1915,7 @@ tr:hover td{
         Log out
       </button>
 
-      <div class="season-badge">
+      <div class="season-badge" id="season-badge">
         2026 PRESEASON
       </div>
 
@@ -4414,7 +4414,7 @@ const SUPABASE_URL =
 const SUPABASE_KEY =
   "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
 
-const CURRENT_SEASON =
+let CURRENT_SEASON =
   "2026 preseason";
 
 const supabaseClient =
@@ -4527,7 +4527,67 @@ function normalizeSeason(value){
 
 function isCurrentSeason(value){
 
-  return normalizeSeason(value) === CURRENT_SEASON;
+  return normalizeSeason(value) === normalizeSeason(CURRENT_SEASON);
+
+}
+
+
+/* ============================================================
+   AUTO-DETECT CURRENT SEASON
+   The "current" season is whichever season has the most recent
+   games logged -- not a fixed value. This is what makes an older
+   season (e.g. preseason) automatically drop out of the season-
+   scoped views once games from a newer season exist.
+============================================================ */
+
+function seasonRank(value){
+
+  const s = normalizeSeason(value);
+
+  const yearMatch = s.match(/(\d{4})/);
+  const year = yearMatch ? parseInt(yearMatch[1], 10) : 0;
+
+  const isPreseason = /preseason/.test(s);
+
+  // Regular season ranks above preseason within the same year;
+  // year is the primary sort key.
+  return (year * 10) + (isPreseason ? 0 : 1);
+
+}
+
+
+function computeCurrentSeason(gameList){
+
+  if(!gameList || !gameList.length){
+    return CURRENT_SEASON;
+  }
+
+  let bestGame = null;
+  let bestRank = -Infinity;
+
+  gameList.forEach(g => {
+
+    const rank = seasonRank(g.season);
+
+    if(rank > bestRank){
+      bestRank = rank;
+      bestGame = g;
+    }
+
+  });
+
+  return (bestGame && bestGame.season) ? bestGame.season : CURRENT_SEASON;
+
+}
+
+
+function updateSeasonBadge(){
+
+  const badge = document.getElementById("season-badge");
+
+  if(badge){
+    badge.textContent = String(CURRENT_SEASON).toUpperCase();
+  }
 
 }
 
@@ -9613,6 +9673,16 @@ function renderGoalieProfile(goalieId){
 
   if(!profile){ return; }
 
+  // Scope "current season" to this specific goalie's own games, so
+  // switching between goalies in the coach view doesn't leave a
+  // stale season from whichever goalie was viewed previously.
+  CURRENT_SEASON =
+    computeCurrentSeason(
+      allGames.filter(g => g.user_id === goalieId)
+    );
+
+  updateSeasonBadge();
+
   document.getElementById("goalieProfileName").textContent =
     profile.full_name || "Unnamed Goalie";
 
@@ -11236,7 +11306,11 @@ function applyActiveGoalieFilter(){
     puckPlaying =
       allPuckPlaying.filter(p => p.user_id === activeGoalieId);
 
+    CURRENT_SEASON = computeCurrentSeason(games);
+
   }
+
+  updateSeasonBadge();
 
   filterSeasonData();
 
