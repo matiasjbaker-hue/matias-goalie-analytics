@@ -379,6 +379,132 @@ main{
   margin:2px 0 12px;
 }
 
+.giq-modal-overlay{
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(3,12,8,.72);
+  z-index:200;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+}
+
+.giq-modal-overlay.open{
+  display:flex;
+}
+
+.giq-modal{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:14px;
+  max-width:920px;
+  width:100%;
+  max-height:88vh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+
+.giq-modal-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:16px 20px;
+  border-bottom:1px solid var(--border);
+}
+
+.giq-modal-header h3{
+  margin:0;
+  font-size:16px;
+}
+
+.giq-modal-close{
+  background:none;
+  border:none;
+  color:var(--muted);
+  font-size:20px;
+  cursor:pointer;
+  line-height:1;
+  padding:4px 8px;
+}
+
+.giq-modal-close:hover{
+  color:var(--text);
+}
+
+.giq-modal-body{
+  padding:16px 20px;
+  overflow-y:auto;
+}
+
+.giq-modal-filters{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-bottom:14px;
+}
+
+.giq-modal-filters select{
+  background:#0d3021;
+  border:1px solid var(--border2);
+  color:var(--text);
+  border-radius:7px;
+  padding:7px 10px;
+  font-size:12px;
+}
+
+.shot-log-table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:13px;
+}
+
+.shot-log-table th{
+  text-align:left;
+  color:var(--muted);
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.4px;
+  padding:8px 10px;
+  border-bottom:1px solid var(--border);
+}
+
+.shot-log-table td{
+  padding:9px 10px;
+  border-bottom:1px solid rgba(255,255,255,.04);
+}
+
+.watch-btn{
+  background:rgba(105,221,160,.14);
+  border:1px solid rgba(105,221,160,.3);
+  color:#69dda0;
+  border-radius:7px;
+  padding:5px 11px;
+  font-size:12px;
+  font-weight:700;
+  cursor:pointer;
+}
+
+.watch-btn:disabled{
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.08);
+  color:#5c7a6e;
+  cursor:default;
+}
+
+.giq-watch-modal .giq-modal{
+  max-width:760px;
+}
+
+.giq-watch-modal video{
+  width:100%;
+  max-height:60vh;
+  border-radius:8px;
+  background:#000;
+  display:block;
+}
+
 .chart-wrap canvas{
   display:block !important;
   width:100% !important;
@@ -3475,6 +3601,32 @@ tr:hover td{
 
     </div>
 
+
+    <div class="card">
+
+      <h3>Release Context</h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Extended-Possession SV%</span>
+          <span class="stat-value" id="incExtendedSV">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Quick-Release SV%</span>
+          <span class="stat-value" id="incQuickReleaseSV">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Shots Tagged</span>
+          <span class="stat-value" id="incReleaseTagged">—</span>
+        </div>
+
+      </div>
+
+    </div>
+
   </div>
 
 
@@ -3785,6 +3937,17 @@ tr:hover td{
         <button type="button" class="tag-btn" data-value="Backhand" onclick="selectLiveTagChoice('shot_type','Backhand',this)">Backhand</button>
         <button type="button" class="tag-btn" data-value="Tip" onclick="selectLiveTagChoice('shot_type','Tip',this)">Tip</button>
         <button type="button" class="tag-btn" data-value="One-Timer" onclick="selectLiveTagChoice('shot_type','One-Timer',this)">One-Timer</button>
+      </div>
+    </div>
+
+    <div class="tag-group">
+      <div class="tag-group-label">Release Context (optional — how much time did they have?)</div>
+      <div class="tag-btn-row" id="lt-release-buttons">
+        <button type="button" class="tag-btn selected" data-value="" onclick="selectLiveTagChoice('release_type','',this)">Unclear</button>
+        <button type="button" class="tag-btn" data-value="one_timer" onclick="selectLiveTagChoice('release_type','one_timer',this)">One-Timer</button>
+        <button type="button" class="tag-btn" data-value="catch_and_release" onclick="selectLiveTagChoice('release_type','catch_and_release',this)">Catch &amp; Release</button>
+        <button type="button" class="tag-btn" data-value="quick_release" onclick="selectLiveTagChoice('release_type','quick_release',this)">Quick Release</button>
+        <button type="button" class="tag-btn" data-value="extended_possession" onclick="selectLiveTagChoice('release_type','extended_possession',this)">Extended Possession (&gt;2s)</button>
       </div>
     </div>
 
@@ -4534,6 +4697,89 @@ tr:hover td{
 
 </main>
 
+<!-- ========================================================= -->
+<!-- SHOT LOG MODAL (Phase 3) -->
+<!-- ========================================================= -->
+
+<div class="giq-modal-overlay" id="shotLogModalOverlay">
+  <div class="giq-modal">
+
+    <div class="giq-modal-header">
+      <h3 id="shotLogModalTitle">Shot Log</h3>
+      <button type="button" class="giq-modal-close" onclick="closeShotLogModal()">&times;</button>
+    </div>
+
+    <div class="giq-modal-body">
+
+      <div class="giq-modal-filters">
+
+        <select id="shotLogFilterPeriod" onchange="renderShotLogTable()">
+          <option value="">All Periods</option>
+          <option value="1">Period 1</option>
+          <option value="2">Period 2</option>
+          <option value="3">Period 3</option>
+          <option value="OT">OT</option>
+        </select>
+
+        <select id="shotLogFilterResult" onchange="renderShotLogTable()">
+          <option value="">All Results</option>
+          <option value="save">Saves</option>
+          <option value="goal">Goals</option>
+        </select>
+
+        <select id="shotLogFilterRelease" onchange="renderShotLogTable()">
+          <option value="">All Release Contexts</option>
+          <option value="extended">Extended Possession</option>
+          <option value="quick">Quick Release</option>
+          <option value="unknown">Untagged</option>
+        </select>
+
+      </div>
+
+      <div style="overflow-x:auto">
+        <table class="shot-log-table">
+          <thead>
+            <tr>
+              <th>Period</th>
+              <th>Location</th>
+              <th>Shot Type</th>
+              <th>Release Context</th>
+              <th>Rebound</th>
+              <th>Result</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="shotLogTableBody"></tbody>
+        </table>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ========================================================= -->
+<!-- WATCH CLIP MODAL (Phase 4) -->
+<!-- ========================================================= -->
+
+<div class="giq-modal-overlay giq-watch-modal" id="watchModalOverlay">
+  <div class="giq-modal">
+
+    <div class="giq-modal-header">
+      <h3>Shot Video</h3>
+      <button type="button" class="giq-modal-close" onclick="closeWatchModal()">&times;</button>
+    </div>
+
+    <div class="giq-modal-body">
+      <div id="watchModalStatus" class="empty-state">Loading clip…</div>
+      <video id="watchModalVideo" controls style="display:none"></video>
+    </div>
+
+  </div>
+</div>
+
+
 </div>
 <!-- /#app-shell -->
 
@@ -4952,6 +5198,58 @@ function isOneTimer(shot){
     shotBoolean(shot.one_timer)
   );
 
+}
+
+
+/* ============================================================
+   RELEASE CONTEXT (shot-context / release-time SV%)
+============================================================ */
+
+// Initial product definition from coach feedback -- deliberately a
+// single named constant, not hardcoded into stored rows, so this can
+// be tuned later without a data migration.
+const RELEASE_THRESHOLD_SECONDS = 2;
+
+
+// Prefers the explicit release_type tag (set by a human during video
+// review or live tagging) since that's the ground truth. Falls back
+// to the raw possession_duration_seconds against the threshold above
+// only when no explicit tag was set. Returns "unknown" rather than
+// guessing when neither is available -- an unlabeled shot should
+// drop out of both buckets, not get silently assigned to one.
+function releaseCategory(shot){
+
+  if(shot.release_type === "extended_possession"){
+    return "extended";
+  }
+
+  if(
+    shot.release_type === "one_timer" ||
+    shot.release_type === "catch_and_release" ||
+    shot.release_type === "quick_release"
+  ){
+    return "quick";
+  }
+
+  const duration =
+    Number(shot.possession_duration_seconds);
+
+  if(Number.isFinite(duration) && shot.possession_duration_seconds !== null){
+    return duration > RELEASE_THRESHOLD_SECONDS ? "extended" : "quick";
+  }
+
+  return "unknown";
+
+}
+
+
+function isExtendedPossession(shot){
+  return releaseCategory(shot) === "extended";
+}
+
+
+function isQuickRelease(shot){
+  return releaseCategory(shot) === "quick";
 }
 
 
@@ -6648,6 +6946,228 @@ function renderLast5(){
    GAME LOG
 ============================================================ */
 
+/* ============================================================
+   SHOT LOG MODAL (Phase 3) + WATCH CLIP (Phase 4)
+============================================================ */
+
+let shotLogModalGameId = null;
+
+
+function openShotLogModal(gameId){
+
+  shotLogModalGameId = gameId;
+
+  const game =
+    seasonGames.find(g => String(g.id ?? g.game_id) === String(gameId)) ||
+    games.find(g => String(g.id ?? g.game_id) === String(gameId));
+
+  document.getElementById("shotLogModalTitle").textContent =
+    game ? `Shot Log — ${gameOpponent(game)} (${gameDate(game)})` : "Shot Log";
+
+  document.getElementById("shotLogFilterPeriod").value = "";
+  document.getElementById("shotLogFilterResult").value = "";
+  document.getElementById("shotLogFilterRelease").value = "";
+
+  renderShotLogTable();
+
+  document.getElementById("shotLogModalOverlay").classList.add("open");
+
+}
+
+
+function closeShotLogModal(){
+  document.getElementById("shotLogModalOverlay").classList.remove("open");
+  shotLogModalGameId = null;
+}
+
+
+function renderShotLogTable(){
+
+  const tbody =
+    document.getElementById("shotLogTableBody");
+
+  if(!shotLogModalGameId){
+    tbody.innerHTML = "";
+    return;
+  }
+
+  const periodFilter =
+    document.getElementById("shotLogFilterPeriod").value;
+
+  const resultFilter =
+    document.getElementById("shotLogFilterResult").value;
+
+  const releaseFilter =
+    document.getElementById("shotLogFilterRelease").value;
+
+  let gameShotsList =
+    shots.filter(
+      s => String(s.game_id) === String(shotLogModalGameId)
+    );
+
+  if(periodFilter){
+    gameShotsList =
+      gameShotsList.filter(s => normalize(s.period) === normalize(periodFilter));
+  }
+
+  if(resultFilter){
+    gameShotsList =
+      gameShotsList.filter(s =>
+        resultFilter === "goal" ? isGoal(s) : !isGoal(s)
+      );
+  }
+
+  if(releaseFilter){
+    gameShotsList =
+      gameShotsList.filter(s => releaseCategory(s) === releaseFilter);
+  }
+
+  if(!gameShotsList.length){
+    tbody.innerHTML =
+      `<tr><td colspan="7"><div class="empty-state">No shots match these filters.</div></td></tr>`;
+    return;
+  }
+
+  const releaseLabel = {
+    extended:"Extended Possession",
+    quick:"Quick Release",
+    unknown:"—"
+  };
+
+  tbody.innerHTML =
+    gameShotsList.map(s => {
+
+      const canWatch =
+        s.game_video_id && s.clip_start_seconds !== null && s.clip_start_seconds !== undefined;
+
+      return `
+        <tr>
+          <td>${s.period || "—"}</td>
+          <td>${s.location || "—"}</td>
+          <td>${s.shot_type || "—"}</td>
+          <td>${releaseLabel[releaseCategory(s)]}</td>
+          <td>${s.rebound ? "Yes" : "—"}</td>
+          <td><span class="result-pill ${isGoal(s) ? "result-loss" : "result-win"}">${isGoal(s) ? "Goal" : "Save"}</span></td>
+          <td>
+            <button type="button" class="watch-btn" ${canWatch ? "" : "disabled"} onclick="watchShotClip(${JSON.stringify(s.shot_id ?? s.id)})">
+              ${canWatch ? "▶ Watch" : "No clip"}
+            </button>
+          </td>
+        </tr>
+      `;
+
+    }).join("");
+
+}
+
+
+async function watchShotClip(shotId){
+
+  const shot =
+    shots.find(s => String(s.shot_id ?? s.id) === String(shotId));
+
+  if(!shot || !shot.game_video_id){
+    showToast("No video clip linked to this shot.", "error");
+    return;
+  }
+
+  const overlay =
+    document.getElementById("watchModalOverlay");
+
+  const statusEl =
+    document.getElementById("watchModalStatus");
+
+  const videoEl =
+    document.getElementById("watchModalVideo");
+
+  videoEl.style.display = "none";
+  videoEl.pause();
+  videoEl.removeAttribute("src");
+  statusEl.style.display = "block";
+  statusEl.textContent = "Loading clip…";
+
+  overlay.classList.add("open");
+
+  try{
+
+    const accessToken =
+      currentSession && currentSession.access_token;
+
+    if(!accessToken){
+      throw new Error("You need to be signed in.");
+    }
+
+    const res =
+      await fetch("/api/video/get-watch-url", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body:JSON.stringify({
+          accessToken,
+          gameVideoId: shot.game_video_id
+        })
+      });
+
+    const data = await res.json();
+
+    if(!res.ok){
+      throw new Error(data.error || "Could not load this clip.");
+    }
+
+    const startAt =
+      Number(shot.clip_start_seconds) || 0;
+
+    const endAt =
+      shot.clip_end_seconds !== null && shot.clip_end_seconds !== undefined
+        ? Number(shot.clip_end_seconds)
+        : null;
+
+    videoEl.src = data.url;
+
+    videoEl.onloadedmetadata = () => {
+      videoEl.currentTime = startAt;
+    };
+
+    // Soft auto-pause at the drafted end of this shot's moment -- the
+    // viewer can keep manually scrubbing past it if they want more
+    // context, this just stops it from playing straight into the
+    // next shot unattended.
+    videoEl.ontimeupdate = () => {
+      if(endAt !== null && videoEl.currentTime >= endAt){
+        videoEl.pause();
+      }
+    };
+
+    statusEl.style.display = "none";
+    videoEl.style.display = "block";
+    videoEl.play().catch(() => {});
+
+  }
+  catch(error){
+
+    console.error(error);
+    statusEl.style.display = "block";
+    statusEl.textContent = error.message || "Could not load this clip.";
+
+  }
+
+}
+
+
+function closeWatchModal(){
+
+  const videoEl =
+    document.getElementById("watchModalVideo");
+
+  videoEl.pause();
+  videoEl.removeAttribute("src");
+  videoEl.onloadedmetadata = null;
+  videoEl.ontimeupdate = null;
+
+  document.getElementById("watchModalOverlay").classList.remove("open");
+
+}
+
+
 function renderGameLog(){
 
   const body =
@@ -6772,6 +7292,7 @@ function renderGameLog(){
 
       <td>
         <button type="button" class="btn-secondary" onclick="generateGameReportPDF(${game.id}, this)">PDF</button>
+        <button type="button" class="btn-secondary" onclick="openShotLogModal(${game.id})">Shots</button>
       </td>
 
     `;
@@ -8707,6 +9228,24 @@ function renderIncremental(){
     );
 
 
+  const extendedPossession =
+    subsetStats(
+      seasonShots,
+      isExtendedPossession
+    );
+
+
+  const quickRelease =
+    subsetStats(
+      seasonShots,
+      isQuickRelease
+    );
+
+
+  const releaseTaggedCount =
+    extendedPossession.shots + quickRelease.shots;
+
+
   const totalShots =
     seasonGames.reduce(
       (sum,g) =>
@@ -8846,6 +9385,30 @@ function renderIncremental(){
           seasonGames.length
         ).toFixed(1)
       : "—";
+
+
+  document.getElementById(
+    "incExtendedSV"
+  ).textContent =
+    extendedPossession.sv !== null
+      ? `${extendedPossession.sv.toFixed(1)}%`
+      : "—";
+
+
+  document.getElementById(
+    "incQuickReleaseSV"
+  ).textContent =
+    quickRelease.sv !== null
+      ? `${quickRelease.sv.toFixed(1)}%`
+      : "—";
+
+
+  document.getElementById(
+    "incReleaseTagged"
+  ).textContent =
+    releaseTaggedCount
+      ? `${releaseTaggedCount} of ${seasonShots.length}`
+      : "0 of " + seasonShots.length;
 
 
   const sortedSeasonGames =
@@ -12754,6 +13317,7 @@ function resetLiveTagShotPicker(){
   liveTagState.outcome = "save";
   liveTagState.location = null;
   liveTagState.shot_type = null;
+  liveTagState.release_type = null;
   liveTagState.flags = { rush:false, rebound:false, screened:false, breakaway:false, cross_ice:false, deflection:false };
   liveTagState.reboundTag = "skip";
 
@@ -12767,6 +13331,10 @@ function resetLiveTagShotPicker(){
 
   document.querySelectorAll("#lt-type-buttons .tag-btn").forEach(btn => {
     btn.classList.remove("selected");
+  });
+
+  document.querySelectorAll("#lt-release-buttons .tag-btn").forEach(btn => {
+    btn.classList.toggle("selected", btn.dataset.value === "");
   });
 
   document.querySelectorAll("#lt-toggle-buttons .tag-btn").forEach(btn => {
@@ -12787,6 +13355,7 @@ function addLiveTagShot(){
     outcome: liveTagState.outcome,
     location: liveTagState.location,
     shot_type: liveTagState.shot_type,
+    release_type: liveTagState.release_type || null,
     rush: liveTagState.flags.rush,
     rebound: liveTagState.flags.rebound,
     screened: liveTagState.flags.screened,
@@ -13109,6 +13678,7 @@ async function finishLiveTagGame(){
           distance: null,
           location: shot.location,
           shot_type: shot.shot_type,
+          release_type: shot.release_type || null,
           outcome: shot.outcome,
           rush: shot.rush,
           rebound: shot.rebound,
@@ -14365,6 +14935,16 @@ const DRAFT_LOCATIONS =
 const DRAFT_SHOT_TYPES =
   ["wrist shot","slap shot","backhand","one-timer"];
 
+// Release-timing context -- deliberately a separate axis from
+// DRAFT_SHOT_TYPES above. shot_type describes the shooting mechanic;
+// release_type describes how much time the shooter had. A one-timer
+// is always a quick release, but a rushed wrist shot off a bad
+// bounce is a quick release without being a one-timer -- conflating
+// the two would make both stats mushier. See the shot-context
+// architecture assessment for the full reasoning.
+const DRAFT_RELEASE_TYPES =
+  ["one_timer","catch_and_release","quick_release","extended_possession"];
+
 const DRAFT_BOOL_FIELDS =
   ["rush","rebound","screened","breakaway","cross_ice","deflection"];
 
@@ -14495,6 +15075,18 @@ async function renderShotDrafts(){
                 </select>
               </div>
 
+              <div class="field">
+                <label>Release context</label>
+                <select id="draft-${d.id}-release_type">
+                  ${draftSelectOptions(DRAFT_RELEASE_TYPES, d.release_type)}
+                </select>
+              </div>
+
+              <div class="field">
+                <label>Possession before release (sec)</label>
+                <input type="number" step="0.1" id="draft-${d.id}-possession_duration_seconds" value="${d.possession_duration_seconds ?? ""}">
+              </div>
+
               ${
                 DRAFT_BOOL_FIELDS
                   .map(f => `
@@ -14583,12 +15175,27 @@ async function confirmShotDraft(draftId, button){
       // must never accidentally attribute the shot to themselves.
       user_id: draft.user_id,
       game_id: draft.game_id,
+      // FIX: this used to be dropped here entirely -- the video
+      // pipeline already knew exactly which video and which seconds
+      // this shot happened at (shot_drafts.game_video_id/start_seconds/
+      // end_seconds), but confirming a draft into a real Shots row
+      // silently threw that away, so no confirmed shot could ever be
+      // linked back to its video clip. Carrying it forward is what
+      // makes the Shot Log's watch buttons possible at all.
+      game_video_id: draft.game_video_id,
+      clip_start_seconds: draft.start_seconds,
+      clip_end_seconds: draft.end_seconds,
       distance: (() => {
         const v = draftFieldValue(draftId, "distance");
         return v === null || v === "" ? null : Number(v);
       })(),
       location: draftFieldValue(draftId, "location"),
       shot_type: draftFieldValue(draftId, "shot_type"),
+      release_type: draftFieldValue(draftId, "release_type"),
+      possession_duration_seconds: (() => {
+        const v = draftFieldValue(draftId, "possession_duration_seconds");
+        return v === null || v === "" ? null : Number(v);
+      })(),
       rush: draftFieldValue(draftId, "rush"),
       rebound: draftFieldValue(draftId, "rebound"),
       screened: draftFieldValue(draftId, "screened"),
