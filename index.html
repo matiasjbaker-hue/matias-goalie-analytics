@@ -3475,6 +3475,7 @@ tr:hover td{
     <div class="card chart-card">
 
       <h3>SV% Above Expected — Every Game</h3>
+      <p class="chart-caption">Bars are noisy on their own (small shot samples swing them a lot) — the white line is the 3-game rolling average, which is what actually shows the trend.</p>
 
       <div class="chart-wrap">
         <canvas id="incrementalSVChart"></canvas>
@@ -8738,6 +8739,7 @@ function renderIncremental(){
 
   const svAboveExpectedValues = [];
   const svAboveExpectedColors = [];
+  const svShotCounts = [];
 
   sortedSeasonGames.forEach(game => {
 
@@ -8752,23 +8754,59 @@ function renderIncremental(){
     const gameAdvanced =
       calculateAdvancedForShots(gameShotData);
 
+    svShotCounts.push(gameAdvanced.shots);
+
     if(gameAdvanced.shots){
 
       const delta =
         gameAdvanced.actualSV - gameAdvanced.expectedSV;
 
       svAboveExpectedValues.push(delta);
-      svAboveExpectedColors.push(delta >= 0 ? "#69dda0" : "#ff8585");
+      svAboveExpectedColors.push(delta >= 0 ? "rgba(105,221,160,.55)" : "rgba(255,133,133,.55)");
 
     }
     else{
 
       svAboveExpectedValues.push(null);
-      svAboveExpectedColors.push("rgba(168,190,180,.35)");
+      svAboveExpectedColors.push("rgba(168,190,180,.25)");
 
     }
 
   });
+
+  // A single game's SV% Above Expected is noisy -- a small shot sample
+  // can swing it wildly. A trailing rolling average (up to 3 games,
+  // skipping games with no tracked shots) turns that noise into an
+  // actual readable trend line.
+  const ROLL_WINDOW = 3;
+
+  const rollingAvgValues =
+    svAboveExpectedValues.map((_,i) => {
+
+      const windowVals =
+        svAboveExpectedValues
+          .slice(Math.max(0,i - ROLL_WINDOW + 1), i + 1)
+          .filter(v => v !== null);
+
+      if(!windowVals.length){ return null; }
+
+      return windowVals.reduce((a,b) => a + b, 0) / windowVals.length;
+
+    });
+
+  // Keep zero comfortably in view regardless of how big or small the
+  // actual swings are, instead of Chart.js auto-fitting tight to the
+  // data (which can make a handful of small-sample games look like
+  // huge, meaningless spikes).
+  const validValues =
+    svAboveExpectedValues.filter(v => v !== null);
+
+  const maxAbs =
+    validValues.length
+      ? Math.max(5, ...validValues.map(v => Math.abs(v)))
+      : 10;
+
+  const axisPad = maxAbs * 1.25;
 
 
   destroyChart(
@@ -8782,23 +8820,44 @@ function renderIncremental(){
         "incrementalSVChart"
       ),
       {
-        type:"bar",
-
         data:{
 
           labels,
 
-          datasets:[{
-
-            label:"SV% Above Expected",
-
-            data:svAboveExpectedValues,
-
-            backgroundColor:svAboveExpectedColors,
-
-            borderRadius:4
-
-          }]
+          datasets:[
+            {
+              type:"bar",
+              label:"SV% Above Expected (per game)",
+              data:svAboveExpectedValues,
+              backgroundColor:svAboveExpectedColors,
+              borderRadius:4,
+              order:2
+            },
+            {
+              type:"line",
+              label:`Trend (${ROLL_WINDOW}-game rolling avg)`,
+              data:rollingAvgValues,
+              borderColor:"#edf7f1",
+              borderWidth:2.5,
+              tension:.3,
+              pointRadius:3,
+              pointBackgroundColor:"#edf7f1",
+              pointHoverRadius:5,
+              spanGaps:true,
+              order:1
+            },
+            {
+              type:"line",
+              label:"Zero",
+              data:labels.map(() => 0),
+              borderColor:"rgba(168,190,180,.4)",
+              borderWidth:1,
+              borderDash:[4,4],
+              pointRadius:0,
+              pointHoverRadius:0,
+              order:3
+            }
+          ]
 
         },
 
@@ -8806,9 +8865,47 @@ function renderIncremental(){
 
           ...chartOptions(),
 
+          plugins:{
+
+            ...chartOptions().plugins,
+
+            tooltip:{
+
+              ...chartOptions().plugins.tooltip,
+
+              callbacks:{
+
+                afterLabel:function(context){
+
+                  if(context.dataset.label === "SV% Above Expected (per game)"){
+
+                    const shots = svShotCounts[context.dataIndex];
+
+                    return shots ? `${shots} shots faced` : "No shots tracked yet";
+
+                  }
+
+                  return "";
+
+                }
+
+              }
+
+            }
+
+          },
+
           scales:{
             x:chartOptions().scales.x,
-            y:chartOptions().scales.y
+            y:{
+              ...chartOptions().scales.y,
+              suggestedMin:-axisPad,
+              suggestedMax:axisPad,
+              ticks:{
+                ...chartOptions().scales.y.ticks,
+                callback:value => `${value}%`
+              }
+            }
           }
 
         }
