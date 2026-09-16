@@ -641,8 +641,22 @@ tr:hover td{
   font-weight:800;
 }
 
-.signal-values .arrow{
-  font-size:14px;
+.signal-verdict{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.4px;
+  margin-bottom:6px;
+}
+
+.signal-verdict.up{ color:#69dda0; }
+.signal-verdict.down{ color:#ff8585; }
+.signal-verdict.flat{ color:#a8beb4; }
+
+.signal-verdict .arrow{
+  font-size:12px;
 }
 
 .signal-values.up{ color:#69dda0; }
@@ -8241,6 +8255,53 @@ function shotsForGameList(gameList){
 }
 
 
+function reboundControlsForGameList(gameList){
+
+  const ids =
+    new Set(
+      gameList.map(
+        g => String(g.id ?? g.game_id)
+      )
+    );
+
+  return seasonReboundControls.filter(
+    row => ids.has(String(row.game_id))
+  );
+
+}
+
+
+function reboundGoodPctForRows(rows){
+
+  let good = 0;
+  let bad = 0;
+
+  rows.forEach(row => {
+
+    good +=
+      num(row.glove_caught) +
+      num(row.blocker_good) +
+      num(row.midsection_good) +
+      num(row.pad_stick_good);
+
+    bad +=
+      num(row.glove_rebound) +
+      num(row.blocker_bad) +
+      num(row.midsection_bad) +
+      num(row.pad_stick_bad);
+
+  });
+
+  const total = good + bad;
+
+  return {
+    total,
+    goodPct: total ? (good / total * 100) : null
+  };
+
+}
+
+
 function computeFormWindow(gameList){
 
   const shotsAgainst =
@@ -8270,11 +8331,28 @@ function computeFormWindow(gameList){
   const svAboveExpected =
     advanced.shots ? (advanced.actualSV - advanced.expectedSV) : null;
 
+  const gsaxPer60 =
+    (advanced.shots && minutes) ? (advanced.gsax / minutes * 60) : null;
+
+  const highDanger =
+    subsetStats(shotRows, isHighDanger);
+
+  const reboundRows =
+    reboundControlsForGameList(gameList);
+
+  const rebound =
+    reboundGoodPctForRows(reboundRows);
+
   return {
     games: gameList.length,
     rawSV,
     gaa,
     svAboveExpected,
+    gsaxPer60,
+    highDangerSV: highDanger.sv,
+    highDangerShots: highDanger.shots,
+    reboundGoodPct: rebound.goodPct,
+    reboundSample: rebound.total,
     shotSample: shotRows.length
   };
 
@@ -8348,6 +8426,12 @@ function renderRecentForm(){
   const enoughShotSample =
     recent.shotSample >= 10 && prior.shotSample >= 10;
 
+  const enoughHighDangerSample =
+    recent.highDangerShots >= 5 && prior.highDangerShots >= 5;
+
+  const enoughReboundSample =
+    recent.reboundSample >= 5 && prior.reboundSample >= 5;
+
   const signalDefs = [
     {
       key:"rawSV",
@@ -8372,6 +8456,30 @@ function renderRecentForm(){
       threshold:1.0,
       lowerIsBetter:false,
       available: enoughShotSample && recent.svAboveExpected !== null && prior.svAboveExpected !== null
+    },
+    {
+      key:"gsaxPer60",
+      label:"GSAx / 60",
+      format:v => `${v >= 0 ? "+" : ""}${v.toFixed(2)}`,
+      threshold:0.3,
+      lowerIsBetter:false,
+      available: enoughShotSample && recent.gsaxPer60 !== null && prior.gsaxPer60 !== null
+    },
+    {
+      key:"highDangerSV",
+      label:"High-Danger SV%",
+      format:v => `${v.toFixed(1)}%`,
+      threshold:2.0,
+      lowerIsBetter:false,
+      available: enoughHighDangerSample && recent.highDangerSV !== null && prior.highDangerSV !== null
+    },
+    {
+      key:"reboundGoodPct",
+      label:"Good Rebound %",
+      format:v => `${v.toFixed(1)}%`,
+      threshold:5.0,
+      lowerIsBetter:false,
+      available: enoughReboundSample && recent.reboundGoodPct !== null && prior.reboundGoodPct !== null
     }
   ];
 
@@ -8449,16 +8557,28 @@ function renderRecentForm(){
   }
 
   signalsEl.innerHTML =
-    signals.map(s => `
-      <div class="signal-card">
-        <div class="signal-label">${s.label}</div>
-        <div class="signal-values ${s.direction}">
-          <span class="arrow">${s.direction === "up" ? "▲" : s.direction === "down" ? "▼" : "–"}</span>
-          <span>${s.format(s.recentVal)}</span>
+    signals.map(s => {
+
+      const verdictWord =
+        s.direction === "up" ? "IMPROVING" :
+        s.direction === "down" ? "DECLINING" :
+        "STEADY";
+
+      return `
+        <div class="signal-card">
+          <div class="signal-label">${s.label}</div>
+          <div class="signal-verdict ${s.direction}">
+            <span class="arrow">${s.direction === "up" ? "▲" : s.direction === "down" ? "▼" : "–"}</span>
+            ${verdictWord}
+          </div>
+          <div class="signal-values ${s.direction}">
+            ${s.format(s.recentVal)}
+          </div>
+          <div class="signal-prior">was ${s.format(s.priorVal)} in the previous ${priorGames.length} games</div>
         </div>
-        <div class="signal-prior">was ${s.format(s.priorVal)} in the previous ${priorGames.length} games</div>
-      </div>
-    `).join("");
+      `;
+
+    }).join("");
 
   renderRecentFormChart(sorted, recentGames, priorGames);
 
