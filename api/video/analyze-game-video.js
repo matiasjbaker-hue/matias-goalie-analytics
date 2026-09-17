@@ -142,9 +142,22 @@ function parseShotListFromTask(task) {
   try {
     parsed = JSON.parse(cleaned);
   } catch (e) {
-    throw new Error(
-      `Could not parse TwelveLabs' shot list as JSON: ${e.message}. Raw text: ${text}`
-    );
+    // Long videos can push Pegasus into a repetition loop (the same
+    // shot description over and over) that eats its whole output
+    // budget before the response finishes -- the JSON array gets cut
+    // off mid-object, e.g. "Unterminated string". Rather than discard
+    // every shot moment over one truncated tail, salvage every
+    // complete { ... } object that came before the cut and use those.
+    // This is why real shots found before the point it degenerated
+    // (e.g. the first several moments of a long game) aren't lost
+    // just because the model fell apart later in the same response.
+    const recovered = recoverTruncatedShotArray(cleaned);
+    if (!recovered.length) {
+      throw new Error(
+        `Could not parse TwelveLabs' shot list as JSON, and couldn't salvage any complete entries either: ${e.message}. Raw text: ${text}`
+      );
+    }
+    parsed = recovered;
   }
 
   // Handle the model wrapping the array under a key (e.g. {"shots":[...]})
@@ -160,11 +173,53 @@ function parseShotListFromTask(task) {
     );
   }
 
-  return parsed.map((m) => ({
+  // A degenerate repetition loop (the same description at suspiciously
+  // regular intervals -- e.g. every 5 seconds for minutes on end) is a
+  // model artifact, not real hockey. Drop runs of 3+ consecutive
+  // identical descriptions rather than handing dozens of fake drafts
+  // to the admin to manually discard one by one. This only removes
+  // *runs* of repeats -- the same description occurring once or twice
+  // elsewhere (which can legitimately happen) is left alone.
+  const deduped = [];
+  let runDescription = null;
+  let runLength = 0;
+  for (const m of parsed) {
+    const desc = m.description || m.caption || "";
+    if (desc && desc === runDescription) {
+      runLength++;
+    } else {
+      runDescription = desc;
+      runLength = 1;
+    }
+    if (runLength <= 2) {
+      deduped.push(m);
+    }
+  }
+
+  return deduped.map((m) => ({
     start: m.start_seconds ?? m.start ?? 0,
     end: (m.start_seconds ?? m.start ?? 0) + 5, // short default window
     description: m.description || m.caption || "",
   }));
+}
+
+// Best-effort recovery for a JSON array string that got cut off
+// partway through an object (missing closing braces/brackets). Finds
+// the last "}" that appears before the point things went wrong, trims
+// everything after it, and closes the array there. Anything after
+// that last complete object is discarded, not guessed at.
+function recoverTruncatedShotArray(cleaned) {
+  const lastCompleteObjectEnd = cleaned.lastIndexOf("}");
+  if (lastCompleteObjectEnd === -1) return [];
+
+  const trimmed = cleaned.slice(0, lastCompleteObjectEnd + 1) + "]";
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 // --- handler ------------------------------------------------------------
