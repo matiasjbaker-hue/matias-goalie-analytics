@@ -4484,6 +4484,11 @@ tr:hover td{
 
     <div id="video-new-game-fields" class="field-grid" style="display:none">
 
+      <div class="field" id="video-new-game-goalie-field" style="display:none">
+        <label for="video-new-game-goalie-select">Goalie</label>
+        <select id="video-new-game-goalie-select"></select>
+      </div>
+
       <div class="field">
         <label for="video-new-game-date">Date</label>
         <input type="date" id="video-new-game-date">
@@ -7161,6 +7166,16 @@ function renderShotLogTable(){
       const canWatch =
         s.game_video_id && s.clip_start_seconds !== null && s.clip_start_seconds !== undefined;
 
+      const shotId =
+        s.shot_id ?? s.id;
+
+      const watchOrAttachCell =
+        canWatch
+          ? `<button type="button" class="watch-btn" onclick="watchShotClip(${JSON.stringify(shotId)})">▶ Watch</button>`
+          : currentRole === "admin"
+            ? `<button type="button" class="watch-btn" onclick="promptAttachClip(${JSON.stringify(shotId)})">+ Attach Clip</button>`
+            : `<button type="button" class="watch-btn" disabled>No clip</button>`;
+
       return `
         <tr>
           <td>${s.period || "—"}</td>
@@ -7169,15 +7184,112 @@ function renderShotLogTable(){
           <td>${releaseLabel[releaseCategory(s)]}</td>
           <td>${s.rebound ? "Yes" : "—"}</td>
           <td><span class="result-pill ${isGoal(s) ? "result-loss" : "result-win"}">${isGoal(s) ? "Goal" : "Save"}</span></td>
-          <td>
-            <button type="button" class="watch-btn" ${canWatch ? "" : "disabled"} onclick="watchShotClip(${JSON.stringify(s.shot_id ?? s.id)})">
-              ${canWatch ? "▶ Watch" : "No clip"}
-            </button>
-          </td>
+          <td>${watchOrAttachCell}</td>
         </tr>
       `;
 
     }).join("");
+
+}
+
+
+// Admin-only: pick a small pre-clipped video file from disk and
+// attach it directly to one shot. This is the manual-clipping path --
+// no TwelveLabs/AI step, no shot_drafts review. Nik watches the full
+// game himself, trims each shot he wants a clip for in whatever tool
+// he likes, and attaches the result here. Reuses the exact same R2
+// upload pipeline and Shots.game_video_id/clip_start_seconds/
+// clip_end_seconds fields the AI-driven path was built on -- a clip
+// is just a video where the whole file IS the shot, so
+// clip_start_seconds is always 0 and there's no end trim needed.
+function promptAttachClip(shotId){
+
+  const input =
+    document.createElement("input");
+
+  input.type = "file";
+  input.accept = "video/*";
+
+  input.onchange = () => {
+    if(input.files[0]){
+      attachClipToShot(shotId, input.files[0]);
+    }
+  };
+
+  input.click();
+
+}
+
+
+async function attachClipToShot(shotId, file){
+
+  if(!currentSession || !currentSession.access_token){
+    showToast("You need to be signed in.", "error");
+    return;
+  }
+
+  const shot =
+    shots.find(s => String(s.shot_id ?? s.id) === String(shotId));
+
+  if(!shot){
+    showToast("Could not find that shot.", "error");
+    return;
+  }
+
+  showToast("Uploading clip...");
+
+  try{
+
+    const storagePath =
+      await uploadFileToR2(file, () => {});
+
+    const { data: insertedVideo, error: videoError } =
+      await supabaseClient
+        .from("game_videos")
+        .insert({
+          user_id: shot.user_id,
+          game_id: shot.game_id,
+          storage_path: storagePath,
+          status: "clip"
+        })
+        .select();
+
+    if(videoError){
+      throw new Error(videoError.message);
+    }
+
+    const gameVideoId =
+      insertedVideo[0].id;
+
+    const { error: shotError } =
+      await supabaseClient
+        .from("Shots")
+        .update({
+          game_video_id: gameVideoId,
+          clip_start_seconds: 0,
+          clip_end_seconds: null
+        })
+        .eq("shot_id", shotId);
+
+    if(shotError){
+      throw new Error(shotError.message);
+    }
+
+    // Reflect it locally so the Shot Log updates without a reload.
+    shot.game_video_id = gameVideoId;
+    shot.clip_start_seconds = 0;
+    shot.clip_end_seconds = null;
+
+    showToast("Clip attached.");
+    renderShotLogTable();
+
+  }
+  catch(error){
+
+    console.error(error);
+    showToast(`Could not attach this clip: ${error.message}`, "error");
+
+  }
 
 }
 
@@ -14460,22 +14572,82 @@ function toggleVideoNewGameFields(){
   document.getElementById("video-new-game-fields").style.display =
     isNew ? "" : "none";
 
+  const goalieField =
+    document.getElementById("video-new-game-goalie-field");
+
+  if(isNew && currentRole === "admin"){
+
+    goalieField.style.display = "";
+
+    const goalieSelect =
+      document.getElementById("video-new-game-goalie-select");
+
+    const goalies =
+      adminProfiles.filter(p => p.role === "goalie");
+
+    goalieSelect.innerHTML =
+      goalies.length
+        ? goalies.map(g => `<option value="${g.id}">${g.full_name || g.id}</option>`).join("")
+        : `<option value="">No goalie accounts exist yet</option>`;
+
+  }
+  else{
+
+    goalieField.style.display = "none";
+
+  }
+
 }
 
 
-/* --- customer-facing tab --------------------------------------------- */
+/* --- customer-facing tab (also used by admin, uploading on a
+   customer's behalf -- see the admin branch below) ------------------ */
 
 async function loadVideoPipelineData(){
 
   const select =
     document.getElementById("video-game-select");
 
-  if(select && games && games.length){
+  if(select && currentRole === "admin"){
+
+    // Admin isn't uploading their own film -- they need to pick which
+    // goalie's game this belongs to. allGames already holds every
+    // game across every customer (admin bypasses RLS), so build the
+    // list from that instead of the caller-scoped `games`, and label
+    // each option with the goalie's name since admin can't otherwise
+    // tell whose game is whose.
+    if(allGames && allGames.length){
+
+      select.innerHTML =
+        allGames
+          .map(g => {
+
+            const owner =
+              adminProfiles.find(p => p.id === g.user_id);
+
+            const ownerName =
+              (owner && owner.full_name) || "Unknown goalie";
+
+            return `<option value="${g.id}" data-user-id="${g.user_id}">${ownerName} — ${gameDate(g)} vs ${gameOpponent(g)}</option>`;
+
+          })
+          .join("");
+
+    }
+    else{
+
+      select.innerHTML =
+        `<option value="">No games exist yet for any goalie</option>`;
+
+    }
+
+  }
+  else if(select && games && games.length){
 
     select.innerHTML =
       games
         .map(g =>
-          `<option value="${g.id}">${gameDate(g)} vs ${gameOpponent(g)}</option>`
+          `<option value="${g.id}" data-user-id="${g.user_id}">${gameDate(g)} vs ${gameOpponent(g)}</option>`
         )
         .join("");
 
