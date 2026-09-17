@@ -3311,6 +3311,66 @@ tr:hover td{
 
     </div>
 
+
+    <div class="card">
+
+      <h3>Extended Possession (Shot in Stride)</h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Shots</span>
+          <span class="stat-value" id="situExtendedShots">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">SV%</span>
+          <span class="stat-value" id="situExtendedSV">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Goals</span>
+          <span class="stat-value" id="situExtendedGoals">—</span>
+        </div>
+
+      </div>
+
+      <div class="small-note">
+        Shooter had the puck &gt;2 seconds before releasing -- time to pick a corner and beat depth/positioning rather than reaction speed.
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <h3>Quick Release</h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Shots</span>
+          <span class="stat-value" id="situQuickShots">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">SV%</span>
+          <span class="stat-value" id="situQuickSV">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Goals</span>
+          <span class="stat-value" id="situQuickGoals">—</span>
+        </div>
+
+      </div>
+
+      <div class="small-note">
+        One-timers, catch-and-release, and other shots with little setup time -- tests reaction and tracking speed rather than positioning.
+      </div>
+
+    </div>
+
   </div>
 
 
@@ -3623,6 +3683,66 @@ tr:hover td{
           <span class="stat-value" id="incReleaseTagged">—</span>
         </div>
 
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <h3>Quality Starts</h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Quality Start %</span>
+          <span class="stat-value" id="incQualityStartPct">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Quality Starts</span>
+          <span class="stat-value" id="incQualityStarts">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Really Bad Starts</span>
+          <span class="stat-value" id="incReallyBadStarts">—</span>
+        </div>
+
+      </div>
+
+      <div class="small-note">
+        Quality Start: SV% ≥ 91.5% in a game (or an otherwise strong outing on low volume). Really Bad Start: SV% below 85%.
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <h3>Consistency</h3>
+
+      <div class="stat-list">
+
+        <div class="stat-row">
+          <span class="stat-name">Best Game SV%</span>
+          <span class="stat-value" id="incBestGameSV">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Worst Game SV%</span>
+          <span class="stat-value" id="incWorstGameSV">—</span>
+        </div>
+
+        <div class="stat-row">
+          <span class="stat-name">Game-to-Game Swing</span>
+          <span class="stat-value" id="incSVSwing">—</span>
+        </div>
+
+      </div>
+
+      <div class="small-note">
+        A smaller swing between best and worst outings means steadier performance from game to game.
       </div>
 
     </div>
@@ -8065,6 +8185,20 @@ function renderSituational(){
     );
 
 
+  const situExtended =
+    subsetStats(
+      seasonShots,
+      isExtendedPossession
+    );
+
+
+  const situQuick =
+    subsetStats(
+      seasonShots,
+      isQuickRelease
+    );
+
+
   setSubset(
     "rush",
     rush
@@ -8104,6 +8238,18 @@ function renderSituational(){
   setSubset(
     "deflection",
     deflection
+  );
+
+
+  setSubset(
+    "situExtended",
+    situExtended
+  );
+
+
+  setSubset(
+    "situQuick",
+    situQuick
   );
 
 
@@ -9246,6 +9392,43 @@ function renderIncremental(){
     extendedPossession.shots + quickRelease.shots;
 
 
+  // Quality Start / Really Bad Start are established modern goalie
+  // metrics (see e.g. Hockey-Reference / MoneyPuck) -- kept as simple
+  // fixed thresholds here rather than the shots-faced-adjusted
+  // versions some sites use, to match the rest of this page's level
+  // of complexity.
+  const QUALITY_START_SV_THRESHOLD = 91.5;
+  const REALLY_BAD_START_SV_THRESHOLD = 85;
+
+  const gameSVs =
+    seasonGames
+      .map(g => {
+        const shotsFaced = gameShots(g);
+        return shotsFaced ? (gameSaves(g) / shotsFaced * 100) : null;
+      })
+      .filter(sv => sv !== null);
+
+  const qualityStarts =
+    gameSVs.filter(sv => sv >= QUALITY_START_SV_THRESHOLD).length;
+
+  const reallyBadStarts =
+    gameSVs.filter(sv => sv < REALLY_BAD_START_SV_THRESHOLD).length;
+
+  const qualityStartPct =
+    gameSVs.length ? (qualityStarts / gameSVs.length * 100) : null;
+
+  const bestGameSV =
+    gameSVs.length ? Math.max(...gameSVs) : null;
+
+  const worstGameSV =
+    gameSVs.length ? Math.min(...gameSVs) : null;
+
+  const svSwing =
+    (bestGameSV !== null && worstGameSV !== null)
+      ? bestGameSV - worstGameSV
+      : null;
+
+
   const totalShots =
     seasonGames.reduce(
       (sum,g) =>
@@ -9409,6 +9592,54 @@ function renderIncremental(){
     releaseTaggedCount
       ? `${releaseTaggedCount} of ${seasonShots.length}`
       : "0 of " + seasonShots.length;
+
+
+  document.getElementById(
+    "incQualityStartPct"
+  ).textContent =
+    qualityStartPct !== null
+      ? `${qualityStartPct.toFixed(1)}%`
+      : "—";
+
+
+  document.getElementById(
+    "incQualityStarts"
+  ).textContent =
+    gameSVs.length
+      ? `${qualityStarts} of ${gameSVs.length}`
+      : "—";
+
+
+  document.getElementById(
+    "incReallyBadStarts"
+  ).textContent =
+    gameSVs.length
+      ? reallyBadStarts
+      : "—";
+
+
+  document.getElementById(
+    "incBestGameSV"
+  ).textContent =
+    bestGameSV !== null
+      ? `${bestGameSV.toFixed(1)}%`
+      : "—";
+
+
+  document.getElementById(
+    "incWorstGameSV"
+  ).textContent =
+    worstGameSV !== null
+      ? `${worstGameSV.toFixed(1)}%`
+      : "—";
+
+
+  document.getElementById(
+    "incSVSwing"
+  ).textContent =
+    svSwing !== null
+      ? `${svSwing.toFixed(1)} pts`
+      : "—";
 
 
   const sortedSeasonGames =
