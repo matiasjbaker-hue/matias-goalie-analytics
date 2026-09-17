@@ -5088,6 +5088,7 @@ function updateSeasonBadge(){
   const badge = document.getElementById("season-badge");
 
   if(badge){
+    badge.style.display = "";
     badge.textContent = String(CURRENT_SEASON).toUpperCase();
   }
 
@@ -10600,6 +10601,14 @@ function setNavForRole(){
     adminNav.style.display = "";
     brandSubtitle.textContent = "Admin Console";
 
+    // "Current season" isn't one coherent thing from here -- admin
+    // can see every goalie across every team at once, potentially in
+    // different seasons simultaneously. Showing a single season badge
+    // would just be stale/misleading (it was never wired to update
+    // for this role at all, unlike the goalie/coach views).
+    const badge = document.getElementById("season-badge");
+    if(badge){ badge.style.display = "none"; }
+
     showTab(
       "adminhome",
       adminNav.querySelector("button")
@@ -10610,6 +10619,13 @@ function setNavForRole(){
 
     coachNav.style.display = "";
     brandSubtitle.textContent = "Coach Dashboard";
+
+    // Same reasoning as admin above -- on the "My Goalies" landing
+    // page no single goalie is selected yet, so there's no one
+    // season to show. openGoalie() -> applyActiveGoalieFilter() ->
+    // updateSeasonBadge() brings it back once they pick a goalie.
+    const badge = document.getElementById("season-badge");
+    if(badge){ badge.style.display = "none"; }
 
     showTab(
       "coachhome",
