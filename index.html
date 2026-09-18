@@ -2561,6 +2561,7 @@ tr:hover td{
             <th>Team</th>
             <th>Games Tracked</th>
             <th>Coaches Assigned</th>
+            <th></th>
           </tr>
         </thead>
         <tbody id="adminGoaliesBody"></tbody>
@@ -2569,6 +2570,38 @@ tr:hover td{
   </div>
 
 </section>
+
+
+<!-- ========================================================= -->
+<!-- ADMIN: ONE GOALIE'S GAMES (entry point into the Shot Log) -->
+<!-- ========================================================= -->
+
+<div class="giq-modal-overlay" id="adminGoalieGamesModalOverlay">
+  <div class="giq-modal">
+
+    <div class="giq-modal-header">
+      <h3 id="adminGoalieGamesTitle">Games</h3>
+      <button type="button" class="giq-modal-close" onclick="closeAdminGoalieGamesModal()">&times;</button>
+    </div>
+
+    <div class="giq-modal-body">
+      <div style="overflow-x:auto">
+        <table class="shot-log-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Opponent</th>
+              <th>Season</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="adminGoalieGamesBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
 
 
 <!-- ========================================================= -->
@@ -4818,7 +4851,10 @@ tr:hover td{
 
     <div class="giq-modal-header">
       <h3 id="shotLogModalTitle">Shot Log</h3>
-      <button type="button" class="giq-modal-close" onclick="closeShotLogModal()">&times;</button>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button type="button" class="watch-btn" id="shotLogAddShotBtn" style="display:none" onclick="openAddShotModal()">+ Add Shot</button>
+        <button type="button" class="giq-modal-close" onclick="closeShotLogModal()">&times;</button>
+      </div>
     </div>
 
     <div class="giq-modal-body">
@@ -4886,6 +4922,105 @@ tr:hover td{
     <div class="giq-modal-body">
       <div id="watchModalStatus" class="empty-state">Loading clip…</div>
       <video id="watchModalVideo" controls style="display:none"></video>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ========================================================= -->
+<!-- ADD SHOT (admin-only -- log one shot at a time into an
+     existing game, with its clip, while going through
+     already-clipped film shot-by-shot) -->
+<!-- ========================================================= -->
+
+<div class="giq-modal-overlay" id="addShotModalOverlay">
+  <div class="giq-modal">
+
+    <div class="giq-modal-header">
+      <h3>Add Shot</h3>
+      <button type="button" class="giq-modal-close" onclick="closeAddShotModal()">&times;</button>
+    </div>
+
+    <div class="giq-modal-body">
+
+      <div class="field-grid">
+
+        <div class="field">
+          <label>Period</label>
+          <select id="as-period">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="OT">OT</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Result</label>
+          <select id="as-outcome">
+            <option value="save">Save</option>
+            <option value="goal">Goal</option>
+          </select>
+        </div>
+
+      </div>
+
+      <div class="tag-group">
+        <div class="tag-group-label">Location</div>
+        <div class="tag-btn-row" id="as-location-buttons">
+          <button type="button" class="tag-btn" data-value="Slot" onclick="selectAddShotChoice('location','Slot',this)">Slot</button>
+          <button type="button" class="tag-btn" data-value="Point" onclick="selectAddShotChoice('location','Point',this)">Point</button>
+          <button type="button" class="tag-btn" data-value="Circle" onclick="selectAddShotChoice('location','Circle',this)">Circle</button>
+          <button type="button" class="tag-btn" data-value="Perimeter" onclick="selectAddShotChoice('location','Perimeter',this)">Perimeter</button>
+          <button type="button" class="tag-btn" data-value="Crease" onclick="selectAddShotChoice('location','Crease',this)">Crease</button>
+        </div>
+      </div>
+
+      <div class="tag-group">
+        <div class="tag-group-label">Shot Type</div>
+        <div class="tag-btn-row" id="as-type-buttons">
+          <button type="button" class="tag-btn" data-value="Wrist" onclick="selectAddShotChoice('shot_type','Wrist',this)">Wrist</button>
+          <button type="button" class="tag-btn" data-value="Slap" onclick="selectAddShotChoice('shot_type','Slap',this)">Slap</button>
+          <button type="button" class="tag-btn" data-value="Snap" onclick="selectAddShotChoice('shot_type','Snap',this)">Snap</button>
+          <button type="button" class="tag-btn" data-value="Backhand" onclick="selectAddShotChoice('shot_type','Backhand',this)">Backhand</button>
+          <button type="button" class="tag-btn" data-value="Tip" onclick="selectAddShotChoice('shot_type','Tip',this)">Tip</button>
+          <button type="button" class="tag-btn" data-value="One-Timer" onclick="selectAddShotChoice('shot_type','One-Timer',this)">One-Timer</button>
+        </div>
+      </div>
+
+      <div class="tag-group">
+        <div class="tag-group-label">Release Context (optional)</div>
+        <div class="tag-btn-row" id="as-release-buttons">
+          <button type="button" class="tag-btn selected" data-value="" onclick="selectAddShotChoice('release_type','',this)">Unclear</button>
+          <button type="button" class="tag-btn" data-value="one_timer" onclick="selectAddShotChoice('release_type','one_timer',this)">One-Timer</button>
+          <button type="button" class="tag-btn" data-value="catch_and_release" onclick="selectAddShotChoice('release_type','catch_and_release',this)">Catch &amp; Release</button>
+          <button type="button" class="tag-btn" data-value="quick_release" onclick="selectAddShotChoice('release_type','quick_release',this)">Quick Release</button>
+          <button type="button" class="tag-btn" data-value="extended_possession" onclick="selectAddShotChoice('release_type','extended_possession',this)">Extended Possession (&gt;2s)</button>
+        </div>
+      </div>
+
+      <div class="tag-group">
+        <div class="tag-group-label">Details</div>
+        <div class="tag-btn-row" id="as-toggle-buttons">
+          <button type="button" class="tag-btn" data-value="rush" onclick="toggleAddShotFlag('rush',this)">Rush</button>
+          <button type="button" class="tag-btn" data-value="rebound" onclick="toggleAddShotFlag('rebound',this)">Rebound</button>
+          <button type="button" class="tag-btn" data-value="screened" onclick="toggleAddShotFlag('screened',this)">Screened</button>
+          <button type="button" class="tag-btn" data-value="breakaway" onclick="toggleAddShotFlag('breakaway',this)">Breakaway</button>
+          <button type="button" class="tag-btn" data-value="cross_ice" onclick="toggleAddShotFlag('cross_ice',this)">Cross Ice</button>
+          <button type="button" class="tag-btn" data-value="deflection" onclick="toggleAddShotFlag('deflection',this)">Deflection</button>
+        </div>
+      </div>
+
+      <div class="field" style="margin-top:14px">
+        <label>Video clip (optional)</label>
+        <input type="file" id="as-clip-file" accept="video/*">
+      </div>
+
+      <div id="as-error" class="auth-error" style="margin-top:12px"></div>
+
+      <button type="button" class="btn-primary" style="margin-top:14px" id="as-submit-btn" onclick="submitAddShot()">Save Shot</button>
+
     </div>
 
   </div>
@@ -7072,7 +7207,8 @@ function openShotLogModal(gameId){
 
   const game =
     seasonGames.find(g => String(g.id ?? g.game_id) === String(gameId)) ||
-    games.find(g => String(g.id ?? g.game_id) === String(gameId));
+    games.find(g => String(g.id ?? g.game_id) === String(gameId)) ||
+    allGames.find(g => String(g.id ?? g.game_id) === String(gameId));
 
   document.getElementById("shotLogModalTitle").textContent =
     game ? `Shot Log — ${gameOpponent(game)} (${gameDate(game)})` : "Shot Log";
@@ -7080,6 +7216,9 @@ function openShotLogModal(gameId){
   document.getElementById("shotLogFilterPeriod").value = "";
   document.getElementById("shotLogFilterResult").value = "";
   document.getElementById("shotLogFilterRelease").value = "";
+
+  document.getElementById("shotLogAddShotBtn").style.display =
+    currentRole === "admin" ? "" : "none";
 
   renderShotLogTable();
 
@@ -7114,7 +7253,7 @@ function renderShotLogTable(){
     document.getElementById("shotLogFilterRelease").value;
 
   let gameShotsList =
-    shots.filter(
+    allShots.filter(
       s => String(s.game_id) === String(shotLogModalGameId)
     );
 
@@ -7216,7 +7355,7 @@ async function attachClipToShot(shotId, file){
   }
 
   const shot =
-    shots.find(s => String(s.shot_id ?? s.id) === String(shotId));
+    allShots.find(s => String(s.shot_id ?? s.id) === String(shotId));
 
   if(!shot){
     showToast("Could not find that shot.", "error");
@@ -7284,7 +7423,7 @@ async function attachClipToShot(shotId, file){
 async function watchShotClip(shotId){
 
   const shot =
-    shots.find(s => String(s.shot_id ?? s.id) === String(shotId));
+    allShots.find(s => String(s.shot_id ?? s.id) === String(shotId));
 
   if(!shot || !shot.game_video_id){
     showToast("No video clip linked to this shot.", "error");
@@ -11642,10 +11781,326 @@ function renderAdminGoalies(){
           <td>${g.team || "—"}</td>
           <td>${gameCount}</td>
           <td>${coachCount}</td>
+          <td><button type="button" class="btn-secondary" onclick="openAdminGoalieGamesModal('${g.id}')">Games</button></td>
         </tr>
       `;
 
     }).join("");
+
+}
+
+
+function openAdminGoalieGamesModal(goalieId){
+
+  const goalie =
+    adminProfiles.find(p => p.id === goalieId);
+
+  document.getElementById("adminGoalieGamesTitle").textContent =
+    goalie ? `${goalie.full_name || "Goalie"}'s Games` : "Games";
+
+  const goalieGames =
+    sortGamesByDate(allGames.filter(gm => gm.user_id === goalieId)).reverse();
+
+  const tbody =
+    document.getElementById("adminGoalieGamesBody");
+
+  tbody.innerHTML =
+    goalieGames.length
+      ? goalieGames.map(g => `
+          <tr>
+            <td>${gameDate(g)}</td>
+            <td>${gameOpponent(g)}</td>
+            <td>${g.season || "—"}</td>
+            <td><button type="button" class="watch-btn" onclick="openShotLogModal(${g.id})">Shots</button></td>
+          </tr>
+        `).join("")
+      : `<tr><td colspan="4"><div class="empty-state">No games logged for this goalie yet.</div></td></tr>`;
+
+  document.getElementById("adminGoalieGamesModalOverlay").classList.add("open");
+
+}
+
+
+function closeAdminGoalieGamesModal(){
+  document.getElementById("adminGoalieGamesModalOverlay").classList.remove("open");
+}
+
+
+/* ============================================================
+   ADD SHOT (log one shot at a time into an existing game, with
+   its clip, while going through already-clipped film)
+============================================================ */
+
+let addShotState = {
+  location: null,
+  shot_type: null,
+  release_type: null,
+  flags: { rush:false, rebound:false, screened:false, breakaway:false, cross_ice:false, deflection:false }
+};
+
+
+function selectAddShotChoice(field, value, btn){
+
+  addShotState[field] = value || null;
+
+  btn.parentElement.querySelectorAll(".tag-btn").forEach(b => b.classList.remove("selected"));
+  btn.classList.add("selected");
+
+}
+
+
+function toggleAddShotFlag(flag, btn){
+
+  addShotState.flags[flag] = !addShotState.flags[flag];
+  btn.classList.toggle("selected", addShotState.flags[flag]);
+
+}
+
+
+function resetAddShotForm(){
+
+  addShotState = {
+    location: null,
+    shot_type: null,
+    release_type: null,
+    flags: { rush:false, rebound:false, screened:false, breakaway:false, cross_ice:false, deflection:false }
+  };
+
+  document.getElementById("as-period").value = "1";
+  document.getElementById("as-outcome").value = "save";
+  document.getElementById("as-clip-file").value = "";
+  document.getElementById("as-error").textContent = "";
+
+  document.querySelectorAll("#as-location-buttons .tag-btn, #as-type-buttons .tag-btn, #as-toggle-buttons .tag-btn").forEach(b => b.classList.remove("selected"));
+
+  document.querySelectorAll("#as-release-buttons .tag-btn").forEach(b => {
+    b.classList.toggle("selected", b.dataset.value === "");
+  });
+
+}
+
+
+function openAddShotModal(){
+
+  if(!shotLogModalGameId){
+    return;
+  }
+
+  resetAddShotForm();
+  document.getElementById("addShotModalOverlay").classList.add("open");
+
+}
+
+
+function closeAddShotModal(){
+  document.getElementById("addShotModalOverlay").classList.remove("open");
+}
+
+
+async function submitAddShot(){
+
+  const errorEl =
+    document.getElementById("as-error");
+
+  errorEl.textContent = "";
+
+  if(!currentSession || !currentSession.access_token){
+    errorEl.textContent = "You need to be signed in.";
+    return;
+  }
+
+  const gameId =
+    shotLogModalGameId;
+
+  const game =
+    allGames.find(g => String(g.id ?? g.game_id) === String(gameId));
+
+  if(!game){
+    errorEl.textContent = "Could not find this game.";
+    return;
+  }
+
+  const submitBtn =
+    document.getElementById("as-submit-btn");
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Saving...";
+
+  try{
+
+    // Attach the clip first (if one was chosen) so the Shots insert
+    // below can carry the video link from the moment it's created,
+    // rather than needing a second Attach Clip step afterward.
+    let gameVideoId = null;
+
+    const clipFile =
+      document.getElementById("as-clip-file").files[0];
+
+    if(clipFile){
+
+      const storagePath =
+        await uploadFileToR2(clipFile, () => {});
+
+      const { data: insertedVideo, error: videoError } =
+        await supabaseClient
+          .from("game_videos")
+          .insert({
+            user_id: game.user_id,
+            game_id: gameId,
+            storage_path: storagePath,
+            status: "clip"
+          })
+          .select();
+
+      if(videoError){
+        throw new Error(videoError.message);
+      }
+
+      gameVideoId = insertedVideo[0].id;
+
+    }
+
+    const period =
+      document.getElementById("as-period").value;
+
+    const outcome =
+      document.getElementById("as-outcome").value;
+
+    const shotPayload = {
+      user_id: game.user_id,
+      game_id: gameId,
+      period: period,
+      distance: null,
+      location: addShotState.location,
+      shot_type: addShotState.shot_type,
+      release_type: addShotState.release_type,
+      outcome: outcome,
+      rush: addShotState.flags.rush,
+      rebound: addShotState.flags.rebound,
+      screened: addShotState.flags.screened,
+      breakaway: addShotState.flags.breakaway,
+      cross_ice: addShotState.flags.cross_ice,
+      deflection: addShotState.flags.deflection,
+      game_video_id: gameVideoId,
+      clip_start_seconds: gameVideoId !== null ? 0 : null,
+      clip_end_seconds: null
+    };
+
+    const { data: insertedShot, error: shotError } =
+      await supabaseClient
+        .from("Shots")
+        .insert(shotPayload)
+        .select();
+
+    if(shotError){
+      throw new Error(shotError.message);
+    }
+
+    // Keep the game's summary totals (which the whole rest of the
+    // app reads stats from -- NOT a live count of Shots rows) in
+    // sync, since this adds one shot at a time rather than the
+    // live-tag flow's "create the whole game in one insert" path.
+    const isGoal = outcome === "goal";
+
+    const newShotsAgainst =
+      gameShots(game) + 1;
+
+    const newGoalsAgainst =
+      gameGoals(game) + (isGoal ? 1 : 0);
+
+    const newSaves =
+      gameSaves(game) + (isGoal ? 0 : 1);
+
+    const { error: gameUpdateError } =
+      await supabaseClient
+        .from("Games")
+        .update({
+          shots_against: newShotsAgainst,
+          goals_against: newGoalsAgainst,
+          saves: newSaves,
+          shutout: newShotsAgainst > 0 && newGoalsAgainst === 0
+        })
+        .eq("id", gameId);
+
+    if(gameUpdateError){
+      throw new Error(gameUpdateError.message);
+    }
+
+    // Same idea for Period Stats -- update the existing row for this
+    // period if one exists, otherwise create it.
+    const existingPeriodRow =
+      allPeriodStats.find(p => String(p.game_id) === String(gameId) && p.period === period);
+
+    if(existingPeriodRow){
+
+      const { error: periodError } =
+        await supabaseClient
+          .from("Period Stats")
+          .update({
+            shots_against: existingPeriodRow.shots_against + 1,
+            goals_against: existingPeriodRow.goals_against + (isGoal ? 1 : 0),
+            saves: existingPeriodRow.saves + (isGoal ? 0 : 1)
+          })
+          .eq("id", existingPeriodRow.id);
+
+      if(periodError){
+        throw new Error(periodError.message);
+      }
+
+      existingPeriodRow.shots_against += 1;
+      existingPeriodRow.goals_against += isGoal ? 1 : 0;
+      existingPeriodRow.saves += isGoal ? 0 : 1;
+
+    }
+    else{
+
+      const { data: insertedPeriod, error: periodError } =
+        await supabaseClient
+          .from("Period Stats")
+          .insert({
+            game_id: gameId,
+            user_id: game.user_id,
+            period: period,
+            minutes_played: null,
+            shots_against: 1,
+            goals_against: isGoal ? 1 : 0,
+            saves: isGoal ? 0 : 1
+          })
+          .select();
+
+      if(periodError){
+        throw new Error(periodError.message);
+      }
+
+      allPeriodStats.push(insertedPeriod[0]);
+
+    }
+
+    // Reflect everything locally so the Shot Log and any open stats
+    // views update without needing a full reload.
+    game.shots_against = newShotsAgainst;
+    game.goals_against = newGoalsAgainst;
+    game.saves = newSaves;
+
+    allShots.push(insertedShot[0]);
+
+    showToast("Shot added.");
+    closeAddShotModal();
+    renderShotLogTable();
+
+  }
+  catch(error){
+
+    console.error(error);
+    errorEl.textContent = error.message || "Could not save this shot.";
+
+  }
+  finally{
+
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Save Shot";
+
+  }
 
 }
 
