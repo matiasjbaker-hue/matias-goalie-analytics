@@ -14955,29 +14955,7 @@ async function uploadGameVideo(){
       throw new Error(insertError.message);
     }
 
-    const gameVideoId =
-      inserted[0].id;
-
-    // Kick off indexing right away -- from the customer's point of
-    // view this is just part of "Upload", not a separate step.
-    const res =
-      await fetch("/api/video/index-game-video", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          accessToken: currentSession.access_token,
-          gameVideoId: gameVideoId
-        })
-      });
-
-    const data =
-      await res.json();
-
-    if(!res.ok){
-      throw new Error(data.error || "Upload succeeded but processing could not start.");
-    }
-
-    statusEl.textContent = "Uploaded! We'll take it from here -- your stats will show up once we've gone through the film.";
+    statusEl.textContent = "Uploaded! We'll take it from here.";
     fileInput.value = "";
     document.getElementById("video-jersey-color").value = "";
     document.getElementById("video-new-game-toggle").checked = false;
