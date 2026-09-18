@@ -10426,8 +10426,11 @@ async function handleLogout(){
 
 supabaseClient.auth.onAuthStateChange(function(event, session){
 
+  // Keep our local session current whenever Supabase refreshes
+  // the access token during a long session.
+  currentSession = session;
+
   if(event === "PASSWORD_RECOVERY"){
-    currentSession = session;
     showAuthScreen();
     showAuthView("newpassword");
   }
