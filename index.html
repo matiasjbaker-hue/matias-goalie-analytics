@@ -93,6 +93,34 @@ header{
   font-weight:700;
 }
 
+/* Season switcher: the badge becomes a dropdown once a goalie has
+   more than one season of games. */
+.season-badge.has-switcher{
+  padding:0;
+}
+
+.season-badge select{
+  appearance:none;
+  -webkit-appearance:none;
+  background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%239be1bd' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 13px center;
+  border:0;
+  border-radius:20px;
+  color:inherit;
+  font:inherit;
+  padding:9px 34px 9px 15px;
+  cursor:pointer;
+}
+
+.season-badge select:focus-visible{
+  outline:2px solid var(--green2);
+  outline-offset:2px;
+}
+
+.season-badge select option{
+  background:#0d3021;
+  color:var(--text);
+}
+
 nav{
   background:#081c15;
   border-bottom:1px solid var(--border);
@@ -490,6 +518,24 @@ main{
   background:rgba(255,255,255,.04);
   border:1px solid rgba(255,255,255,.08);
   color:#5c7a6e;
+  cursor:default;
+}
+
+.clip-actions{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+}
+
+.watch-btn.watch-btn-danger{
+  background:rgba(255,133,133,.10);
+  border:1px solid rgba(255,133,133,.35);
+  color:var(--red);
+}
+
+.watch-btn:disabled.watch-btn-danger,
+.watch-btn.is-busy{
+  opacity:.6;
   cursor:default;
 }
 
@@ -4896,6 +4942,11 @@ const SUPABASE_KEY =
 let CURRENT_SEASON =
   "2026 preseason";
 
+// The season a goalie/coach picked in the header dropdown. null means
+// "auto" (the newest season that has games). It's only honored while
+// the viewed goalie actually has games in that season.
+let SELECTED_SEASON = null;
+
 const supabaseClient =
   window.supabase.createClient(
     SUPABASE_URL,
@@ -5035,10 +5086,21 @@ function seasonRank(value){
 }
 
 
-function computeCurrentSeason(gameList){
+function computeCurrentSeason(gameList, ignoreSelection){
 
   if(!gameList || !gameList.length){
     return CURRENT_SEASON;
+  }
+
+  // Honor the dropdown pick, but only if this goalie has games in it.
+  if(
+    !ignoreSelection &&
+    SELECTED_SEASON &&
+    gameList.some(
+      g => normalizeSeason(g.season) === normalizeSeason(SELECTED_SEASON)
+    )
+  ){
+    return SELECTED_SEASON;
   }
 
   let bestGame = null;
@@ -5060,13 +5122,116 @@ function computeCurrentSeason(gameList){
 }
 
 
+// Distinct seasons in a list of games, newest first. Labels that only
+// differ by case / dashes / underscores collapse into one entry.
+function seasonsForGames(gameList){
+
+  const seen = new Map();
+
+  (gameList || []).forEach(g => {
+
+    const key = normalizeSeason(g.season);
+
+    if(key && !seen.has(key)){
+      seen.set(key, String(g.season).trim());
+    }
+
+  });
+
+  return [...seen.entries()]
+    .sort((a,b) =>
+      (seasonRank(b[0]) - seasonRank(a[0])) || a[0].localeCompare(b[0])
+    )
+    .map(entry => entry[1]);
+
+}
+
+
+// Ids of one goalie's games in one season (defaults to their newest).
+function seasonGameIdsFor(goalieId, season){
+
+  const goalieGames =
+    allGames.filter(g => g.user_id === goalieId);
+
+  const target =
+    season || computeCurrentSeason(goalieGames, true);
+
+  return new Set(
+    goalieGames
+      .filter(g => normalizeSeason(g.season) === normalizeSeason(target))
+      .map(g => String(g.id ?? g.game_id))
+  );
+
+}
+
+
 function updateSeasonBadge(){
 
   const badge = document.getElementById("season-badge");
 
-  if(badge){
-    badge.style.display = "";
+  if(!badge){ return; }
+
+  badge.style.display = "";
+
+  // `games` is always the active goalie's games (see
+  // applyActiveGoalieFilter), so this lists exactly the seasons the
+  // person currently being viewed has data for.
+  const seasons = seasonsForGames(games);
+
+  if(seasons.length < 2){
+
+    badge.classList.remove("has-switcher");
     badge.textContent = String(CURRENT_SEASON).toUpperCase();
+    return;
+
+  }
+
+  const hadFocus =
+    document.activeElement &&
+    document.activeElement.id === "season-select";
+
+  badge.classList.add("has-switcher");
+  badge.textContent = "";
+
+  const select = document.createElement("select");
+
+  select.id = "season-select";
+  select.setAttribute("aria-label", "Switch season");
+
+  seasons.forEach(label => {
+
+    const option = document.createElement("option");
+
+    option.value = label;
+    option.textContent = label.toUpperCase();
+    option.selected =
+      normalizeSeason(label) === normalizeSeason(CURRENT_SEASON);
+
+    select.appendChild(option);
+
+  });
+
+  select.addEventListener("change", () => switchSeason(select.value));
+
+  badge.appendChild(select);
+
+  if(hadFocus){ select.focus(); }
+
+}
+
+
+function switchSeason(label){
+
+  SELECTED_SEASON = label;
+
+  // Recomputes CURRENT_SEASON (now honoring the pick) and re-renders
+  // every shared tab for the active goalie.
+  applyActiveGoalieFilter();
+
+  // Coach view: the goalie profile page has its own season-scoped
+  // stats that applyActiveGoalieFilter doesn't touch.
+  if(currentRole === "coach" && activeGoalieId){
+    renderGoalieProfile(activeGoalieId);
   }
 
 }
@@ -5075,6 +5240,30 @@ function updateSeasonBadge(){
 /* ============================================================
    GENERIC HELPERS
 ============================================================ */
+
+// Everything user-typed (location, shot type, team names, notes...)
+// must go through this before being placed into innerHTML, otherwise
+// a goalie can plant markup that runs in a coach's or admin's session.
+function escapeHtml(value){
+
+  return String(value ?? "").replace(/[&<>"']/g, ch => ({
+    "&":"&amp;",
+    "<":"&lt;",
+    ">":"&gt;",
+    '"':"&quot;",
+    "'":"&#39;"
+  }[ch]));
+
+}
+
+
+// Safe way to pass a number OR string id into an inline onclick="".
+function jsArg(value){
+
+  return JSON.stringify(value).replace(/"/g, "&quot;");
+
+}
+
 
 function num(value){
 
@@ -7142,6 +7331,9 @@ function renderShotLogTable(){
     unknown:"—"
   };
 
+  const isAdmin =
+    currentRole === "admin";
+
   tbody.innerHTML =
     gameShotsList.map(s => {
 
@@ -7151,22 +7343,51 @@ function renderShotLogTable(){
       const shotId =
         s.shot_id ?? s.id;
 
-      const watchOrAttachCell =
-        canWatch
-          ? `<button type="button" class="watch-btn" onclick="watchShotClip(${JSON.stringify(shotId)})">▶ Watch</button>`
-          : currentRole === "admin"
-            ? `<button type="button" class="watch-btn" onclick="promptAttachClip(${JSON.stringify(shotId)})">+ Attach Clip</button>`
-            : `<button type="button" class="watch-btn" disabled>No clip</button>`;
+      const arg =
+        jsArg(shotId);
+
+      let actionCell;
+
+      if(canWatch){
+
+        // Watch is for everyone who can see the shot. Replace/Delete
+        // are admin-only in the UI; Supabase RLS is what actually
+        // enforces it.
+        actionCell = `
+          <div class="clip-actions">
+            <button type="button" class="watch-btn" onclick="watchShotClip(${arg})">▶ Watch</button>
+            ${
+              isAdmin
+                ? `<button type="button" class="watch-btn" onclick="promptReplaceClip(${arg})">Replace</button>
+                   <button type="button" class="watch-btn watch-btn-danger" onclick="deleteShotClip(${arg}, this)">Delete</button>`
+                : ""
+            }
+          </div>
+        `;
+
+      }
+      else if(isAdmin){
+
+        actionCell =
+          `<button type="button" class="watch-btn" onclick="promptAttachClip(${arg})">+ Attach Clip</button>`;
+
+      }
+      else{
+
+        actionCell =
+          `<button type="button" class="watch-btn" disabled>No clip</button>`;
+
+      }
 
       return `
         <tr>
-          <td>${s.period || "—"}</td>
-          <td>${s.location || "—"}</td>
-          <td>${s.shot_type || "—"}</td>
+          <td>${escapeHtml(s.period) || "—"}</td>
+          <td>${escapeHtml(s.location) || "—"}</td>
+          <td>${escapeHtml(s.shot_type) || "—"}</td>
           <td>${releaseLabel[releaseCategory(s)]}</td>
           <td>${s.rebound ? "Yes" : "—"}</td>
           <td><span class="result-pill ${isGoal(s) ? "result-loss" : "result-win"}">${isGoal(s) ? "Goal" : "Save"}</span></td>
-          <td>${watchOrAttachCell}</td>
+          <td>${actionCell}</td>
         </tr>
       `;
 
@@ -7175,16 +7396,29 @@ function renderShotLogTable(){
 }
 
 
-// Admin-only: pick a small pre-clipped video file from disk and
-// attach it directly to one shot. This is the manual-clipping path --
-// no TwelveLabs/AI step, no shot_drafts review. Nik watches the full
-// game himself, trims each shot he wants a clip for in whatever tool
-// he likes, and attaches the result here. Reuses the exact same R2
-// upload pipeline and Shots.game_video_id/clip_start_seconds/
-// clip_end_seconds fields the AI-driven path was built on -- a clip
-// is just a video where the whole file IS the shot, so
-// clip_start_seconds is always 0 and there's no end trim needed.
-function promptAttachClip(shotId){
+/* ------------------------------------------------------------
+   ADMIN CLIP MANAGEMENT: attach / replace / delete
+
+   A "clip" is a small pre-trimmed video the admin uploads for one
+   shot. It lives as its own game_videos row (status = "clip") whose
+   file is the shot itself, so clip_start_seconds is always 0.
+   Full-game uploads (any other status) can be shared by many shots,
+   so nothing here ever deletes those -- it only detaches the shot.
+------------------------------------------------------------ */
+
+let clipOperationInFlight = false;
+
+
+function findShotById(shotId){
+
+  return allShots.find(
+    s => String(s.shot_id ?? s.id) === String(shotId)
+  );
+
+}
+
+
+function pickClipFile(onPick){
 
   const input =
     document.createElement("input");
@@ -7194,7 +7428,7 @@ function promptAttachClip(shotId){
 
   input.onchange = () => {
     if(input.files[0]){
-      attachClipToShot(shotId, input.files[0]);
+      onPick(input.files[0]);
     }
   };
 
@@ -7203,7 +7437,103 @@ function promptAttachClip(shotId){
 }
 
 
+function promptAttachClip(shotId){
+
+  if(currentRole !== "admin"){ return; }
+
+  pickClipFile(file => attachClipToShot(shotId, file));
+
+}
+
+
+function promptReplaceClip(shotId){
+
+  if(currentRole !== "admin"){ return; }
+
+  const shot =
+    findShotById(shotId);
+
+  if(!shot || !shot.game_video_id){
+    showToast("This shot has no clip to replace.", "error");
+    return;
+  }
+
+  pickClipFile(file => {
+
+    if(!confirm(`Replace this shot's clip with "${file.name}"? The current clip will be deleted once the new one is attached.`)){
+      return;
+    }
+
+    attachClipToShot(shotId, file);
+
+  });
+
+}
+
+
+// Deletes a clip's video file + game_videos row, but only when it is
+// really a single-shot clip that no other shot points at. Returns
+// "deleted" | "shared" | "kept" | "gone" so callers can tell what
+// happened. Throws if the delete itself fails.
+async function removeClipVideoIfUnused(videoId){
+
+  const stillUsed =
+    allShots.some(s => String(s.game_video_id) === String(videoId));
+
+  if(stillUsed){ return "shared"; }
+
+  const { data: videoRows, error: lookupError } =
+    await supabaseClient
+      .from("game_videos")
+      .select("id, status")
+      .eq("id", videoId)
+      .limit(1);
+
+  if(lookupError){
+    throw new Error(lookupError.message);
+  }
+
+  const video =
+    videoRows && videoRows[0];
+
+  if(!video){ return "gone"; }
+
+  // Anything that isn't a single-shot clip is a full-game upload --
+  // leave it for Video Review.
+  if(video.status !== "clip"){ return "kept"; }
+
+  const res =
+    await fetch("/api/video/delete-video", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body:JSON.stringify({
+        accessToken: currentSession.access_token,
+        gameVideoId: videoId
+      })
+    });
+
+  if(res.status === 404){ return "gone"; }
+
+  if(!res.ok){
+
+    const data =
+      await res.json().catch(() => ({}));
+
+    throw new Error(data.error || "Could not delete the clip file.");
+
+  }
+
+  return "deleted";
+
+}
+
+
+// Attach a clip to a shot with no clip, or replace the existing one.
+// The new clip is fully uploaded and linked BEFORE the old one is
+// removed, so a failed upload never leaves the shot without a clip.
 async function attachClipToShot(shotId, file){
+
+  if(currentRole !== "admin"){ return; }
 
   if(!currentSession || !currentSession.access_token){
     showToast("You need to be signed in.", "error");
@@ -7211,14 +7541,29 @@ async function attachClipToShot(shotId, file){
   }
 
   const shot =
-    allShots.find(s => String(s.shot_id ?? s.id) === String(shotId));
+    findShotById(shotId);
 
   if(!shot){
     showToast("Could not find that shot.", "error");
     return;
   }
 
-  showToast("Uploading clip...");
+  if(clipOperationInFlight){
+    showToast("Another clip upload is still running.", "error");
+    return;
+  }
+
+  clipOperationInFlight = true;
+
+  const previousVideoId =
+    shot.game_video_id || null;
+
+  const isReplace =
+    !!previousVideoId;
+
+  let newVideoId = null;
+
+  showToast(isReplace ? "Uploading replacement clip..." : "Uploading clip...");
 
   try{
 
@@ -7240,36 +7585,172 @@ async function attachClipToShot(shotId, file){
       throw new Error(videoError.message);
     }
 
-    const gameVideoId =
+    newVideoId =
       insertedVideo[0].id;
 
-    const { error: shotError } =
+    // .select() so a policy silently blocking the update (zero rows,
+    // no error) is caught instead of looking like success.
+    const { data: updatedShots, error: shotError } =
       await supabaseClient
         .from("Shots")
         .update({
-          game_video_id: gameVideoId,
+          game_video_id: newVideoId,
           clip_start_seconds: 0,
           clip_end_seconds: null
         })
-        .eq("shot_id", shotId);
+        .eq("shot_id", shotId)
+        .select();
 
     if(shotError){
       throw new Error(shotError.message);
     }
 
+    if(!updatedShots || !updatedShots.length){
+      throw new Error("Nothing was updated -- you may not have permission to edit this shot.");
+    }
+
     // Reflect it locally so the Shot Log updates without a reload.
-    shot.game_video_id = gameVideoId;
+    shot.game_video_id = newVideoId;
     shot.clip_start_seconds = 0;
     shot.clip_end_seconds = null;
 
-    showToast("Clip attached.");
     renderShotLogTable();
+
+    if(isReplace){
+
+      try{
+        await removeClipVideoIfUnused(previousVideoId);
+        showToast("Clip replaced.");
+      }
+      catch(cleanupError){
+        console.error(cleanupError);
+        showToast("Clip replaced, but the old file couldn't be removed -- delete it from Video Review.", "error");
+      }
+
+    }
+    else{
+      showToast("Clip attached.");
+    }
 
   }
   catch(error){
 
     console.error(error);
-    showToast(`Could not attach this clip: ${error.message}`, "error");
+
+    // If the new upload never got linked to the shot, don't leave it
+    // orphaned in storage.
+    if(newVideoId && String(shot.game_video_id) !== String(newVideoId)){
+      try{ await removeClipVideoIfUnused(newVideoId); }
+      catch(cleanupError){ console.error(cleanupError); }
+    }
+
+    showToast(`Could not ${isReplace ? "replace" : "attach"} this clip: ${error.message}`, "error");
+
+  }
+  finally{
+
+    clipOperationInFlight = false;
+
+  }
+
+}
+
+
+async function deleteShotClip(shotId, button){
+
+  if(currentRole !== "admin"){ return; }
+
+  if(!currentSession || !currentSession.access_token){
+    showToast("You need to be signed in.", "error");
+    return;
+  }
+
+  const shot =
+    findShotById(shotId);
+
+  if(!shot || !shot.game_video_id){
+    showToast("This shot has no clip to delete.", "error");
+    return;
+  }
+
+  if(clipOperationInFlight){
+    showToast("Another clip operation is still running.", "error");
+    return;
+  }
+
+  if(!confirm("Delete this clip? The shot itself stays; only its video is removed. This cannot be undone.")){
+    return;
+  }
+
+  clipOperationInFlight = true;
+
+  if(button){
+    button.disabled = true;
+    button.textContent = "Deleting...";
+  }
+
+  const videoId =
+    shot.game_video_id;
+
+  try{
+
+    // 1. Detach from the shot FIRST, so the shot can never point at a
+    //    video that no longer exists (and so a foreign key can't
+    //    cascade into the shot row).
+    const { data: updatedShots, error: detachError } =
+      await supabaseClient
+        .from("Shots")
+        .update({
+          game_video_id: null,
+          clip_start_seconds: null,
+          clip_end_seconds: null
+        })
+        .eq("shot_id", shotId)
+        .select();
+
+    if(detachError){
+      throw new Error(detachError.message);
+    }
+
+    if(!updatedShots || !updatedShots.length){
+      throw new Error("Nothing was changed -- you may not have permission to edit this shot.");
+    }
+
+    shot.game_video_id = null;
+    shot.clip_start_seconds = null;
+    shot.clip_end_seconds = null;
+
+    renderShotLogTable();
+
+    // 2. Then remove the file + row (single-shot clips only).
+    try{
+
+      await removeClipVideoIfUnused(videoId);
+      showToast("Clip deleted.");
+
+    }
+    catch(cleanupError){
+
+      console.error(cleanupError);
+      showToast("Clip removed from the shot, but its file couldn't be deleted -- remove it from Video Review.", "error");
+
+    }
+
+  }
+  catch(error){
+
+    console.error(error);
+    showToast(`Could not delete this clip: ${error.message}`, "error");
+
+    if(button){
+      button.disabled = false;
+      button.textContent = "Delete";
+    }
+
+  }
+  finally{
+
+    clipOperationInFlight = false;
 
   }
 
@@ -10566,6 +11047,9 @@ function setNavForRole(){
 
 async function applyRoleAndLoad(){
 
+  // A season picked by a previous user in this tab shouldn't carry over.
+  SELECTED_SEASON = null;
+
   currentProfile = await fetchOwnProfile();
   currentRole = (currentProfile && currentProfile.role) || "goalie";
 
@@ -10664,15 +11148,24 @@ async function loadXGVersionHistory(){
    Per-goalie summary (used by the "My Goalies" cards)
 ------------------------------------------------------------ */
 
-function computeGoalieSummary(goalieId){
+// `season` defaults to this goalie's own newest season, so the "My
+// Goalies" cards never depend on which goalie/season was viewed last.
+// Shots are scoped to the same season as the games so GSAx lines up
+// with SV% / GAA / games played.
+function computeGoalieSummary(goalieId, season){
+
+  const seasonIds =
+    seasonGameIdsFor(goalieId, season);
 
   const goalieGames =
     allGames.filter(
-      g => g.user_id === goalieId && isCurrentSeason(g.season)
+      g => g.user_id === goalieId && seasonIds.has(String(g.id ?? g.game_id))
     );
 
   const goalieShots =
-    allShots.filter(s => s.user_id === goalieId);
+    allShots.filter(
+      s => s.user_id === goalieId && seasonIds.has(String(s.game_id))
+    );
 
   const gamesPlayed = goalieGames.length;
 
@@ -10937,9 +11430,14 @@ function renderCoachHome(){
 }
 
 
-function computeGoalieReboundSummary(goalieId){
+function computeGoalieReboundSummary(goalieId, season){
 
-  const rows = allReboundControls.filter(r => r.user_id === goalieId);
+  const seasonIds = seasonGameIdsFor(goalieId, season);
+
+  const rows =
+    allReboundControls.filter(
+      r => r.user_id === goalieId && seasonIds.has(String(r.game_id))
+    );
 
   if(!rows.length){ return null; }
 
@@ -10971,9 +11469,14 @@ function computeGoalieReboundSummary(goalieId){
 }
 
 
-function computeGoaliePuckSummary(goalieId){
+function computeGoaliePuckSummary(goalieId, season){
 
-  const rows = allPuckPlaying.filter(p => p.user_id === goalieId);
+  const seasonIds = seasonGameIdsFor(goalieId, season);
+
+  const rows =
+    allPuckPlaying.filter(
+      p => p.user_id === goalieId && seasonIds.has(String(p.game_id))
+    );
 
   if(!rows.length){ return null; }
 
@@ -11022,7 +11525,7 @@ function renderGoalieProfile(goalieId){
   document.getElementById("goalieProfileMeta").textContent =
     `${profile.team || "No team set"} · ${profile.season || CURRENT_SEASON}`;
 
-  const summary = computeGoalieSummary(goalieId);
+  const summary = computeGoalieSummary(goalieId, CURRENT_SEASON);
 
   document.getElementById("gpSV").textContent = formatSV(summary.svPct);
   document.getElementById("gpGAA").textContent = formatGAA(summary.gaa);
@@ -11069,7 +11572,7 @@ function renderGoalieProfile(goalieId){
 
   }
 
-  const rebound = computeGoalieReboundSummary(goalieId);
+  const rebound = computeGoalieReboundSummary(goalieId, CURRENT_SEASON);
   const reboundEl = document.getElementById("gpReboundSummary");
 
   reboundEl.innerHTML =
@@ -11090,7 +11593,7 @@ function renderGoalieProfile(goalieId){
       `
       : `<div class="empty-state">No rebound tracking data has been entered yet. Add rebound control tracking the next time you log a game under "Enter Stats" or "My Games".</div>`;
 
-  const puck = computeGoaliePuckSummary(goalieId);
+  const puck = computeGoaliePuckSummary(goalieId, CURRENT_SEASON);
   const puckEl = document.getElementById("gpPuckSummary");
 
   puckEl.innerHTML =
@@ -13152,6 +13655,18 @@ function rowIsBlank(fields){
 
 let editingGameId = null;
 
+// Shot columns that exist in the database but have no input in the
+// Add/Edit Game form. Saving an edit deletes and re-inserts every
+// shot, so without carrying these through, editing a game would
+// silently wipe attached clips and release-context tags.
+const PRESERVED_SHOT_FIELDS = [
+  "release_type",
+  "possession_duration_seconds",
+  "game_video_id",
+  "clip_start_seconds",
+  "clip_end_seconds"
+];
+
 
 function renderMyGamesList(){
 
@@ -13279,6 +13794,14 @@ function editGame(gameId){
       row.querySelector('[data-field="breakaway"]').checked = !!s.breakaway;
       row.querySelector('[data-field="cross_ice"]').checked = !!s.cross_ice;
       row.querySelector('[data-field="deflection"]').checked = !!s.deflection;
+
+      const preserved = {};
+
+      PRESERVED_SHOT_FIELDS.forEach(key => {
+        if(s[key] !== undefined){ preserved[key] = s[key]; }
+      });
+
+      row.dataset.preserved = JSON.stringify(preserved);
     });
 
   const rebound =
@@ -14151,8 +14674,18 @@ document.getElementById("addgame-form")
           deflection: row.querySelector('[data-field="deflection"]').checked
         };
 
+        let preserved = {};
+
+        try{
+          preserved = JSON.parse(row.dataset.preserved || "{}");
+        }
+        catch(e){
+          preserved = {};
+        }
+
         shotPayloads.push({
           ...fields,
+          ...preserved,
           game_id: gameId,
           user_id: userId
         });
@@ -15093,6 +15626,28 @@ async function deleteGameVideo(gameVideoId, button){
       }
       return;
     }
+
+    // Any shots that pointed at this video would now have a dead
+    // link (Watch would 404). Detach them locally and in the DB.
+    allShots.forEach(s => {
+      if(String(s.game_video_id) === String(gameVideoId)){
+        s.game_video_id = null;
+        s.clip_start_seconds = null;
+        s.clip_end_seconds = null;
+      }
+    });
+
+    supabaseClient
+      .from("Shots")
+      .update({
+        game_video_id: null,
+        clip_start_seconds: null,
+        clip_end_seconds: null
+      })
+      .eq("game_video_id", gameVideoId)
+      .then(({ error: detachError }) => {
+        if(detachError){ console.error("Could not detach shots:", detachError); }
+      });
 
     await renderAdminVideoList();
 
