@@ -7418,6 +7418,16 @@ function findShotById(shotId){
 }
 
 
+// The Shots table's primary key column is either "shot_id" or "id"
+// depending on how it was created -- the rest of this file already
+// hedges on that (see `s.shot_id ?? s.id` above). Detect it from the
+// row itself rather than hardcoding one, so the clip update filters
+// on whichever column actually exists.
+function shotIdColumn(shot){
+  return Object.prototype.hasOwnProperty.call(shot, "shot_id") ? "shot_id" : "id";
+}
+
+
 function pickClipFile(onPick){
 
   const input =
@@ -7598,7 +7608,7 @@ async function attachClipToShot(shotId, file){
           clip_start_seconds: 0,
           clip_end_seconds: null
         })
-        .eq("shot_id", shotId)
+        .eq(shotIdColumn(shot), shotId)
         .select();
 
     if(shotError){
@@ -7705,7 +7715,7 @@ async function deleteShotClip(shotId, button){
           clip_start_seconds: null,
           clip_end_seconds: null
         })
-        .eq("shot_id", shotId)
+        .eq(shotIdColumn(shot), shotId)
         .select();
 
     if(detachError){
