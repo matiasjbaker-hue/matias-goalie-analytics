@@ -7,7 +7,9 @@
 // the app uses) and formats them into a plain-text summary. This
 // function's only job is to turn that summary into a short,
 // stat-driven analysis -- what went well, what to work on, and
-// concrete practice priorities -- using Claude.
+// concrete practice priorities -- using Claude. The response is
+// returned in the same "WENT WELL: / - bullet" text format the
+// browser already parses.
 //
 // It does NOT fetch anything from Supabase itself and does NOT
 // compute any stats. It only reads the summary text the client
@@ -72,19 +74,12 @@ Each priority must target one specific weakness from AREAS TO IMPROVE and includ
 - a measurable target for next game tied to the stat (e.g. "cross-ice SV% above 85%", "zero pad rebounds to the slot").
 Order priorities from highest to lowest goals-against impact.
 
-OUTPUT FORMAT
-Respond in EXACTLY this plain-text format, with these three headers verbatim, nothing before the first header, and nothing after the last bullet:
-
-WENT WELL:
-- (2-3 bullets, strongest stat-backed positives first)
-
-AREAS TO IMPROVE:
-- (2-3 bullets, ranked by goals-against impact. If the data shows no clear weakness, write one bullet saying so plainly with the numbers that support it.)
-
-PRIORITIES FOR NEXT PRACTICE:
-- (2-3 bullets, one per weakness above, each with drill + dose + next-game target)
-
-Each bullet is a single line starting with "- ". No markdown other than the dashes.
+OUTPUT
+Submit your analysis with the submit_game_analysis tool:
+- went_well: 2-3 items, strongest stat-backed positives first.
+- areas_to_improve: 2-3 items, ranked by goals-against impact. If the data shows no clear weakness, give one item saying so plainly with the numbers that support it.
+- practice_priorities: 2-3 items, one per weakness above, each with drill + dose + next-game target.
+Every list must have at least one item. Each item is one plain sentence: no bullet characters, no numbering, no markdown.
 
 GAME STATS SUMMARY:
 ${summaryText}`;
@@ -109,6 +104,110 @@ function anthropicHeaders() {
     headers["anthropic-workspace-id"] = workspaceId;
   }
   return headers;
+}
+
+
+// The analysis comes back through a forced tool call instead of free
+// text, so the three sections always arrive as clean JSON arrays --
+// no dependence on the model formatting headers or "- " bullets
+// exactly right (which is what caused "Not enough data to say" when
+// a section failed to parse).
+const ANALYSIS_TOOL = {
+  name: "submit_game_analysis",
+  description: "Submit the finished post-game analysis.",
+  input_schema: {
+    type: "object",
+    properties: {
+      went_well: {
+        type: "array",
+        items: { type: "string" },
+        minItems: 1,
+        maxItems: 3,
+        description: "Stat-backed positives, strongest first. One sentence each."
+      },
+      areas_to_improve: {
+        type: "array",
+        items: { type: "string" },
+        minItems: 1,
+        maxItems: 3,
+        description: "Weaknesses ranked by goals-against impact. One sentence each."
+      },
+      practice_priorities: {
+        type: "array",
+        items: { type: "string" },
+        minItems: 1,
+        maxItems: 3,
+        description: "One per weakness: drill + dose + measurable next-game target. One sentence each."
+      }
+    },
+    required: ["went_well", "areas_to_improve", "practice_priorities"]
+  }
+};
+
+function cleanItems(list) {
+  return (Array.isArray(list) ? list : [])
+    .map(item => String(item ?? "")
+      .replace(/^\s*(?:[-\u2022*\u2013\u2014]+|\d+[.)])\s+/, "")
+      .replace(/\s+/g, " ")
+      .trim())
+    .filter(Boolean)
+    .slice(0, 3);
+}
+
+async function requestAnalysis(systemPrompt) {
+
+  const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: anthropicHeaders(),
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 2000,
+      system: systemPrompt,
+      tools: [ANALYSIS_TOOL],
+      tool_choice: { type: "tool", name: ANALYSIS_TOOL.name },
+      messages: [
+        { role: "user", content: "Write the game analysis now." }
+      ]
+    })
+  });
+
+  if (!anthropicRes.ok) {
+    const errText = await anthropicRes.text();
+    throw new Error(`Anthropic API error ${anthropicRes.status}: ${errText}`);
+  }
+
+  const anthropicData = await anthropicRes.json();
+
+  const toolBlock = (anthropicData.content || [])
+    .find(block => block.type === "tool_use" && block.name === ANALYSIS_TOOL.name);
+
+  const input = (toolBlock && toolBlock.input) || {};
+
+  return {
+    wentWell: cleanItems(input.went_well),
+    areasToImprove: cleanItems(input.areas_to_improve),
+    priorities: cleanItems(input.practice_priorities)
+  };
+
+}
+
+function isComplete(analysis) {
+  return analysis.wentWell.length > 0 &&
+    analysis.areasToImprove.length > 0 &&
+    analysis.priorities.length > 0;
+}
+
+// Rebuilds the exact plain-text format the browser's
+// parseGameNarrative() already expects, so index.html needs no change.
+function toNarrativeText(analysis) {
+  const section = (header, items) =>
+    header + "\n" + items.map(item => "- " + item).join("\n");
+
+  return [
+    section("WENT WELL:", analysis.wentWell),
+    section("AREAS TO IMPROVE:", analysis.areasToImprove),
+    section("PRIORITIES FOR NEXT PRACTICE:", analysis.priorities)
+  ].join("\n\n");
 }
 
 
@@ -142,31 +241,18 @@ export default async function handler(req, res) {
 
     const systemPrompt = buildSystemPrompt(summaryText, viewerRole);
 
-    const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: anthropicHeaders(),
-      body: JSON.stringify({
-        model: CLAUDE_MODEL,
-        max_tokens: 1000,
-        system: systemPrompt,
-        messages: [
-          { role: "user", content: "Write the game analysis now." }
-        ]
-      })
-    });
+    // One automatic retry if any section comes back empty, so a
+    // single off response doesn't leave a hole in the PDF.
+    let analysis = await requestAnalysis(systemPrompt);
 
-    if (!anthropicRes.ok) {
-      const errText = await anthropicRes.text();
-      throw new Error(`Anthropic API error ${anthropicRes.status}: ${errText}`);
+    if (!isComplete(analysis)) {
+      const retry = await requestAnalysis(systemPrompt);
+      if (isComplete(retry)) {
+        analysis = retry;
+      }
     }
 
-    const anthropicData = await anthropicRes.json();
-
-    const narrativeText =
-      (anthropicData.content || [])
-        .filter(block => block.type === "text")
-        .map(block => block.text)
-        .join("\n") || "";
+    const narrativeText = toNarrativeText(analysis);
 
     res.status(200).json({ narrative: narrativeText });
 
