@@ -12641,13 +12641,12 @@ function pdfBulletList(doc, y, bullets){
 
   bullets.forEach(b => {
 
-    y = pdfEnsureSpace(doc, y, 28);
-
     doc.setFont("helvetica","normal");
     doc.setFontSize(9.5);
     doc.setTextColor(40,40,40);
 
     const wrapped = doc.splitTextToSize("•  " + b, 500);
+    y = pdfEnsureSpace(doc, y, wrapped.length * 12 + 5);
     doc.text(wrapped, 48, y);
 
     y += wrapped.length * 12 + 5;
