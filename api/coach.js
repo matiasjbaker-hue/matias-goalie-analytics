@@ -5,8 +5,9 @@
 // only safe place to hold the Anthropic API key. It:
 //   1. Takes the signed-in user's Supabase access token + their
 //      question from the browser.
-//   2. Uses that access token to pull THIS SEASON's stats from
-//      Supabase — Row Level Security means it's physically
+//   2. Uses that access token to pull the goalie's CURRENT
+//      season's stats from Supabase (current = the season label
+//      on their most recently dated game, detected automatically) — Row Level Security means it's physically
 //      impossible for this to return anyone else's data, even
 //      if someone tampered with the request.
 //   3. Summarizes those stats into plain text.
@@ -21,25 +22,37 @@
 
 const SUPABASE_URL = "https://iiuqxxrrruvwvfehrzic.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
-const CURRENT_SEASON = "2026 preseason";
 
 // Change this if Anthropic retires this model name — check
 // https://docs.claude.com for current model strings.
 const CLAUDE_MODEL = "claude-sonnet-5";
 
 
+// "2026 Pre-Season", "2026 preseason" and "2026_pre_season" all
+// normalize to "2026preseason", so small typing differences in the
+// season label never split one season into two.
 function normalizeSeason(value) {
   return String(value ?? "")
-    .trim()
     .toLowerCase()
-    .replace(/[_-]/g, " ")
-    .replace(/\s+/g, " ");
+    .replace(/[^a-z0-9]/g, "");
 }
 
-function isCurrentSeason(value) {
-  const s = normalizeSeason(value);
-  const target = normalizeSeason(CURRENT_SEASON);
-  return s === target;
+// The current season is whatever season label is on the goalie's
+// most recent game (by date, then by id as a tie-breaker). No
+// hardcoded season to update: log a game under a new season label
+// and the coach switches to it automatically.
+function findCurrentSeason(games) {
+  const withSeason = games.filter(g => normalizeSeason(g.season));
+  if (withSeason.length === 0) return null;
+
+  const sorted = withSeason.slice().sort((a, b) => {
+    const da = a.date ? Date.parse(a.date) : -Infinity;
+    const db = b.date ? Date.parse(b.date) : -Infinity;
+    if (db !== da) return db - da;
+    return num(b.id) - num(a.id);
+  });
+
+  return String(sorted[0].season).trim();
 }
 
 function num(value) {
@@ -74,17 +87,20 @@ async function supabaseQuery(table, accessToken) {
 
 function buildStatsSummary({ games, periodStats, shots, reboundControls, puckPlaying }) {
 
-  const seasonGames = games.filter(g => isCurrentSeason(g.season));
+  const currentSeason = findCurrentSeason(games);
+
+  if (!currentSeason) {
+    return "No games logged yet.";
+  }
+
+  const target = normalizeSeason(currentSeason);
+  const seasonGames = games.filter(g => normalizeSeason(g.season) === target);
   const seasonGameIds = new Set(seasonGames.map(g => String(g.id)));
 
   const seasonPeriods = periodStats.filter(p => seasonGameIds.has(String(p.game_id)));
   const seasonShots = shots.filter(s => seasonGameIds.has(String(s.game_id)));
   const seasonRebounds = reboundControls.filter(r => seasonGameIds.has(String(r.game_id)));
   const seasonPuck = puckPlaying.filter(p => seasonGameIds.has(String(p.game_id)));
-
-  if (seasonGames.length === 0) {
-    return "No games logged yet this season.";
-  }
 
   const gamesPlayed = seasonGames.length;
   const wins = seasonGames.filter(g => g.result === "W").length;
@@ -102,7 +118,7 @@ function buildStatsSummary({ games, periodStats, shots, reboundControls, puckPla
 
   const lines = [];
 
-  lines.push(`Season: ${CURRENT_SEASON}`);
+  lines.push(`Season: ${currentSeason}`);
   lines.push(`Record: ${wins}-${losses}-${otLosses} across ${gamesPlayed} games`);
   lines.push(`Shots faced: ${totalShotsAgainst}, Saves: ${totalSaves}, Goals against: ${totalGoalsAgainst}`);
   lines.push(`Save percentage: ${savePct !== null ? savePct + "%" : "n/a"}`);
@@ -281,15 +297,15 @@ export default async function handler(req, res) {
     const systemPrompt =
       viewerRole === "coach"
         ? "You are an assistant helping a hockey coach review one of their assigned goalies' " +
-          "performance this season. Answer the coach's questions using only the stats summary " +
+          "performance in their current season. Answer the coach's questions using only the stats summary " +
           "below. Frame answers for a coach making training decisions: what to focus on this " +
           "week, what's improving or declining, and what situations are creating the most goals " +
           "against. Be specific and reference actual numbers from the summary. If the summary " +
           "doesn't contain enough information to answer confidently, say so plainly rather than " +
           "guessing.\n\n" +
           "STATS SUMMARY:\n" + statsSummary
-        : "You are a goaltending assistant. You answer a goalie's questions about THIS SEASON's " +
-          "performance using only the stats summary below. Be specific and reference actual " +
+        : "You are a goaltending assistant. You answer a goalie's questions about their current " +
+          "season's performance using only the stats summary below. Be specific and reference actual " +
           "numbers from the summary. If the summary doesn't contain enough information to answer " +
           "confidently, say so plainly rather than guessing. Keep answers focused and practical.\n\n" +
           "STATS SUMMARY:\n" + statsSummary;
