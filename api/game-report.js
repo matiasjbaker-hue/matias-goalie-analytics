@@ -6,8 +6,8 @@
 // the same authoritative, database-scored xG values the rest of
 // the app uses) and formats them into a plain-text summary. This
 // function's only job is to turn that summary into a short,
-// grounded coach's narrative -- what went well, what to work on,
-// and priorities for next practice -- using Claude.
+// stat-driven analysis -- what went well, what to work on, and
+// concrete practice priorities -- using Claude.
 //
 // It does NOT fetch anything from Supabase itself and does NOT
 // compute any stats. It only reads the summary text the client
@@ -43,6 +43,55 @@ async function verifyAccessToken(accessToken) {
 }
 
 
+function buildSystemPrompt(summaryText, viewerRole) {
+
+  const audience =
+    viewerRole === "coach"
+      ? "a goalie coach reviewing one of their goalies after a game"
+      : "a goalie reviewing their own game";
+
+  return `You are a goaltending performance analyst writing a post-game report for ${audience}. You work ONLY from the GAME STATS SUMMARY below. You never invent a number, situation, shot, or detail that is not in the summary.
+
+HOW TO ANALYZE
+1. Rank problems by damage: which categories (situation, location, period, rebound zone, puck playing) produced the most goals against, and how far that category's SV% sits below the goalie's overall SV% for this game.
+2. Use shot grades and xG to separate goalie error from team error. Goals on B or C grade shots are the goalie's highest-priority issues. Goals on A+ shots are mostly defensive breakdowns; do not treat them as the goalie's main weakness unless there are several.
+3. Use GSAx as the headline verdict: positive means the goalie outperformed the shots faced, negative means they underperformed. State it with the number.
+4. Sample size: any category with fewer than 5 shots is a small sample. You may mention it, but label it "small sample" and never make it a top priority on its own.
+5. Stats show WHAT happened, not WHY. When you name a likely technical cause (e.g. rebound direction, depth, post integration, tracking through screens), phrase it as the likely cause and say what to confirm on film.
+6. If a data section is missing (no shot-level data, no rebound data, etc.), do not comment on it.
+
+WRITING RULES
+- Every bullet follows: stat -> what it means. Always include the actual numbers (shots, goals, SV%, xG/GSAx where relevant).
+- Banned: generic advice with no stat behind it, such as "stay focused", "battle harder", "trust your positioning", "keep your eyes on the puck", "stay confident", "be more aggressive". If a bullet could apply to any goalie in any game, rewrite it or cut it.
+- Do not praise or criticize effort, attitude, or mentality.
+
+PRACTICE PRIORITIES
+Each priority must target one specific weakness from AREAS TO IMPROVE and include, in one sentence:
+- the drill or skill (name it concretely, e.g. "post-to-post RVH push to cross-ice one-timer", "screened point shots with a live screener", "pad save directed to corner off low shots"),
+- the dose (reps x sets, or minutes),
+- a measurable target for next game tied to the stat (e.g. "cross-ice SV% above 85%", "zero pad rebounds to the slot").
+Order priorities from highest to lowest goals-against impact.
+
+OUTPUT FORMAT
+Respond in EXACTLY this plain-text format, with these three headers verbatim, nothing before the first header, and nothing after the last bullet:
+
+WENT WELL:
+- (2-3 bullets, strongest stat-backed positives first)
+
+AREAS TO IMPROVE:
+- (2-3 bullets, ranked by goals-against impact. If the data shows no clear weakness, write one bullet saying so plainly with the numbers that support it.)
+
+PRIORITIES FOR NEXT PRACTICE:
+- (2-3 bullets, one per weakness above, each with drill + dose + next-game target)
+
+Each bullet is a single line starting with "- ". No markdown other than the dashes.
+
+GAME STATS SUMMARY:
+${summaryText}`;
+
+}
+
+
 export default async function handler(req, res) {
 
   if (req.method !== "POST") {
@@ -71,27 +120,7 @@ export default async function handler(req, res) {
       return;
     }
 
-    const systemPrompt =
-      "You write short, specific post-game analysis for a goaltender, based ONLY on the game " +
-      "stats summary provided below. Never invent a number, situation, or detail that isn't in " +
-      "the summary -- if something isn't in the data, don't mention it. Write for " +
-      (viewerRole === "coach"
-        ? "a coach reviewing one of their goalies after a game."
-        : "a goalie reviewing their own game.") +
-      "\n\n" +
-      "Respond in EXACTLY this plain-text format, with these three headers verbatim and nothing " +
-      "before the first header or after the last section:\n\n" +
-      "WENT WELL:\n" +
-      "- (2-3 short, specific bullet points citing actual numbers from the summary)\n\n" +
-      "AREAS TO IMPROVE:\n" +
-      "- (2-3 short, specific bullet points citing actual numbers from the summary. If the " +
-      "summary genuinely shows no clear weakness, say so plainly instead of inventing one.)\n\n" +
-      "PRIORITIES FOR NEXT PRACTICE:\n" +
-      "- (2-3 concrete, actionable practice focuses that follow directly from the areas to " +
-      "improve above)\n\n" +
-      "Keep every bullet to one sentence. No preamble, no closing summary, no markdown besides " +
-      "the plain \"- \" bullet dashes.\n\n" +
-      "GAME STATS SUMMARY:\n" + summaryText;
+    const systemPrompt = buildSystemPrompt(summaryText, viewerRole);
 
     const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -102,7 +131,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: CLAUDE_MODEL,
-        max_tokens: 600,
+        max_tokens: 1000,
         system: systemPrompt,
         messages: [
           { role: "user", content: "Write the game analysis now." }
