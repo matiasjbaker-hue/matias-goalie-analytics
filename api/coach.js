@@ -208,6 +208,26 @@ function buildStatsSummary({ games, periodStats, shots, reboundControls, puckPla
 }
 
 
+// Builds the headers for every Anthropic API call. If the API key
+// was created at the organization level (not inside a workspace),
+// Anthropic requires an anthropic-workspace-id header naming the
+// workspace to bill/run in. Set ANTHROPIC_WORKSPACE_ID in Vercel
+// for that case. A key created inside a workspace doesn't need it,
+// and an empty header is rejected, so it's only sent when set.
+function anthropicHeaders() {
+  const headers = {
+    "Content-Type": "application/json",
+    "x-api-key": process.env.ANTHROPIC_API_KEY,
+    "anthropic-version": "2023-06-01"
+  };
+  const workspaceId = (process.env.ANTHROPIC_WORKSPACE_ID || "").trim();
+  if (workspaceId) {
+    headers["anthropic-workspace-id"] = workspaceId;
+  }
+  return headers;
+}
+
+
 export default async function handler(req, res) {
 
   if (req.method !== "POST") {
@@ -276,11 +296,7 @@ export default async function handler(req, res) {
 
     const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01"
-      },
+      headers: anthropicHeaders(),
       body: JSON.stringify({
         model: CLAUDE_MODEL,
         max_tokens: 700,
