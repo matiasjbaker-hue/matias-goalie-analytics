@@ -4816,12 +4816,19 @@ tr:hover td{
         </p>
 
         <p>
-          <strong>League calibration (v1.4)</strong> -- all xG values
+          <strong>League calibration (v1.5)</strong> -- all xG values
           are scaled so that an average shot mix produces an expected
           SV% equal to the GOHL league average (~.900–.905). Without
           this, the model assumed shots went in less often than they
           actually do in this league, which made average performances
           read as below expected.
+        </p>
+
+        <p>
+          <strong>Missing distance (v1.5)</strong> -- shots tagged in
+          Live Tag don't record a distance, so the model estimates one
+          from the shot's location using the average distance of shots
+          logged at that location.
         </p>
 
       </div>
@@ -5620,7 +5627,26 @@ function isHighDanger(shot){
 // Only used for the local pre-save preview fallback below -- the
 // authoritative value for any saved shot is shot.xg, computed and
 // stamped by the database trigger (see xg_model_versions for history).
-const XG_MODEL_VERSION = "v1.4-calibrated";
+const XG_MODEL_VERSION = "v1.5-calibrated";
+
+
+function imputeDistanceFromLocation(location){
+
+  if(location.includes("crease")) return 2.2;
+  if(location.includes("low slot")) return 3.5;
+  if(location.includes("goal line")) return 5;
+  if(location.includes("bottom of circle")) return 7.8;
+  if(location.includes("hash")) return 8.5;
+  if(location.includes("high slot")) return 18.3;
+  if(location.includes("slot")) return 10;
+  if(location.includes("top of circle")) return 19.2;
+  if(location.includes("dot")) return 18;
+  if(location.includes("circle")) return 13;
+  if(location.includes("wall") || location.includes("perimeter")) return 20;
+  if(location.includes("point")) return 28.9;
+  return 0;
+
+}
 
 
 function calculateShotXG(shot){
@@ -5635,8 +5661,13 @@ function calculateShotXG(shot){
   // Fallback path: a shot not yet saved (e.g. live-tag preview).
   // Same formula the database uses, kept in sync manually -- the
   // stored xg value always wins once the shot is actually saved.
+  // v1.5: Live Tag saves no distance -- impute from location using the
+  // per-location average of shots entered with distance. Matches
+  // calculate_shot_xg() in the database.
   const distance =
-    shotDistance(shot);
+    shotDistance(shot) > 0
+      ? shotDistance(shot)
+      : imputeDistanceFromLocation(shotLocation(shot));
 
   let baseXG;
 
@@ -5807,10 +5838,11 @@ function calculateShotXG(shot){
     );
 
 
-  // v1.4: GOHL league calibration -- scales every shot so an average
-  // shot mix produces the league-average SV% (~.9025). Applied before
-  // the 0.35 cap. Matches league_calibration in calculate_shot_xg().
-  const LEAGUE_CALIBRATION = 1.28;
+  // v1.5: GOHL league calibration -- scales every shot so an average
+  // shot mix produces the league-average SV% (~.9025). Recomputed from
+  // 1.28 after distance imputation. Applied before the 0.35 cap.
+  // Matches league_calibration in calculate_shot_xg().
+  const LEAGUE_CALIBRATION = 1.62;
 
   let rawXG =
     baseXG *
