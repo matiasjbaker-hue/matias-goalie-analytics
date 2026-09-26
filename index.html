@@ -4815,6 +4815,15 @@ tr:hover td{
           shots faced.
         </p>
 
+        <p>
+          <strong>League calibration (v1.4)</strong> -- all xG values
+          are scaled so that an average shot mix produces an expected
+          SV% equal to the GOHL league average (~.900–.905). Without
+          this, the model assumed shots went in less often than they
+          actually do in this league, which made average performances
+          read as below expected.
+        </p>
+
       </div>
 
     </div>
@@ -5611,7 +5620,7 @@ function isHighDanger(shot){
 // Only used for the local pre-save preview fallback below -- the
 // authoritative value for any saved shot is shot.xg, computed and
 // stamped by the database trigger (see xg_model_versions for history).
-const XG_MODEL_VERSION = "v1.3-heuristic";
+const XG_MODEL_VERSION = "v1.4-calibrated";
 
 
 function calculateShotXG(shot){
@@ -5798,9 +5807,15 @@ function calculateShotXG(shot){
     );
 
 
+  // v1.4: GOHL league calibration -- scales every shot so an average
+  // shot mix produces the league-average SV% (~.9025). Applied before
+  // the 0.35 cap. Matches league_calibration in calculate_shot_xg().
+  const LEAGUE_CALIBRATION = 1.28;
+
   let rawXG =
     baseXG *
-    multiplier;
+    multiplier *
+    LEAGUE_CALIBRATION;
 
 
   // v1.1: no shrinkage-to-baseline -- see calculate_shot_xg() in the
