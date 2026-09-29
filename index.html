@@ -4978,6 +4978,8 @@ tr:hover td{
           <option value="unknown">Untagged</option>
         </select>
 
+        <button type="button" class="btn-primary" id="shotLogBulkClipsBtn" style="display:none;margin-left:auto" onclick="openBulkClipsModal()">Bulk Attach Clips</button>
+
       </div>
 
       <div style="overflow-x:auto">
@@ -5001,6 +5003,68 @@ tr:hover td{
 
   </div>
 </div>
+
+
+<!-- ========================================================= -->
+<!-- ADMIN: BULK ATTACH CLIPS (one clip per shot, in order) -->
+<!-- ========================================================= -->
+
+<div class="giq-modal-overlay" id="bulkClipsModalOverlay" style="z-index:210">
+  <div class="giq-modal">
+
+    <div class="giq-modal-header">
+      <h3 id="bulkClipsTitle">Bulk Attach Clips</h3>
+      <button type="button" class="giq-modal-close" onclick="closeBulkClipsModal()">&times;</button>
+    </div>
+
+    <div class="giq-modal-body">
+
+      <p class="small-note" style="margin-top:0">
+        Select all of this game's clips at once. Clip 1 goes to shot 1, clip 2 to shot 2, and so on.
+        Shots are ordered by period, then the order you entered them.
+      </p>
+
+      <div class="giq-modal-filters" style="align-items:center">
+        <button type="button" class="btn-secondary" id="bulkClipsPickBtn" onclick="document.getElementById('bulkClipsInput').click()">Choose Clips</button>
+        <input type="file" id="bulkClipsInput" accept="video/*" multiple style="display:none" onchange="onBulkClipsPicked(this)">
+
+        <select id="bulkClipsSort" onchange="renderBulkClipsPreview()">
+          <option value="time">Order clips by recording time</option>
+          <option value="name">Order clips by file name</option>
+        </select>
+
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">
+          <input type="checkbox" id="bulkClipsSkipExisting" checked onchange="renderBulkClipsPreview()">
+          Skip shots that already have a clip
+        </label>
+      </div>
+
+      <div class="small-note" id="bulkClipsSummary"></div>
+
+      <div style="overflow-x:auto">
+        <table class="shot-log-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Shot</th>
+              <th>Clip</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="bulkClipsBody"></tbody>
+        </table>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button type="button" class="btn-primary" id="bulkClipsStartBtn" onclick="startBulkClipsUpload()" disabled>Attach Clips</button>
+        <button type="button" class="btn-secondary" id="bulkClipsCancelBtn" onclick="closeBulkClipsModal()">Close</button>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
 
 
 <!-- ========================================================= -->
@@ -7400,6 +7464,9 @@ function openShotLogModal(gameId){
 
   renderShotLogTable();
 
+  document.getElementById("shotLogBulkClipsBtn").style.display =
+    currentRole === "admin" ? "" : "none";
+
   document.getElementById("shotLogModalOverlay").classList.add("open");
 
 }
@@ -7409,6 +7476,337 @@ function closeShotLogModal(){
   document.getElementById("shotLogModalOverlay").classList.remove("open");
   shotLogModalGameId = null;
 }
+
+
+
+/* ============================================================
+   ADMIN: BULK ATTACH CLIPS
+   Pairs N selected clip files with the game's shots in order
+   (period, then entry order) and attaches each one the same way
+   attachClipToShot does: upload to R2 -> game_videos row with
+   status "clip" -> point the shot at it.
+============================================================ */
+
+let bulkClipsGameId = null;
+let bulkClipsFiles = [];
+let bulkClipsRunning = false;
+let bulkClipsStatus = {};
+let bulkClipsFrozen = null;
+
+function bulkPeriodRank(period){
+
+  const p = normalize(period);
+
+  if(p.includes("ot") || p.includes("overtime")){ return 4; }
+
+  const digit = p.match(/\d/);
+
+  return digit ? Number(digit[0]) : 9;
+
+}
+
+
+function bulkOrderedShots(){
+
+  const skipExisting =
+    document.getElementById("bulkClipsSkipExisting").checked;
+
+  return allShots
+    .filter(s => String(s.game_id) === String(bulkClipsGameId))
+    .filter(s => !(skipExisting && s.game_video_id))
+    .sort((a, b) =>
+      bulkPeriodRank(a.period) - bulkPeriodRank(b.period) ||
+      Number(a.shot_id ?? a.id) - Number(b.shot_id ?? b.id)
+    );
+
+}
+
+
+function bulkOrderedFiles(){
+
+  const sortBy =
+    document.getElementById("bulkClipsSort").value;
+
+  const collator =
+    new Intl.Collator(undefined, { numeric:true, sensitivity:"base" });
+
+  return [...bulkClipsFiles].sort((a, b) =>
+    sortBy === "name"
+      ? collator.compare(a.name, b.name)
+      : (a.lastModified - b.lastModified) || collator.compare(a.name, b.name)
+  );
+
+}
+
+
+function openBulkClipsModal(){
+
+  if(currentRole !== "admin" || !shotLogModalGameId){ return; }
+
+  bulkClipsGameId = shotLogModalGameId;
+  bulkClipsFiles = [];
+  bulkClipsStatus = {};
+
+  document.getElementById("bulkClipsInput").value = "";
+  document.getElementById("bulkClipsTitle").textContent =
+    document.getElementById("shotLogModalTitle").textContent.replace("Shot Log", "Bulk Attach Clips");
+
+  renderBulkClipsPreview();
+
+  document.getElementById("bulkClipsModalOverlay").classList.add("open");
+
+}
+
+
+function closeBulkClipsModal(){
+
+  if(bulkClipsRunning){
+    showToast("Clips are still uploading -- keep this open until it finishes.", "error");
+    return;
+  }
+
+  document.getElementById("bulkClipsModalOverlay").classList.remove("open");
+  bulkClipsGameId = null;
+  bulkClipsFiles = [];
+
+}
+
+
+function onBulkClipsPicked(input){
+
+  bulkClipsFiles = Array.from(input.files || []);
+  bulkClipsStatus = {};
+  renderBulkClipsPreview();
+
+}
+
+
+function bulkShotLabel(s){
+
+  const bits = [
+    s.period ? `P${String(s.period).replace(/\D/g, "") || s.period}` : null,
+    s.outcome ? (isGoal(s) ? "Goal" : "Save") : null,
+    s.shot_type || null,
+    s.location || null
+  ].filter(Boolean);
+
+  return bits.join(", ") || "Shot";
+
+}
+
+
+function renderBulkClipsPreview(){
+
+  // While uploading, keep showing the exact pairing being processed.
+  const shots = bulkClipsFrozen ? bulkClipsFrozen.shots : bulkOrderedShots();
+  const files = bulkClipsFrozen ? bulkClipsFrozen.files : bulkOrderedFiles();
+  const rows = Math.max(shots.length, files.length);
+
+  const summary = document.getElementById("bulkClipsSummary");
+  const startBtn = document.getElementById("bulkClipsStartBtn");
+  const tbody = document.getElementById("bulkClipsBody");
+
+  const pairs = Math.min(shots.length, files.length);
+
+  if(!files.length){
+    summary.style.color = "";
+    summary.textContent = `${shots.length} shot${shots.length === 1 ? "" : "s"} waiting for a clip. Choose your clips to preview the matchup.`;
+  }
+  else if(files.length === shots.length){
+    summary.style.color = "";
+    summary.textContent = `${files.length} clips for ${shots.length} shots. Check a few rows, then attach.`;
+  }
+  else{
+    summary.style.color = "#ffb020";
+    summary.textContent =
+      `${files.length} clips but ${shots.length} shots -- counts don't match. ` +
+      `Only the first ${pairs} will be attached, so check the order before continuing.`;
+  }
+
+  startBtn.disabled = bulkClipsRunning || pairs === 0;
+  startBtn.textContent = pairs ? `Attach ${pairs} Clip${pairs === 1 ? "" : "s"}` : "Attach Clips";
+
+  if(!rows){
+    tbody.innerHTML =
+      `<tr><td colspan="4"><div class="empty-state">No shots on this game need a clip.</div></td></tr>`;
+    return;
+  }
+
+  const fmtTime = (ms) =>
+    new Date(ms).toLocaleTimeString([], { hour:"numeric", minute:"2-digit", second:"2-digit" });
+
+  tbody.innerHTML =
+    Array.from({ length: rows }, (_, i) => {
+
+      const shot = shots[i];
+      const file = files[i];
+      const st = shot ? bulkClipsStatus[String(shot.shot_id ?? shot.id)] : null;
+
+      const statusText =
+        !shot || !file ? `<span style="color:var(--muted)">Won't attach</span>` :
+        !st ? `<span style="color:var(--muted)">Ready</span>` :
+        st.state === "uploading" ? `Uploading ${st.pct || 0}%` :
+        st.state === "done" ? `<span style="color:#3ddc84">Attached</span>` :
+        `<span style="color:#ff6b6b" title="${escapeHtml(st.error || "")}">Failed</span>`;
+
+      return `
+        <tr>
+          <td>${i + 1}</td>
+          <td>${shot ? escapeHtml(bulkShotLabel(shot)) : `<span style="color:var(--muted)">No shot</span>`}</td>
+          <td>${file
+            ? `${escapeHtml(file.name)}<br><small style="color:var(--muted)">${fmtTime(file.lastModified)}</small>`
+            : `<span style="color:var(--muted)">No clip</span>`}</td>
+          <td>${statusText}</td>
+        </tr>
+      `;
+
+    }).join("");
+
+}
+
+
+async function startBulkClipsUpload(){
+
+  if(currentRole !== "admin" || bulkClipsRunning){ return; }
+
+  if(!currentSession || !currentSession.access_token){
+    showToast("You need to be signed in.", "error");
+    return;
+  }
+
+  if(clipOperationInFlight){
+    showToast("Another clip upload is still running.", "error");
+    return;
+  }
+
+  const shots = bulkOrderedShots();
+  const files = bulkOrderedFiles();
+  const pairs = Math.min(shots.length, files.length);
+
+  if(!pairs){ return; }
+
+  bulkClipsRunning = true;
+  clipOperationInFlight = true;
+
+  document.getElementById("bulkClipsPickBtn").disabled = true;
+  document.getElementById("bulkClipsSort").disabled = true;
+  document.getElementById("bulkClipsSkipExisting").disabled = true;
+  document.getElementById("bulkClipsCancelBtn").disabled = true;
+  document.getElementById("bulkClipsStartBtn").disabled = true;
+
+  bulkClipsFrozen = { shots, files };
+
+  let attached = 0;
+  let failed = 0;
+
+  for(let i = 0; i < pairs; i++){
+
+    const shot = shots[i];
+    const file = files[i];
+    const key = String(shot.shot_id ?? shot.id);
+
+    bulkClipsStatus[key] = { state:"uploading", pct:0 };
+    renderBulkClipsPreview();
+
+    let newVideoId = null;
+
+    try{
+
+      const storagePath =
+        await uploadFileToR2(file, (sent, total) => {
+          bulkClipsStatus[key].pct = total ? Math.round((sent / total) * 100) : 0;
+          renderBulkClipsPreview();
+        });
+
+      const { data: insertedVideo, error: videoError } =
+        await supabaseClient
+          .from("game_videos")
+          .insert({
+            user_id: shot.user_id,
+            game_id: shot.game_id,
+            storage_path: storagePath,
+            status: "clip"
+          })
+          .select();
+
+      if(videoError){ throw new Error(videoError.message); }
+
+      newVideoId = insertedVideo[0].id;
+
+      const { data: updatedShots, error: shotError } =
+        await supabaseClient
+          .from("Shots")
+          .update({
+            game_video_id: newVideoId,
+            clip_start_seconds: 0,
+            clip_end_seconds: null
+          })
+          .eq(shotIdColumn(shot), shot.shot_id ?? shot.id)
+          .select();
+
+      if(shotError){ throw new Error(shotError.message); }
+
+      if(!updatedShots || !updatedShots.length){
+        throw new Error("Nothing was updated -- you may not have permission to edit this shot.");
+      }
+
+      shot.game_video_id = newVideoId;
+      shot.clip_start_seconds = 0;
+      shot.clip_end_seconds = null;
+
+      bulkClipsStatus[key] = { state:"done" };
+      attached++;
+
+    }
+    catch(error){
+
+      console.error("Bulk clip error:", error);
+
+      if(newVideoId && String(shot.game_video_id) !== String(newVideoId)){
+        try{ await removeClipVideoIfUnused(newVideoId); }
+        catch(cleanupError){ console.error(cleanupError); }
+      }
+
+      bulkClipsStatus[key] = { state:"error", error:error.message };
+      failed++;
+
+    }
+
+    renderBulkClipsPreview();
+
+  }
+
+  bulkClipsRunning = false;
+  clipOperationInFlight = false;
+
+  document.getElementById("bulkClipsPickBtn").disabled = false;
+  document.getElementById("bulkClipsSort").disabled = false;
+  document.getElementById("bulkClipsSkipExisting").disabled = false;
+  document.getElementById("bulkClipsCancelBtn").disabled = false;
+
+  // Attached files are done; keep only the ones that weren't used or
+  // failed so "Attach" can retry without re-uploading successes.
+  const usedDone = new Set(
+    shots.slice(0, pairs)
+      .map((s, i) => bulkClipsStatus[String(s.shot_id ?? s.id)]?.state === "done" ? files[i] : null)
+      .filter(Boolean)
+  );
+  bulkClipsFiles = bulkClipsFiles.filter(f => !usedDone.has(f));
+  bulkClipsFrozen = null;
+  document.getElementById("bulkClipsSkipExisting").checked = true;
+
+  renderBulkClipsPreview();
+  renderShotLogTable();
+
+  if(failed){
+    showToast(`${attached} clips attached, ${failed} failed. Click Attach again to retry the failed ones.`, "error");
+  }
+  else{
+    showToast(`${attached} clips attached.`);
+  }
+
+}
+
 
 
 function renderShotLogTable(){
