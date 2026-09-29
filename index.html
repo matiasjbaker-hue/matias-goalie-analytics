@@ -2608,8 +2608,10 @@ tr:hover td{
         <thead>
           <tr>
             <th>Name</th>
+            <th>Team</th>
             <th>Assigned Goalies</th>
             <th>Created</th>
+            <th></th>
           </tr>
         </thead>
         <tbody id="adminCoachesBody"></tbody>
@@ -2638,6 +2640,7 @@ tr:hover td{
           <tr>
             <th>Name</th>
             <th>Team</th>
+            <th>Birth Year</th>
             <th>Games Tracked</th>
             <th>Coaches Assigned</th>
             <th></th>
@@ -2676,6 +2679,56 @@ tr:hover td{
           </thead>
           <tbody id="adminGoalieGamesBody"></tbody>
         </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ========================================================= -->
+<!-- ADMIN: EDIT PROFILE (goalies and coaches) -->
+<!-- ========================================================= -->
+
+<div class="giq-modal-overlay" id="adminProfileModalOverlay">
+  <div class="giq-modal" style="max-width:480px">
+
+    <div class="giq-modal-header">
+      <h3 id="adminProfileTitle">Edit Profile</h3>
+      <button type="button" class="giq-modal-close" onclick="closeAdminProfileModal()">&times;</button>
+    </div>
+
+    <div class="giq-modal-body">
+      <div class="field-grid">
+        <div class="field">
+          <label for="adminProfileName">Name</label>
+          <input id="adminProfileName" type="text" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="adminProfileTeam">Team</label>
+          <input id="adminProfileTeam" type="text" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="adminProfileBirthYear">Birth Year</label>
+          <input id="adminProfileBirthYear" type="number" min="1950" max="2025" step="1" inputmode="numeric">
+        </div>
+        <div class="field">
+          <label for="adminProfileSeason">Season</label>
+          <input id="adminProfileSeason" type="text" autocomplete="off" placeholder="e.g. 2026-27">
+        </div>
+        <div class="field">
+          <label for="adminProfileRole">Role</label>
+          <select id="adminProfileRole">
+            <option value="goalie">Goalie</option>
+            <option value="coach">Coach</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+      </div>
+      <div class="small-note" id="adminProfileStatus"></div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button type="button" class="btn-primary" id="adminProfileSaveBtn" onclick="saveAdminProfile(this)">Save Changes</button>
+        <button type="button" class="btn-secondary" onclick="closeAdminProfileModal()">Cancel</button>
       </div>
     </div>
 
@@ -11991,7 +12044,7 @@ function renderAdminCoaches(){
   if(!coaches.length){
 
     tbody.innerHTML =
-      `<tr><td colspan="3"><div class="empty-state">No coach accounts yet.</div></td></tr>`;
+      `<tr><td colspan="5"><div class="empty-state">No coach accounts yet.</div></td></tr>`;
 
     return;
 
@@ -12008,9 +12061,11 @@ function renderAdminCoaches(){
 
       return `
         <tr>
-          <td>${c.full_name || "Unnamed"}</td>
+          <td>${escapeHtml(c.full_name || "Unnamed")}</td>
+          <td>${escapeHtml(c.team || "—")}</td>
           <td>${assignedCount}</td>
           <td>${created}</td>
+          <td><button type="button" class="btn-secondary" onclick="openAdminProfileModal('${c.id}')">Edit</button></td>
         </tr>
       `;
 
@@ -12027,7 +12082,7 @@ function renderAdminGoalies(){
   if(!goalies.length){
 
     tbody.innerHTML =
-      `<tr><td colspan="4"><div class="empty-state">No goalie accounts yet.</div></td></tr>`;
+      `<tr><td colspan="6"><div class="empty-state">No goalie accounts yet.</div></td></tr>`;
 
     return;
 
@@ -12044,11 +12099,15 @@ function renderAdminGoalies(){
 
       return `
         <tr>
-          <td>${g.full_name || "Unnamed"}</td>
-          <td>${g.team || "—"}</td>
+          <td>${escapeHtml(g.full_name || "Unnamed")}</td>
+          <td>${escapeHtml(g.team || "—")}</td>
+          <td>${g.birth_year || "—"}</td>
           <td>${gameCount}</td>
           <td>${coachCount}</td>
-          <td><button type="button" class="btn-secondary" onclick="openAdminGoalieGamesModal('${g.id}')">Games</button></td>
+          <td style="white-space:nowrap">
+            <button type="button" class="btn-secondary" onclick="openAdminProfileModal('${g.id}')">Edit</button>
+            <button type="button" class="btn-secondary" onclick="openAdminGoalieGamesModal('${g.id}')">Games</button>
+          </td>
         </tr>
       `;
 
@@ -12091,6 +12150,143 @@ function openAdminGoalieGamesModal(goalieId){
 function closeAdminGoalieGamesModal(){
   document.getElementById("adminGoalieGamesModalOverlay").classList.remove("open");
 }
+
+
+
+/* ============================================================
+   ADMIN: EDIT GOALIE / COACH PROFILES
+   RLS: "Admins can update all profiles" (is_admin()). Role changes
+   are additionally guarded by trg_prevent_role_self_escalation.
+============================================================ */
+
+let adminEditingProfileId = null;
+
+function openAdminProfileModal(profileId){
+
+  const profile =
+    adminProfiles.find(p => p.id === profileId);
+
+  if(!profile){ return; }
+
+  adminEditingProfileId = profileId;
+
+  document.getElementById("adminProfileTitle").textContent =
+    `Edit ${profile.full_name || "Profile"}`;
+
+  document.getElementById("adminProfileName").value = profile.full_name || "";
+  document.getElementById("adminProfileTeam").value = profile.team || "";
+  document.getElementById("adminProfileBirthYear").value = profile.birth_year || "";
+  document.getElementById("adminProfileSeason").value = profile.season || "";
+
+  const roleSelect = document.getElementById("adminProfileRole");
+  roleSelect.value = profile.role || "goalie";
+
+  // Don't let the admin demote their own account and lock themselves out.
+  const isSelf = currentProfile && currentProfile.id === profileId;
+  roleSelect.disabled = !!isSelf;
+  roleSelect.title = isSelf ? "You can't change your own role." : "";
+
+  const statusEl = document.getElementById("adminProfileStatus");
+  statusEl.textContent = "";
+  statusEl.style.color = "";
+
+  document.getElementById("adminProfileModalOverlay").classList.add("open");
+  document.getElementById("adminProfileName").focus();
+
+}
+
+
+function closeAdminProfileModal(){
+  adminEditingProfileId = null;
+  document.getElementById("adminProfileModalOverlay").classList.remove("open");
+}
+
+
+async function saveAdminProfile(button){
+
+  if(!adminEditingProfileId){ return; }
+
+  const statusEl = document.getElementById("adminProfileStatus");
+  const fail = (msg) => {
+    statusEl.textContent = msg;
+    statusEl.style.color = "#ff6b6b";
+  };
+
+  const name = document.getElementById("adminProfileName").value.trim();
+  const team = document.getElementById("adminProfileTeam").value.trim();
+  const season = document.getElementById("adminProfileSeason").value.trim();
+  const birthYearRaw = document.getElementById("adminProfileBirthYear").value.trim();
+  const roleSelect = document.getElementById("adminProfileRole");
+
+  if(!name){ return fail("Name is required."); }
+
+  let birthYear = null;
+  if(birthYearRaw){
+    birthYear = parseInt(birthYearRaw, 10);
+    const thisYear = new Date().getFullYear();
+    if(!Number.isInteger(birthYear) || birthYear < 1950 || birthYear > thisYear){
+      return fail(`Birth year must be between 1950 and ${thisYear}.`);
+    }
+  }
+
+  const payload = {
+    full_name: name,
+    team: team || null,
+    season: season || null,
+    birth_year: birthYear
+  };
+
+  if(!roleSelect.disabled){
+    payload.role = roleSelect.value;
+  }
+
+  button.disabled = true;
+  statusEl.style.color = "";
+  statusEl.textContent = "Saving...";
+
+  try{
+
+    // .select() so a policy silently blocking the update (zero rows,
+    // no error) is caught instead of looking like success.
+    const { data, error } =
+      await supabaseClient
+        .from("profiles")
+        .update(payload)
+        .eq("id", adminEditingProfileId)
+        .select();
+
+    if(error){ throw new Error(error.message); }
+
+    if(!data || !data.length){
+      throw new Error("Nothing was updated -- check that your account has the admin role.");
+    }
+
+    const updated = data[0];
+    adminProfiles = adminProfiles.map(p => p.id === updated.id ? updated : p);
+
+    if(currentProfile && currentProfile.id === updated.id){
+      currentProfile = { ...currentProfile, ...updated };
+    }
+
+    renderAdminHome();
+    renderAdminCoaches();
+    renderAdminGoalies();
+    renderAdminAssignments();
+
+    closeAdminProfileModal();
+    showToast("Profile saved.");
+
+  }
+  catch(err){
+    console.error("Profile save error:", err);
+    fail("Couldn't save: " + err.message);
+  }
+  finally{
+    button.disabled = false;
+  }
+
+}
+
 
 
 
