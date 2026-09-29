@@ -1940,6 +1940,362 @@ tr:hover td{
 
 }
 
+
+/* =========================================================
+   GAME OVERVIEW / DEVELOPMENT TREND / GOALIE SWITCHER
+========================================================= */
+
+.goalie-switcher{
+  max-width:1500px;
+  margin:0 auto;
+  padding:18px 25px 0;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+}
+
+.goalie-switcher label{
+  color:var(--muted);
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.7px;
+  font-weight:700;
+}
+
+.goalie-switcher select,
+.go-select{
+  background:var(--card);
+  border:1px solid var(--border2);
+  border-radius:8px;
+  padding:9px 12px;
+  color:var(--text);
+  font-size:14px;
+  font-weight:700;
+  font-family:inherit;
+  min-width:220px;
+  max-width:100%;
+}
+
+.goalie-switcher select:focus,
+.go-select:focus{
+  outline:none;
+  border-color:var(--green);
+}
+
+.go-selector{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:center;
+  gap:12px;
+  padding:14px;
+}
+
+.go-selector .go-select{
+  width:100%;
+  text-align:center;
+  text-align-last:center;
+  font-size:15px;
+  padding:11px 12px;
+}
+
+.go-nav-btn{
+  background:transparent;
+  border:1px solid var(--border2);
+  color:var(--text);
+  border-radius:8px;
+  padding:10px 14px;
+  font-size:13px;
+  font-weight:700;
+  font-family:inherit;
+  cursor:pointer;
+  white-space:nowrap;
+}
+
+.go-nav-btn:hover:not(:disabled){
+  border-color:var(--green);
+  color:var(--green);
+}
+
+.go-nav-btn:disabled{
+  opacity:.35;
+  cursor:default;
+}
+
+.go-position{
+  text-align:center;
+  color:var(--muted2);
+  font-size:12px;
+  margin:8px 0 18px;
+}
+
+.go-hero{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);
+  gap:0;
+  padding:0;
+  overflow:hidden;
+}
+
+.go-hero-block{
+  padding:22px 24px;
+}
+
+.go-hero-block + .go-hero-block{
+  border-left:1px solid var(--border);
+}
+
+.go-eyebrow{
+  color:var(--muted);
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.8px;
+  font-weight:700;
+  margin-bottom:12px;
+}
+
+.go-score{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+.go-score-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  gap:14px;
+  font-size:17px;
+  font-weight:700;
+}
+
+.go-score-row .go-score-num{
+  font-size:28px;
+  font-weight:800;
+  letter-spacing:-.5px;
+}
+
+.go-score-row.is-loser{
+  color:var(--muted);
+}
+
+.go-meta{
+  margin-top:12px;
+  color:var(--muted2);
+  font-size:12px;
+  display:flex;
+  gap:10px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+
+.go-goaltending{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:14px;
+  align-items:end;
+}
+
+.go-big{
+  font-size:34px;
+  font-weight:800;
+  line-height:1;
+  letter-spacing:-.6px;
+}
+
+.go-big-label{
+  color:var(--muted);
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.7px;
+  margin-top:8px;
+}
+
+.go-kpi .metric{
+  font-size:28px;
+}
+
+.go-kpi-deltas{
+  margin-top:12px;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  font-size:12px;
+  color:var(--muted2);
+}
+
+.go-kpi-deltas div{
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+}
+
+.go-delta{
+  font-weight:700;
+  white-space:nowrap;
+}
+
+.go-delta-up{ color:var(--green); }
+.go-delta-down{ color:var(--red); }
+.go-delta-flat{ color:var(--muted); }
+
+.go-actions{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-top:14px;
+}
+
+.go-mini-table th,
+.go-mini-table td{
+  padding:9px 8px;
+  font-size:13px;
+}
+
+.go-trend-controls{
+  display:inline-flex;
+  border:1px solid var(--border2);
+  border-radius:8px;
+  overflow:hidden;
+}
+
+.go-trend-controls button{
+  background:transparent;
+  border:0;
+  color:var(--muted);
+  padding:7px 12px;
+  font-size:12px;
+  font-weight:700;
+  font-family:inherit;
+  cursor:pointer;
+}
+
+.go-trend-controls button.active{
+  background:rgba(105,221,160,.12);
+  color:var(--green);
+}
+
+.go-trend-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  gap:14px;
+  flex-wrap:wrap;
+  margin:34px 0 14px;
+}
+
+.go-trend-header h3{
+  margin:0 0 4px;
+  font-size:18px;
+}
+
+.go-trend-header p{
+  margin:0;
+  color:var(--muted2);
+  font-size:13px;
+}
+
+.go-trend-table th,
+.go-trend-table td{
+  white-space:nowrap;
+  text-align:right;
+  padding:10px 12px;
+  font-size:13px;
+}
+
+.go-trend-table th:first-child,
+.go-trend-table td:first-child{
+  text-align:left;
+  position:sticky;
+  left:0;
+  background:var(--card);
+  z-index:1;
+}
+
+.go-trend-table .is-selected{
+  background:rgba(105,221,160,.07);
+  font-weight:800;
+}
+
+.go-trend-table th.is-selected{
+  color:var(--green);
+}
+
+.go-trend-table .go-metric-hint{
+  display:block;
+  color:var(--muted2);
+  font-size:10px;
+  font-weight:600;
+  margin-top:2px;
+}
+
+#gameLogBody tr.go-clickable{
+  cursor:pointer;
+}
+
+#gameLogBody tr.go-clickable:hover td{
+  background:rgba(105,221,160,.05);
+}
+
+.go-opp-link{
+  color:var(--text);
+  font-weight:700;
+  text-decoration:none;
+  border-bottom:1px dotted var(--border2);
+}
+
+@media(max-width:1100px){
+
+  .go-goaltending{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+
+}
+
+@media(max-width:750px){
+
+  .goalie-switcher{
+    padding:12px 15px 0;
+  }
+
+  .goalie-switcher select{
+    flex:1;
+    min-width:0;
+  }
+
+  .go-selector{
+    grid-template-columns:auto minmax(0,1fr) auto;
+    gap:8px;
+    padding:10px;
+  }
+
+  .go-nav-btn{
+    padding:10px 11px;
+  }
+
+  .go-nav-btn .go-nav-text{
+    display:none;
+  }
+
+  .go-selector .go-select{
+    font-size:13px;
+  }
+
+  .go-hero{
+    grid-template-columns:1fr;
+  }
+
+  .go-hero-block + .go-hero-block{
+    border-left:0;
+    border-top:1px solid var(--border);
+  }
+
+  .go-big{
+    font-size:28px;
+  }
+
+}
+
 </style>
 </head>
 
@@ -2249,6 +2605,10 @@ tr:hover td{
       Overview
     </button>
 
+    <button id="goalie-nav-gameoverview" onclick="openGameOverview(null)">
+      Game Overview
+    </button>
+
     <button type="button" class="nav-dropdown-toggle" id="stats-toggle-btn" onclick="toggleNavDropdown(event)">
       Stats ▾
     </button>
@@ -2279,6 +2639,10 @@ tr:hover td{
 
     <button class="active" id="coach-nav-myGoalies" onclick="showTab('coachhome',this)">
       My Goalies
+    </button>
+
+    <button id="coach-nav-gameoverview" onclick="openGameOverview(null)">
+      Game Overview
     </button>
 
     <button type="button" class="nav-dropdown-toggle" id="coach-stats-toggle-btn" onclick="toggleNavDropdown(event)">
@@ -2317,6 +2681,10 @@ tr:hover td{
       Goalies
     </button>
 
+    <button type="button" class="nav-dropdown-toggle" id="admin-stats-toggle-btn" onclick="toggleNavDropdown(event)">
+      Goalie Analytics ▾
+    </button>
+
     <button onclick="showTab('adminassignments',this)">
       Assignments
     </button>
@@ -2339,8 +2707,16 @@ tr:hover td{
 
 <div class="nav-dropdown-menu" id="stats-dropdown-menu">
 
+  <button data-staff-only onclick="selectStatsTab('overview',this)">
+    Season Overview
+  </button>
+
   <button onclick="selectStatsTab('gamelog',this)">
     Game Log
+  </button>
+
+  <button onclick="selectStatsTab('gameoverview',this)">
+    Game Overview
   </button>
 
   <button onclick="selectStatsTab('periods',this)">
@@ -2363,6 +2739,12 @@ tr:hover td{
     Puck Playing
   </button>
 
+</div>
+
+
+<div class="goalie-switcher" id="goalie-switcher" style="display:none">
+  <label for="goalieSwitcherSelect">Viewing goalie</label>
+  <select id="goalieSwitcherSelect" onchange="switchViewedGoalie(this.value)"></select>
 </div>
 
 
@@ -2534,7 +2916,11 @@ tr:hover td{
     <p>Full analytics, coach notes, and the AI Coach for this goalie.</p>
   </div>
 
-  <div class="grid grid-3">
+  <div class="grid grid-4">
+
+    <button class="btn-secondary" style="width:100%" onclick="openGameOverview(null)">
+      Latest Game Overview →
+    </button>
 
     <button class="btn-secondary" style="width:100%" onclick="showTab('gamelog', document.getElementById('coach-stats-toggle-btn'))">
       Full Game Log →
@@ -3033,7 +3419,7 @@ tr:hover td{
 
   <div class="page-title">
     <h2>Game Log</h2>
-    <p>Game-by-game results with advanced performance context.</p>
+    <p>Game-by-game results. Tap any game for its full breakdown and how it compares with your other games.</p>
   </div>
 
   <div class="card">
@@ -3063,6 +3449,80 @@ tr:hover td{
 
       </table>
 
+    </div>
+
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- GAME OVERVIEW (single-game snapshot + development trend) -->
+<!-- ========================================================= -->
+
+<section id="gameoverview" class="tab">
+
+  <div class="page-title">
+    <h2>Game Overview</h2>
+    <p>Everything that happened in one game, and how it compares with the games before it.</p>
+  </div>
+
+  <div id="goEmpty"></div>
+
+  <div id="goContent" style="display:none">
+
+    <div class="card go-selector">
+      <button type="button" class="go-nav-btn" id="goPrevBtn" onclick="stepGameOverview(-1)" aria-label="Previous game">← <span class="go-nav-text">Previous</span></button>
+      <select class="go-select" id="goGameSelect" onchange="selectGameOverview(this.value)" aria-label="Select game"></select>
+      <button type="button" class="go-nav-btn" id="goNextBtn" onclick="stepGameOverview(1)" aria-label="Next game"><span class="go-nav-text">Next</span> →</button>
+    </div>
+
+    <div class="go-position" id="goPosition"></div>
+
+    <div class="card go-hero" id="goHero"></div>
+
+    <div class="grid grid-4 section-space" id="goKpis"></div>
+
+    <div class="grid grid-2 section-space" id="goBreakdownA"></div>
+
+    <div class="grid grid-2 section-space" id="goBreakdownB"></div>
+
+    <div class="go-trend-header">
+      <div>
+        <h3>Development Over Time</h3>
+        <p id="goTrendSubtitle">How this game fits into your progression.</p>
+      </div>
+      <div class="go-trend-controls" id="goTrendControls">
+        <button type="button" data-window="5" onclick="setGameTrendWindow(5)">Last 5</button>
+        <button type="button" data-window="10" onclick="setGameTrendWindow(10)">Last 10</button>
+        <button type="button" data-window="0" onclick="setGameTrendWindow(0)">Season</button>
+      </div>
+    </div>
+
+    <div id="goTrendSummary"></div>
+
+    <div class="grid grid-2 section-space">
+
+      <div class="card chart-card compact">
+        <h3>Save % vs Expected</h3>
+        <div class="chart-caption">Above the dashed line = stopped more than the shot quality predicted.</div>
+        <div class="chart-wrap"><canvas id="goTrendSVChart"></canvas></div>
+      </div>
+
+      <div class="card chart-card compact">
+        <h3>Goals Saved Above Expected</h3>
+        <div class="chart-caption">Per game. Positive = goals saved beyond an average goalie.</div>
+        <div class="chart-wrap"><canvas id="goTrendGSAxChart"></canvas></div>
+      </div>
+
+    </div>
+
+    <div class="card section-space">
+      <h3>Game-by-Game</h3>
+      <div class="table-wrap">
+        <table class="go-trend-table" id="goTrendTable"></table>
+      </div>
+      <div class="small-note">Green/red reflects whether a change is good for a goalie: lower is better for GAA, higher is better for everything else. Expected SV% and Shots Against describe the workload, so they're shown without color.</div>
     </div>
 
   </div>
@@ -6501,6 +6961,19 @@ function showTab(id,button){
     renderAboutCard();
   }
 
+  // Coach/admin opening an analytics tab with no goalie picked yet.
+  ensureStaffGoalieSelected(id);
+
+  if(id === "gameoverview"){
+    renderGameOverview();
+    syncGameOverviewUrl();
+  }
+  else{
+    clearGameOverviewUrl();
+  }
+
+  renderGoalieSwitcher();
+
 
   setTimeout(() => {
 
@@ -6541,6 +7014,11 @@ function toggleNavDropdown(e){
     document.getElementById("stats-toggle-btn");
 
   activeStatsToggleBtn = toggleBtn;
+
+  const isStaff = currentRole === "coach" || currentRole === "admin";
+  menu.querySelectorAll("[data-staff-only]").forEach(b => {
+    b.style.display = isStaff ? "" : "none";
+  });
 
   const rect =
     toggleBtn.getBoundingClientRect();
@@ -6588,7 +7066,8 @@ document.addEventListener("click", function(e){
   const toggleBtns =
     [
       document.getElementById("stats-toggle-btn"),
-      document.getElementById("coach-stats-toggle-btn")
+      document.getElementById("coach-stats-toggle-btn"),
+      document.getElementById("admin-stats-toggle-btn")
     ].filter(Boolean);
 
   const clickedToggle =
@@ -8492,16 +8971,20 @@ function renderGameLog(){
     const tr =
       document.createElement("tr");
 
+    tr.className = "go-clickable";
+    tr.title = "Open Game Overview";
+    tr.addEventListener("click", () => openGameOverview(game.id));
+
 
     tr.innerHTML = `
 
-      <td>${gameDate(game)}</td>
+      <td>${escapeHtml(gameDate(game))}</td>
 
-      <td>${gameOpponent(game)}</td>
+      <td><a href="#game-overview?game=${encodeURIComponent(game.id)}" class="go-opp-link" onclick="event.preventDefault()">${escapeHtml(gameOpponent(game))}</a></td>
 
       <td>
         <span class="result-pill ${resultClass}">
-          ${gameResult(game) || "—"}
+          ${escapeHtml(gameResult(game)) || "—"}
         </span>
       </td>
 
@@ -8528,8 +9011,9 @@ function renderGameLog(){
       <td>${minutes ? minutes.toFixed(1) : "—"}</td>
 
       <td>
-        <button type="button" class="btn-secondary" onclick="generateGameReportPDF(${game.id}, this)">PDF</button>
-        <button type="button" class="btn-secondary" onclick="openShotLogModal(${game.id})">Shots</button>
+        <button type="button" class="btn-secondary" onclick="event.stopPropagation(); openGameOverview(${JSON.stringify(String(game.id))})">Overview</button>
+        <button type="button" class="btn-secondary" onclick="event.stopPropagation(); generateGameReportPDF(${game.id}, this)">PDF</button>
+        <button type="button" class="btn-secondary" onclick="event.stopPropagation(); openShotLogModal(${game.id})">Shots</button>
       </td>
 
     `;
@@ -11629,6 +12113,9 @@ async function applyRoleAndLoad(){
   // Reference content, not role-scoped -- load for everyone.
   await loadXGVersionHistory();
 
+  // Deep link (e.g. #game-overview?game=123) captured at page load.
+  restoreRouteFromUrl();
+
 }
 
 
@@ -12155,6 +12642,10 @@ function renderGoalieProfile(goalieId){
 
 
 function openGoalie(goalieId){
+
+  if(goalieId !== activeGoalieId){
+    selectedGameId = null;
+  }
 
   coachPrimaryGoalieId = goalieId;
 
@@ -13836,6 +14327,1077 @@ async function loadDashboard(){
    ACTIVE GOALIE FILTER
 ============================================================ */
 
+/* ============================================================
+   GOALIE SWITCHER (coach: assigned goalies, admin: all goalies)
+   Only lists goalies whose rows RLS already returned -- this is
+   convenience navigation, not the security boundary.
+============================================================ */
+
+const STAFF_GOALIE_TABS = new Set([
+  "overview","gamelog","gameoverview","periods","situational",
+  "control","incremental","puckplaying","goalieprofile","coach"
+]);
+
+function viewableGoalieProfiles(){
+
+  let list = [];
+
+  if(currentRole === "coach"){
+    list = coachGoalieProfiles || [];
+  }
+  else if(currentRole === "admin"){
+    list = (typeof adminProfiles !== "undefined" ? adminProfiles : [])
+      .filter(p => p.role === "goalie");
+  }
+
+  return [...list].sort((a,b) =>
+    String(a.full_name || "").localeCompare(String(b.full_name || ""))
+  );
+
+}
+
+function currentTabId(){
+  const active = document.querySelector(".tab.active");
+  return active ? active.id : null;
+}
+
+function renderGoalieSwitcher(){
+
+  const bar = document.getElementById("goalie-switcher");
+  const select = document.getElementById("goalieSwitcherSelect");
+
+  if(!bar || !select){ return; }
+
+  const isStaff = currentRole === "coach" || currentRole === "admin";
+  const list = isStaff ? viewableGoalieProfiles() : [];
+
+  if(!isStaff || !list.length || !STAFF_GOALIE_TABS.has(currentTabId())){
+    bar.style.display = "none";
+    return;
+  }
+
+  select.innerHTML = list.map(p => `
+    <option value="${escapeHtml(p.id)}">${escapeHtml(p.full_name || "Unnamed goalie")}${p.team ? " · " + escapeHtml(p.team) : ""}</option>
+  `).join("");
+
+  if(activeGoalieId && list.some(p => p.id === activeGoalieId)){
+    select.value = activeGoalieId;
+  }
+
+  bar.style.display = "";
+
+}
+
+function switchViewedGoalie(goalieId){
+
+  const allowed = viewableGoalieProfiles().some(p => p.id === goalieId);
+
+  if(!allowed){ return; }
+
+  if(currentRole === "coach"){
+    coachPrimaryGoalieId = goalieId;
+  }
+
+  activeGoalieId = goalieId;
+  selectedGameId = null;
+  SELECTED_SEASON = null;
+
+  applyActiveGoalieFilter();
+
+  if(currentRole === "coach"){
+    renderGoalieProfile(goalieId);
+    renderCoachNotesGoaliePicker();
+    renderCoachNotesList();
+  }
+
+  if(currentTabId() === "gameoverview"){
+    syncGameOverviewUrl();
+  }
+
+}
+
+// Staff landing on an analytics tab with nobody selected yet: pick the
+// first goalie they're allowed to see so the tab isn't blank.
+function ensureStaffGoalieSelected(tabId){
+
+  if(currentRole !== "coach" && currentRole !== "admin"){ return; }
+  if(!STAFF_GOALIE_TABS.has(tabId)){ return; }
+  if(activeGoalieId){ return; }
+
+  const list = viewableGoalieProfiles();
+  if(!list.length){ return; }
+
+  const withGames =
+    list.find(p => allGames.some(g => g.user_id === p.id)) || list[0];
+
+  activeGoalieId = withGames.id;
+  if(currentRole === "coach"){ coachPrimaryGoalieId = withGames.id; }
+
+  applyActiveGoalieFilter();
+
+}
+
+
+/* ============================================================
+   GAME OVERVIEW
+   Everything here is derived from the same per-game engine the
+   PDF report uses (computeGameReportData) plus the existing shot /
+   rebound helpers -- no new formulas.
+============================================================ */
+
+let selectedGameId = null;
+let gameTrendWindow = 5;
+
+// better: "higher" | "lower" | null (context only -- never colored)
+// flat: changes smaller than this are shown as neutral
+const GO_METRICS = [
+  {
+    key:"svPct", label:"SV%", better:"higher", flat:0.05,
+    fmt:v => v.toFixed(1) + "%",
+    dfmt:d => (d > 0 ? "+" : "") + d.toFixed(1) + " pts"
+  },
+  {
+    key:"gsax", label:"GSAx", better:"higher", flat:0.05,
+    fmt:v => formatGSAx(v),
+    dfmt:d => (d > 0 ? "+" : "") + d.toFixed(1)
+  },
+  {
+    key:"svAboveExpected", label:"SV% vs Expected", better:"higher", flat:0.05,
+    fmt:v => (v > 0 ? "+" : "") + v.toFixed(1) + " pts",
+    dfmt:d => (d > 0 ? "+" : "") + d.toFixed(1) + " pts"
+  },
+  {
+    key:"gaa", label:"GAA", better:"lower", flat:0.005,
+    fmt:v => v.toFixed(2),
+    dfmt:d => (d > 0 ? "+" : "") + d.toFixed(2)
+  },
+  {
+    key:"hdSV", label:"High-Danger SV%", better:"higher", flat:0.05,
+    fmt:v => v.toFixed(1) + "%",
+    dfmt:d => (d > 0 ? "+" : "") + d.toFixed(1) + " pts",
+    hint:"shots from the slot / crease"
+  },
+  {
+    key:"reboundGoodPct", label:"Rebound Control", better:"higher", flat:0.05,
+    fmt:v => v.toFixed(1) + "%",
+    dfmt:d => (d > 0 ? "+" : "") + d.toFixed(1) + " pts",
+    hint:"% of saves controlled"
+  },
+  {
+    key:"expectedSV", label:"Expected SV%", better:null, flat:0.05,
+    fmt:v => v.toFixed(1) + "%",
+    dfmt:d => (d > 0 ? "+" : "") + d.toFixed(1) + " pts",
+    hint:"shot difficulty (context)"
+  },
+  {
+    key:"shotsAgainst", label:"Shots Against", better:null, flat:0.5,
+    fmt:v => String(Math.round(v)),
+    dfmt:d => (d > 0 ? "+" : "") + Math.round(d),
+    hint:"workload (context)"
+  }
+];
+
+function goMetric(key){
+  return GO_METRICS.find(m => m.key === key);
+}
+
+// Chronological list of the active goalie's games in the selected season.
+function gameOverviewGames(){
+
+  return [...seasonGames].sort((a,b) => {
+
+    const da = new Date(gameDate(a) || 0) - new Date(gameDate(b) || 0);
+    if(da){ return da; }
+
+    return num(a.id) - num(b.id);
+
+  });
+
+}
+
+// One game's numbers, all from existing calculations.
+function computeGameMetrics(game){
+
+  const report = computeGameReportData(game.id);
+
+  if(!report){ return null; }
+
+  const gameShotRows =
+    shots.filter(s => String(s.game_id) === String(game.id));
+
+  const hd =
+    gameShotRows.length ? subsetStats(gameShotRows, isHighDanger) : null;
+
+  const reboundRows =
+    reboundControls.filter(r => String(r.game_id) === String(game.id));
+
+  const rebound = reboundGoodPctForRows(reboundRows);
+
+  const adv = report.advanced;
+
+  return {
+    report,
+    shotRows: gameShotRows,
+    shotsAgainst: report.shotsAgainst,
+    saves: report.saves,
+    goals: report.goals,
+    minutes: report.minutes,
+    svPct: report.svPct,
+    gaa: report.gaa,
+    expectedSV: adv ? adv.expectedSV : null,
+    gsax: adv ? adv.gsax : null,
+    svAboveExpected: adv ? (adv.actualSV - adv.expectedSV) : null,
+    hdSV: hd && hd.shots ? hd.sv : null,
+    hdShots: hd ? hd.shots : 0,
+    reboundGoodPct: rebound.total ? rebound.goodPct : null,
+    reboundSample: rebound.total
+  };
+
+}
+
+function goResultClass(game){
+
+  const r = normalize(gameResult(game));
+
+  if(r === "w" || r === "win"){ return "result-win"; }
+  if(r === "l" || r === "loss"){ return "result-loss"; }
+  if(r === "otl" || r === "ot" || r === "overtime loss" || r === "sol"){ return "result-otl"; }
+
+  return "result-neutral";
+
+}
+
+function goShortDate(game){
+
+  const raw = gameDate(game);
+  if(!raw){ return "No date"; }
+
+  const d = new Date(raw + (String(raw).length === 10 ? "T12:00:00" : ""));
+  if(isNaN(d)){ return String(raw); }
+
+  return d.toLocaleDateString(undefined, { month:"short", day:"numeric" });
+
+}
+
+function goLongDate(game){
+
+  const raw = gameDate(game);
+  if(!raw){ return "Date not recorded"; }
+
+  const d = new Date(raw + (String(raw).length === 10 ? "T12:00:00" : ""));
+  if(isNaN(d)){ return String(raw); }
+
+  return d.toLocaleDateString(undefined, { weekday:"short", month:"short", day:"numeric", year:"numeric" });
+
+}
+
+function goScoreText(game){
+
+  const tg = game.team_goals;
+  const og = game["opponent goals"];
+
+  if(tg === null || tg === undefined || og === null || og === undefined){
+    return "";
+  }
+
+  return tg + "–" + og;
+
+}
+
+// Direction-aware delta. "up" / "down" means good / bad for the goalie,
+// NOT numerically up / down.
+function goDeltaHtml(metric, cur, base){
+
+  if(cur === null || cur === undefined || base === null || base === undefined){
+    return `<span class="go-delta go-delta-flat">—</span>`;
+  }
+
+  const d = cur - base;
+  const arrow = Math.abs(d) <= metric.flat ? "→" : (d > 0 ? "↑" : "↓");
+
+  let tone = "flat";
+
+  if(metric.better && Math.abs(d) > metric.flat){
+    const good = metric.better === "higher" ? d > 0 : d < 0;
+    tone = good ? "up" : "down";
+  }
+
+  return `<span class="go-delta go-delta-${tone}">${arrow} ${metric.dfmt(d)}</span>`;
+
+}
+
+function goAverage(list, key){
+
+  const vals = list.map(m => m[key]).filter(v => v !== null && v !== undefined && !isNaN(v));
+
+  if(!vals.length){ return null; }
+
+  return vals.reduce((a,b) => a + b, 0) / vals.length;
+
+}
+
+// Season-to-date weighted SV% / GAA (not an average of per-game %s),
+// so it matches how the Overview tab aggregates.
+function goPriorAggregate(priorGames, priorMetrics){
+
+  if(!priorGames.length){ return null; }
+
+  const shotsSum = priorGames.reduce((s,g) => s + gameShots(g), 0);
+  const savesSum = priorGames.reduce((s,g) => s + gameSaves(g), 0);
+  const goalsSum = priorGames.reduce((s,g) => s + gameGoals(g), 0);
+  const minSum = priorGames.reduce((s,g) => s + gameMinutes(g), 0);
+
+  const shotRows = priorMetrics.flatMap(m => m.shotRows);
+  const adv = shotRows.length ? calculateAdvancedForShots(shotRows) : null;
+  const hd = shotRows.length ? subsetStats(shotRows, isHighDanger) : null;
+
+  const reboundRows =
+    reboundControls.filter(r => priorGames.some(g => String(g.id) === String(r.game_id)));
+  const rebound = reboundGoodPctForRows(reboundRows);
+
+  return {
+    svPct: shotsSum ? savesSum / shotsSum * 100 : null,
+    gaa: minSum ? goalsSum / minSum * 60 : null,
+    gsax: adv ? adv.gsax / priorMetrics.filter(m => m.shotRows.length).length : null,
+    svAboveExpected: adv ? adv.actualSV - adv.expectedSV : null,
+    hdSV: hd && hd.shots ? hd.sv : null,
+    reboundGoodPct: rebound.total ? rebound.goodPct : null,
+    expectedSV: adv ? adv.expectedSV : null,
+    shotsAgainst: shotsSum / priorGames.length
+  };
+
+}
+
+function openGameOverview(gameId){
+
+  selectedGameId = gameId === null || gameId === undefined ? null : String(gameId);
+
+  const btn =
+    document.getElementById("goalie-nav-gameoverview") ||
+    null;
+
+  const navBtn =
+    currentRole === "coach"
+      ? document.getElementById("coach-nav-gameoverview")
+      : currentRole === "admin"
+        ? document.getElementById("admin-stats-toggle-btn")
+        : btn;
+
+  showTab("gameoverview", navBtn);
+
+  window.scrollTo({ top:0, behavior:"smooth" });
+
+}
+
+function selectGameOverview(gameId){
+
+  selectedGameId = String(gameId);
+  renderGameOverview();
+  syncGameOverviewUrl();
+
+}
+
+function stepGameOverview(direction){
+
+  const list = gameOverviewGames();
+  const idx = list.findIndex(g => String(g.id) === String(selectedGameId));
+  const next = list[idx + direction];
+
+  if(next){
+    selectGameOverview(next.id);
+  }
+
+}
+
+function setGameTrendWindow(n){
+
+  gameTrendWindow = n;
+  renderGameOverview();
+
+}
+
+function renderGameOverview(){
+
+  const empty = document.getElementById("goEmpty");
+  const content = document.getElementById("goContent");
+
+  if(!empty || !content){ return; }
+
+  const list = gameOverviewGames();
+
+  if(!list.length){
+
+    content.style.display = "none";
+
+    const staffNoGoalie =
+      (currentRole === "coach" || currentRole === "admin") && !activeGoalieId;
+
+    empty.innerHTML = `
+      <div class="card"><div class="empty-state">
+        ${staffNoGoalie
+          ? "Select a goalie above to see their games."
+          : "No games logged for this season yet. Once a game is entered, its full breakdown will appear here."}
+      </div></div>
+    `;
+
+    destroyChart("goTrendSVChart");
+    destroyChart("goTrendGSAxChart");
+
+    return;
+
+  }
+
+  empty.innerHTML = "";
+  content.style.display = "";
+
+  if(!selectedGameId || !list.some(g => String(g.id) === String(selectedGameId))){
+    selectedGameId = String(list[list.length - 1].id);
+  }
+
+  const idx = list.findIndex(g => String(g.id) === String(selectedGameId));
+  const game = list[idx];
+
+  // Per-game metrics for every game once; reused by snapshot + trend.
+  const metricsById = {};
+  list.forEach(g => { metricsById[g.id] = computeGameMetrics(g); });
+
+  const m = metricsById[game.id];
+  const prevGame = idx > 0 ? list[idx - 1] : null;
+  const prev = prevGame ? metricsById[prevGame.id] : null;
+
+  const priorGames = list.slice(0, idx);
+  const prior = goPriorAggregate(priorGames, priorGames.map(g => metricsById[g.id]));
+
+  renderGameOverviewSelector(list, idx);
+  renderGameOverviewHero(game, m);
+  renderGameOverviewKpis(m, prev, prior, prevGame, priorGames.length);
+  renderGameOverviewBreakdowns(game, m);
+  renderGameOverviewTrend(list, idx, metricsById);
+
+}
+
+function renderGameOverviewSelector(list, idx){
+
+  const select = document.getElementById("goGameSelect");
+
+  // Newest first in the dropdown is what people expect to scan.
+  select.innerHTML = [...list].reverse().map(g => {
+
+    const sv = gameShots(g) ? (gameSaves(g) / gameShots(g) * 100).toFixed(1) + "%" : "—";
+    const score = goScoreText(g);
+    const res = gameResult(g);
+
+    return `<option value="${escapeHtml(g.id)}">${escapeHtml(goShortDate(g))} · vs ${escapeHtml(gameOpponent(g))}${res ? " · " + escapeHtml(res) : ""}${score ? " " + escapeHtml(score) : ""} · ${sv}</option>`;
+
+  }).join("");
+
+  select.value = String(list[idx].id);
+
+  document.getElementById("goPrevBtn").disabled = idx <= 0;
+  document.getElementById("goNextBtn").disabled = idx >= list.length - 1;
+
+  document.getElementById("goPosition").textContent =
+    `Game ${idx + 1} of ${list.length} · ${CURRENT_SEASON}`;
+
+}
+
+function renderGameOverviewHero(game, m){
+
+  const hero = document.getElementById("goHero");
+
+  const tg = game.team_goals;
+  const og = game["opponent goals"];
+  const hasScore = tg !== null && tg !== undefined && og !== null && og !== undefined;
+
+  const teamName = escapeHtml(game.team || "Team");
+  const oppName = escapeHtml(gameOpponent(game));
+
+  const scoreBlock = hasScore
+    ? `
+      <div class="go-score">
+        <div class="go-score-row ${num(tg) < num(og) ? "is-loser" : ""}">
+          <span>${teamName}</span><span class="go-score-num">${escapeHtml(tg)}</span>
+        </div>
+        <div class="go-score-row ${num(og) < num(tg) ? "is-loser" : ""}">
+          <span>${oppName}</span><span class="go-score-num">${escapeHtml(og)}</span>
+        </div>
+      </div>
+    `
+    : `<div class="go-score"><div class="go-score-row"><span>vs ${oppName}</span></div></div>`;
+
+  const res = gameResult(game);
+  const homeAway = game.home_away ? escapeHtml(game.home_away) : "";
+
+  const svClass =
+    m.svPct === null ? "" : m.svPct >= 92 ? "good" : m.svPct < 88 ? "bad" : "";
+
+  hero.innerHTML = `
+    <div class="go-hero-block">
+      <div class="go-eyebrow">Game Result</div>
+      ${scoreBlock}
+      <div class="go-meta">
+        ${res ? `<span class="result-pill ${goResultClass(game)}">${escapeHtml(res)}</span>` : ""}
+        <span>${escapeHtml(goLongDate(game))}</span>
+        ${homeAway ? `<span>· ${homeAway}</span>` : ""}
+        ${game.shutout ? `<span>· Shutout</span>` : ""}
+      </div>
+    </div>
+    <div class="go-hero-block">
+      <div class="go-eyebrow">Goaltending</div>
+      <div class="go-goaltending">
+        <div>
+          <div class="go-big">${m.saves}<span style="color:var(--muted);font-weight:700"> / ${m.shotsAgainst}</span></div>
+          <div class="go-big-label">Saves / Shots</div>
+        </div>
+        <div>
+          <div class="go-big ${svClass}">${m.svPct === null ? "—" : m.svPct.toFixed(1) + "%"}</div>
+          <div class="go-big-label">Save %</div>
+        </div>
+        <div>
+          <div class="go-big">${m.goals}</div>
+          <div class="go-big-label">Goals Against</div>
+        </div>
+        <div>
+          <div class="go-big">${m.gaa === null ? "—" : m.gaa.toFixed(2)}</div>
+          <div class="go-big-label">GAA · ${m.minutes ? m.minutes.toFixed(0) : "—"} min</div>
+        </div>
+      </div>
+      <div class="go-actions">
+        <button type="button" class="btn-secondary" onclick="generateGameReportPDF(${JSON.stringify(String(game.id))}, this)">Download PDF Report</button>
+        <button type="button" class="btn-secondary" onclick="openShotLogModal(${JSON.stringify(String(game.id))})">Shot Log</button>
+      </div>
+    </div>
+  `;
+
+}
+
+function renderGameOverviewKpis(m, prev, prior, prevGame, priorCount){
+
+  const wrap = document.getElementById("goKpis");
+
+  // Headline four. Advanced ones only appear when the game has tagged shots.
+  // svAboveExpected is the fallback when rebound data wasn't tracked.
+  const keys =
+    m.shotRows.length
+      ? ["gsax","hdSV","reboundGoodPct","svAboveExpected"]
+      : ["reboundGoodPct"];
+
+  const cards = keys
+    .map(key => {
+
+      const metric = goMetric(key);
+      const value = m[key];
+
+      if(value === null || value === undefined){ return ""; }
+
+      const lastLabel = prevGame ? `vs last game` : "";
+      const avgLabel = priorCount ? `vs prior ${priorCount}-game avg` : "";
+
+      const valueClass =
+        key === "gsax" || key === "svAboveExpected"
+          ? (value > metric.flat ? "good" : value < -metric.flat ? "bad" : "")
+          : "";
+
+      const sample =
+        key === "hdSV" ? `${m.hdShots} high-danger shots`
+        : key === "reboundGoodPct" ? `${m.reboundSample} saves tracked`
+        : key === "gsax" ? `${m.report.shotCount} shots tagged`
+        : "";
+
+      return `
+        <div class="card metric-card go-kpi">
+          <div class="metric ${valueClass}">${metric.fmt(value)}</div>
+          <div class="metric-label">${metric.label}</div>
+          ${sample ? `<div class="metric-context">${sample}</div>` : ""}
+          ${(prevGame || priorCount) ? `
+            <div class="go-kpi-deltas">
+              ${prevGame ? `<div><span>${lastLabel}</span>${goDeltaHtml(metric, value, prev ? prev[key] : null)}</div>` : ""}
+              ${priorCount ? `<div><span>${avgLabel}</span>${goDeltaHtml(metric, value, prior ? prior[key] : null)}</div>` : ""}
+            </div>
+          ` : `<div class="go-kpi-deltas"><div><span>First game of the season</span></div></div>`}
+        </div>
+      `;
+
+    })
+    .filter(Boolean);
+
+  // SV% delta always leads, since it's the number every goalie checks first.
+  const svMetric = goMetric("svPct");
+
+  const svCard = `
+    <div class="card metric-card go-kpi">
+      <div class="metric">${m.svPct === null ? "—" : svMetric.fmt(m.svPct)}</div>
+      <div class="metric-label">Save %</div>
+      <div class="metric-context">${m.saves} saves on ${m.shotsAgainst} shots</div>
+      ${(prevGame || priorCount) ? `
+        <div class="go-kpi-deltas">
+          ${prevGame ? `<div><span>vs last game</span>${goDeltaHtml(svMetric, m.svPct, prev ? prev.svPct : null)}</div>` : ""}
+          ${priorCount ? `<div><span>vs prior ${priorCount}-game avg</span>${goDeltaHtml(svMetric, m.svPct, prior ? prior.svPct : null)}</div>` : ""}
+        </div>
+      ` : `<div class="go-kpi-deltas"><div><span>First game of the season</span></div></div>`}
+    </div>
+  `;
+
+  wrap.innerHTML = [svCard, ...cards].slice(0, 4).join("");
+
+  if(!m.shotRows.length){
+    wrap.innerHTML += `
+      <div class="card metric-card" style="grid-column:span 2">
+        <div class="metric-label" style="margin-top:0">Shot-level data</div>
+        <div class="metric-context">This game has no tagged shots, so GSAx, expected SV% and high-danger numbers aren't available for it.</div>
+      </div>
+    `;
+  }
+
+}
+
+function goRowsTable(headers, rows){
+
+  if(!rows.length){ return ""; }
+
+  return `
+    <div class="table-wrap">
+      <table class="go-mini-table">
+        <thead><tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr></thead>
+        <tbody>${rows.join("")}</tbody>
+      </table>
+    </div>
+  `;
+
+}
+
+function goSvCell(sv){
+
+  const cls = sv === null ? "" : sv >= 92 ? "good" : sv < 88 ? "bad" : "";
+
+  return `<td class="${cls}">${sv === null ? "—" : sv.toFixed(1) + "%"}</td>`;
+
+}
+
+function renderGameOverviewBreakdowns(game, m){
+
+  const r = m.report;
+  const cardsA = [];
+  const cardsB = [];
+
+  // Periods
+  if(r.periodRows.length){
+    cardsA.push(`
+      <div class="card">
+        <h3>By Period</h3>
+        ${goRowsTable(
+          ["Period","Shots","Saves","GA","SV%"],
+          r.periodRows.map(p => `
+            <tr><td>${escapeHtml(p.label)}</td><td>${p.shots}</td><td>${p.saves}</td><td>${p.goals}</td>${goSvCell(p.svPct)}</tr>
+          `)
+        )}
+      </div>
+    `);
+  }
+
+  // Situations
+  if(r.situationalRows.length){
+    cardsA.push(`
+      <div class="card">
+        <h3>Shot Situations</h3>
+        ${goRowsTable(
+          ["Situation","Shots","GA","SV%"],
+          [...r.situationalRows]
+            .sort((a,b) => b.shots - a.shots)
+            .map(s => `
+              <tr><td>${escapeHtml(s.label)}</td><td>${s.shots}</td><td>${s.goals}</td>${goSvCell(s.svPct)}</tr>
+            `)
+        )}
+      </div>
+    `);
+  }
+
+  // Shot quality by grade (existing shotGrade buckets)
+  if(m.shotRows.length){
+
+    const gradeRows = ["A+","A","B","C"].map(grade => {
+
+      const subset = m.shotRows.filter(s => shotGrade(s) === grade);
+      if(!subset.length){ return null; }
+
+      const ga = subset.filter(isGoal).length;
+      const sv = (subset.length - ga) / subset.length * 100;
+
+      return `<tr><td>${grade}</td><td>${subset.length}</td><td>${ga}</td>${goSvCell(sv)}</tr>`;
+
+    }).filter(Boolean);
+
+    const locRows = [...r.locationRows]
+      .sort((a,b) => b.shots - a.shots)
+      .map(l => `<tr><td>${escapeHtml(l.label)}</td><td>${l.shots}</td><td>${l.goals}</td>${goSvCell(l.svPct)}</tr>`);
+
+    cardsB.push(`
+      <div class="card">
+        <h3>Shot Quality</h3>
+        ${goRowsTable(["Grade","Shots","GA","SV%"], gradeRows)}
+        <div class="small-note">A+ = most dangerous chances. Goals on B/C shots are the ones a goalie owns most.</div>
+        ${locRows.length ? `<h3 style="margin-top:18px">Shot Location</h3>${goRowsTable(["Location","Shots","GA","SV%"], locRows)}` : ""}
+      </div>
+    `);
+
+  }
+
+  // Rebound control + puck playing
+  const extra = [];
+
+  if(r.reboundSummary){
+
+    const t = r.reboundSummary;
+
+    const zones = [
+      { label:"Glove", good:t.glove_caught, bad:t.glove_rebound, goal:t.glove_goal },
+      { label:"Blocker", good:t.blocker_good, bad:t.blocker_bad, goal:t.blocker_goal },
+      { label:"Midsection", good:t.midsection_good, bad:t.midsection_bad, goal:t.midsection_goal },
+      { label:"Pads / Stick", good:t.pad_stick_good, bad:t.pad_stick_bad, goal:t.pad_stick_goal }
+    ].filter(z => z.good + z.bad + z.goal > 0);
+
+    if(zones.length){
+
+      extra.push(`
+        <h3>Rebound Control</h3>
+        ${goRowsTable(
+          ["Zone","Held","Reb","GA","Ctrl %"],
+          zones.map(z => {
+            const tot = z.good + z.bad;
+            const pct = tot ? z.good / tot * 100 : null;
+            return `<tr><td>${z.label}</td><td>${z.good}</td><td>${z.bad}</td><td>${z.goal}</td><td>${pct === null ? "—" : pct.toFixed(0) + "%"}</td></tr>`;
+          })
+        )}
+      `);
+
+    }
+
+  }
+
+  if(r.puckSummary){
+
+    const p = r.puckSummary;
+    const rimPct = p.rimsFaced ? (p.rimsStopped / p.rimsFaced * 100).toFixed(0) + "%" : "—";
+    const passPct = p.passAttempts ? (p.passesCompleted / p.passAttempts * 100).toFixed(0) + "%" : "—";
+
+    extra.push(`
+      <h3 ${extra.length ? `style="margin-top:18px"` : ""}>Puck Playing</h3>
+      <div class="stat-list">
+        <div class="stat-row"><span class="stat-name">Rims stopped</span><span class="stat-value">${p.rimsStopped} / ${p.rimsFaced} · ${rimPct}</span></div>
+        ${p.passAttempts ? `<div class="stat-row"><span class="stat-name">Passes completed</span><span class="stat-value">${p.passesCompleted} / ${p.passAttempts} · ${passPct}</span></div>` : ""}
+      </div>
+    `);
+
+  }
+
+  if(extra.length){
+    cardsB.push(`<div class="card">${extra.join("")}</div>`);
+  }
+
+  const a = document.getElementById("goBreakdownA");
+  const b = document.getElementById("goBreakdownB");
+
+  a.innerHTML = cardsA.join("");
+  b.innerHTML = cardsB.join("");
+
+  a.style.display = cardsA.length ? "" : "none";
+  b.style.display = cardsB.length ? "" : "none";
+
+  // A single card shouldn't sit in half the row.
+  a.className = "grid section-space " + (cardsA.length > 1 ? "grid-2" : "");
+  b.className = "grid section-space " + (cardsB.length > 1 ? "grid-2" : "");
+
+}
+
+function renderGameOverviewTrend(list, idx, metricsById){
+
+  document.querySelectorAll("#goTrendControls button").forEach(btn => {
+    btn.classList.toggle("active", Number(btn.dataset.window) === gameTrendWindow);
+  });
+
+  // Window ends at the selected game -- "how did I get here".
+  const end = idx + 1;
+  const start = gameTrendWindow ? Math.max(0, end - gameTrendWindow) : 0;
+  const windowGames = list.slice(start, end);
+  const windowMetrics = windowGames.map(g => metricsById[g.id]);
+
+  document.getElementById("goTrendSubtitle").textContent =
+    windowGames.length > 1
+      ? `${windowGames.length} games up to ${goShortDate(list[idx])} vs ${gameOpponent(list[idx])}.`
+      : "Trends appear once there's more than one game this season.";
+
+  renderGameTrendSummary(windowMetrics);
+  renderGameTrendCharts(windowGames, windowMetrics, list[idx]);
+  renderGameTrendTable(windowGames, windowMetrics, list[idx]);
+
+}
+
+// Plain-language answer to "am I getting better?": recent 3 games vs the
+// earlier games in the window, direction-aware per metric.
+function renderGameTrendSummary(windowMetrics){
+
+  const box = document.getElementById("goTrendSummary");
+
+  // Need at least 2 earlier games so one outlier can't flip the read.
+  if(windowMetrics.length < 5){
+    box.innerHTML = windowMetrics.length > 1
+      ? `<div class="insight">Log ${5 - windowMetrics.length} more game${5 - windowMetrics.length === 1 ? "" : "s"} in this range to get an improving / declining read.</div>`
+      : "";
+    return;
+  }
+
+  const recent = windowMetrics.slice(-3);
+  const earlier = windowMetrics.slice(0, -3);
+
+  const results = GO_METRICS
+    .filter(mt => mt.better)
+    .map(mt => {
+      const a = goAverage(recent, mt.key);
+      const b = goAverage(earlier, mt.key);
+      if(a === null || b === null){ return null; }
+      const d = a - b;
+      const tone =
+        Math.abs(d) <= mt.flat ? "flat"
+        : (mt.better === "higher" ? d > 0 : d < 0) ? "up" : "down";
+      return { mt, tone, a, b };
+    })
+    .filter(Boolean);
+
+  if(!results.length){ box.innerHTML = ""; return; }
+
+  const up = results.filter(r => r.tone === "up");
+  const down = results.filter(r => r.tone === "down");
+
+  const list = arr => arr.map(r => r.mt.label).join(", ");
+
+  box.innerHTML = `
+    <div class="insight">
+      <strong>Last 3 games vs the ${earlier.length} before them:</strong>
+      ${up.length ? `improving in <span class="go-delta go-delta-up">${escapeHtml(list(up))}</span>` : "no clear improvements"}${down.length ? `; slipping in <span class="go-delta go-delta-down">${escapeHtml(list(down))}</span>` : ""}.
+    </div>
+  `;
+
+}
+
+function renderGameTrendCharts(windowGames, windowMetrics, selectedGame){
+
+  const labels = windowGames.map(g => `${goShortDate(g)} ${gameOpponent(g)}`.slice(0, 22));
+  const selIndex = windowGames.findIndex(g => g.id === selectedGame.id);
+
+  const pointRadius = windowGames.map((g,i) => i === selIndex ? 6 : 3);
+
+  const base = chartOptions();
+
+  destroyChart("goTrendSVChart");
+
+  const svCanvas = document.getElementById("goTrendSVChart");
+
+  if(svCanvas){
+
+    charts.goTrendSVChart = new Chart(svCanvas, {
+      type:"line",
+      data:{
+        labels,
+        datasets:[
+          {
+            label:"SV%",
+            data:windowMetrics.map(m => m.svPct === null ? null : Number(m.svPct.toFixed(1))),
+            borderColor:"#69dda0",
+            backgroundColor:"#69dda0",
+            pointRadius,
+            pointHoverRadius:7,
+            tension:.15,
+            spanGaps:true
+          },
+          {
+            label:"Expected SV%",
+            data:windowMetrics.map(m => m.expectedSV === null ? null : Number(m.expectedSV.toFixed(1))),
+            borderColor:"#88a599",
+            backgroundColor:"#88a599",
+            borderDash:[5,4],
+            pointRadius:2,
+            tension:.25,
+            spanGaps:true
+          }
+        ]
+      },
+      options:{
+        ...base,
+        scales:{
+          x:{ ...base.scales.x, ticks:{ ...(base.scales.x && base.scales.x.ticks), maxRotation:0, autoSkip:true, maxTicksLimit:6 } },
+          y:{ ...base.scales.y, ticks:{ ...(base.scales.y && base.scales.y.ticks), callback:v => v + "%" } }
+        }
+      }
+    });
+
+  }
+
+  destroyChart("goTrendGSAxChart");
+
+  const gCanvas = document.getElementById("goTrendGSAxChart");
+
+  if(gCanvas){
+
+    const vals = windowMetrics.map(m => m.gsax === null ? null : Number(m.gsax.toFixed(2)));
+
+    charts.goTrendGSAxChart = new Chart(gCanvas, {
+      type:"bar",
+      data:{
+        labels,
+        datasets:[{
+          label:"GSAx",
+          data:vals,
+          backgroundColor:vals.map((v,i) =>
+            v === null ? "transparent"
+            : (v >= 0 ? "rgba(105,221,160," : "rgba(255,133,133,") + (i === selIndex ? ".95)" : ".45)")
+          ),
+          borderRadius:4,
+          maxBarThickness:34
+        }]
+      },
+      options:{
+        ...base,
+        plugins:{ ...base.plugins, legend:{ display:false } },
+        scales:{
+          x:{ ...base.scales.x, ticks:{ ...(base.scales.x && base.scales.x.ticks), maxRotation:0, autoSkip:true, maxTicksLimit:6 } },
+          y:{ ...base.scales.y }
+        }
+      }
+    });
+
+  }
+
+}
+
+function renderGameTrendTable(windowGames, windowMetrics, selectedGame){
+
+  const table = document.getElementById("goTrendTable");
+
+  const header = `
+    <thead><tr>
+      <th>Metric</th>
+      ${windowGames.map(g => `
+        <th class="${g.id === selectedGame.id ? "is-selected" : ""}">
+          <a href="#" class="go-opp-link" onclick="selectGameOverview(${JSON.stringify(String(g.id))});return false;">${escapeHtml(goShortDate(g))}</a>
+          <span class="go-metric-hint">${escapeHtml(String(gameOpponent(g)).slice(0,14))}</span>
+        </th>
+      `).join("")}
+      ${windowGames.length > 1 ? `<th>Change</th>` : ""}
+    </tr></thead>
+  `;
+
+  const rows = GO_METRICS
+    .filter(mt => windowMetrics.some(m => m[mt.key] !== null && m[mt.key] !== undefined))
+    .map(mt => {
+
+      const cells = windowGames.map((g,i) => {
+        const v = windowMetrics[i][mt.key];
+        return `<td class="${g.id === selectedGame.id ? "is-selected" : ""}">${v === null || v === undefined ? "—" : mt.fmt(v)}</td>`;
+      }).join("");
+
+      // First available value in the window -> selected game.
+      const firstVal = windowMetrics.map(m => m[mt.key]).find(v => v !== null && v !== undefined);
+      const lastVal = windowMetrics[windowMetrics.length - 1][mt.key];
+
+      const change = windowGames.length > 1
+        ? `<td>${goDeltaHtml(mt, lastVal, firstVal === lastVal && windowMetrics.filter(m => m[mt.key] !== null && m[mt.key] !== undefined).length < 2 ? null : firstVal)}</td>`
+        : "";
+
+      return `
+        <tr>
+          <td>${mt.label}${mt.hint ? `<span class="go-metric-hint">${mt.hint}</span>` : ""}</td>
+          ${cells}
+          ${change}
+        </tr>
+      `;
+
+    }).join("");
+
+  table.innerHTML = header + `<tbody>${rows}</tbody>`;
+
+}
+
+
+/* ------------------------------------------------------------
+   URL state: #game-overview?game=<id>&goalie=<uuid>
+   The goalie param is only honored if that goalie is already in
+   the RLS-scoped list, so a shared link can't widen access.
+------------------------------------------------------------ */
+
+function syncGameOverviewUrl(){
+
+  if(currentTabId() !== "gameoverview"){ return; }
+
+  const params = new URLSearchParams();
+
+  if(selectedGameId){ params.set("game", selectedGameId); }
+
+  if((currentRole === "coach" || currentRole === "admin") && activeGoalieId){
+    params.set("goalie", activeGoalieId);
+  }
+
+  const hash = "#game-overview" + (params.toString() ? "?" + params.toString() : "");
+
+  if(location.hash !== hash){
+    history.replaceState(null, "", location.pathname + location.search + hash);
+  }
+
+}
+
+function clearGameOverviewUrl(){
+
+  if(location.hash.startsWith("#game-overview")){
+    history.replaceState(null, "", location.pathname + location.search);
+  }
+
+}
+
+// Captured before any showTab() call can clear it; consumed once.
+let goPendingRouteHash =
+  location.hash.startsWith("#game-overview") ? location.hash : null;
+
+function restoreRouteFromUrl(){
+
+  const hash = goPendingRouteHash;
+  goPendingRouteHash = null;
+
+  if(!hash){ return; }
+
+  const query = hash.split("?")[1] || "";
+  const params = new URLSearchParams(query);
+
+  const goalieParam = params.get("goalie");
+  const gameParam = params.get("game");
+
+  if(goalieParam && (currentRole === "coach" || currentRole === "admin")){
+
+    if(viewableGoalieProfiles().some(p => p.id === goalieParam) && goalieParam !== activeGoalieId){
+      activeGoalieId = goalieParam;
+      if(currentRole === "coach"){ coachPrimaryGoalieId = goalieParam; }
+      applyActiveGoalieFilter();
+    }
+
+  }
+
+  if(gameParam){
+
+    const game = games.find(g => String(g.id) === String(gameParam));
+
+    // Game from another season: switch the season so it's selectable.
+    if(game && !seasonGames.some(g => String(g.id) === String(gameParam)) && game.season){
+      SELECTED_SEASON = game.season;
+      applyActiveGoalieFilter();
+    }
+
+    selectedGameId = game ? String(game.id) : null;
+
+  }
+
+  openGameOverview(selectedGameId);
+
+}
+
+
 function applyActiveGoalieFilter(){
 
   if(!activeGoalieId){
@@ -13876,6 +15438,8 @@ function applyActiveGoalieFilter(){
 
   renderGameLog();
 
+  renderGameOverview();
+
   renderPeriods();
 
   renderSituational();
@@ -13887,6 +15451,8 @@ function applyActiveGoalieFilter(){
   renderPuckPlaying();
 
   renderMyGamesList();
+
+  renderGoalieSwitcher();
 
 }
 
