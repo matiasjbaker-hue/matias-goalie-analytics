@@ -2296,6 +2296,38 @@ tr:hover td{
 
 }
 
+
+/* Consolidated navigation */
+.go-title-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  gap:14px;
+  flex-wrap:wrap;
+}
+
+.go-back-link{
+  background:none;
+  border:0;
+  padding:0;
+  margin-bottom:10px;
+  color:var(--muted);
+  font-size:13px;
+  font-weight:700;
+  font-family:inherit;
+  cursor:pointer;
+}
+
+.go-back-link:hover{ color:var(--green); }
+
+.add-mode-toggle{
+  margin-bottom:22px;
+}
+
+.add-mode-toggle button{
+  padding:10px 16px;
+  font-size:13px;
+}
 </style>
 </head>
 
@@ -2601,24 +2633,20 @@ tr:hover td{
 
   <div class="nav-inner">
 
-    <button class="active" onclick="showTab('overview',this)">
-      Overview
+    <button class="active" id="goalie-nav-season" onclick="showTab('overview',this)">
+      Season
     </button>
 
-    <button id="goalie-nav-gameoverview" onclick="openGameOverview(null)">
-      Game Overview
+    <button id="goalie-nav-games" onclick="openGameOverview(null)">
+      Games
     </button>
 
     <button type="button" class="nav-dropdown-toggle" id="stats-toggle-btn" onclick="toggleNavDropdown(event)">
       Stats ▾
     </button>
 
-    <button onclick="showTab('addgame',this)">
-      My Games
-    </button>
-
-    <button onclick="showTab('videopipeline',this)">
-      Upload Video
+    <button id="goalie-nav-addgame" onclick="openAddGame('upload')">
+      Add Game
     </button>
 
     <button onclick="showTab('coach',this)">
@@ -2641,16 +2669,20 @@ tr:hover td{
       My Goalies
     </button>
 
-    <button id="coach-nav-gameoverview" onclick="openGameOverview(null)">
-      Game Overview
+    <button id="coach-nav-season" onclick="showTab('overview',this)">
+      Season
+    </button>
+
+    <button id="coach-nav-games" onclick="openGameOverview(null)">
+      Games
     </button>
 
     <button type="button" class="nav-dropdown-toggle" id="coach-stats-toggle-btn" onclick="toggleNavDropdown(event)">
-      Full Analytics ▾
+      Stats ▾
     </button>
 
     <button id="coach-nav-notes" onclick="showTab('coachnotes',this)">
-      Coach Notes
+      Notes
     </button>
 
     <button id="coach-nav-ai" onclick="showTab('coach',this)">
@@ -2670,23 +2702,15 @@ tr:hover td{
   <div class="nav-inner">
 
     <button class="active" onclick="showTab('adminhome',this)">
-      Platform Overview
+      Platform
     </button>
 
-    <button onclick="showTab('admincoaches',this)">
-      Coaches
-    </button>
-
-    <button onclick="showTab('admingoalies',this)">
-      Goalies
+    <button id="admin-nav-accounts" onclick="showTab('adminaccounts',this)">
+      Accounts
     </button>
 
     <button type="button" class="nav-dropdown-toggle" id="admin-stats-toggle-btn" onclick="toggleNavDropdown(event)">
       Goalie Analytics ▾
-    </button>
-
-    <button onclick="showTab('adminassignments',this)">
-      Assignments
     </button>
 
     <button onclick="showTab('livetag',this)">
@@ -2707,16 +2731,12 @@ tr:hover td{
 
 <div class="nav-dropdown-menu" id="stats-dropdown-menu">
 
-  <button data-staff-only onclick="selectStatsTab('overview',this)">
-    Season Overview
+  <button data-admin-only onclick="selectStatsTab('overview',this)">
+    Season
   </button>
 
-  <button onclick="selectStatsTab('gamelog',this)">
-    Game Log
-  </button>
-
-  <button onclick="selectStatsTab('gameoverview',this)">
-    Game Overview
+  <button data-admin-only onclick="closeNavDropdown(); openGameOverview(null)">
+    Games
   </button>
 
   <button onclick="selectStatsTab('periods',this)">
@@ -2790,7 +2810,7 @@ tr:hover td{
 
   <div class="section-heading">
     <h3>My Goalies</h3>
-    <p>Click a goalie to open their full analytics.</p>
+    <p>Click a goalie to open their season. Switch goalies anytime from the selector at the top.</p>
   </div>
 
   <div class="grid grid-3" id="coachGoalieGrid">
@@ -2808,7 +2828,7 @@ tr:hover td{
 
   <div class="page-title">
     <h2>Coach Notes</h2>
-    <p>Private notes only you can see, tied to a specific goalie.</p>
+    <p>Private notes only you can see, about the goalie selected above.</p>
   </div>
 
   <div class="card" id="coachNotesPickerCard">
@@ -2981,11 +3001,15 @@ tr:hover td{
 <!-- ADMIN: COACHES -->
 <!-- ========================================================= -->
 
-<section id="admincoaches" class="tab">
+<section id="adminaccounts" class="tab">
 
   <div class="page-title">
-    <h2>Coaches</h2>
-    <p>Every coach account on the platform.</p>
+    <h2>Accounts</h2>
+    <p>Every coach and goalie on the platform, and which coaches can see which goalies.</p>
+  </div>
+
+  <div class="section-heading">
+    <h3>Coaches</h3>
   </div>
 
   <div class="card">
@@ -3005,18 +3029,9 @@ tr:hover td{
     </div>
   </div>
 
-</section>
 
-
-<!-- ========================================================= -->
-<!-- ADMIN: GOALIES -->
-<!-- ========================================================= -->
-
-<section id="admingoalies" class="tab">
-
-  <div class="page-title">
-    <h2>Goalies</h2>
-    <p>Every goalie account on the platform.</p>
+  <div class="section-heading section-space">
+    <h3>Goalies</h3>
   </div>
 
   <div class="card">
@@ -3036,6 +3051,57 @@ tr:hover td{
       </table>
     </div>
   </div>
+
+
+  <div class="section-heading section-space">
+    <h3>Assignments</h3>
+    <p>Link a coach to a goalie. Coaches can never do this themselves — only an admin can grant access.</p>
+  </div>
+
+
+  <div class="card">
+
+    <h3>Create Assignment</h3>
+
+    <div class="grid grid-3">
+
+      <div>
+        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px;">Coach</label>
+        <select id="adminAssignCoachSelect" style="width:100%;background:#0c261c;border:1px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
+      </div>
+
+      <div>
+        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px;">Goalie</label>
+        <select id="adminAssignGoalieSelect" style="width:100%;background:#0c261c;border:1px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
+      </div>
+
+      <div style="display:flex;align-items:flex-end;">
+        <button class="btn-primary" style="width:100%" onclick="createAssignment(this)">Create Assignment</button>
+      </div>
+
+    </div>
+
+    <div class="small-note" id="adminAssignStatus"></div>
+
+  </div>
+
+  <div class="card section-space">
+    <h3>All Assignments</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Coach</th>
+            <th>Goalie</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="adminAssignmentsBody"></tbody>
+      </table>
+    </div>
+  </div>
+
 
 </section>
 
@@ -3126,57 +3192,7 @@ tr:hover td{
 <!-- ADMIN: ASSIGNMENTS -->
 <!-- ========================================================= -->
 
-<section id="adminassignments" class="tab">
-
-  <div class="page-title">
-    <h2>Assignments</h2>
-    <p>Link a coach to a goalie. Coaches can never do this themselves — only an admin can grant access.</p>
-  </div>
-
-  <div class="card">
-
-    <h3>Create Assignment</h3>
-
-    <div class="grid grid-3">
-
-      <div>
-        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px;">Coach</label>
-        <select id="adminAssignCoachSelect" style="width:100%;background:#0c261c;border:1px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
-      </div>
-
-      <div>
-        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px;">Goalie</label>
-        <select id="adminAssignGoalieSelect" style="width:100%;background:#0c261c;border:1px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
-      </div>
-
-      <div style="display:flex;align-items:flex-end;">
-        <button class="btn-primary" style="width:100%" onclick="createAssignment(this)">Create Assignment</button>
-      </div>
-
-    </div>
-
-    <div class="small-note" id="adminAssignStatus"></div>
-
-  </div>
-
-  <div class="card section-space">
-    <h3>All Assignments</h3>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Coach</th>
-            <th>Goalie</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="adminAssignmentsBody"></tbody>
-      </table>
-    </div>
-  </div>
-
-</section>
+<!-- Assignments now live inside Accounts (#adminaccounts). -->
 
 
 <!-- ========================================================= -->
@@ -3186,8 +3202,8 @@ tr:hover td{
 <section id="overview" class="tab active">
 
   <div class="page-title">
-    <h2>Overview</h2>
-    <p>Performance dashboard focused on identifying strengths, weaknesses and areas for improvement.</p>
+    <h2>Season Overview</h2>
+    <p>Your season at a glance: strengths, weaknesses and areas for improvement.</p>
   </div>
 
 
@@ -3418,8 +3434,9 @@ tr:hover td{
 <section id="gamelog" class="tab">
 
   <div class="page-title">
-    <h2>Game Log</h2>
-    <p>Game-by-game results. Tap any game for its full breakdown and how it compares with your other games.</p>
+    <button type="button" class="go-back-link" onclick="openGameOverview(selectedGameId)">← Back to game</button>
+    <h2>All Games</h2>
+    <p>Every game this season. Tap one for its full breakdown.</p>
   </div>
 
   <div class="card">
@@ -3462,9 +3479,12 @@ tr:hover td{
 
 <section id="gameoverview" class="tab">
 
-  <div class="page-title">
-    <h2>Game Overview</h2>
-    <p>Everything that happened in one game, and how it compares with the games before it.</p>
+  <div class="page-title go-title-row">
+    <div>
+      <h2>Games</h2>
+      <p>Everything that happened in one game, and how it compares with the games before it.</p>
+    </div>
+    <button type="button" class="btn-secondary" onclick="openGameLog()">All games</button>
   </div>
 
   <div id="goEmpty"></div>
@@ -4768,16 +4788,108 @@ tr:hover td{
 <section id="addgame" class="tab">
 
   <div class="page-title">
-    <h2>My Games</h2>
-    <p>View, edit, or delete games you've entered. Use the form below to add a new one.</p>
+    <h2>Add Game</h2>
+    <p>Upload film and we'll tag it for you, or enter the stats yourself. To edit or delete a game, open it under Games.</p>
+  </div>
+
+  <div class="go-trend-controls add-mode-toggle" id="addModeToggle">
+    <button type="button" data-mode="upload" onclick="setAddGameMode('upload')">Upload game film</button>
+    <button type="button" data-mode="manual" onclick="setAddGameMode('manual')">Enter stats manually</button>
+  </div>
+
+  <div id="addUploadPanel">
+
+
+  <div class="card">
+
+    <h3>Upload game film</h3>
+
+    <div class="field-grid">
+
+      <div class="field">
+        <label>
+          <input type="checkbox" id="video-new-game-toggle" onchange="toggleVideoNewGameFields()">
+          This is a new game (not entered yet)
+        </label>
+      </div>
+
+    </div>
+
+    <div id="video-existing-game-field" class="field-grid">
+
+      <div class="field">
+        <label for="video-game-select">Game</label>
+        <select id="video-game-select"></select>
+      </div>
+
+    </div>
+
+    <div id="video-new-game-fields" class="field-grid" style="display:none">
+
+      <div class="field" id="video-new-game-goalie-field" style="display:none">
+        <label for="video-new-game-goalie-select">Goalie</label>
+        <select id="video-new-game-goalie-select"></select>
+      </div>
+
+      <div class="field">
+        <label for="video-new-game-date">Date</label>
+        <input type="date" id="video-new-game-date">
+      </div>
+
+      <div class="field">
+        <label for="video-new-game-opponent">Opponent</label>
+        <input type="text" id="video-new-game-opponent" placeholder="Opponent name">
+      </div>
+
+      <div class="field">
+        <label for="video-new-game-homeaway">Home/Away</label>
+        <select id="video-new-game-homeaway">
+          <option value="Home">Home</option>
+          <option value="Away">Away</option>
+        </select>
+      </div>
+
+    </div>
+
+    <div class="field-grid">
+
+      <div class="field">
+        <label for="video-jersey-color">Your goalie's team jersey color (this game)</label>
+        <input type="text" id="video-jersey-color" placeholder="e.g. white, red, black">
+      </div>
+
+      <div class="field">
+        <label for="video-file-input">Video file</label>
+        <input type="file" id="video-file-input" accept="video/*">
+      </div>
+
+    </div>
+
+    <p class="empty-state" style="padding:0 0 12px;text-align:left">Since the camera shows the whole rink, this tells us which net to actually pay attention to -- otherwise shots at both ends get mixed together.</p>
+
+    <div id="video-upload-status" class="empty-state" style="display:none"></div>
+
+    <button type="button" class="btn-primary" id="video-upload-btn" onclick="uploadGameVideo()">
+      Upload
+    </button>
+
   </div>
 
   <div class="section-heading">
-    <h3>Your Games</h3>
-    <p>Click Edit to load a game into the form below, or Delete to remove it permanently.</p>
+    <h3>Your uploads</h3>
+    <p>We'll handle turning this into stats -- nothing else needed from you.</p>
   </div>
 
-  <div id="my-games-list"></div>
+  <div class="card">
+    <div id="video-list-container">
+      <div class="empty-state">No videos uploaded yet.</div>
+    </div>
+  </div>
+
+
+  </div>
+
+  <div id="addManualPanel">
 
   <div class="section-heading">
     <h3 id="addgame-form-heading">Add a New Game</h3>
@@ -5020,6 +5132,8 @@ tr:hover td{
 
   </form>
 
+  </div>
+
 </section>
 
 
@@ -5027,100 +5141,7 @@ tr:hover td{
 <!-- VIDEO UPLOAD (customer-facing -- upload only, no drafts) -->
 <!-- ========================================================= -->
 
-<section id="videopipeline" class="tab">
-
-  <div class="page-title">
-    <h2>Upload Video</h2>
-    <p>Upload your game film here and we'll take care of the rest -- your stats will show up once we've gone through it.</p>
-  </div>
-
-  <div class="card">
-
-    <h3>Upload game film</h3>
-
-    <div class="field-grid">
-
-      <div class="field">
-        <label>
-          <input type="checkbox" id="video-new-game-toggle" onchange="toggleVideoNewGameFields()">
-          This is a new game (not in My Games yet)
-        </label>
-      </div>
-
-    </div>
-
-    <div id="video-existing-game-field" class="field-grid">
-
-      <div class="field">
-        <label for="video-game-select">Game</label>
-        <select id="video-game-select"></select>
-      </div>
-
-    </div>
-
-    <div id="video-new-game-fields" class="field-grid" style="display:none">
-
-      <div class="field" id="video-new-game-goalie-field" style="display:none">
-        <label for="video-new-game-goalie-select">Goalie</label>
-        <select id="video-new-game-goalie-select"></select>
-      </div>
-
-      <div class="field">
-        <label for="video-new-game-date">Date</label>
-        <input type="date" id="video-new-game-date">
-      </div>
-
-      <div class="field">
-        <label for="video-new-game-opponent">Opponent</label>
-        <input type="text" id="video-new-game-opponent" placeholder="Opponent name">
-      </div>
-
-      <div class="field">
-        <label for="video-new-game-homeaway">Home/Away</label>
-        <select id="video-new-game-homeaway">
-          <option value="Home">Home</option>
-          <option value="Away">Away</option>
-        </select>
-      </div>
-
-    </div>
-
-    <div class="field-grid">
-
-      <div class="field">
-        <label for="video-jersey-color">Your goalie's team jersey color (this game)</label>
-        <input type="text" id="video-jersey-color" placeholder="e.g. white, red, black">
-      </div>
-
-      <div class="field">
-        <label for="video-file-input">Video file</label>
-        <input type="file" id="video-file-input" accept="video/*">
-      </div>
-
-    </div>
-
-    <p class="empty-state" style="padding:0 0 12px;text-align:left">Since the camera shows the whole rink, this tells us which net to actually pay attention to -- otherwise shots at both ends get mixed together.</p>
-
-    <div id="video-upload-status" class="empty-state" style="display:none"></div>
-
-    <button type="button" id="video-upload-btn" onclick="uploadGameVideo()">
-      Upload
-    </button>
-
-  </div>
-
-  <div class="section-heading">
-    <h3>Your uploads</h3>
-    <p>We'll handle turning this into stats -- nothing else needed from you.</p>
-  </div>
-
-  <div class="card">
-    <div id="video-list-container">
-      <div class="empty-state">No videos uploaded yet.</div>
-    </div>
-  </div>
-
-</section>
+<!-- Upload Video now lives inside Add Game (#addgame). -->
 
 
 <!-- ========================================================= -->
@@ -6945,8 +6966,8 @@ function showTab(id,button){
   }
 
 
-  if(id === "videopipeline"){
-    loadVideoPipelineData();
+  if(id === "addgame"){
+    setAddGameMode(addGameMode);
   }
 
   if(id === "adminvideoreview"){
@@ -7015,9 +7036,8 @@ function toggleNavDropdown(e){
 
   activeStatsToggleBtn = toggleBtn;
 
-  const isStaff = currentRole === "coach" || currentRole === "admin";
-  menu.querySelectorAll("[data-staff-only]").forEach(b => {
-    b.style.display = isStaff ? "" : "none";
+  menu.querySelectorAll("[data-admin-only]").forEach(b => {
+    b.style.display = currentRole === "admin" ? "" : "none";
   });
 
   const rect =
@@ -9011,7 +9031,7 @@ function renderGameLog(){
       <td>${minutes ? minutes.toFixed(1) : "—"}</td>
 
       <td>
-        <button type="button" class="btn-secondary" onclick="event.stopPropagation(); openGameOverview(${JSON.stringify(String(game.id))})">Overview</button>
+        <button type="button" class="btn-secondary" onclick="event.stopPropagation(); openGameOverview(${Number(game.id)})">Overview</button>
         <button type="button" class="btn-secondary" onclick="event.stopPropagation(); generateGameReportPDF(${game.id}, this)">PDF</button>
         <button type="button" class="btn-secondary" onclick="event.stopPropagation(); openShotLogModal(${game.id})">Shots</button>
       </td>
@@ -12571,7 +12591,7 @@ function renderGoalieProfile(goalieId){
   if(!recentGames.length){
 
     gamesBody.innerHTML =
-      `<tr><td colspan="7"><div class="empty-state">No games recorded yet. Add your first game under "My Games" or "Enter Stats" to start tracking performance.</div></td></tr>`;
+      `<tr><td colspan="7"><div class="empty-state">No games recorded yet. Add your first game under "Add Game" to start tracking performance.</div></td></tr>`;
 
   }
   else{
@@ -12619,7 +12639,7 @@ function renderGoalieProfile(goalieId){
           <span class="stat-value">${rebound.goalsFromRebounds}</span>
         </div>
       `
-      : `<div class="empty-state">No rebound tracking data has been entered yet. Add rebound control tracking the next time you log a game under "Enter Stats" or "My Games".</div>`;
+      : `<div class="empty-state">No rebound tracking data has been entered yet. Add rebound control tracking the next time you log a game under "Add Game".</div>`;
 
   const puck = computeGoaliePuckSummary(goalieId, CURRENT_SEASON);
   const puckEl = document.getElementById("gpPuckSummary");
@@ -12636,7 +12656,7 @@ function renderGoalieProfile(goalieId){
           <span class="stat-value">${puck.passCompletionPct !== null ? puck.passCompletionPct.toFixed(1) + "%" : "—"}</span>
         </div>
       `
-      : `<div class="empty-state">No puck-playing data has been entered yet. Add puck-playing tracking the next time you log a game under "Enter Stats" or "My Games".</div>`;
+      : `<div class="empty-state">No puck-playing data has been entered yet. Add puck-playing tracking the next time you log a game under "Add Game".</div>`;
 
 }
 
@@ -12665,7 +12685,7 @@ function openGoalie(goalieId){
   renderCoachNotesGoaliePicker();
   renderCoachNotesList();
 
-  showTab("goalieprofile");
+  showTab("overview", document.getElementById("coach-nav-season"));
 
 }
 
@@ -12714,6 +12734,9 @@ function renderCoachNotesGoaliePicker(){
   }
 
   freshSelect.value = coachPrimaryGoalieId;
+
+  // The top goalie switcher is the single place to pick a goalie.
+  pickerCard.style.display = "none";
 
 }
 
@@ -12995,7 +13018,7 @@ function renderAdminGoalies(){
           <td>${coachCount}</td>
           <td style="white-space:nowrap">
             <button type="button" class="btn-secondary" onclick="openAdminProfileModal('${g.id}')">Edit</button>
-            <button type="button" class="btn-secondary" onclick="openAdminGoalieGamesModal('${g.id}')">Games</button>
+            <button type="button" class="btn-secondary" onclick="viewGoalieAnalytics('${g.id}')">Analytics</button>
           </td>
         </tr>
       `;
@@ -14335,7 +14358,7 @@ async function loadDashboard(){
 
 const STAFF_GOALIE_TABS = new Set([
   "overview","gamelog","gameoverview","periods","situational",
-  "control","incremental","puckplaying","goalieprofile","coach"
+  "control","incremental","puckplaying","goalieprofile","coach","coachnotes"
 ]);
 
 function viewableGoalieProfiles(){
@@ -14434,6 +14457,11 @@ function ensureStaffGoalieSelected(tabId){
   if(currentRole === "coach"){ coachPrimaryGoalieId = withGames.id; }
 
   applyActiveGoalieFilter();
+
+  if(currentRole === "coach"){
+    renderCoachNotesGoaliePicker();
+    renderCoachNotesList();
+  }
 
 }
 
@@ -14668,24 +14696,86 @@ function goPriorAggregate(priorGames, priorMetrics){
 
 }
 
+function gamesNavButton(){
+
+  if(currentRole === "coach"){ return document.getElementById("coach-nav-games"); }
+  if(currentRole === "admin"){ return document.getElementById("admin-stats-toggle-btn"); }
+
+  return document.getElementById("goalie-nav-games");
+
+}
+
 function openGameOverview(gameId){
 
   selectedGameId = gameId === null || gameId === undefined ? null : String(gameId);
 
-  const btn =
-    document.getElementById("goalie-nav-gameoverview") ||
-    null;
-
-  const navBtn =
-    currentRole === "coach"
-      ? document.getElementById("coach-nav-gameoverview")
-      : currentRole === "admin"
-        ? document.getElementById("admin-stats-toggle-btn")
-        : btn;
-
-  showTab("gameoverview", navBtn);
+  showTab("gameoverview", gamesNavButton());
 
   window.scrollTo({ top:0, behavior:"smooth" });
+
+}
+
+// Game Log is the "all games" view of the Games area, not its own feature.
+function openGameLog(){
+
+  showTab("gamelog", gamesNavButton());
+
+  window.scrollTo({ top:0, behavior:"smooth" });
+
+}
+
+// Admin: jump from Accounts straight into a goalie's analytics.
+function viewGoalieAnalytics(goalieId){
+
+  switchViewedGoalie(goalieId);
+
+  showTab("overview", document.getElementById("admin-stats-toggle-btn"));
+
+}
+
+
+/* ------------------------------------------------------------
+   ADD GAME: one place to get a game in (film upload or manual).
+------------------------------------------------------------ */
+
+let addGameMode = "upload";
+
+function setAddGameMode(mode){
+
+  addGameMode = mode === "manual" ? "manual" : "upload";
+
+  const upload = document.getElementById("addUploadPanel");
+  const manual = document.getElementById("addManualPanel");
+
+  if(upload){ upload.style.display = addGameMode === "upload" ? "" : "none"; }
+  if(manual){ manual.style.display = addGameMode === "manual" ? "" : "none"; }
+
+  document.querySelectorAll("#addModeToggle button").forEach(b => {
+    b.classList.toggle("active", b.dataset.mode === addGameMode);
+  });
+
+  if(addGameMode === "upload" && typeof loadVideoPipelineData === "function"){
+    loadVideoPipelineData();
+  }
+
+}
+
+function openAddGame(mode){
+
+  showTab("addgame", document.getElementById("goalie-nav-addgame"));
+
+  setAddGameMode(mode || addGameMode);
+
+}
+
+function editGameFromOverview(gameId){
+
+  openAddGame("manual");
+
+  editGame(gameId);
+
+  const panel = document.getElementById("addManualPanel");
+  if(panel){ panel.scrollIntoView({ behavior:"smooth", block:"start" }); }
 
 }
 
@@ -14863,8 +14953,12 @@ function renderGameOverviewHero(game, m){
         </div>
       </div>
       <div class="go-actions">
-        <button type="button" class="btn-secondary" onclick="generateGameReportPDF(${JSON.stringify(String(game.id))}, this)">Download PDF Report</button>
-        <button type="button" class="btn-secondary" onclick="openShotLogModal(${JSON.stringify(String(game.id))})">Shot Log</button>
+        <button type="button" class="btn-secondary" onclick="generateGameReportPDF(${Number(game.id)}, this)">Download PDF Report</button>
+        <button type="button" class="btn-secondary" onclick="openShotLogModal(${Number(game.id)})">Shot Log</button>
+        ${currentRole === "goalie" ? `
+          <button type="button" class="btn-secondary" onclick="editGameFromOverview(${Number(game.id)})">Edit</button>
+          <button type="button" class="btn-danger" onclick="deleteGame(${Number(game.id)})">Delete</button>
+        ` : ""}
       </div>
     </div>
   `;
@@ -15278,7 +15372,7 @@ function renderGameTrendTable(windowGames, windowMetrics, selectedGame){
       <th>Metric</th>
       ${windowGames.map(g => `
         <th class="${g.id === selectedGame.id ? "is-selected" : ""}">
-          <a href="#" class="go-opp-link" onclick="selectGameOverview(${JSON.stringify(String(g.id))});return false;">${escapeHtml(goShortDate(g))}</a>
+          <a href="#" class="go-opp-link" onclick="selectGameOverview(${Number(g.id)});return false;">${escapeHtml(goShortDate(g))}</a>
           <span class="go-metric-hint">${escapeHtml(String(gameOpponent(g)).slice(0,14))}</span>
         </th>
       `).join("")}
@@ -16745,14 +16839,16 @@ async function finishLiveTagGame(){
     liveTagState = freshLiveTagState();
     resetLiveTagSession();
 
-    const myGamesBtn =
-      document.querySelector('nav button[onclick*="\'addgame\'"]');
-
-    showTab("addgame", myGamesBtn);
-
     await loadDashboard();
 
-    showAddGameMessage("Game saved from Live Tag.");
+    // Land on the game that was just tagged, for the goalie it belongs to.
+    if(currentRole === "admin" && userId){
+      activeGoalieId = userId;
+      applyActiveGoalieFilter();
+    }
+
+    showToast("Game saved from Live Tag.", "success");
+    openGameOverview(gameId);
 
   }
   catch(error){
@@ -17022,6 +17118,9 @@ document.getElementById("addgame-form")
       );
 
       await loadDashboard();
+
+      showToast(wasEditing ? "Game updated." : "Game saved.", "success");
+      openGameOverview(gameId);
 
     }
     catch(error){
