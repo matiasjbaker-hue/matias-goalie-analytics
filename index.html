@@ -2418,6 +2418,41 @@ tr:hover td{
   .access-pill{ display:none !important; }
   .paywall-card{ margin:10px auto; padding:30px 20px; }
 }
+
+.paywall-plans{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  max-width:420px;
+  margin:0 auto 14px;
+}
+
+.paywall-plans:empty{ display:none; }
+
+.paywall-plan{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:16px;
+  text-align:left;
+  border:1px solid var(--border2);
+  border-radius:12px;
+  padding:16px;
+  background:var(--card2);
+}
+
+.paywall-plan-name{ font-weight:800; font-size:16px; }
+.paywall-plan-desc{ color:var(--muted); font-size:12px; margin-top:4px; line-height:1.4; }
+.paywall-plan-right{ text-align:right; flex-shrink:0; }
+.paywall-plan-price{ font-weight:800; font-size:15px; margin-bottom:8px; white-space:nowrap; }
+.paywall-plan-right .btn-primary{ width:auto; padding:9px 16px; }
+.paywall-card #paywallRequestBtn.btn-secondary{ width:100%; max-width:420px; }
+
+@media(max-width:480px){
+  .paywall-plan{ flex-direction:column; align-items:stretch; }
+  .paywall-plan-right{ text-align:left; display:flex; justify-content:space-between; align-items:center; }
+  .paywall-plan-price{ margin-bottom:0; }
+}
 </style>
 </head>
 
@@ -2704,6 +2739,10 @@ tr:hover td{
 
       <span id="user-email-badge" class="user-badge"></span>
 
+      <button class="logout-btn" id="billing-btn" style="display:none" onclick="openBillingPortal(this)">
+        Billing
+      </button>
+
       <button class="logout-btn" onclick="handleLogout()">
         Log out
       </button>
@@ -2873,6 +2912,7 @@ tr:hover td{
       <li>Development trends that show if you're getting better</li>
       <li>Shot clips and a dashboard your coach can follow</li>
     </ul>
+    <div class="paywall-plans" id="paywallPlans"></div>
     <button type="button" class="btn-primary" id="paywallRequestBtn" onclick="requestGoalieAccess(this)">Request access</button>
     <div class="small-note" id="paywallNote">We'll reach out by email. You can also DM @goalieiqanalytics on Instagram.</div>
   </div>
@@ -12180,6 +12220,9 @@ function setNavForRole(){
   const accessPill = document.getElementById("access-pill");
   if(accessPill){ accessPill.style.display = "none"; }
 
+  const billingBtn = document.getElementById("billing-btn");
+  if(billingBtn){ billingBtn.style.display = "none"; }
+
   brandTitle.textContent = "GoalieIQ Analytics";
 
   if(currentRole === "admin"){
@@ -12255,12 +12298,33 @@ async function applyRoleAndLoad(){
 
     myAccess = await fetchMyAccess();
 
+    const checkoutState = new URLSearchParams(location.search).get("checkout");
+
+    if(checkoutState){
+      history.replaceState(null, "", location.pathname + location.hash);
+    }
+
+    if(checkoutState === "cancel"){
+      showToast("Checkout canceled. You weren't charged.");
+    }
+
+    if(!accessIsActive(myAccess) && checkoutState === "success"){
+      showPaywall(myAccess);
+      await waitForPaidAccess();
+      return;
+    }
+
     if(!accessIsActive(myAccess)){
       showPaywall(myAccess);
       return;
     }
 
+    if(checkoutState === "success"){
+      showToast("You're subscribed. Welcome to GoalieIQ!");
+    }
+
     renderAccessPill(myAccess);
+    renderBillingButton(myAccess);
 
   }
 
@@ -13247,8 +13311,17 @@ async function showPaywall(row){
     message = "Your games and stats are saved. Request access to unlock your dashboard again.";
   }
 
+  if(row && row.stripe_subscription_id && row.status === "canceled"){
+    title = "Your subscription has ended";
+    message = "Your games and stats are saved. Subscribe again to unlock your dashboard.";
+  }
+
   document.getElementById("paywallTitle").textContent = title;
   document.getElementById("paywallMessage").textContent = message;
+  document.getElementById("paywallMessage").dataset.kind = row ? "lapsed" : "new";
+
+  renderBillingButton(row);
+  loadPaywallPlans();
 
   const btn = document.getElementById("paywallRequestBtn");
   btn.disabled = false;
@@ -13308,6 +13381,187 @@ async function requestGoalieAccess(button){
 }
 
 
+
+/* ---------- Stripe: plans, checkout, billing portal ---------- */
+
+function formatPlanPrice(plan){
+
+  const amount = (plan.amount || 0) / 100;
+  const money = amount.toLocaleString(undefined, {
+    style:"currency",
+    currency:(plan.currency || "cad").toUpperCase(),
+    minimumFractionDigits: amount % 1 ? 2 : 0
+  });
+
+  if(!plan.interval){ return money; }
+
+  const every =
+    plan.intervalCount && plan.intervalCount > 1
+      ? `${plan.intervalCount} ${plan.interval}s`
+      : plan.interval;
+
+  return `${money} / ${every}`;
+
+}
+
+async function loadPaywallPlans(){
+
+  const box = document.getElementById("paywallPlans");
+  const requestBtn = document.getElementById("paywallRequestBtn");
+  if(!box || activatingCheckout){ return; }
+
+  let plans = [];
+
+  try{
+    const res = await fetch("/api/stripe/plans");
+    if(res.ok){
+      const data = await res.json();
+      plans = Array.isArray(data.plans) ? data.plans : [];
+    }
+  }
+  catch(err){ /* no plans -> invite-only screen */ }
+
+  if(activatingCheckout){ return; }
+
+  if(!plans.length){
+    box.innerHTML = "";
+    requestBtn.className = "btn-primary";
+    return;
+  }
+
+  const msg = document.getElementById("paywallMessage");
+  if(msg.dataset.kind === "new"){
+    msg.textContent = "Your account is set up. Choose a plan to unlock your dashboard. If you've been invited, request access instead.";
+  }
+
+  box.innerHTML = plans.map(plan => `
+    <div class="paywall-plan">
+      <div>
+        <div class="paywall-plan-name">${escapeHtml(plan.name)}</div>
+        ${plan.description ? `<div class="paywall-plan-desc">${escapeHtml(plan.description)}</div>` : ""}
+      </div>
+      <div class="paywall-plan-right">
+        <div class="paywall-plan-price">${escapeHtml(formatPlanPrice(plan))}</div>
+        <button type="button" class="btn-primary" onclick="startCheckout('${escapeHtml(plan.priceId)}', this)">Subscribe</button>
+      </div>
+    </div>
+  `).join("");
+
+  // With paid plans on screen, requesting an invite becomes the secondary path.
+  requestBtn.className = "btn-secondary";
+  if(!requestBtn.disabled){ requestBtn.textContent = "Have an invite? Request access"; }
+
+}
+
+async function startCheckout(priceId, button){
+
+  button.disabled = true;
+  const label = button.textContent;
+  button.textContent = "Opening checkout...";
+
+  try{
+
+    const res = await fetch("/api/stripe/checkout", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body:JSON.stringify({ accessToken: currentSession.access_token, priceId })
+    });
+
+    const data = await res.json();
+
+    if(!res.ok || !data.url){
+      throw new Error(data.error || "Could not start checkout.");
+    }
+
+    location.href = data.url;
+
+  }
+  catch(err){
+
+    console.error(err);
+    showToast(err.message, "error");
+    button.disabled = false;
+    button.textContent = label;
+
+  }
+
+}
+
+function renderBillingButton(row){
+
+  const btn = document.getElementById("billing-btn");
+  if(!btn){ return; }
+
+  btn.style.display =
+    currentRole === "goalie" && row && row.stripe_customer_id ? "" : "none";
+
+}
+
+async function openBillingPortal(button){
+
+  button.disabled = true;
+
+  try{
+
+    const res = await fetch("/api/stripe/portal", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body:JSON.stringify({ accessToken: currentSession.access_token })
+    });
+
+    const data = await res.json();
+
+    if(!res.ok || !data.url){
+      throw new Error(data.error || "Could not open billing.");
+    }
+
+    location.href = data.url;
+
+  }
+  catch(err){
+
+    console.error(err);
+    showToast(err.message, "error");
+    button.disabled = false;
+
+  }
+
+}
+
+// Back from Stripe Checkout: the webhook usually lands within a few
+// seconds. Poll our own access row until it flips, then load the app.
+let activatingCheckout = false;
+
+async function waitForPaidAccess(){
+
+  activatingCheckout = true;
+
+  document.getElementById("paywallTitle").textContent = "Payment received";
+  document.getElementById("paywallMessage").textContent = "Activating your account. This takes a few seconds...";
+  document.getElementById("paywallPlans").innerHTML = "";
+  document.getElementById("paywallRequestBtn").style.display = "none";
+
+  for(let i = 0; i < 20; i++){
+
+    await new Promise(r => setTimeout(r, 2500));
+
+    myAccess = await fetchMyAccess();
+
+    if(accessIsActive(myAccess)){
+      activatingCheckout = false;
+      document.getElementById("paywallRequestBtn").style.display = "";
+      showToast("You're subscribed. Welcome to GoalieIQ!");
+      await applyRoleAndLoad();
+      return;
+    }
+
+  }
+
+  document.getElementById("paywallMessage").textContent =
+    "Your payment went through, but activation is taking longer than usual. Refresh in a minute. If it still doesn't unlock, DM @goalieiqanalytics.";
+
+}
+
 /* ---------- Admin: grant / change access ---------- */
 
 let adminAccessEditingId = null;
@@ -13326,7 +13580,10 @@ function accessBadgeHtml(goalieId){
   const live = accessIsActive(row);
   let label = ACCESS_LABELS[row.status] || row.status;
 
-  if(row.status === "trial"){
+  if(row.stripe_subscription_id && row.status === "active"){
+    label = live ? "Paid · Stripe" : "Paid · lapsed";
+  }
+  else if(row.status === "trial"){
     label = live ? `Trial · ends ${accessDateLabel(row.access_until)}` : "Trial ended";
   }
   else if(row.access_until && live){
@@ -13354,13 +13611,19 @@ function syncAdminAccessFields(){
     until.value = d.toISOString().slice(0, 10);
   }
 
-  help.textContent = {
+  const editingRow = adminAccess.find(a => a.user_id === adminAccessEditingId);
+  const stripeNote =
+    editingRow && editingRow.stripe_subscription_id
+      ? " Billed through Stripe: Stripe will overwrite this on their next billing event. Cancel or refund in the Stripe dashboard instead."
+      : "";
+
+  help.textContent = ({
     none: "No access: they only see the request-access screen. Their saved data is kept.",
     comp: "Free with no end date, unless you set one. Use for founding goalies.",
     trial: "Free until the end date, then locked automatically.",
     active: "Paying member. Leave the end date empty, or set it to the end of what they paid for.",
     canceled: "Locked. Their saved data is kept if they come back."
-  }[status];
+  }[status]) + stripeNote;
 
 }
 
