@@ -2333,6 +2333,91 @@ tr:hover td{
   padding:10px 16px;
   font-size:13px;
 }
+
+/* Access / paywall */
+.access-pill{
+  border:1px solid var(--border2);
+  color:var(--muted);
+  border-radius:999px;
+  padding:7px 14px;
+  font-size:12px;
+  font-weight:700;
+  white-space:nowrap;
+}
+
+.paywall-card{
+  max-width:560px;
+  margin:40px auto;
+  text-align:center;
+  padding:40px 34px;
+}
+
+.paywall-logo{
+  width:84px;
+  height:84px;
+  margin-bottom:18px;
+}
+
+.paywall-card h2{
+  font-size:26px;
+  margin-bottom:10px;
+}
+
+.paywall-card > p{
+  color:var(--muted);
+  line-height:1.55;
+  margin-bottom:22px;
+}
+
+.paywall-list{
+  list-style:none;
+  text-align:left;
+  margin:0 auto 26px;
+  padding:0;
+  max-width:420px;
+}
+
+.paywall-list li{
+  padding:9px 0 9px 26px;
+  position:relative;
+  font-size:14px;
+  border-bottom:1px solid var(--border);
+}
+
+.paywall-list li::before{
+  content:"✓";
+  position:absolute;
+  left:0;
+  color:var(--green);
+  font-weight:800;
+}
+
+.paywall-card .btn-primary{
+  width:100%;
+  max-width:420px;
+}
+
+.paywall-card .small-note{
+  margin-top:14px;
+}
+
+.access-badge{
+  display:inline-block;
+  padding:4px 10px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:700;
+  white-space:nowrap;
+}
+
+.access-live{ background:rgba(105,221,160,.12); color:var(--green); }
+.access-none{ background:rgba(255,255,255,.04); color:var(--muted); }
+.access-pending{ background:rgba(230,210,122,.14); color:var(--yellow); }
+
+@media(max-width:750px){
+  .access-pill{ display:none !important; }
+  .paywall-card{ margin:10px auto; padding:30px 20px; }
+}
 </style>
 </head>
 
@@ -2623,6 +2708,8 @@ tr:hover td{
         Log out
       </button>
 
+      <div class="access-pill" id="access-pill" style="display:none"></div>
+
       <div class="season-badge" id="season-badge">
         2026 PRESEASON
       </div>
@@ -2774,6 +2861,22 @@ tr:hover td{
 
 
 <main>
+
+<section id="paywall" class="tab">
+  <div class="paywall-card card">
+    <svg class="paywall-logo" viewBox="0 0 1080 1080" aria-hidden="true"><circle cx="540" cy="540" r="540" fill="#061710"/><circle cx="540" cy="540" r="330" fill="none" stroke="#69dda0" stroke-width="44"/><circle cx="540" cy="540" r="250" fill="#0c261c"/><text x="540" y="640" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-weight="900" font-size="290" letter-spacing="-12" fill="#edf7f1">IQ</text><circle cx="773" cy="307" r="58" fill="#69dda0" stroke="#061710" stroke-width="22"/></svg>
+    <h2 id="paywallTitle">Welcome to GoalieIQ</h2>
+    <p id="paywallMessage"></p>
+    <ul class="paywall-list">
+      <li>Every shot you face, tracked from your game film</li>
+      <li>Full game-by-game breakdowns: shot quality, GSAx, rebound control</li>
+      <li>Development trends that show if you're getting better</li>
+      <li>Shot clips and a dashboard your coach can follow</li>
+    </ul>
+    <button type="button" class="btn-primary" id="paywallRequestBtn" onclick="requestGoalieAccess(this)">Request access</button>
+    <div class="small-note" id="paywallNote">We'll reach out by email. You can also DM @goalieiqanalytics on Instagram.</div>
+  </div>
+</section>
 
 <div id="dashboard-error"></div>
 
@@ -3049,6 +3152,7 @@ tr:hover td{
             <th>Birth Year</th>
             <th>Games Tracked</th>
             <th>Coaches Assigned</th>
+            <th>Access</th>
             <th></th>
           </tr>
         </thead>
@@ -3146,6 +3250,42 @@ tr:hover td{
 <!-- ========================================================= -->
 <!-- ADMIN: EDIT PROFILE (goalies and coaches) -->
 <!-- ========================================================= -->
+
+<div class="giq-modal-overlay" id="adminAccessModalOverlay">
+  <div class="giq-modal" style="max-width:460px">
+    <div class="giq-modal-header">
+      <h3 id="adminAccessTitle">Access</h3>
+      <button type="button" class="giq-modal-close" onclick="closeAdminAccessModal()">&times;</button>
+    </div>
+    <div class="giq-modal-body">
+      <div class="field-grid">
+        <div class="field">
+          <label for="adminAccessStatus">Access</label>
+          <select id="adminAccessStatus" onchange="syncAdminAccessFields()">
+            <option value="none">No access</option>
+            <option value="comp">Free (no end date)</option>
+            <option value="trial">Free trial</option>
+            <option value="active">Paid</option>
+            <option value="canceled">Canceled</option>
+          </select>
+        </div>
+        <div class="field" id="adminAccessUntilField">
+          <label for="adminAccessUntil">Access ends</label>
+          <input id="adminAccessUntil" type="date">
+        </div>
+        <div class="field" style="grid-column:1/-1">
+          <label for="adminAccessNote">Note (only you see this)</label>
+          <input id="adminAccessNote" type="text" autocomplete="off" placeholder="e.g. 3 free games, then paid">
+        </div>
+      </div>
+      <div class="small-note" id="adminAccessHelp"></div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button type="button" class="btn-primary" id="adminAccessSaveBtn" onclick="saveAdminAccess(this)">Save</button>
+        <button type="button" class="btn-secondary" onclick="closeAdminAccessModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <div class="giq-modal-overlay" id="adminProfileModalOverlay">
   <div class="giq-modal" style="max-width:480px">
@@ -12037,6 +12177,9 @@ function setNavForRole(){
   coachNav.style.display = "none";
   adminNav.style.display = "none";
 
+  const accessPill = document.getElementById("access-pill");
+  if(accessPill){ accessPill.style.display = "none"; }
+
   brandTitle.textContent = "GoalieIQ Analytics";
 
   if(currentRole === "admin"){
@@ -12104,6 +12247,22 @@ async function applyRoleAndLoad(){
   currentRole = (currentProfile && currentProfile.role) || "goalie";
 
   setNavForRole();
+
+  // Paywall: a goalie without active access sees only the access screen.
+  // The database enforces this too (restrictive RLS on all stat tables),
+  // so this is the friendly front door, not the lock.
+  if(currentRole === "goalie"){
+
+    myAccess = await fetchMyAccess();
+
+    if(!accessIsActive(myAccess)){
+      showPaywall(myAccess);
+      return;
+    }
+
+    renderAccessPill(myAccess);
+
+  }
 
   // loadDashboard() populates allGames/allPeriodStats/allShots/
   // allReboundControls/allPuckPlaying from Supabase -- everything the
@@ -12897,6 +13056,8 @@ async function saveCoachNote(){
 
 let adminProfiles = [];
 let adminAssignments = [];
+let adminAccess = [];
+let adminAccessRequests = [];
 
 
 async function loadAdminExtras(){
@@ -12910,6 +13071,8 @@ async function loadAdminExtras(){
     // path, this is not scoped by assignment.
     adminProfiles = await q("profiles");
     adminAssignments = await q("coach_goalie_assignments");
+    adminAccess = await q("goalie_access");
+    adminAccessRequests = await qFiltered("feedback", "category=eq.access_request");
 
   }
   catch(err){
@@ -12917,6 +13080,8 @@ async function loadAdminExtras(){
     console.error("Admin data loading error:", err);
     adminProfiles = [];
     adminAssignments = [];
+    adminAccess = [];
+    adminAccessRequests = [];
 
     errorBox.innerHTML += `
       <div class="error-box">
@@ -12991,6 +13156,310 @@ function renderAdminCoaches(){
 }
 
 
+
+/* ============================================================
+   ACCESS / PAYWALL
+   goalie_access (admin-only writes) decides whether a goalie's
+   account is unlocked. Restrictive RLS on every stat table and the
+   paid-cost API routes enforce the same rule server-side.
+============================================================ */
+
+let myAccess = null;
+
+const ACCESS_LABELS = {
+  comp: "Free",
+  trial: "Free trial",
+  active: "Paid",
+  canceled: "Canceled"
+};
+
+function accessIsActive(row){
+
+  if(!row){ return false; }
+  if(!["comp","trial","active"].includes(row.status)){ return false; }
+
+  return !row.access_until || new Date(row.access_until) > new Date();
+
+}
+
+function accessDateLabel(iso){
+  if(!iso){ return ""; }
+  return new Date(iso).toLocaleDateString(undefined, { month:"short", day:"numeric", year:"numeric" });
+}
+
+async function fetchMyAccess(){
+
+  try{
+    const rows = await qFiltered("goalie_access", `user_id=eq.${currentSession.user.id}`);
+    return Array.isArray(rows) && rows.length ? rows[0] : null;
+  }
+  catch(err){
+    console.error("Could not load access:", err);
+    return null;
+  }
+
+}
+
+function renderAccessPill(row){
+
+  const pill = document.getElementById("access-pill");
+  if(!pill){ return; }
+
+  if(!row || !row.access_until || !accessIsActive(row) || row.status === "active"){
+    pill.style.display = "none";
+    return;
+  }
+
+  const days = Math.max(0, Math.ceil((new Date(row.access_until) - new Date()) / 86400000));
+
+  pill.textContent =
+    row.status === "trial"
+      ? `Free trial · ${days} day${days === 1 ? "" : "s"} left`
+      : `Free access until ${accessDateLabel(row.access_until)}`;
+
+  pill.style.display = "";
+
+}
+
+async function showPaywall(row){
+
+  ["goalie-nav","coach-nav","admin-nav"].forEach(id => {
+    const el = document.getElementById(id);
+    if(el){ el.style.display = "none"; }
+  });
+
+  const badge = document.getElementById("season-badge");
+  if(badge){ badge.style.display = "none"; }
+
+  renderAccessPill(null);
+
+  const name = currentProfile && currentProfile.full_name ? currentProfile.full_name.split(" ")[0] : "";
+
+  let title = `Welcome to GoalieIQ${name ? ", " + name : ""}`;
+  let message = "Your account is set up. GoalieIQ is invite-only right now while we onboard our first goalies. Request access and we'll get you started.";
+
+  if(row && row.status === "trial"){
+    title = "Your free trial has ended";
+    message = `Your trial ended on ${accessDateLabel(row.access_until)}. Your games and stats are saved. Request access to pick up where you left off.`;
+  }
+  else if(row && (row.status === "canceled" || row.status === "active" || row.status === "comp")){
+    title = "Your access has ended";
+    message = "Your games and stats are saved. Request access to unlock your dashboard again.";
+  }
+
+  document.getElementById("paywallTitle").textContent = title;
+  document.getElementById("paywallMessage").textContent = message;
+
+  const btn = document.getElementById("paywallRequestBtn");
+  btn.disabled = false;
+  btn.textContent = "Request access";
+
+  try{
+    const sent = await qFiltered(
+      "feedback",
+      `user_id=eq.${currentSession.user.id}&category=eq.access_request`
+    );
+    if(Array.isArray(sent) && sent.length){
+      btn.disabled = true;
+      btn.textContent = "Request sent ✓";
+    }
+  }
+  catch(err){ /* non-blocking */ }
+
+  showTab("paywall");
+
+}
+
+async function requestGoalieAccess(button){
+
+  button.disabled = true;
+  button.textContent = "Sending...";
+
+  try{
+
+    const email = currentSession.user.email || "";
+    const name = (currentProfile && currentProfile.full_name) || "Unnamed goalie";
+
+    const { error } =
+      await supabaseClient
+        .from("feedback")
+        .insert({
+          user_id: currentSession.user.id,
+          role: "goalie",
+          category: "access_request",
+          message: `Access request: ${name} <${email}>`
+        });
+
+    if(error){ throw new Error(error.message); }
+
+    button.textContent = "Request sent ✓";
+    showToast("Request sent. We'll be in touch soon.");
+
+  }
+  catch(err){
+
+    console.error(err);
+    button.disabled = false;
+    button.textContent = "Request access";
+    showToast("Could not send request: " + err.message, "error");
+
+  }
+
+}
+
+
+/* ---------- Admin: grant / change access ---------- */
+
+let adminAccessEditingId = null;
+
+function accessBadgeHtml(goalieId){
+
+  const row = adminAccess.find(a => a.user_id === goalieId);
+  const requested = adminAccessRequests.some(r => r.user_id === goalieId);
+
+  if(!row){
+    return requested
+      ? `<span class="access-badge access-pending">Requested</span>`
+      : `<span class="access-badge access-none">No access</span>`;
+  }
+
+  const live = accessIsActive(row);
+  let label = ACCESS_LABELS[row.status] || row.status;
+
+  if(row.status === "trial"){
+    label = live ? `Trial · ends ${accessDateLabel(row.access_until)}` : "Trial ended";
+  }
+  else if(row.access_until && live){
+    label += ` · until ${accessDateLabel(row.access_until)}`;
+  }
+  else if(row.access_until && !live){
+    label += " · ended";
+  }
+
+  return `<span class="access-badge ${live ? "access-live" : "access-none"}" title="${escapeHtml(row.note || "")}">${escapeHtml(label)}</span>`;
+
+}
+
+function syncAdminAccessFields(){
+
+  const status = document.getElementById("adminAccessStatus").value;
+  const untilField = document.getElementById("adminAccessUntilField");
+  const until = document.getElementById("adminAccessUntil");
+  const help = document.getElementById("adminAccessHelp");
+
+  untilField.style.display = status === "none" || status === "canceled" ? "none" : "";
+
+  if(status === "trial" && !until.value){
+    const d = new Date(Date.now() + 30 * 86400000);
+    until.value = d.toISOString().slice(0, 10);
+  }
+
+  help.textContent = {
+    none: "No access: they only see the request-access screen. Their saved data is kept.",
+    comp: "Free with no end date, unless you set one. Use for founding goalies.",
+    trial: "Free until the end date, then locked automatically.",
+    active: "Paying member. Leave the end date empty, or set it to the end of what they paid for.",
+    canceled: "Locked. Their saved data is kept if they come back."
+  }[status];
+
+}
+
+function openAdminAccessModal(goalieId){
+
+  adminAccessEditingId = goalieId;
+
+  const goalie = adminProfiles.find(p => p.id === goalieId);
+  const row = adminAccess.find(a => a.user_id === goalieId);
+
+  document.getElementById("adminAccessTitle").textContent =
+    `Access · ${goalie ? (goalie.full_name || "Goalie") : "Goalie"}`;
+
+  document.getElementById("adminAccessStatus").value = row ? row.status : "none";
+  document.getElementById("adminAccessUntil").value =
+    row && row.access_until ? String(row.access_until).slice(0, 10) : "";
+  document.getElementById("adminAccessNote").value = row && row.note ? row.note : "";
+
+  syncAdminAccessFields();
+
+  document.getElementById("adminAccessModalOverlay").classList.add("open");
+
+}
+
+function closeAdminAccessModal(){
+  document.getElementById("adminAccessModalOverlay").classList.remove("open");
+  adminAccessEditingId = null;
+}
+
+async function saveAdminAccess(button){
+
+  const goalieId = adminAccessEditingId;
+  if(!goalieId){ return; }
+
+  const status = document.getElementById("adminAccessStatus").value;
+  const untilRaw = document.getElementById("adminAccessUntil").value;
+  const note = document.getElementById("adminAccessNote").value.trim() || null;
+
+  if(status === "trial" && !untilRaw){
+    showToast("Pick an end date for the trial.", "error");
+    return;
+  }
+
+  button.disabled = true;
+
+  try{
+
+    if(status === "none"){
+
+      const { error } =
+        await supabaseClient.from("goalie_access").delete().eq("user_id", goalieId);
+      if(error){ throw error; }
+
+    }
+    else{
+
+      // End of the chosen day, local time.
+      const accessUntil =
+        untilRaw && status !== "canceled"
+          ? new Date(untilRaw + "T23:59:59").toISOString()
+          : null;
+
+      const { error } =
+        await supabaseClient
+          .from("goalie_access")
+          .upsert({
+            user_id: goalieId,
+            status,
+            access_until: accessUntil,
+            note,
+            granted_by: currentSession.user.id,
+            updated_at: new Date().toISOString()
+          }, { onConflict: "user_id" });
+
+      if(error){ throw error; }
+
+    }
+
+    adminAccess = await q("goalie_access");
+    renderAdminGoalies();
+    closeAdminAccessModal();
+    showToast("Access updated.");
+
+  }
+  catch(err){
+
+    console.error(err);
+    showToast("Could not update access: " + (err.message || "unknown error"), "error");
+
+  }
+  finally{
+
+    button.disabled = false;
+
+  }
+
+}
+
+
 function renderAdminGoalies(){
 
   const goalies = adminProfiles.filter(p => p.role === "goalie");
@@ -12999,7 +13468,7 @@ function renderAdminGoalies(){
   if(!goalies.length){
 
     tbody.innerHTML =
-      `<tr><td colspan="6"><div class="empty-state">No goalie accounts yet.</div></td></tr>`;
+      `<tr><td colspan="7"><div class="empty-state">No goalie accounts yet.</div></td></tr>`;
 
     return;
 
@@ -13021,7 +13490,9 @@ function renderAdminGoalies(){
           <td>${g.birth_year || "—"}</td>
           <td>${gameCount}</td>
           <td>${coachCount}</td>
+          <td>${accessBadgeHtml(g.id)}</td>
           <td style="white-space:nowrap">
+            <button type="button" class="btn-secondary" onclick="openAdminAccessModal('${g.id}')">Access</button>
             <button type="button" class="btn-secondary" onclick="openAdminProfileModal('${g.id}')">Edit</button>
             <button type="button" class="btn-secondary" onclick="viewGoalieAnalytics('${g.id}')">Analytics</button>
           </td>
