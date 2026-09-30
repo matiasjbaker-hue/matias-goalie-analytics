@@ -10,6 +10,8 @@
 //   customer.subscription.created
 //   customer.subscription.updated
 //   customer.subscription.deleted
+//   invoice.paid
+//   invoice.payment_failed
 
 import {
   stripe, verifyStripeSignature, accessFromSubscription,
@@ -28,6 +30,16 @@ async function readRawBody(req) {
     chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
   }
   return Buffer.concat(chunks).toString("utf8");
+}
+
+// Older API versions put the subscription on invoice.subscription;
+// newer ones on invoice.parent.subscription_details.subscription.
+function invoiceSubscriptionId(invoice) {
+  const direct = invoice.subscription;
+  if (direct) return typeof direct === "string" ? direct : direct.id;
+  const nested = invoice.parent && invoice.parent.subscription_details && invoice.parent.subscription_details.subscription;
+  if (nested) return typeof nested === "string" ? nested : nested.id;
+  return null;
 }
 
 async function findUserId(sub, hint) {
@@ -110,6 +122,15 @@ export default async function handler(req, res) {
       case "customer.subscription.deleted":
         await syncSubscription(obj.id);
         break;
+      // Renewal paid / renewal failed: re-sync so access_until moves
+      // forward on payment, and past_due is reflected on failure.
+      // (Stripe's own emails ask the goalie to fix their card.)
+      case "invoice.paid":
+      case "invoice.payment_failed": {
+        const subId = invoiceSubscriptionId(obj);
+        if (subId) await syncSubscription(subId);
+        break;
+      }
       default:
         break; // ignore everything else
     }
