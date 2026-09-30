@@ -244,6 +244,23 @@ function anthropicHeaders() {
 }
 
 
+// Paywall: goalies need active access (comp / trial / paid) to use
+// paid-cost features. Coaches and admin always pass. Evaluated in the
+// database (my_has_access), with the caller's own token.
+async function callerHasAccess(accessToken) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/my_has_access`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: "{}",
+  });
+  if (!res.ok) return false;
+  return (await res.json()) === true;
+}
+
 export default async function handler(req, res) {
 
   if (req.method !== "POST") {
@@ -269,6 +286,11 @@ export default async function handler(req, res) {
   }
 
   try {
+
+    if (!(await callerHasAccess(accessToken))) {
+      res.status(402).json({ error: "Your GoalieIQ access isn't active." });
+      return;
+    }
 
     const [gamesAll, periodStatsAll, shotsAll, reboundControlsAll, puckPlayingAll] = await Promise.all([
       supabaseQuery("Games", accessToken),
