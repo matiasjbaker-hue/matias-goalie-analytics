@@ -152,7 +152,12 @@ export function accessFromSubscription(sub) {
   const end = periodEnd(sub);
   const until = end ? new Date((end + GRACE_SECONDS) * 1000).toISOString() : null;
   const price = sub.items && sub.items.data && sub.items.data[0] && sub.items.data[0].price;
-  const plan = price ? (price.nickname || (price.product && price.product.name) || price.id) : null;
+  // plan = product metadata "tier" (goalie / goalie_plus). The database
+  // uses it to decide AI access, so it must be the tier key, not a label.
+  const product = price && typeof price.product === "object" ? price.product : null;
+  const plan = price
+    ? ((product && product.metadata && product.metadata.tier) || price.nickname || (product && product.name) || price.id)
+    : null;
 
   switch (sub.status) {
     case "active":
