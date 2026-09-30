@@ -2336,6 +2336,9 @@ tr:hover td{
 
 /* Access / paywall */
 .access-pill{
+  background:transparent;
+  font-family:inherit;
+  cursor:pointer;
   border:1px solid var(--border2);
   color:var(--muted);
   border-radius:999px;
@@ -2415,7 +2418,7 @@ tr:hover td{
 .access-pending{ background:rgba(230,210,122,.14); color:var(--yellow); }
 
 @media(max-width:750px){
-  .access-pill{ display:none !important; }
+  .access-pill{ font-size:11px; padding:6px 10px; }
   .paywall-card{ margin:10px auto; padding:30px 20px; }
 }
 
@@ -2453,6 +2456,27 @@ tr:hover td{
   .paywall-plan-right{ text-align:left; display:flex; justify-content:space-between; align-items:center; }
   .paywall-plan-price{ margin-bottom:0; }
 }
+
+.paywall-plan-trial{
+  border-color:rgba(105,221,160,.45);
+  background:rgba(105,221,160,.06);
+}
+
+.upgrade-card{
+  text-align:center;
+  padding:34px 26px;
+}
+
+.upgrade-card h3{ margin-bottom:10px; }
+
+.upgrade-card p{
+  color:var(--muted);
+  max-width:480px;
+  margin:0 auto 20px;
+  line-height:1.55;
+}
+
+.upgrade-card .small-note{ margin-top:12px; }
 </style>
 </head>
 
@@ -2747,7 +2771,7 @@ tr:hover td{
         Log out
       </button>
 
-      <div class="access-pill" id="access-pill" style="display:none"></div>
+      <button type="button" class="access-pill" id="access-pill" style="display:none" onclick="openPlansModal()" title="See plans"></button>
 
       <div class="season-badge" id="season-badge">
         2026 PRESEASON
@@ -3290,6 +3314,19 @@ tr:hover td{
 <!-- ========================================================= -->
 <!-- ADMIN: EDIT PROFILE (goalies and coaches) -->
 <!-- ========================================================= -->
+
+<div class="giq-modal-overlay" id="plansModalOverlay">
+  <div class="giq-modal" style="max-width:500px">
+    <div class="giq-modal-header">
+      <h3>Choose a plan</h3>
+      <button type="button" class="giq-modal-close" onclick="document.getElementById('plansModalOverlay').classList.remove('open')">&times;</button>
+    </div>
+    <div class="giq-modal-body">
+      <p class="small-note" style="margin:0 0 14px">Subscribe any time during your trial. Your games and stats carry over.</p>
+      <div class="paywall-plans" id="plansModalList" style="margin:0"></div>
+    </div>
+  </div>
+</div>
 
 <div class="giq-modal-overlay" id="adminAccessModalOverlay">
   <div class="giq-modal" style="max-width:460px">
@@ -5365,7 +5402,14 @@ tr:hover td{
     <p>Ask a question about this season's stats and get a plain-language answer.</p>
   </div>
 
-  <div class="card">
+  <div class="card upgrade-card" id="coachUpgradeCard" style="display:none">
+    <h3>AI Coach is part of Goalie Plus</h3>
+    <p>Ask anything about your season in plain language, and get an AI-written analysis in every game report PDF. Goalie Plus also covers up to 10 games tracked per month.</p>
+    <button type="button" class="btn-primary" onclick="openBillingPortal(this)">Upgrade to Goalie Plus</button>
+    <div class="small-note">You'll switch plans on Stripe's secure billing page. The price difference is prorated.</div>
+  </div>
+
+  <div class="card" id="coachChatCard">
 
     <div class="coach-chat" id="coach-chat">
       <div class="coach-message assistant">
@@ -7169,6 +7213,10 @@ function showTab(id,button){
 
   // Coach/admin opening an analytics tab with no goalie picked yet.
   ensureStaffGoalieSelected(id);
+
+  if(id === "coach"){
+    renderAiCoachGate();
+  }
 
   if(id === "gameoverview"){
     renderGameOverview();
@@ -13278,7 +13326,7 @@ function renderAccessPill(row){
 
   pill.textContent =
     row.status === "trial"
-      ? `Free trial · ${days} day${days === 1 ? "" : "s"} left`
+      ? `Free trial · ${days} day${days === 1 ? "" : "s"} left · Upgrade`
       : `Free access until ${accessDateLabel(row.access_until)}`;
 
   pill.style.display = "";
@@ -13382,6 +13430,92 @@ async function requestGoalieAccess(button){
 
 
 
+
+
+async function openPlansModal(){
+
+  if(!myAccess || myAccess.status !== "trial"){ return; }
+
+  const list = document.getElementById("plansModalList");
+  list.innerHTML = `<div class="small-note">Loading plans...</div>`;
+  document.getElementById("plansModalOverlay").classList.add("open");
+
+  let plans = [];
+  try{
+    const res = await fetch("/api/stripe/plans");
+    if(res.ok){ plans = (await res.json()).plans || []; }
+  }
+  catch(err){ /* handled below */ }
+
+  list.innerHTML = plans.length
+    ? plans.map(plan => `
+        <div class="paywall-plan">
+          <div>
+            <div class="paywall-plan-name">${escapeHtml(plan.name)}</div>
+            ${plan.description ? `<div class="paywall-plan-desc">${escapeHtml(plan.description)}</div>` : ""}
+          </div>
+          <div class="paywall-plan-right">
+            <div class="paywall-plan-price">${escapeHtml(formatPlanPrice(plan))}</div>
+            <button type="button" class="btn-primary" onclick="startCheckout('${escapeHtml(plan.priceId)}', this)">Subscribe</button>
+          </div>
+        </div>
+      `).join("")
+    : `<div class="small-note">Plans aren't available right now. DM @goalieiqanalytics and we'll set you up.</div>`;
+
+}
+
+/* ---------- Free trial + plan features ---------- */
+
+async function startFreeTrial(button){
+
+  button.disabled = true;
+  button.textContent = "Starting...";
+
+  try{
+
+    const { error } = await supabaseClient.rpc("start_free_trial");
+    if(error){ throw new Error(error.message); }
+
+    showToast("Your 7-day free trial has started. Upload your first game under Add Game.");
+    await applyRoleAndLoad();
+
+  }
+  catch(err){
+
+    console.error(err);
+    showToast("Could not start the trial: " + err.message, "error");
+    button.disabled = false;
+    button.textContent = "Start free trial";
+
+  }
+
+}
+
+// Mirrors has_ai_access() in the database (which is what actually
+// enforces it). Goalie tier = stats only; Plus, trials, free/comp,
+// manual "Paid", coaches and admin get AI Coach + AI game reports.
+function clientHasAiAccess(){
+
+  if(currentRole !== "goalie"){ return true; }
+
+  if(!accessIsActive(myAccess)){ return false; }
+
+  return !(myAccess.status === "active" && myAccess.plan === "goalie");
+
+}
+
+function renderAiCoachGate(){
+
+  const locked = !clientHasAiAccess();
+
+  const upgrade = document.getElementById("coachUpgradeCard");
+  const chat = document.getElementById("coachChatCard");
+
+  if(upgrade){ upgrade.style.display = locked ? "" : "none"; }
+  if(chat){ chat.style.display = locked ? "none" : ""; }
+
+}
+
 /* ---------- Stripe: plans, checkout, billing portal ---------- */
 
 function formatPlanPrice(plan){
@@ -13423,18 +13557,39 @@ async function loadPaywallPlans(){
 
   if(activatingCheckout){ return; }
 
-  if(!plans.length){
+  // Never had access on this account -> offer the free trial.
+  const trialEligible = !myAccess;
+
+  if(!plans.length && !trialEligible){
     box.innerHTML = "";
     requestBtn.className = "btn-primary";
     return;
   }
 
   const msg = document.getElementById("paywallMessage");
+  if(msg.dataset.kind === "lapsed" && plans.length){
+    msg.textContent = msg.textContent.replace(/Request access to [^.]*\./, "Choose a plan below to keep going.");
+  }
   if(msg.dataset.kind === "new"){
-    msg.textContent = "Your account is set up. Choose a plan to unlock your dashboard. If you've been invited, request access instead.";
+    msg.textContent = trialEligible
+      ? "Your account is set up. Start with a free 7-day trial, or pick a plan."
+      : "Your account is set up. Choose a plan to unlock your dashboard. If you've been invited, request access instead.";
   }
 
-  box.innerHTML = plans.map(plan => `
+  const trialCard = trialEligible ? `
+    <div class="paywall-plan paywall-plan-trial">
+      <div>
+        <div class="paywall-plan-name">Free trial</div>
+        <div class="paywall-plan-desc">7 days of full access and 1 game tracked free. No card needed.</div>
+      </div>
+      <div class="paywall-plan-right">
+        <div class="paywall-plan-price">Free</div>
+        <button type="button" class="btn-primary" onclick="startFreeTrial(this)">Start free trial</button>
+      </div>
+    </div>
+  ` : "";
+
+  box.innerHTML = trialCard + plans.map(plan => `
     <div class="paywall-plan">
       <div>
         <div class="paywall-plan-name">${escapeHtml(plan.name)}</div>
@@ -13581,7 +13736,8 @@ function accessBadgeHtml(goalieId){
   let label = ACCESS_LABELS[row.status] || row.status;
 
   if(row.stripe_subscription_id && row.status === "active"){
-    label = live ? "Paid · Stripe" : "Paid · lapsed";
+    const tierName = row.plan === "goalie_plus" ? "Goalie Plus" : row.plan === "goalie" ? "Goalie" : "Paid";
+    label = live ? `${tierName} · Stripe` : `${tierName} · lapsed`;
   }
   else if(row.status === "trial"){
     label = live ? `Trial · ends ${accessDateLabel(row.access_until)}` : "Trial ended";
@@ -14526,6 +14682,11 @@ function parseGameNarrative(text){
 async function fetchGameNarrative(summaryText){
 
   if(!currentSession || !currentSession.access_token){
+    return null;
+  }
+
+  // Goalie tier: the PDF still has every stat, just not the AI analysis.
+  if(!clientHasAiAccess()){
     return null;
   }
 
