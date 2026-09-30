@@ -40,7 +40,7 @@ export function siteUrl(req) {
   const fromEnv = String(process.env.SITE_URL || "").trim().replace(/\/+$/, "");
   if (fromEnv) return fromEnv;
   const host = req && req.headers && (req.headers["x-forwarded-host"] || req.headers.host);
-  return host ? `https://${host}` : "https://goalieiqanalytics.com";
+  return host ? `https://${host}` : "https://www.goalieiqanalytics.com";
 }
 
 // Stripe wants application/x-www-form-urlencoded with bracketed keys:
