@@ -8,7 +8,10 @@ import { stripe, stripeConfigured, configuredPriceIds } from "../_lib/billing.js
 
 export default async function handler(req, res) {
   if (!stripeConfigured() || !configuredPriceIds().length) {
-    res.status(200).json({ plans: [] });
+    res.status(200).json({
+      plans: [],
+      error: !stripeConfigured() ? "STRIPE_SECRET_KEY is not set." : "STRIPE_PRICE_IDS is not set.",
+    });
     return;
   }
 
@@ -31,6 +34,21 @@ export default async function handler(req, res) {
     res.status(200).json({ plans });
   } catch (error) {
     console.error(error);
-    res.status(200).json({ plans: [], error: "Could not load plans." });
+    // Safe diagnostics only: Stripe's message (it masks keys itself) and
+    // which KIND of key is configured -- never the key itself.
+    const key = String(process.env.STRIPE_SECRET_KEY || "");
+    const keyType =
+      key.startsWith("sk_test_") ? "secret key (test)" :
+      key.startsWith("sk_live_") ? "secret key (LIVE)" :
+      key.startsWith("rk_") ? "restricted key" :
+      key.startsWith("pk_") ? "PUBLISHABLE key (wrong key)" :
+      key ? "unrecognized key" : "missing";
+    res.status(200).json({
+      plans: [],
+      error: "Could not load plans.",
+      detail: error.message,
+      keyType,
+      priceIds: configuredPriceIds(),
+    });
   }
 }
