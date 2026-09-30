@@ -261,6 +261,23 @@ async function callerHasAccess(accessToken) {
   return (await res.json()) === true;
 }
 
+// AI Coach + AI game reports are Goalie Plus features (also free/comp,
+// trials, coaches and admin). Evaluated in the database with the
+// caller's own token.
+async function callerHasAiAccess(accessToken) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/my_has_ai_access`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: "{}",
+  });
+  if (!res.ok) return false;
+  return (await res.json()) === true;
+}
+
 export default async function handler(req, res) {
 
   if (req.method !== "POST") {
@@ -289,6 +306,10 @@ export default async function handler(req, res) {
 
     if (!(await callerHasAccess(accessToken))) {
       res.status(402).json({ error: "Your GoalieIQ access isn't active." });
+      return;
+    }
+    if (!(await callerHasAiAccess(accessToken))) {
+      res.status(402).json({ error: "AI Coach and AI game reports are part of Goalie Plus.", upgrade: true });
       return;
     }
 
