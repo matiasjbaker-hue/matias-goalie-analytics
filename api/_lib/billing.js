@@ -196,3 +196,36 @@ export function verifyStripeSignature(rawBody, header, secret, toleranceSeconds 
     return a.length === b.length && crypto.timingSafeEqual(a, b);
   });
 }
+
+// ---- Admin helpers (service role) ----
+
+export async function serviceRpc(fn, args) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: serviceHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(args || {}),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Supabase ${res.status} in ${fn}: ${text}`);
+  return text ? JSON.parse(text) : null;
+}
+
+export async function deleteAuthUser(userId) {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
+    method: "DELETE",
+    headers: serviceHeaders(),
+  });
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`Supabase ${res.status} deleting login: ${await res.text()}`);
+  }
+}
+
+// In Stripe TEST mode the test card (4242...) always "pays", so checkout is
+// limited to the emails in BILLING_TEST_EMAILS. Live keys: open to everyone.
+export function checkoutAllowedFor(email) {
+  const key = String(process.env.STRIPE_SECRET_KEY || "");
+  if (!key.startsWith("sk_test_") && !key.startsWith("rk_test_")) return true;
+  const allowed = String(process.env.BILLING_TEST_EMAILS || "")
+    .split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+  return !!email && allowed.includes(String(email).toLowerCase());
+}
