@@ -7,7 +7,7 @@
 
 import {
   stripe, stripeConfigured, configuredPriceIds, siteUrl,
-  verifyUser, getProfile, getAccessRow,
+  verifyUser, getProfile, getAccessRow, checkoutAllowedFor,
 } from "../_lib/billing.js";
 
 export default async function handler(req, res) {
@@ -32,6 +32,11 @@ export default async function handler(req, res) {
     const user = await verifyUser(accessToken);
     if (!user) {
       res.status(401).json({ error: "Invalid or expired session." });
+      return;
+    }
+
+    if (!checkoutAllowedFor(user.email)) {
+      res.status(403).json({ error: "Online payments open soon. Start your free trial for now, or request access." });
       return;
     }
 
