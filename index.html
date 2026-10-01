@@ -2618,9 +2618,9 @@ tr:hover td{
       <div class="grid grid-3">
 
         <div class="card feature-card">
-          <div class="feature-icon">🎯</div>
-          <h3>Live Shot Tagging</h3>
-          <p>Tag every shot in real time while reviewing video — location, danger level, rebound outcome, and more.</p>
+          <div class="feature-icon">🎬</div>
+          <h3>Upload Your Game Film, See Your Stats</h3>
+          <p>Upload your game film and every shot you face gets tracked for you: location, shot quality, rebounds, and more.</p>
         </div>
 
         <div class="card feature-card">
@@ -3571,7 +3571,7 @@ tr:hover td{
 
       <div class="insight">
         Each game is placed into a <strong>.020 SV%</strong> performance band,
-        beginning at <strong>.880</strong> and extending through <strong>.960+</strong>.
+        from <strong>under .880</strong> through <strong>.960+</strong>.
       </div>
 
     </div>
@@ -7834,6 +7834,7 @@ function renderOverview(){
 
 
   const buckets = [
+    {label:"Under .880",min:-Infinity,max:.880,count:0},
     {label:".880–.899",min:.880,max:.900,count:0},
     {label:".900–.919",min:.900,max:.920,count:0},
     {label:".920–.939",min:.920,max:.940,count:0},
