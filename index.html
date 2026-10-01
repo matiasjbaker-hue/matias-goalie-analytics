@@ -3328,6 +3328,26 @@ tr:hover td{
   </div>
 </div>
 
+<div class="giq-modal-overlay" id="deleteAccountModalOverlay">
+  <div class="giq-modal" style="max-width:460px">
+    <div class="giq-modal-header">
+      <h3 id="deleteAccountTitle">Delete account</h3>
+      <button type="button" class="giq-modal-close" onclick="closeDeleteAccountModal()">&times;</button>
+    </div>
+    <div class="giq-modal-body">
+      <p id="deleteAccountSummary" style="line-height:1.55;margin:0 0 14px"></p>
+      <div class="field">
+        <label for="deleteAccountConfirm">Type DELETE to confirm</label>
+        <input id="deleteAccountConfirm" type="text" autocomplete="off" oninput="document.getElementById('deleteAccountBtn').disabled = this.value.trim() !== 'DELETE'">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button type="button" class="btn-danger" id="deleteAccountBtn" disabled onclick="confirmDeleteAccount(this)">Delete permanently</button>
+        <button type="button" class="btn-secondary" onclick="closeDeleteAccountModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="giq-modal-overlay" id="adminAccessModalOverlay">
   <div class="giq-modal" style="max-width:460px">
     <div class="giq-modal-header">
@@ -13259,7 +13279,10 @@ function renderAdminCoaches(){
           <td>${escapeHtml(c.team || "—")}</td>
           <td>${assignedCount}</td>
           <td>${created}</td>
-          <td><button type="button" class="btn-secondary" onclick="openAdminProfileModal('${c.id}')">Edit</button></td>
+          <td style="white-space:nowrap">
+            <button type="button" class="btn-secondary" onclick="openAdminProfileModal('${c.id}')">Edit</button>
+            <button type="button" class="btn-danger" onclick="openDeleteAccountModal('${c.id}')">Delete</button>
+          </td>
         </tr>
       `;
 
@@ -13717,6 +13740,94 @@ async function waitForPaidAccess(){
 
 }
 
+
+/* ---------- Admin: delete an account ---------- */
+
+let deleteAccountTargetId = null;
+
+function openDeleteAccountModal(profileId){
+
+  const p = adminProfiles.find(x => x.id === profileId);
+  if(!p){ return; }
+
+  deleteAccountTargetId = profileId;
+
+  const gameCount = allGames.filter(g => g.user_id === profileId).length;
+  const access = adminAccess.find(a => a.user_id === profileId);
+  const paying = access && access.stripe_subscription_id && access.status === "active";
+  const name = escapeHtml(p.full_name || "this account");
+
+  const parts = [`This permanently deletes <strong>${name}</strong>'s login and profile`];
+
+  if(p.role === "goalie"){
+    parts.push(gameCount
+      ? `, plus <strong>${gameCount} game${gameCount === 1 ? "" : "s"}</strong> and every stat, shot and clip link in ${gameCount === 1 ? "it" : "them"}`
+      : " (no games logged)");
+  }
+  else{
+    parts.push(", their coach notes and goalie assignments");
+  }
+
+  let summary = parts.join("") + ".";
+  if(paying){ summary += " Their Stripe subscription will be cancelled immediately."; }
+  summary += " This can't be undone.";
+
+  document.getElementById("deleteAccountTitle").textContent = `Delete ${p.full_name || "account"}`;
+  document.getElementById("deleteAccountSummary").innerHTML = summary;
+  document.getElementById("deleteAccountConfirm").value = "";
+  document.getElementById("deleteAccountBtn").disabled = true;
+  document.getElementById("deleteAccountModalOverlay").classList.add("open");
+
+}
+
+function closeDeleteAccountModal(){
+  document.getElementById("deleteAccountModalOverlay").classList.remove("open");
+  deleteAccountTargetId = null;
+}
+
+async function confirmDeleteAccount(button){
+
+  const targetId = deleteAccountTargetId;
+  if(!targetId){ return; }
+
+  button.disabled = true;
+  button.textContent = "Deleting...";
+
+  try{
+
+    const res = await fetch("/api/admin/delete-account", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body:JSON.stringify({ accessToken: currentSession.access_token, targetId })
+    });
+
+    const data = await res.json();
+    if(!res.ok){ throw new Error(data.error || "Could not delete the account."); }
+
+    closeDeleteAccountModal();
+    showToast("Account deleted.");
+
+    if(activeGoalieId === targetId){ activeGoalieId = null; }
+
+    await applyRoleAndLoad();
+    showTab("adminaccounts", document.getElementById("admin-nav-accounts"));
+
+  }
+  catch(err){
+
+    console.error(err);
+    showToast(err.message, "error");
+
+  }
+  finally{
+
+    button.textContent = "Delete permanently";
+    button.disabled = document.getElementById("deleteAccountConfirm").value.trim() !== "DELETE";
+
+  }
+
+}
+
 /* ---------- Admin: grant / change access ---------- */
 
 let adminAccessEditingId = null;
@@ -13913,6 +14024,7 @@ function renderAdminGoalies(){
           <td style="white-space:nowrap">
             <button type="button" class="btn-secondary" onclick="openAdminAccessModal('${g.id}')">Access</button>
             <button type="button" class="btn-secondary" onclick="openAdminProfileModal('${g.id}')">Edit</button>
+            <button type="button" class="btn-danger" onclick="openDeleteAccountModal('${g.id}')">Delete</button>
             <button type="button" class="btn-secondary" onclick="viewGoalieAnalytics('${g.id}')">Analytics</button>
           </td>
         </tr>
