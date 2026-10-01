@@ -3348,6 +3348,34 @@ tr:hover td{
   </div>
 </div>
 
+<div class="giq-modal-overlay" id="gameDetailsModalOverlay">
+  <div class="giq-modal" style="max-width:520px">
+    <div class="giq-modal-header">
+      <h3>Edit game details</h3>
+      <button type="button" class="giq-modal-close" onclick="closeGameDetailsModal()">&times;</button>
+    </div>
+    <div class="giq-modal-body">
+      <p class="small-note" style="margin:0 0 12px">Changes the game info only. Shots, stats and clips stay exactly as they are.</p>
+      <div class="field-grid">
+        <div class="field"><label for="gd-date">Date</label><input type="date" id="gd-date"></div>
+        <div class="field"><label for="gd-season">Season</label><input type="text" id="gd-season" list="gd-season-options"><datalist id="gd-season-options"></datalist></div>
+        <div class="field"><label for="gd-team">Team</label><input type="text" id="gd-team"></div>
+        <div class="field"><label for="gd-opponent">Opponent</label><input type="text" id="gd-opponent"></div>
+        <div class="field"><label for="gd-home-away">Home / Away</label>
+          <select id="gd-home-away"><option value="">—</option><option>Home</option><option>Away</option></select></div>
+        <div class="field"><label for="gd-result">Result</label>
+          <select id="gd-result"><option value="">—</option><option>W</option><option>L</option><option>OTL</option><option>SOL</option><option>T</option></select></div>
+        <div class="field"><label for="gd-team-goals">Team goals</label><input type="number" min="0" id="gd-team-goals"></div>
+        <div class="field"><label for="gd-opponent-goals">Opponent goals</label><input type="number" min="0" id="gd-opponent-goals"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button type="button" class="btn-primary" id="gd-save" onclick="saveGameDetails(this)">Save</button>
+        <button type="button" class="btn-secondary" onclick="closeGameDetailsModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="giq-modal-overlay" id="adminAccessModalOverlay">
   <div class="giq-modal" style="max-width:460px">
     <div class="giq-modal-header">
@@ -4744,7 +4772,13 @@ tr:hover td{
 
       <div class="field" id="lt-goalie-field" style="display:none">
         <label for="lt-goalie-select">Goalie</label>
-        <select id="lt-goalie-select"></select>
+        <select id="lt-goalie-select" onchange="renderLiveTagContinueOptions()"></select>
+      </div>
+
+      <div class="field" id="lt-continue-field" style="grid-column:1/-1">
+        <label for="lt-continue-select">New game, or add to a saved one</label>
+        <select id="lt-continue-select" onchange="onLiveTagContinueChange()"></select>
+        <div class="small-note" id="lt-continue-note" style="margin-top:6px"></div>
       </div>
 
       <div class="field">
@@ -5766,6 +5800,10 @@ tr:hover td{
         <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">
           <input type="checkbox" id="bulkClipsSkipExisting" checked onchange="renderBulkClipsPreview()">
           Skip shots that already have a clip
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)" title="Use when the first shots have no footage">
+          Start at shot #
+          <input type="number" id="bulkClipsStartAt" value="1" min="1" style="width:64px" oninput="renderBulkClipsPreview()">
         </label>
       </div>
 
@@ -7223,6 +7261,10 @@ function showTab(id,button){
     loadAdminVideoReviewData();
   }
 
+  if(id === "livetag"){
+    renderLiveTagContinueOptions();
+  }
+
   if(id === "livetag" && currentRole === "admin"){
     setupAdminLiveTagGoalieSelect();
   }
@@ -8263,13 +8305,19 @@ function bulkOrderedShots(){
   const skipExisting =
     document.getElementById("bulkClipsSkipExisting").checked;
 
+  // "Start at shot #" counts every shot in the game (in order), so the
+  // number matches the Shot Log even when some shots already have clips.
+  const startAt =
+    Math.max(1, parseInt(document.getElementById("bulkClipsStartAt").value, 10) || 1);
+
   return allShots
     .filter(s => String(s.game_id) === String(bulkClipsGameId))
-    .filter(s => !(skipExisting && s.game_video_id))
     .sort((a, b) =>
       bulkPeriodRank(a.period) - bulkPeriodRank(b.period) ||
       Number(a.shot_id ?? a.id) - Number(b.shot_id ?? b.id)
-    );
+    )
+    .slice(startAt - 1)
+    .filter(s => !(skipExisting && s.game_video_id));
 
 }
 
@@ -8300,6 +8348,7 @@ function openBulkClipsModal(){
   bulkClipsStatus = {};
 
   document.getElementById("bulkClipsInput").value = "";
+  document.getElementById("bulkClipsStartAt").value = "1";
   document.getElementById("bulkClipsTitle").textContent =
     document.getElementById("shotLogModalTitle").textContent.replace("Shot Log", "Bulk Attach Clips");
 
@@ -13741,6 +13790,86 @@ async function waitForPaidAccess(){
 }
 
 
+
+/* ---------- Admin: edit a game's info (not its shots) ---------- */
+
+let gameDetailsEditingId = null;
+
+function openGameDetailsModal(gameId){
+
+  const g = allGames.find(x => String(x.id) === String(gameId));
+  if(!g){ return; }
+
+  gameDetailsEditingId = gameId;
+
+  const set = (id, v) => { document.getElementById(id).value = v ?? ""; };
+  set("gd-date", g.date); set("gd-season", g.season); set("gd-team", g.team);
+  set("gd-opponent", g.opponent); set("gd-home-away", g.home_away); set("gd-result", g.result);
+  set("gd-team-goals", g.team_goals); set("gd-opponent-goals", g["opponent goals"]);
+
+  // Suggest this goalie's existing season labels, so seasons don't split.
+  const seasons = [...new Set(allGames.filter(x => x.user_id === g.user_id && x.season).map(x => x.season))];
+  document.getElementById("gd-season-options").innerHTML =
+    seasons.map(sn => `<option value="${escapeHtml(sn)}"></option>`).join("");
+
+  document.getElementById("gameDetailsModalOverlay").classList.add("open");
+
+}
+
+function closeGameDetailsModal(){
+  document.getElementById("gameDetailsModalOverlay").classList.remove("open");
+  gameDetailsEditingId = null;
+}
+
+async function saveGameDetails(button){
+
+  const id = gameDetailsEditingId;
+  if(!id){ return; }
+
+  const v = el => document.getElementById(el).value;
+
+  if(!v("gd-opponent").trim()){
+    showToast("Opponent is required.", "error");
+    return;
+  }
+
+  button.disabled = true;
+
+  try{
+
+    const { error } = await supabaseClient.from("Games").update({
+      date: textOrNull(v("gd-date")),
+      season: textOrNull(v("gd-season")),
+      team: textOrNull(v("gd-team")),
+      opponent: textOrNull(v("gd-opponent")),
+      home_away: textOrNull(v("gd-home-away")),
+      result: textOrNull(v("gd-result")),
+      team_goals: numOrNull(v("gd-team-goals")),
+      "opponent goals": numOrNull(v("gd-opponent-goals"))
+    }).eq("id", id);
+
+    if(error){ throw error; }
+
+    closeGameDetailsModal();
+    await loadDashboard();
+    showToast("Game updated.");
+    openGameOverview(id);
+
+  }
+  catch(err){
+
+    console.error(err);
+    showToast("Could not update the game: " + (err.message || "unknown error"), "error");
+
+  }
+  finally{
+
+    button.disabled = false;
+
+  }
+
+}
+
 /* ---------- Admin: delete an account ---------- */
 
 let deleteAccountTargetId = null;
@@ -15967,6 +16096,9 @@ function renderGameOverviewHero(game, m){
       <div class="go-actions">
         <button type="button" class="btn-secondary" onclick="generateGameReportPDF(${Number(game.id)}, this)">Download PDF Report</button>
         <button type="button" class="btn-secondary" onclick="openShotLogModal(${Number(game.id)})">Shot Log</button>
+        ${currentRole === "admin" ? `
+          <button type="button" class="btn-secondary" onclick="openGameDetailsModal(${Number(game.id)})">Edit details</button>
+        ` : ""}
         ${currentRole === "goalie" ? `
           <button type="button" class="btn-secondary" onclick="editGameFromOverview(${Number(game.id)})">Edit</button>
           <button type="button" class="btn-danger" onclick="deleteGame(${Number(game.id)})">Delete</button>
@@ -17334,6 +17466,7 @@ function freshLiveTagState(){
     flags: { rush:false, rebound:false, screened:false, breakaway:false, cross_ice:false, deflection:false },
     reboundTag: "skip",
     shots: [],
+    continueGameId: null,
     reboundTally,
     puckTally: { rims_faced:0, rims_stopped:0, pass_attempts:0, passes_completed:0 }
   };
@@ -17405,6 +17538,8 @@ function setupAdminLiveTagGoalieSelect(){
     goalies.length
       ? goalies.map(g => `<option value="${g.id}">${g.full_name || g.id}</option>`).join("")
       : `<option value="">No goalie accounts exist yet</option>`;
+
+  renderLiveTagContinueOptions();
 
 }
 
@@ -17586,6 +17721,11 @@ function resetLiveTagSession(){
 
   liveTagState = freshLiveTagState();
 
+  const continueSelect = document.getElementById("lt-continue-select");
+  if(continueSelect){ continueSelect.value = ""; }
+  const continueNote = document.getElementById("lt-continue-note");
+  if(continueNote){ continueNote.textContent = ""; }
+
   document.getElementById("lt-date").value = "";
   document.getElementById("lt-season").value = "2026 preseason";
   document.getElementById("lt-team").value = "";
@@ -17646,6 +17786,211 @@ function showLiveTagMessage(message){
 }
 
 
+
+/* ---------- Live Tag: add to a game that's already saved ----------
+   Pick a saved game and keep tagging (e.g. finish periods 2-3 later).
+   New shots are ADDED; nothing already saved is deleted or replaced. */
+
+function liveTagTargetGoalieId(){
+  if(currentRole === "admin"){
+    const sel = document.getElementById("lt-goalie-select");
+    return sel ? sel.value : null;
+  }
+  return currentSession && currentSession.user ? currentSession.user.id : null;
+}
+
+function renderLiveTagContinueOptions(){
+
+  const select = document.getElementById("lt-continue-select");
+  if(!select){ return; }
+
+  const goalieId = liveTagTargetGoalieId();
+  const keep = liveTagState.continueGameId;
+
+  const list = allGames
+    .filter(g => g.user_id === goalieId)
+    .sort((a,b) => String(b.date || "").localeCompare(String(a.date || "")) || num(b.id) - num(a.id));
+
+  select.innerHTML =
+    `<option value="">Start a new game</option>` +
+    list.map(g => {
+      const n = allShots.filter(s => String(s.game_id) === String(g.id)).length;
+      return `<option value="${g.id}">Add to: ${escapeHtml(g.date || "No date")} vs ${escapeHtml(g.opponent || "?")} (${n} shot${n === 1 ? "" : "s"} saved)</option>`;
+    }).join("");
+
+  if(keep && list.some(g => String(g.id) === String(keep))){
+    select.value = String(keep);
+  }
+  else{
+    select.value = "";
+    if(keep){ liveTagState.continueGameId = null; updateLiveTagContinueNote(); }
+  }
+
+}
+
+function updateLiveTagContinueNote(){
+
+  const note = document.getElementById("lt-continue-note");
+  if(!note){ return; }
+
+  const gameId = liveTagState.continueGameId;
+  if(!gameId){ note.textContent = ""; return; }
+
+  const saved = allShots.filter(s => String(s.game_id) === String(gameId));
+  const byPeriod = ["1","2","3","OT"]
+    .map(p => ({ p, n: saved.filter(s => String(s.period) === p).length }))
+    .filter(x => x.n > 0)
+    .map(x => `${x.p === "OT" ? "OT" : "P" + x.p}: ${x.n}`)
+    .join(" · ");
+
+  note.textContent =
+    `Adding to this game. Already saved: ${byPeriod || "no shots"}. Shots you tag now are added; saved shots and clips stay as they are. Game info and period minutes below will update this game.`;
+
+}
+
+function onLiveTagContinueChange(){
+
+  const id = document.getElementById("lt-continue-select").value;
+  liveTagState.continueGameId = id || null;
+
+  if(!id){ updateLiveTagContinueNote(); return; }
+
+  const g = allGames.find(x => String(x.id) === String(id));
+  if(!g){ return; }
+
+  document.getElementById("lt-date").value = g.date || "";
+  document.getElementById("lt-season").value = g.season || "";
+  document.getElementById("lt-team").value = g.team || "";
+  document.getElementById("lt-opponent").value = g.opponent || "";
+  document.getElementById("lt-home-away").value = g.home_away || "";
+  document.getElementById("lt-result").value = g.result || "";
+  document.getElementById("lt-team-goals").value = g.team_goals ?? "";
+  document.getElementById("lt-opponent-goals").value = g["opponent goals"] ?? "";
+
+  const rows = allPeriodStats.filter(r => String(r.game_id) === String(id));
+  const minutesFor = p => {
+    const r = rows.find(x => String(x.period) === p);
+    return r && r.minutes_played != null ? r.minutes_played : (p === "OT" ? 0 : 15);
+  };
+  document.getElementById("lt-p1-minutes").value = minutesFor("1");
+  document.getElementById("lt-p2-minutes").value = minutesFor("2");
+  document.getElementById("lt-p3-minutes").value = minutesFor("3");
+  document.getElementById("lt-ot-minutes").value = minutesFor("OT");
+
+  // Jump to the period after the last one with saved shots.
+  const order = ["1","2","3","OT"];
+  const saved = allShots.filter(s => String(s.game_id) === String(id));
+  const last = order.reduce((acc, p, i) => saved.some(s => String(s.period) === p) ? i : acc, -1);
+  setLiveTagPeriod(order[Math.min(last + 1, order.length - 1)] || "1");
+
+  updateLiveTagContinueNote();
+
+}
+
+// Adds the current Live Tag session to an existing game. Totals are
+// existing + new; period rows are updated (or created); rebound and
+// puck tallies are added to what's there.
+async function appendLiveTagToGame(gameIdRaw, periodMinutes){
+
+  const gameId = /^\d+$/.test(String(gameIdRaw)) ? Number(gameIdRaw) : gameIdRaw;
+
+  const { data: game, error: gErr } =
+    await supabaseClient.from("Games").select("*").eq("id", gameId).single();
+  if(gErr || !game){ throw gErr || new Error("Could not load that game."); }
+
+  const userId = game.user_id;
+  const newShots = liveTagState.shots;
+  const newGoals = newShots.filter(s => s.outcome === "goal").length;
+
+  const shotsAgainst = num(game.shots_against) + newShots.length;
+  const goalsAgainst = num(game.goals_against) + newGoals;
+  const totalMinutes = periodMinutes["1"] + periodMinutes["2"] + periodMinutes["3"] + periodMinutes["OT"];
+
+  const { error: upErr } =
+    await supabaseClient.from("Games").update({
+      date: textOrNull(document.getElementById("lt-date").value),
+      season: textOrNull(document.getElementById("lt-season").value),
+      team: textOrNull(document.getElementById("lt-team").value),
+      opponent: textOrNull(document.getElementById("lt-opponent").value),
+      home_away: textOrNull(document.getElementById("lt-home-away").value),
+      result: textOrNull(document.getElementById("lt-result").value),
+      team_goals: numOrNull(document.getElementById("lt-team-goals").value),
+      "opponent goals": numOrNull(document.getElementById("lt-opponent-goals").value),
+      shots_against: shotsAgainst,
+      saves: shotsAgainst - goalsAgainst,
+      goals_against: goalsAgainst,
+      minutes_played: totalMinutes > 0 ? totalMinutes : null,
+      shutout: shotsAgainst > 0 && goalsAgainst === 0
+    }).eq("id", gameId);
+  if(upErr){ throw upErr; }
+
+  const { data: periodRows, error: pErr } =
+    await supabaseClient.from("Period Stats").select("*").eq("game_id", gameId);
+  if(pErr){ throw pErr; }
+
+  for(const p of ["1","2","3","OT"]){
+
+    const ps = newShots.filter(s => s.period === p);
+    const pg = ps.filter(s => s.outcome === "goal").length;
+    const minutes = periodMinutes[p];
+    const row = (periodRows || []).find(r => String(r.period) === p);
+
+    if(row){
+      const sa = num(row.shots_against) + ps.length;
+      const ga = num(row.goals_against) + pg;
+      const { error } = await supabaseClient.from("Period Stats").update({
+        minutes_played: minutes || null,
+        shots_against: sa,
+        saves: sa - ga,
+        goals_against: ga
+      }).eq("id", row.id);
+      if(error){ throw error; }
+    }
+    else if(ps.length > 0 || minutes > 0){
+      const { error } = await supabaseClient.from("Period Stats").insert({
+        game_id: gameId, user_id: userId, period: p,
+        minutes_played: minutes || null,
+        shots_against: ps.length, saves: ps.length - pg, goals_against: pg, Notes: null
+      });
+      if(error){ throw error; }
+    }
+
+  }
+
+  if(newShots.length > 0){
+    const { error } = await supabaseClient.from("Shots").insert(newShots.map(shot => ({
+      game_id: gameId, user_id: userId, period: shot.period, distance: null,
+      location: shot.location, shot_type: shot.shot_type, release_type: shot.release_type || null,
+      outcome: shot.outcome, rush: shot.rush, rebound: shot.rebound, screened: shot.screened,
+      breakaway: shot.breakaway, cross_ice: shot.cross_ice, deflection: shot.deflection
+    })));
+    if(error){ throw error; }
+  }
+
+  async function addTally(table, tally){
+    if(!Object.values(tally).some(v => v > 0)){ return; }
+    const { data: existing, error: rErr } =
+      await supabaseClient.from(table).select("*").eq("game_id", gameId).limit(1);
+    if(rErr){ throw rErr; }
+    if(existing && existing.length){
+      const merged = {};
+      Object.keys(tally).forEach(k => { merged[k] = num(existing[0][k]) + num(tally[k]); });
+      const { error } = await supabaseClient.from(table).update(merged).eq("id", existing[0].id);
+      if(error){ throw error; }
+    }
+    else{
+      const { error } = await supabaseClient.from(table).insert({ ...tally, game_id: gameId, user_id: userId });
+      if(error){ throw error; }
+    }
+  }
+
+  await addTally("goalierebound_control", liveTagState.reboundTally);
+  await addTally("puck_playing", liveTagState.puckTally);
+
+  return userId;
+
+}
+
 async function finishLiveTagGame(){
 
   hideLiveTagMessages();
@@ -17656,7 +18001,7 @@ async function finishLiveTagGame(){
   }
 
   if(liveTagState.shots.length === 0){
-    if(!confirm("No shots have been tagged. Save this game anyway?")){
+    if(!confirm(liveTagState.continueGameId ? "No new shots have been tagged. Update this game's info anyway?" : "No shots have been tagged. Save this game anyway?")){
       return;
     }
   }
@@ -17703,6 +18048,27 @@ async function finishLiveTagGame(){
 
     const totalMinutes =
       periodMinutes["1"] + periodMinutes["2"] + periodMinutes["3"] + periodMinutes["OT"];
+
+    if(liveTagState.continueGameId){
+
+      const continuedId = liveTagState.continueGameId;
+      const ownerId = await appendLiveTagToGame(continuedId, periodMinutes);
+
+      liveTagState = freshLiveTagState();
+      resetLiveTagSession();
+
+      await loadDashboard();
+
+      if(currentRole === "admin" && ownerId){
+        activeGoalieId = ownerId;
+        applyActiveGoalieFilter();
+      }
+
+      showToast("Added to the saved game.", "success");
+      openGameOverview(continuedId);
+      return;
+
+    }
 
     const gamePayload = {
       user_id: userId,
