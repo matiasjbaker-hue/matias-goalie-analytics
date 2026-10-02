@@ -58,7 +58,7 @@
   --border2:#285640;
   --text:#edf7f1;
   --muted:#88a599;
-  --muted2:#6f8c80;
+  --muted2:#7f9a8e;
   --green:#69dda0;
   --green2:#9be1bd;
   --red:#ff8585;
@@ -550,7 +550,7 @@ main{
 .watch-btn:disabled{
   background:rgba(255,255,255,.04);
   border:1px solid rgba(255,255,255,.08);
-  color:#5c7a6e;
+  color:#7f9a8e;
   cursor:default;
 }
 
@@ -2477,6 +2477,78 @@ tr:hover td{
 }
 
 .upgrade-card .small-note{ margin-top:12px; }
+
+/* Compliance: consent, footer, cookie notice, focus */
+.consent-row{
+  display:flex;
+  gap:10px;
+  align-items:flex-start;
+  font-size:13px;
+  color:var(--muted);
+  margin:10px 0 4px;
+  line-height:1.45;
+  text-align:left;
+}
+.consent-row input{ width:auto; margin-top:3px; flex-shrink:0; }
+.consent-row a{ color:var(--green); }
+
+.site-footer{
+  border-top:1px solid var(--border);
+  padding:22px 25px 30px;
+  text-align:center;
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.7;
+}
+.site-footer a{ color:var(--green); }
+.site-footer-links{ margin-top:6px; display:flex; gap:16px; justify-content:center; flex-wrap:wrap; }
+
+.cookie-notice{
+  position:fixed;
+  left:16px;
+  bottom:16px;
+  max-width:420px;
+  background:var(--card2);
+  border:1px solid var(--border2);
+  border-radius:12px;
+  padding:14px 16px;
+  display:flex;
+  gap:14px;
+  align-items:center;
+  z-index:2000;
+  box-shadow:0 10px 30px rgba(0,0,0,.4);
+}
+.cookie-notice p{ margin:0; font-size:13px; color:var(--text); line-height:1.45; }
+.cookie-notice a{ color:var(--green); }
+.cookie-notice .btn-primary{ width:auto; padding:8px 14px; flex-shrink:0; }
+
+.sample-chip{
+  font-size:10px;
+  font-weight:700;
+  color:var(--muted);
+  border:1px solid var(--border2);
+  border-radius:999px;
+  padding:2px 8px;
+  margin-left:6px;
+  vertical-align:middle;
+}
+
+.plan-terms{ text-align:center; margin-top:2px; }
+.plan-terms a{ color:var(--green); }
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex="0"]:focus-visible{
+  outline:2px solid var(--green);
+  outline-offset:2px;
+}
+
+@media(max-width:750px){
+  .cookie-notice{ left:10px; right:10px; max-width:none; }
+}
 </style>
 </head>
 
@@ -2555,7 +2627,7 @@ tr:hover td{
 
         <div class="landing-preview-body">
 
-          <div class="landing-preview-title">Coach Dashboard</div>
+          <div class="landing-preview-title">Coach Dashboard <span class="sample-chip">Sample data</span></div>
 
           <div class="card goalie-card landing-preview-card">
 
@@ -2611,7 +2683,7 @@ tr:hover td{
     <div class="landing-section-inner">
 
       <div class="page-title" style="text-align:center">
-        <h2>Everything a goalie program needs</h2>
+        <h2>Built for goalies and the coaches who develop them</h2>
         <p>Built from the ground up for goaltending, not adapted from a generic stats app.</p>
       </div>
 
@@ -2696,8 +2768,8 @@ tr:hover td{
           <button type="submit" class="auth-btn">Sign In</button>
 
           <div class="auth-links">
-            <a onclick="showAuthView('signup');return false;">Create an account</a>
-            <a onclick="showAuthView('reset');return false;">Forgot password?</a>
+            <a href="#" onclick="showAuthView('signup');return false;">Create an account</a>
+            <a href="#" onclick="showAuthView('reset');return false;">Forgot password?</a>
           </div>
         </form>
 
@@ -2711,10 +2783,20 @@ tr:hover td{
           <label for="signup-password">Password</label>
           <input type="password" id="signup-password" required autocomplete="new-password" minlength="6">
 
+          <label class="consent-row">
+            <input type="checkbox" id="signup-terms" required>
+            <span>I agree to the <a href="/terms.html" target="_blank" rel="noopener">Terms of Service</a> and <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</span>
+          </label>
+
+          <label class="consent-row">
+            <input type="checkbox" id="signup-age" required>
+            <span>I'm 18 or older, or my parent or guardian has agreed to these terms for me.</span>
+          </label>
+
           <button type="submit" class="auth-btn">Create Account</button>
 
           <div class="auth-links">
-            <a onclick="showAuthView('signin');return false;">Back to sign in</a>
+            <a href="#" onclick="showAuthView('signin');return false;">Back to sign in</a>
           </div>
         </form>
 
@@ -2725,7 +2807,7 @@ tr:hover td{
           <button type="submit" class="auth-btn">Send Reset Link</button>
 
           <div class="auth-links">
-            <a onclick="showAuthView('signin');return false;">Back to sign in</a>
+            <a href="#" onclick="showAuthView('signin');return false;">Back to sign in</a>
           </div>
         </form>
 
@@ -2740,6 +2822,17 @@ tr:hover td{
     </div>
 
   </section>
+<footer class="site-footer" role="contentinfo">
+  <div>GoalieIQ Analytics · Operated by Matias Baker · Ontario, Canada · <a href="mailto:goalieiqanalytics@gmail.com">goalieiqanalytics@gmail.com</a></div>
+  <div role="navigation" aria-label="Legal" class="site-footer-links">
+    <a href="/privacy.html">Privacy Policy</a>
+    <a href="/terms.html">Terms of Service</a>
+    <a href="/refund.html">Refund Policy</a>
+    <a href="/cookies.html">Cookie Policy</a>
+  </div>
+</footer>
+
+
 
 </div>
 
@@ -3322,7 +3415,7 @@ tr:hover td{
       <button type="button" class="giq-modal-close" onclick="document.getElementById('plansModalOverlay').classList.remove('open')">&times;</button>
     </div>
     <div class="giq-modal-body">
-      <p class="small-note" style="margin:0 0 14px">Subscribe any time during your trial. Your games and stats carry over.</p>
+      <p class="small-note" style="margin:0 0 14px">Subscribe any time during your trial. Your games and stats carry over. Prices in CAD, billed monthly, cancel anytime.</p>
       <div class="paywall-plans" id="plansModalList" style="margin:0"></div>
     </div>
   </div>
@@ -5494,6 +5587,12 @@ tr:hover td{
     <p>About the player and analytics platform.</p>
   </div>
 
+  <div class="card section-space self-delete-card" id="selfDeleteCard" style="display:none">
+    <h3>Your account &amp; data</h3>
+    <p class="small-note" style="margin:6px 0 12px">Read our <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a>. To see or correct your data, email <a href="mailto:goalieiqanalytics@gmail.com">goalieiqanalytics@gmail.com</a>. Deleting your account permanently removes your profile, games, stats and notes, and cancels any subscription.</p>
+    <button type="button" class="btn-danger" onclick="openSelfDeleteModal()">Delete my account</button>
+  </div>
+
   <div class="grid grid-2">
 
     <div class="card">
@@ -5704,6 +5803,18 @@ tr:hover td{
 </section>
 
 </main>
+
+<footer class="site-footer" role="contentinfo">
+  <div>GoalieIQ Analytics · Operated by Matias Baker · Ontario, Canada · <a href="mailto:goalieiqanalytics@gmail.com">goalieiqanalytics@gmail.com</a></div>
+  <div role="navigation" aria-label="Legal" class="site-footer-links">
+    <a href="/privacy.html">Privacy Policy</a>
+    <a href="/terms.html">Terms of Service</a>
+    <a href="/refund.html">Refund Policy</a>
+    <a href="/cookies.html">Cookie Policy</a>
+  </div>
+</footer>
+
+
 
 <!-- ========================================================= -->
 <!-- SHOT LOG MODAL (Phase 3) -->
@@ -7271,6 +7382,8 @@ function showTab(id,button){
 
   if(id === "about"){
     renderAboutCard();
+    const sd = document.getElementById("selfDeleteCard");
+    if(sd){ sd.style.display = currentRole === "admin" ? "none" : ""; }
   }
 
   // Coach/admin opening an analytics tab with no goalie picked yet.
@@ -9296,7 +9409,14 @@ function renderGameLog(){
 
     tr.className = "go-clickable";
     tr.title = "Open Game Overview";
+    tr.tabIndex = 0;
     tr.addEventListener("click", () => openGameOverview(game.id));
+    tr.addEventListener("keydown", ev => {
+      if((ev.key === "Enter" || ev.key === " ") && ev.target === tr){
+        ev.preventDefault();
+        openGameOverview(game.id);
+      }
+    });
 
 
     tr.innerHTML = `
@@ -12140,6 +12260,11 @@ document.getElementById("signup-form")
     const password =
       document.getElementById("signup-password").value;
 
+    if(!document.getElementById("signup-terms").checked || !document.getElementById("signup-age").checked){
+      showAuthError("Please agree to the Terms and Privacy Policy, and confirm your age or guardian permission.");
+      return;
+    }
+
     const btn = e.target.querySelector("button");
     btn.disabled = true;
 
@@ -12148,7 +12273,13 @@ document.getElementById("signup-form")
         email,
         password,
         options:{
-          data:{ name }
+          // Consent record kept with the account (auth user metadata).
+          data:{
+            name,
+            terms_accepted_at: new Date().toISOString(),
+            terms_version: "2026-10",
+            age_or_guardian_confirmed: true
+          }
         }
       });
 
@@ -12777,7 +12908,7 @@ function renderCoachHome(){
           : "No games yet";
 
       return `
-        <div class="card goalie-card" onclick="openGoalie('${profile.id}')">
+        <div class="card goalie-card" role="button" tabindex="0" aria-label="Open ${escapeHtml(profile.full_name || "goalie")}" onclick="openGoalie('${profile.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openGoalie('${profile.id}')}">
 
           <div class="goalie-card-top">
             <div>
@@ -13675,6 +13806,9 @@ async function loadPaywallPlans(){
     </div>
   `).join("");
 
+  box.insertAdjacentHTML("beforeend",
+    `<div class="small-note plan-terms">Prices in CAD, billed monthly. Cancel anytime from Billing. <a href="/refund.html" target="_blank" rel="noopener">Refund Policy</a></div>`);
+
   // With paid plans on screen, requesting an invite becomes the secondary path.
   requestBtn.className = "btn-secondary";
   if(!requestBtn.disabled){ requestBtn.textContent = "Have an invite? Request access"; }
@@ -13871,12 +14005,70 @@ async function saveGameDetails(button){
 
 }
 
+
+/* ---------- Accessibility + cookie notice ---------- */
+
+// Charts are canvases: give each one a readable name from its card title.
+function labelChartsForScreenReaders(){
+  document.querySelectorAll("canvas").forEach(c => {
+    if(c.getAttribute("aria-label")){ return; }
+    const card = c.closest(".card");
+    const h = card && card.querySelector("h3");
+    c.setAttribute("role", "img");
+    c.setAttribute("aria-label", h ? `Chart: ${h.textContent.trim()}` : "Chart");
+  });
+}
+
+function dismissCookieNotice(){
+  try{ localStorage.setItem("giq-cookie-notice", "1"); }catch(e){}
+  const n = document.getElementById("cookie-notice");
+  if(n){ n.style.display = "none"; }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  labelChartsForScreenReaders();
+  let seen = false;
+  try{ seen = localStorage.getItem("giq-cookie-notice") === "1"; }catch(e){}
+  const n = document.getElementById("cookie-notice");
+  if(n && !seen){ n.style.display = ""; }
+});
+
+// Escape closes any open pop-up.
+document.addEventListener("keydown", e => {
+  if(e.key !== "Escape"){ return; }
+  document.querySelectorAll(".giq-modal-overlay.open").forEach(m => m.classList.remove("open"));
+});
+
+
+/* ---------- Self-serve account deletion ---------- */
+
+let deletingOwnAccount = false;
+
+function openSelfDeleteModal(){
+
+  deletingOwnAccount = true;
+  deleteAccountTargetId = currentSession.user.id;
+
+  const gameCount = allGames.filter(g => g.user_id === currentSession.user.id).length;
+
+  document.getElementById("deleteAccountTitle").textContent = "Delete your account";
+  document.getElementById("deleteAccountSummary").innerHTML =
+    `This permanently deletes your login and profile` +
+    (currentRole === "goalie" && gameCount ? `, plus <strong>${gameCount} game${gameCount === 1 ? "" : "s"}</strong> and all their stats` : "") +
+    `. Any subscription is cancelled immediately. This can't be undone.`;
+  document.getElementById("deleteAccountConfirm").value = "";
+  document.getElementById("deleteAccountBtn").disabled = true;
+  document.getElementById("deleteAccountModalOverlay").classList.add("open");
+
+}
+
 /* ---------- Admin: delete an account ---------- */
 
 let deleteAccountTargetId = null;
 
 function openDeleteAccountModal(profileId){
 
+  deletingOwnAccount = false;
   const p = adminProfiles.find(x => x.id === profileId);
   if(!p){ return; }
 
@@ -13913,6 +14105,7 @@ function openDeleteAccountModal(profileId){
 function closeDeleteAccountModal(){
   document.getElementById("deleteAccountModalOverlay").classList.remove("open");
   deleteAccountTargetId = null;
+  deletingOwnAccount = false;
 }
 
 async function confirmDeleteAccount(button){
@@ -13934,7 +14127,16 @@ async function confirmDeleteAccount(button){
     const data = await res.json();
     if(!res.ok){ throw new Error(data.error || "Could not delete the account."); }
 
+    const wasSelf = deletingOwnAccount;
     closeDeleteAccountModal();
+
+    if(wasSelf){
+      showToast("Your account has been deleted.");
+      try{ await supabaseClient.auth.signOut(); }catch(e){}
+      location.href = "/";
+      return;
+    }
+
     showToast("Account deleted.");
 
     if(activeGoalieId === targetId){ activeGoalieId = null; }
@@ -19402,5 +19604,9 @@ initAuth();
 
 </script>
 
+<div class="cookie-notice" id="cookie-notice" role="region" aria-label="Cookie notice" style="display:none">
+  <p>We only use essential storage to keep you signed in. No ads or tracking. <a href="/cookies.html">Cookie Policy</a></p>
+  <button type="button" class="btn-primary" onclick="dismissCookieNotice()">Got it</button>
+</div>
 </body>
 </html>
