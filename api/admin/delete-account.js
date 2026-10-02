@@ -1,8 +1,8 @@
 // ============================================================
 // POST /api/admin/delete-account -- admin removes a goalie/coach
 // ============================================================
-// Body: { accessToken, targetId }. Only an admin can call it, never on
-// an admin account or on themselves. Order matters:
+// Body: { accessToken, targetId }. An admin can delete any non-admin
+// account; any non-admin user can delete their own. Order matters:
 //   1. cancel any Stripe subscription (so Stripe can't re-grant access),
 //   2. delete every row that references the user (stats, games, notes,
 //      assignments, access),
@@ -35,13 +35,25 @@ export default async function handler(req, res) {
     }
 
     const callerProfile = await getProfile(caller.id);
-    if (!callerProfile || callerProfile.role !== "admin") {
-      res.status(403).json({ error: "Only an admin can delete accounts." });
+    if (!callerProfile) {
+      res.status(403).json({ error: "Account not found." });
       return;
     }
 
-    if (!targetId || targetId === caller.id) {
+    // Anyone (except admin) can delete their OWN account (privacy right);
+    // only an admin can delete someone else's.
+    const isSelf = targetId === caller.id;
+
+    if (!targetId) {
       res.status(400).json({ error: "You can't delete this account." });
+      return;
+    }
+    if (isSelf && callerProfile.role === "admin") {
+      res.status(400).json({ error: "Admin accounts can't be deleted here." });
+      return;
+    }
+    if (!isSelf && callerProfile.role !== "admin") {
+      res.status(403).json({ error: "Only an admin can delete other accounts." });
       return;
     }
 
