@@ -3478,11 +3478,11 @@ textarea:focus-visible,
 <div class="giq-modal-overlay" id="plansModalOverlay">
   <div class="giq-modal" style="max-width:500px">
     <div class="giq-modal-header">
-      <h3>Choose a plan</h3>
+      <h3>Buy games</h3>
       <button type="button" class="giq-modal-close" onclick="document.getElementById('plansModalOverlay').classList.remove('open')">&times;</button>
     </div>
     <div class="giq-modal-body">
-      <p class="small-note" style="margin:0 0 14px">Subscribe any time during your trial. Your games and stats carry over. Prices in CAD, billed monthly, cancel anytime.</p>
+      <p class="small-note" style="margin:0 0 14px">Pay only for the games you track. Prices in CAD, one-time payment, no subscription. Games never expire.</p>
       <div class="paywall-plans" id="plansModalList" style="margin:0"></div>
     </div>
   </div>
@@ -3557,6 +3557,10 @@ textarea:focus-visible,
         <div class="field" id="adminAccessUntilField">
           <label for="adminAccessUntil">Access ends</label>
           <input id="adminAccessUntil" type="date">
+        </div>
+        <div class="field">
+          <label for="adminAccessCredits">Games left (pay per game)</label>
+          <input id="adminAccessCredits" type="number" step="1" placeholder="Leave empty to keep">
         </div>
         <div class="field" style="grid-column:1/-1">
           <label for="adminAccessNote">Note (only you see this)</label>
@@ -12636,7 +12640,12 @@ async function applyRoleAndLoad(){
     }
 
     if(checkoutState === "success"){
-      showToast("You're subscribed. Welcome to GoalieIQ!");
+      showToast("Payment received. Your games are being added...");
+      // The webhook usually lands a few seconds after Stripe redirects back.
+      setTimeout(async () => {
+        myAccess = await fetchMyAccess();
+        renderAccessPill(myAccess);
+      }, 5000);
     }
 
     renderAccessPill(myAccess);
@@ -13588,6 +13597,15 @@ function renderAccessPill(row){
   const pill = document.getElementById("access-pill");
   if(!pill){ return; }
 
+  if(row && row.plan === "pay_per_game" && accessIsActive(row)){
+    const left = row.game_credits || 0;
+    pill.textContent = left > 0
+      ? `${left} game${left === 1 ? "" : "s"} left · Buy more`
+      : "0 games left · Buy games";
+    pill.style.display = "";
+    return;
+  }
+
   if(!row || !row.access_until || !accessIsActive(row) || row.status === "active"){
     pill.style.display = "none";
     return;
@@ -13705,7 +13723,7 @@ async function requestGoalieAccess(button){
 
 async function openPlansModal(){
 
-  if(!myAccess || myAccess.status !== "trial"){ return; }
+  if(!myAccess || !(myAccess.status === "trial" || myAccess.plan === "pay_per_game")){ return; }
 
   const list = document.getElementById("plansModalList");
   list.innerHTML = `<div class="small-note">Loading plans...</div>`;
@@ -13727,7 +13745,7 @@ async function openPlansModal(){
           </div>
           <div class="paywall-plan-right">
             <div class="paywall-plan-price">${escapeHtml(formatPlanPrice(plan))}</div>
-            <button type="button" class="btn-primary" onclick="startCheckout('${escapeHtml(plan.priceId)}', this)">Subscribe</button>
+            <button type="button" class="btn-primary" onclick="startCheckout('${escapeHtml(plan.priceId)}', this)">Buy</button>
           </div>
         </div>
       `).join("")
@@ -13747,7 +13765,7 @@ async function startFreeTrial(button){
     const { error } = await supabaseClient.rpc("start_free_trial");
     if(error){ throw new Error(error.message); }
 
-    showToast("Your 7-day free trial has started. Upload your first game under Add Game.");
+    showToast("Your free game is ready. Upload your first game under Add Game.");
     await applyRoleAndLoad();
 
   }
@@ -13756,7 +13774,7 @@ async function startFreeTrial(button){
     console.error(err);
     showToast("Could not start the trial: " + err.message, "error");
     button.disabled = false;
-    button.textContent = "Start free trial";
+    button.textContent = "Start free";
 
   }
 
@@ -13839,23 +13857,23 @@ async function loadPaywallPlans(){
 
   const msg = document.getElementById("paywallMessage");
   if(msg.dataset.kind === "lapsed" && plans.length){
-    msg.textContent = msg.textContent.replace(/Request access to [^.]*\./, "Choose a plan below to keep going.");
+    msg.textContent = msg.textContent.replace(/Request access to [^.]*\./, "Buy games below to keep going.");
   }
   if(msg.dataset.kind === "new"){
     msg.textContent = trialEligible
-      ? "Your account is set up. Start with a free 7-day trial, or pick a plan."
-      : "Your account is set up. Choose a plan to unlock your dashboard. If you've been invited, request access instead.";
+      ? "Your account is set up. Your first game is free. After that, pay only for the games you track."
+      : "Your account is set up. Buy games to unlock your dashboard. If you've been invited, request access instead.";
   }
 
   const trialCard = trialEligible ? `
     <div class="paywall-plan paywall-plan-trial">
       <div>
-        <div class="paywall-plan-name">Free trial</div>
-        <div class="paywall-plan-desc">7 days of full access and 1 game tracked free. No card needed.</div>
+        <div class="paywall-plan-name">First game free</div>
+        <div class="paywall-plan-desc">Your first game tracked free, with the full dashboard. No card needed.</div>
       </div>
       <div class="paywall-plan-right">
         <div class="paywall-plan-price">Free</div>
-        <button type="button" class="btn-primary" onclick="startFreeTrial(this)">Start free trial</button>
+        <button type="button" class="btn-primary" onclick="startFreeTrial(this)">Start free</button>
       </div>
     </div>
   ` : "";
@@ -13868,13 +13886,13 @@ async function loadPaywallPlans(){
       </div>
       <div class="paywall-plan-right">
         <div class="paywall-plan-price">${escapeHtml(formatPlanPrice(plan))}</div>
-        <button type="button" class="btn-primary" onclick="startCheckout('${escapeHtml(plan.priceId)}', this)">Subscribe</button>
+        <button type="button" class="btn-primary" onclick="startCheckout('${escapeHtml(plan.priceId)}', this)">Buy</button>
       </div>
     </div>
   `).join("");
 
   box.insertAdjacentHTML("beforeend",
-    `<div class="small-note plan-terms">Prices in CAD, billed monthly. Cancel anytime from Billing. <a href="/refund.html" target="_blank" rel="noopener">Refund Policy</a></div>`);
+    `<div class="small-note plan-terms">Prices in CAD. One-time payment, no subscription. Games never expire. <a href="/refund.html" target="_blank" rel="noopener">Refund Policy</a></div>`);
 
   // With paid plans on screen, requesting an invite becomes the secondary path.
   requestBtn.className = "btn-secondary";
@@ -13979,7 +13997,7 @@ async function waitForPaidAccess(){
     if(accessIsActive(myAccess)){
       activatingCheckout = false;
       document.getElementById("paywallRequestBtn").style.display = "";
-      showToast("You're subscribed. Welcome to GoalieIQ!");
+      showToast("Payment received. Your games are ready.");
       await applyRoleAndLoad();
       return;
     }
@@ -14245,7 +14263,11 @@ function accessBadgeHtml(goalieId){
   const live = accessIsActive(row);
   let label = ACCESS_LABELS[row.status] || row.status;
 
-  if(row.stripe_subscription_id && row.status === "active"){
+  if(row.plan === "pay_per_game" && row.status === "active"){
+    const left = row.game_credits || 0;
+    label = `Pay per game · ${left} game${left === 1 ? "" : "s"} left`;
+  }
+  else if(row.stripe_subscription_id && row.status === "active"){
     const tierName = row.plan === "goalie_plus" ? "Goalie Plus" : row.plan === "goalie" ? "Goalie" : "Paid";
     label = live ? `${tierName} · Stripe` : `${tierName} · lapsed`;
   }
@@ -14307,6 +14329,8 @@ function openAdminAccessModal(goalieId){
   document.getElementById("adminAccessUntil").value =
     row && row.access_until ? String(row.access_until).slice(0, 10) : "";
   document.getElementById("adminAccessNote").value = row && row.note ? row.note : "";
+  document.getElementById("adminAccessCredits").value =
+    row && row.plan === "pay_per_game" ? String(row.game_credits || 0) : "";
 
   syncAdminAccessFields();
 
@@ -14327,6 +14351,7 @@ async function saveAdminAccess(button){
   const status = document.getElementById("adminAccessStatus").value;
   const untilRaw = document.getElementById("adminAccessUntil").value;
   const note = document.getElementById("adminAccessNote").value.trim() || null;
+  const creditsRaw = document.getElementById("adminAccessCredits").value.trim();
 
   if(status === "trial" && !untilRaw){
     showToast("Pick an end date for the trial.", "error");
@@ -14352,17 +14377,25 @@ async function saveAdminAccess(button){
           ? new Date(untilRaw + "T23:59:59").toISOString()
           : null;
 
+      const accessRow = {
+        user_id: goalieId,
+        status,
+        access_until: accessUntil,
+        note,
+        granted_by: currentSession.user.id,
+        updated_at: new Date().toISOString()
+      };
+
+      // Setting "Games left" puts the goalie on pay-per-game with that balance.
+      if(creditsRaw !== ""){
+        accessRow.game_credits = parseInt(creditsRaw, 10) || 0;
+        accessRow.plan = "pay_per_game";
+      }
+
       const { error } =
         await supabaseClient
           .from("goalie_access")
-          .upsert({
-            user_id: goalieId,
-            status,
-            access_until: accessUntil,
-            note,
-            granted_by: currentSession.user.id,
-            updated_at: new Date().toISOString()
-          }, { onConflict: "user_id" });
+          .upsert(accessRow, { onConflict: "user_id" });
 
       if(error){ throw error; }
 
