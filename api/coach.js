@@ -110,7 +110,12 @@ function buildStatsSummary({ games, periodStats, shots, reboundControls, puckPla
   const totalShotsAgainst = seasonGames.reduce((sum, g) => sum + num(g.shots_against), 0);
   const totalSaves = seasonGames.reduce((sum, g) => sum + num(g.saves), 0);
   const totalGoalsAgainst = seasonGames.reduce((sum, g) => sum + num(g.goals_against), 0);
-  const totalMinutes = seasonGames.reduce((sum, g) => sum + num(g.minutes_played), 0);
+  // Scale each game to 60 minutes using its regulation length (game_length),
+  // so short-game leagues (e.g. 34-minute games) get a fair GAA.
+  const totalMinutes = seasonGames.reduce((sum, g) => {
+    const len = num(g.game_length) > 0 ? num(g.game_length) : 60;
+    return sum + num(g.minutes_played) * 60 / len;
+  }, 0);
   const shutouts = seasonGames.filter(g => g.shutout).length;
 
   const savePct = pct(totalSaves, totalShotsAgainst);
