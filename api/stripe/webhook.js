@@ -7,6 +7,7 @@
 //
 // Stripe events to send (Stripe dashboard -> Developers -> Webhooks):
 //   checkout.session.completed
+//   checkout.session.async_payment_succeeded
 //   customer.subscription.created
 //   customer.subscription.updated
 //   customer.subscription.deleted
@@ -15,7 +16,7 @@
 
 import {
   stripe, verifyStripeSignature, accessFromSubscription,
-  upsertAccess, serviceSelect, getProfile,
+  upsertAccess, serviceSelect, getProfile, serviceRpc,
 } from "../_lib/billing.js";
 
 // Signature checking needs the exact raw body.
@@ -83,6 +84,51 @@ async function syncSubscription(subscriptionId, userIdHint) {
   });
 }
 
+// One-time purchase of game credits. Credits per product come from the
+// product's "credits" metadata. grant_game_credits() is idempotent per
+// checkout session, so a replayed event never adds credits twice.
+async function grantCredits(session) {
+  if (session.payment_status !== "paid") return; // async payment still pending
+
+  const userId = session.client_reference_id || (session.metadata && session.metadata.user_id);
+  if (!userId) {
+    console.warn("Paid checkout with no GoalieIQ user:", session.id);
+    return;
+  }
+
+  const profile = await getProfile(userId);
+  if (!profile) {
+    console.warn("Paid checkout for a deleted profile:", userId);
+    return;
+  }
+
+  const items = await stripe("GET", `/checkout/sessions/${encodeURIComponent(session.id)}/line_items`, {
+    limit: 100,
+    expand: ["data.price.product"],
+  });
+
+  let credits = 0;
+  for (const item of items.data || []) {
+    const product = item.price && typeof item.price.product === "object" ? item.price.product : null;
+    const perUnit = parseInt((product && product.metadata && product.metadata.credits) || "0", 10) || 0;
+    credits += perUnit * (item.quantity || 1);
+  }
+
+  if (credits <= 0) {
+    console.warn("Paid checkout with no game credits on its products:", session.id);
+    return;
+  }
+
+  await serviceRpc("grant_game_credits", {
+    p_user: userId,
+    p_credits: credits,
+    p_session: session.id,
+    p_amount: session.amount_total,
+    p_currency: session.currency,
+    p_customer: typeof session.customer === "string" ? session.customer : (session.customer && session.customer.id) || null,
+  });
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
@@ -115,7 +161,12 @@ export default async function handler(req, res) {
       case "checkout.session.completed":
         if (obj.mode === "subscription" && obj.subscription) {
           await syncSubscription(obj.subscription, obj.client_reference_id || (obj.metadata && obj.metadata.user_id));
+        } else if (obj.mode === "payment") {
+          await grantCredits(obj);
         }
+        break;
+      case "checkout.session.async_payment_succeeded":
+        if (obj.mode === "payment") await grantCredits(obj);
         break;
       case "customer.subscription.created":
       case "customer.subscription.updated":
