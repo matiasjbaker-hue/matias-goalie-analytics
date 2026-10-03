@@ -2549,6 +2549,16 @@ textarea:focus-visible,
 @media(max-width:750px){
   .cookie-notice{ left:10px; right:10px; max-width:none; }
 }
+
+/* Landing testimonials */
+.landing-testimonials{ border-top:1px solid var(--border); }
+.testimonial-card{ margin:0; display:flex; flex-direction:column; justify-content:space-between; gap:20px; }
+.testimonial-card blockquote{ margin:0; }
+.testimonial-card blockquote p{ margin:0; font-size:15px; line-height:1.65; color:var(--text); }
+.testimonial-card figcaption{ display:flex; align-items:center; gap:14px; }
+.testimonial-card img{ width:64px; height:64px; border-radius:50%; object-fit:cover; border:2px solid var(--green); flex-shrink:0; }
+.testimonial-card figcaption strong{ display:block; font-size:15px; }
+.testimonial-card figcaption span span{ display:block; font-size:12px; color:var(--muted); line-height:1.45; margin-top:2px; }
 </style>
 </head>
 
@@ -2724,6 +2734,50 @@ textarea:focus-visible,
           <h3>AI Coach</h3>
           <p>Ask plain-language questions about a goalie's season and get answers grounded in their actual tracked data.</p>
         </div>
+
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <section class="landing-testimonials" aria-labelledby="testimonials-heading">
+
+    <div class="landing-section-inner">
+
+      <div class="page-title" style="text-align:center">
+        <h2 id="testimonials-heading">What goalies are saying</h2>
+        <p>From goalies already using GoalieIQ.</p>
+      </div>
+
+      <div class="grid grid-2">
+
+        <figure class="card testimonial-card">
+          <blockquote>
+            <p>&ldquo;I&rsquo;ve found this app super helpful for understanding my game beyond just goals against and save percentage. Being able to see stats like expected save percentage, rebound control, successful rims, and so many other breakdowns gives you a much better picture of how you actually played. It helps tell the full story behind your game and points out specific areas to focus on.&rdquo;</p>
+          </blockquote>
+          <figcaption>
+            <img src="/testimonial-maija.jpg" alt="Maija St-Pierre in net for Team Canada" width="64" height="64" loading="lazy">
+            <span>
+              <strong>Maija St-Pierre</strong>
+              <span>Etobicoke Jr. Dolphins · Team Canada U18 alum · Committed to St. Thomas (NCAA D1)</span>
+            </span>
+          </figcaption>
+        </figure>
+
+        <figure class="card testimonial-card">
+          <blockquote>
+            <p>&ldquo;The stat that surprised me the most is the rebound control from different areas of your body. It helped me understand where I need to work on instead of guessing and just thinking everything needed to get better.&rdquo;</p>
+          </blockquote>
+          <figcaption>
+            <img src="/testimonial-alex.jpg" alt="Alex Beaupre in goalie gear for the Niagara IceDogs" width="64" height="64" loading="lazy">
+            <span>
+              <strong>Alex Beaupre</strong>
+              <span>Pelham Panthers · Signed with the Niagara IceDogs (OHL)</span>
+            </span>
+          </figcaption>
+        </figure>
 
       </div>
 
