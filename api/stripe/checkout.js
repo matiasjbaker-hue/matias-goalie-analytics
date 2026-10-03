@@ -1,9 +1,9 @@
 // ============================================================
-// POST /api/stripe/checkout -- start a subscription
+// POST /api/stripe/checkout -- buy game credits (one-time payment)
 // ============================================================
 // Body: { accessToken, priceId }. The goalie is identified from their
 // own Supabase session, never from anything else in the request.
-// Access is granted later by the webhook, only after Stripe confirms.
+// Credits are added later by the webhook, only after Stripe confirms.
 
 import {
   stripe, stripeConfigured, configuredPriceIds, siteUrl,
@@ -36,39 +36,37 @@ export default async function handler(req, res) {
     }
 
     if (!checkoutAllowedFor(user.email)) {
-      res.status(403).json({ error: "Online payments open soon. Start your free trial for now, or request access." });
+      res.status(403).json({ error: "Online payments open soon. Start with your free game for now, or request access." });
       return;
     }
 
     const profile = await getProfile(user.id);
     if (!profile || profile.role !== "goalie") {
-      res.status(403).json({ error: "Only goalie accounts can subscribe." });
+      res.status(403).json({ error: "Only goalie accounts can buy games." });
       return;
     }
 
     const existing = await getAccessRow(user.id);
-    if (existing && existing.status === "active" && existing.stripe_subscription_id) {
-      res.status(409).json({ error: "You already have an active subscription. Use Billing to manage it." });
-      return;
-    }
 
     const site = siteUrl(req);
 
     const params = {
-      mode: "subscription",
+      mode: "payment",
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${site}/?checkout=success`,
       cancel_url: `${site}/?checkout=cancel`,
       client_reference_id: user.id,
       metadata: { user_id: user.id },
-      subscription_data: { metadata: { user_id: user.id } },
+      payment_intent_data: { metadata: { user_id: user.id } },
+      invoice_creation: { enabled: "true" }, // receipt + history in Billing
       allow_promotion_codes: "true",
     };
 
     if (existing && existing.stripe_customer_id) {
       params.customer = existing.stripe_customer_id;
-    } else if (user.email) {
-      params.customer_email = user.email;
+    } else {
+      params.customer_creation = "always";
+      if (user.email) params.customer_email = user.email;
     }
 
     const session = await stripe("POST", "/checkout/sessions", params);
