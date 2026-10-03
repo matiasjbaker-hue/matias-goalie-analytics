@@ -3603,6 +3603,10 @@ textarea:focus-visible,
           <input id="adminProfileSeason" type="text" autocomplete="off" placeholder="e.g. 2026-27">
         </div>
         <div class="field">
+          <label for="adminProfileGameLength">Game length (minutes)</label>
+          <input id="adminProfileGameLength" type="number" min="10" max="90" step="1" inputmode="numeric" placeholder="60">
+        </div>
+        <div class="field">
           <label for="adminProfileRole">Role</label>
           <select id="adminProfileRole">
             <option value="goalie">Goalie</option>
@@ -6476,6 +6480,18 @@ function gameResult(game){
 }
 
 
+// Regulation length of the game in minutes (e.g. 34 for 10/12/12
+// periods). Rate stats (GAA, shots/60...) scale minutes to a 60-minute
+// game so a goalie in a short-game league isn't penalised.
+function gameLength(game){
+  const len = num(game && game.game_length);
+  return len > 0 ? len : 60;
+}
+
+function gameRateMinutes(game){
+  return gameMinutes(game) * 60 / gameLength(game);
+}
+
 function gameMinutes(game){
 
   return num(
@@ -7689,7 +7705,7 @@ function renderOverview(){
   const totalMinutes =
     seasonGames.reduce(
       (sum,g) =>
-        sum + gameMinutes(g),
+        sum + gameRateMinutes(g),
       0
     );
 
@@ -8318,7 +8334,7 @@ function renderLast5(){
 
     goals += gameGoals(game);
 
-    minutes += gameMinutes(game);
+    minutes += gameRateMinutes(game);
 
 
     const r =
@@ -9428,6 +9444,9 @@ function renderGameLog(){
     const minutes =
       gameMinutes(game);
 
+    const rateMinutes =
+      gameRateMinutes(game);
+
 
     const sv =
       shots
@@ -9436,8 +9455,8 @@ function renderGameLog(){
 
 
     const gaa =
-      minutes
-        ? goals / minutes * 60
+      rateMinutes
+        ? goals / rateMinutes * 60
         : null;
 
 
@@ -10911,7 +10930,7 @@ function computeFormWindow(gameList){
     gameList.reduce((sum,g) => sum + gameGoals(g), 0);
 
   const minutes =
-    gameList.reduce((sum,g) => sum + gameMinutes(g), 0);
+    gameList.reduce((sum,g) => sum + gameRateMinutes(g), 0);
 
   const rawSV =
     shotsAgainst ? (saves / shotsAgainst * 100) : null;
@@ -11378,7 +11397,7 @@ function renderIncremental(){
   const totalMinutes =
     seasonGames.reduce(
       (sum,g) =>
-        sum + gameMinutes(g),
+        sum + gameRateMinutes(g),
       0
     );
 
@@ -12792,7 +12811,7 @@ function computeGoalieSummary(goalieId, season){
     goalieGames.reduce((sum,g) => sum + num(g.goals_against), 0);
 
   const totalMinutes =
-    goalieGames.reduce((sum,g) => sum + num(g.minutes_played), 0);
+    goalieGames.reduce((sum,g) => sum + gameRateMinutes(g), 0);
 
   const svPct =
     totalShotsAgainst ? (totalSaves / totalShotsAgainst * 100) : null;
@@ -14541,6 +14560,7 @@ function openAdminProfileModal(profileId){
   document.getElementById("adminProfileTeam").value = profile.team || "";
   document.getElementById("adminProfileBirthYear").value = profile.birth_year || "";
   document.getElementById("adminProfileSeason").value = profile.season || "";
+  document.getElementById("adminProfileGameLength").value = profile.game_length_minutes || "";
 
   const roleSelect = document.getElementById("adminProfileRole");
   roleSelect.value = profile.role || "goalie";
@@ -14580,6 +14600,7 @@ async function saveAdminProfile(button){
   const team = document.getElementById("adminProfileTeam").value.trim();
   const season = document.getElementById("adminProfileSeason").value.trim();
   const birthYearRaw = document.getElementById("adminProfileBirthYear").value.trim();
+  const gameLengthRaw = document.getElementById("adminProfileGameLength").value.trim();
   const roleSelect = document.getElementById("adminProfileRole");
 
   if(!name){ return fail("Name is required."); }
@@ -14593,11 +14614,20 @@ async function saveAdminProfile(button){
     }
   }
 
+  let gameLength = null;
+  if(gameLengthRaw){
+    gameLength = parseInt(gameLengthRaw, 10);
+    if(!Number.isInteger(gameLength) || gameLength < 10 || gameLength > 90){
+      return fail("Game length must be between 10 and 90 minutes.");
+    }
+  }
+
   const payload = {
     full_name: name,
     team: team || null,
     season: season || null,
-    birth_year: birthYear
+    birth_year: birthYear,
+    game_length_minutes: gameLength
   };
 
   if(!roleSelect.disabled){
@@ -14623,6 +14653,17 @@ async function saveAdminProfile(button){
 
     if(!data || !data.length){
       throw new Error("Nothing was updated -- check that your account has the admin role.");
+    }
+
+    // Apply the game length to this goalie's existing games too, so their
+    // GAA is recalculated on the right scale (empty = standard 60).
+    {
+      const { error: lenError } =
+        await supabaseClient
+          .from("Games")
+          .update({ game_length: gameLength })
+          .eq("user_id", adminEditingProfileId);
+      if(lenError){ throw new Error("Profile saved, but game length wasn't applied to games: " + lenError.message); }
     }
 
     const updated = data[0];
@@ -14930,9 +14971,10 @@ function computeGameReportData(gameId){
   const saves = gameSaves(game);
   const goals = gameGoals(game);
   const minutes = gameMinutes(game);
+  const rateMinutes = gameRateMinutes(game);
 
   const svPct = shotsAgainst ? (saves / shotsAgainst * 100) : null;
-  const gaa = minutes ? (goals / minutes * 60) : null;
+  const gaa = rateMinutes ? (goals / rateMinutes * 60) : null;
 
   const advanced =
     gameShotsList.length
@@ -16130,7 +16172,7 @@ function goPriorAggregate(priorGames, priorMetrics){
   const shotsSum = priorGames.reduce((s,g) => s + gameShots(g), 0);
   const savesSum = priorGames.reduce((s,g) => s + gameSaves(g), 0);
   const goalsSum = priorGames.reduce((s,g) => s + gameGoals(g), 0);
-  const minSum = priorGames.reduce((s,g) => s + gameMinutes(g), 0);
+  const minSum = priorGames.reduce((s,g) => s + gameRateMinutes(g), 0);
 
   const shotRows = priorMetrics.flatMap(m => m.shotRows);
   const adv = shotRows.length ? calculateAdvancedForShots(shotRows) : null;
