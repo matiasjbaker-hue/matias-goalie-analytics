@@ -12446,9 +12446,13 @@ document.getElementById("newpassword-form")
   });
 
 
+let signingOutOnPurpose = false;
+
 async function handleLogout(){
 
+  signingOutOnPurpose = true;
   await supabaseClient.auth.signOut();
+  signingOutOnPurpose = false;
   currentSession = null;
   showAuthScreen();
 
@@ -12464,6 +12468,14 @@ supabaseClient.auth.onAuthStateChange(function(event, session){
   if(event === "PASSWORD_RECOVERY"){
     showAuthScreen();
     showAuthView("newpassword");
+  }
+
+  // Session ended underneath us (expired refresh token, signed out in
+  // another tab, browser cleared storage). Without this the app stays on
+  // screen but every save goes out logged-out and fails RLS.
+  if(event === "SIGNED_OUT" && !signingOutOnPurpose){
+    showAuthScreen();
+    showToast("Your session expired. Sign in again to keep going. Nothing you saved was lost.", "error");
   }
 
 });
@@ -14217,6 +14229,7 @@ async function confirmDeleteAccount(button){
 
     if(wasSelf){
       showToast("Your account has been deleted.");
+      signingOutOnPurpose = true;
       try{ await supabaseClient.auth.signOut(); }catch(e){}
       location.href = "/";
       return;
