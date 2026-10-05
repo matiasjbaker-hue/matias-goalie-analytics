@@ -1261,6 +1261,66 @@ tr:hover td{
   margin-bottom:16px;
 }
 
+.shotmap-wrap{
+  max-width:560px;
+  width:100%;
+  border:1px solid var(--border);
+  border-radius:10px;
+  overflow:hidden;
+  background:#0f2a21;
+}
+
+.shotmap-readout{
+  margin-top:8px;
+  font-size:13px;
+  color:var(--muted);
+  min-height:20px;
+}
+
+.shotmap-readout strong{
+  color:var(--text);
+}
+
+.shotmap-clear{
+  margin-left:8px;
+  padding:2px 10px;
+  border-radius:6px;
+  border:1px solid var(--border2);
+  background:transparent;
+  color:var(--green2);
+  font-size:12px;
+  cursor:pointer;
+}
+
+.shotmap-legend{
+  display:flex;
+  gap:16px;
+  flex-wrap:wrap;
+  margin-top:10px;
+  font-size:12px;
+  color:var(--muted);
+}
+
+.shotmap-legend span::before{
+  content:"";
+  display:inline-block;
+  width:10px;
+  height:10px;
+  border-radius:50%;
+  margin-right:6px;
+  vertical-align:-1px;
+}
+
+.shotmap-legend .lg-save::before{ background:rgba(105,221,160,.82); }
+.shotmap-legend .lg-goal::before{ background:#ff6b6b; box-shadow:0 0 0 1.5px #fff; }
+
+.shotmap-caption{
+  margin-top:8px;
+  font-size:13px;
+  color:var(--text);
+  min-height:20px;
+}
+
 .tag-group-label{
   font-size:12px;
   color:var(--muted);
@@ -4103,6 +4163,26 @@ textarea:focus-visible,
   </div>
 
 
+  <div class="card" style="margin-bottom:16px">
+
+    <h3>Shot Map</h3>
+
+    <p class="chart-caption">Every pinned shot this season, as seen from your net. Red = goal against.</p>
+
+    <div id="situ-shotmap" class="shotmap-wrap"></div>
+
+    <div class="shotmap-legend">
+      <span class="lg-save">Save</span>
+      <span class="lg-goal">Goal</span>
+    </div>
+
+    <div id="situ-shotmap-caption" class="shotmap-caption"></div>
+
+    <div id="situ-shotmap-note" class="small-note"></div>
+
+  </div>
+
+
   <div class="grid grid-2">
 
     <div class="card chart-card">
@@ -5073,19 +5153,9 @@ textarea:focus-visible,
     </div>
 
     <div class="tag-group">
-      <div class="tag-group-label">Location</div>
-      <div class="tag-btn-row" id="lt-location-buttons">
-        <button type="button" class="tag-btn" data-value="Crease" onclick="selectLiveTagChoice('location','Crease',this)">Crease</button>
-        <button type="button" class="tag-btn" data-value="Dot" onclick="selectLiveTagChoice('location','Dot',this)">Dot</button>
-        <button type="button" class="tag-btn" data-value="Low slot" onclick="selectLiveTagChoice('location','Low slot',this)">Low Slot</button>
-        <button type="button" class="tag-btn" data-value="High slot" onclick="selectLiveTagChoice('location','High slot',this)">High Slot</button>
-        <button type="button" class="tag-btn" data-value="Hashmark" onclick="selectLiveTagChoice('location','Hashmark',this)">Hashmark</button>
-        <button type="button" class="tag-btn" data-value="Bottom of circle" onclick="selectLiveTagChoice('location','Bottom of circle',this)">Bottom of Circle</button>
-        <button type="button" class="tag-btn" data-value="Top of circle" onclick="selectLiveTagChoice('location','Top of circle',this)">Top of Circle</button>
-        <button type="button" class="tag-btn" data-value="Point" onclick="selectLiveTagChoice('location','Point',this)">Point</button>
-        <button type="button" class="tag-btn" data-value="Wall" onclick="selectLiveTagChoice('location','Wall',this)">Wall</button>
-        <button type="button" class="tag-btn" data-value="Goal line" onclick="selectLiveTagChoice('location','Goal line',this)">Goal Line</button>
-      </div>
+      <div class="tag-group-label">Location — tap the rink where the shot came from</div>
+      <div id="lt-shotmap" class="shotmap-wrap"></div>
+      <div id="lt-shotmap-readout" class="shotmap-readout">No location pinned yet.</div>
     </div>
 
     <div class="tag-group">
@@ -5789,14 +5859,23 @@ textarea:focus-visible,
         </p>
 
         <p>
-          <strong>Location also stands in for shot angle</strong> --
-          Slot is roughly straight-on, Circle is a medium angle, and
-          Perimeter is the worst angle (along the boards), on top of
-          each tag's role as a proximity signal for Crease and Point.
-          This is a coarse proxy, not a measured angle: the platform
-          doesn't capture shot coordinates, and a single tag like
-          "Circle" can span a real range of angles depending which
-          faceoff dot the shot came from.
+          <strong>Measured distance and angle (v1.6)</strong> -- shots
+          pinned on the shot map are scored from where they actually
+          came from: distance to the net and angle off the center
+          line, the same two inputs public NHL models are built on.
+          Expected goals fall off smoothly with distance and are lower
+          from sharper angles, and a shot from directly behind the net
+          scores very low. For these shots the location tag no longer
+          adjusts the score, because the pin replaces it.
+        </p>
+
+        <p>
+          <strong>Shots without a pin</strong> (anything tagged before
+          the shot map existed, or tagged without placing a pin) still
+          use the older method: location stands in for angle -- Slot
+          is roughly straight-on, Circle a medium angle, Perimeter the
+          worst. That's a coarse proxy, since one tag like "Circle"
+          spans a real range of angles.
         </p>
 
         <p>
@@ -5807,7 +5886,7 @@ textarea:focus-visible,
         </p>
 
         <p>
-          <strong>League calibration (v1.5)</strong> -- all xG values
+          <strong>League calibration (v1.5 and v1.6)</strong> -- all xG values
           are scaled so that an average shot mix produces an expected
           SV% equal to the GOHL league average (~.900–.905). Without
           this, the model assumed shots went in less often than they
@@ -5816,8 +5895,8 @@ textarea:focus-visible,
         </p>
 
         <p>
-          <strong>Missing distance (v1.5)</strong> -- shots tagged in
-          Live Tag don't record a distance, so the model estimates one
+          <strong>Missing distance (v1.5)</strong> -- shots without a
+          pin have no measured distance, so the model estimates one
           from the shot's location using the average distance of shots
           logged at that location.
         </p>
@@ -9917,6 +9996,8 @@ function renderPeriods(){
 ============================================================ */
 
 function renderSituational(){
+
+  renderShotMapDisplay();
 
   const locationCounts = {};
   const locationGoals = {};
@@ -15087,7 +15168,10 @@ function computeGameReportData(gameId){
   return {
     game, shotsAgainst, saves, goals, minutes, svPct, gaa, advanced,
     periodRows, situationalRows, locationRows, reboundSummary, puckSummary,
-    shotCount: gameShotsList.length
+    shotCount: gameShotsList.length,
+    xgModelVersions: Array.from(new Set(
+      gameShotsList.map(s => s.xg_model_version).filter(Boolean)
+    ))
   };
 
 }
@@ -15602,7 +15686,7 @@ async function generateGameReportPDF(gameId, buttonEl){
     doc.setTextColor(140,140,140);
 
     doc.text(
-      `Generated ${new Date().toLocaleString()} · xG model ${XG_MODEL_VERSION} · GoalieIQ Analytics`,
+      `Generated ${new Date().toLocaleString()} · xG model ${pdfXgModelLabel(data)} · GoalieIQ Analytics`,
       42, pageHeight - 26
     );
 
@@ -17509,7 +17593,11 @@ const PRESERVED_SHOT_FIELDS = [
   "possession_duration_seconds",
   "game_video_id",
   "clip_start_seconds",
-  "clip_end_seconds"
+  "clip_end_seconds",
+  // Shot map pin -- without these, editing a game in My Games would
+  // silently wipe every shot's pinned position.
+  "loc_x",
+  "loc_y"
 ];
 
 
@@ -17811,6 +17899,486 @@ const REBOUND_TALLY_LABELS = {
   pad_stick_goal:"Pad/Stick Goal"
 };
 
+/* ============================================================
+   SHOT MAP
+   A to-scale defensive zone. Tagging = tap where the shot came
+   from; the pin is stored as raw feet (loc_x / loc_y). The zone
+   label ("Low slot", "Point", ...) is derived from it so every
+   existing location chart keeps working, and the database scores
+   xG from the pin's measured distance and angle (xG model v1.6,
+   see calculate_shot_xg_measured) instead of the label.
+
+   Coordinates (feet): x = lateral, 0 = center of the net,
+   + toward the viewer's right. y = distance out from the goal
+   line toward the blue line; negative = behind the goal line.
+============================================================ */
+
+const SHOT_MAP = {
+  halfWidth: 42.5,    // boards are 85 ft apart
+  goalLineY: 0,
+  endBoardsY: -11,    // goal line sits 11 ft from the end boards
+  blueLineY: 64,      // offensive blue line is 64 ft from the goal line
+  cornerR: 28,
+  creaseR: 6,
+  circleR: 15,
+  dotX: 22,
+  dotY: 20
+};
+
+// svgY = blueLineY - y, so the net sits at the bottom and the
+// view looks out toward the blue line, like a goalie would.
+const SHOT_MAP_VIEWBOX = "-42.5 -1.5 85 77";
+
+function shotMapSvgY(y){
+  return SHOT_MAP.blueLineY - y;
+}
+
+// svg-space point -> feet, clamped to the rink and rounded to 0.1 ft
+function shotMapFromSvgPoint(svgX, svgY){
+
+  const x =
+    Math.max(-SHOT_MAP.halfWidth, Math.min(SHOT_MAP.halfWidth, svgX));
+
+  const y =
+    Math.max(
+      SHOT_MAP.endBoardsY,
+      Math.min(SHOT_MAP.blueLineY, SHOT_MAP.blueLineY - svgY)
+    );
+
+  return {
+    x: Math.round(x * 10) / 10,
+    y: Math.round(y * 10) / 10
+  };
+
+}
+
+function shotMapDistanceFt(x, y){
+  return Math.round(Math.hypot(x, y) * 10) / 10;
+}
+
+// Degrees off the center line: 0 = straight on, 90 = along the goal
+// line, up to 180 = directly behind the net. Same definition the
+// database uses for xG (calculate_shot_xg_measured), so what's shown
+// here is exactly what was scored.
+function shotMapAngleDeg(x, y){
+
+  if(x === 0 && y === 0){ return 90; }
+
+  return Math.round(Math.atan2(Math.abs(x), y) * 180 / Math.PI);
+
+}
+
+function shotMapAngleLabel(x, y){
+
+  return y < 0
+    ? "behind the goal line"
+    : `${shotMapAngleDeg(x, y)}° off center`;
+
+}
+
+function shotMapHasPin(shot){
+
+  return (
+    shot &&
+    shot.loc_x !== null && shot.loc_x !== undefined && shot.loc_x !== "" &&
+    shot.loc_y !== null && shot.loc_y !== undefined && shot.loc_y !== "" &&
+    Number.isFinite(Number(shot.loc_x)) &&
+    Number.isFinite(Number(shot.loc_y))
+  );
+
+}
+
+// Zone centers for the "nearest zone wins" part of the classifier.
+// Positions are mirrored left/right (the labels aren't sided).
+// These are the knobs to tune if a zone feels too big or too small.
+const SHOT_MAP_LANDMARKS = [
+  { label: "Low slot",         x: 0,  y: 11 },
+  { label: "High slot",        x: 0,  y: 29 },
+  { label: "Hashmark",         x: 10, y: 20 },
+  { label: "Dot",              x: 22, y: 20 },
+  { label: "Bottom of circle", x: 24, y: 9  },
+  { label: "Top of circle",    x: 22, y: 31 }
+];
+
+// Returns one of the labels the rest of the app already uses
+// (and that the xG model pattern-matches on): Crease, Goal line,
+// Low slot, High slot, Hashmark, Dot, Bottom of circle,
+// Top of circle, Point, Wall.
+function classifyShotLocation(x, y){
+
+  const ax = Math.abs(x);
+
+  if(y >= 42){ return "Point"; }                       // blue-line area, any lateral position
+  if(ax >= 33){ return "Wall"; }                       // within ~9 ft of the boards
+  if(y >= 0 && Math.hypot(x, y) <= SHOT_MAP.creaseR){ return "Crease"; }
+  if(y < 6){ return "Goal line"; }                     // beside / behind the net, low angle
+
+  let best = null;
+  let bestD = Infinity;
+
+  for(const lm of SHOT_MAP_LANDMARKS){
+
+    const d = Math.hypot(ax - lm.x, y - lm.y);
+
+    if(d < bestD){
+      bestD = d;
+      best = lm.label;
+    }
+
+  }
+
+  return best;
+
+}
+
+// Static rink markings + faint zone labels. `prefix` keeps the
+// clipPath id unique when more than one map is on the page.
+function shotMapBaseMarkup(prefix){
+
+  const sy = shotMapSvgY;
+  const R = SHOT_MAP.circleR;
+  const cy = sy(SHOT_MAP.dotY);
+
+  const outline =
+    "M -42.5 -1 L 42.5 -1 L 42.5 47 A 28 28 0 0 1 14.5 75 " +
+    "L -14.5 75 A 28 28 0 0 1 -42.5 47 Z";
+
+  const red = "#d9534f";
+
+  const circles =
+    [-1, 1].map(side => {
+
+      const cx = side * SHOT_MAP.dotX;
+      const innerX = cx - side * R;     // edge of the circle facing the slot
+      const outerX = cx + side * R;     // edge facing the boards
+
+      const tick = (edgeX, dir, dy) =>
+        `<line x1="${edgeX}" y1="${cy + dy}" x2="${edgeX + dir * 2}" y2="${cy + dy}" stroke="${red}" stroke-width="0.35"/>`;
+
+      return `
+        <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${red}" stroke-width="0.4"/>
+        <circle cx="${cx}" cy="${cy}" r="1" fill="${red}"/>
+        ${tick(innerX, -side, -3)}${tick(innerX, -side, 3)}
+        ${tick(outerX, side, -3)}${tick(outerX, side, 3)}
+      `;
+
+    }).join("");
+
+  const label = (text, x, y, opts = {}) => {
+
+    const size = opts.size || 2.3;
+    const rot = opts.rotate
+      ? ` transform="rotate(${opts.rotate} ${x} ${sy(y)})"`
+      : "";
+
+    return `<text x="${x}" y="${sy(y)}" font-size="${size}" text-anchor="middle" dominant-baseline="middle"${rot} font-family="Inter,Arial,sans-serif" font-weight="600" letter-spacing=".2" fill="rgba(237,247,241,.38)" style="pointer-events:none;user-select:none">${text}</text>`;
+
+  };
+
+  const labels = [
+    label("LOW SLOT", 0, 11),
+    label("HIGH SLOT", 0, 29),
+    label("HASHMARK", -10, 20, { size: 1.8 }),
+    label("HASHMARK", 10, 20, { size: 1.8 }),
+    label("DOT", -22, 16.2),
+    label("DOT", 22, 16.2),
+    label("BOTTOM OF CIRCLE", -22, 10.5, { size: 1.7 }),
+    label("BOTTOM OF CIRCLE", 22, 10.5, { size: 1.7 }),
+    label("TOP OF CIRCLE", -22, 29.5, { size: 1.7 }),
+    label("TOP OF CIRCLE", 22, 29.5, { size: 1.7 }),
+    label("POINT", 0, 52),
+    label("WALL", -38.2, 22, { rotate: -90 }),
+    label("WALL", 38.2, 22, { rotate: 90 }),
+    label("GOAL LINE", -19, 2.4),
+    label("GOAL LINE", 19, 2.4),
+    label("CREASE", 0, 2.6, { size: 1.7 })
+  ].join("");
+
+  return `
+    <defs>
+      <clipPath id="${prefix}-clip"><path d="${outline}"/></clipPath>
+    </defs>
+
+    <path d="${outline}" fill="#0f2a21" stroke="#88a599" stroke-width="0.8"/>
+
+    <g clip-path="url(#${prefix}-clip)">
+      <rect x="-42.5" y="-0.5" width="85" height="1" fill="#3b7bd9"/>
+      <line x1="-42.5" y1="${sy(0)}" x2="42.5" y2="${sy(0)}" stroke="${red}" stroke-width="0.5"/>
+      ${circles}
+      <path d="M -6 ${sy(0)} A 6 6 0 0 1 6 ${sy(0)} Z" fill="rgba(80,150,235,.28)" stroke="${red}" stroke-width="0.4"/>
+      <rect x="-3" y="${sy(0)}" width="6" height="3.3" fill="rgba(255,255,255,.10)" stroke="${red}" stroke-width="0.4"/>
+    </g>
+
+    ${labels}
+  `;
+
+}
+
+function shotMapSvg(prefix, layers, interactive){
+
+  const style =
+    "width:100%;height:auto;display:block;" +
+    (interactive ? "cursor:crosshair;touch-action:manipulation;" : "");
+
+  return `<svg id="${prefix}-svg" viewBox="${SHOT_MAP_VIEWBOX}" xmlns="http://www.w3.org/2000/svg" style="${style}" role="img" aria-label="Defensive zone shot map">${shotMapBaseMarkup(prefix)}${layers}</svg>`;
+
+}
+
+// dot for one shot (also used for the "earlier shots this game"
+// layer on the tagging map)
+function shotMapDotMarkup(shot, index){
+
+  const goal =
+    String(shot.outcome || "").toLowerCase() === "goal";
+
+  const x = Number(shot.loc_x);
+  const y = shotMapSvgY(Number(shot.loc_y));
+
+  return goal
+    ? `<circle data-i="${index}" cx="${x}" cy="${y}" r="1.9" fill="#ff6b6b" stroke="#fff" stroke-width="0.35"/>`
+    : `<circle data-i="${index}" cx="${x}" cy="${y}" r="1.3" fill="rgba(105,221,160,.82)" stroke="rgba(6,23,16,.7)" stroke-width="0.25"/>`;
+
+}
+
+function shotMapDotsMarkup(shotList){
+
+  const pinned =
+    shotList
+      .map((s, i) => ({ s, i }))
+      .filter(o => shotMapHasPin(o.s));
+
+  const isGoalShot = o => String(o.s.outcome || "").toLowerCase() === "goal";
+
+  // saves first so goals always render on top
+  return pinned
+    .filter(o => !isGoalShot(o))
+    .concat(pinned.filter(isGoalShot))
+    .map(o => shotMapDotMarkup(o.s, o.i))
+    .join("");
+
+}
+
+function shotMapPinMarkup(x, y){
+
+  const sy = shotMapSvgY(y);
+
+  return `
+    <circle cx="${x}" cy="${sy}" r="2.8" fill="none" stroke="#ffd84d" stroke-width="0.5"/>
+    <circle cx="${x}" cy="${sy}" r="1.1" fill="#ffd84d" stroke="#061710" stroke-width="0.25"/>
+  `;
+
+}
+
+
+/* ---------- Live Tag: pin a shot ---------- */
+
+function initLiveTagShotMap(){
+
+  const host = document.getElementById("lt-shotmap");
+
+  if(!host){ return; }
+
+  host.innerHTML =
+    shotMapSvg(
+      "ltmap",
+      `<g id="ltmap-prior"></g><g id="ltmap-pin"></g>`,
+      true
+    );
+
+  const svg = document.getElementById("ltmap-svg");
+
+  svg.addEventListener("click", function(e){
+
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+
+    const local = pt.matrixTransform(svg.getScreenCTM().inverse());
+    const spot = shotMapFromSvgPoint(local.x, local.y);
+
+    setLiveTagPin(spot.x, spot.y);
+
+  });
+
+  renderLiveTagMapReadout();
+
+}
+
+function setLiveTagPin(x, y){
+
+  liveTagState.loc_x = x;
+  liveTagState.loc_y = y;
+  liveTagState.location = classifyShotLocation(x, y);
+
+  const pinLayer = document.getElementById("ltmap-pin");
+
+  if(pinLayer){
+    pinLayer.innerHTML = shotMapPinMarkup(x, y);
+  }
+
+  renderLiveTagMapReadout();
+
+}
+
+function clearLiveTagPin(){
+
+  liveTagState.loc_x = null;
+  liveTagState.loc_y = null;
+  liveTagState.location = null;
+
+  const pinLayer = document.getElementById("ltmap-pin");
+
+  if(pinLayer){
+    pinLayer.innerHTML = "";
+  }
+
+  renderLiveTagMapReadout();
+
+}
+
+function renderLiveTagMapReadout(){
+
+  const el = document.getElementById("lt-shotmap-readout");
+
+  if(!el){ return; }
+
+  if(shotMapHasPin({ loc_x: liveTagState.loc_x, loc_y: liveTagState.loc_y })){
+
+    el.innerHTML =
+      `<strong>${liveTagState.location}</strong> · ` +
+      `${shotMapDistanceFt(liveTagState.loc_x, liveTagState.loc_y)} ft from the net · ` +
+      `${shotMapAngleLabel(liveTagState.loc_x, liveTagState.loc_y)} ` +
+      `<button type="button" class="shotmap-clear" onclick="clearLiveTagPin()">Clear</button>`;
+
+  }
+  else{
+
+    el.textContent = "No location pinned yet.";
+
+  }
+
+}
+
+// shots already tagged in this game, shown faintly so you can see
+// the pattern building and avoid double-pinning the same spot
+function renderLiveTagMapDots(){
+
+  const layer = document.getElementById("ltmap-prior");
+
+  if(layer){
+    layer.innerHTML = shotMapDotsMarkup(liveTagState.shots);
+  }
+
+}
+
+
+/* ---------- Goalie-facing: every pinned shot ---------- */
+
+function renderShotMapDisplay(){
+
+  const host = document.getElementById("situ-shotmap");
+
+  if(!host){ return; }
+
+  const list = seasonShots;
+  const pinnedCount = list.filter(shotMapHasPin).length;
+
+  host.innerHTML =
+    shotMapSvg("sitmap", shotMapDotsMarkup(list), false);
+
+  const note = document.getElementById("situ-shotmap-note");
+  const caption = document.getElementById("situ-shotmap-caption");
+
+  if(note){
+
+    note.textContent =
+      pinnedCount === 0
+        ? "No pinned shots yet — shots tagged on the rink map will appear here. Older shots were tagged by zone only, so they can't be plotted."
+        : `${pinnedCount} of ${list.length} shots have a pinned location` +
+          (pinnedCount < list.length
+            ? " (older shots were tagged by zone only, so they aren't plotted)."
+            : ".");
+
+  }
+
+  if(caption){
+    caption.textContent = pinnedCount ? "Tap a dot for details." : "";
+  }
+
+  const svg = document.getElementById("sitmap-svg");
+
+  svg.style.cursor = pinnedCount ? "pointer" : "default";
+
+  svg.addEventListener("click", function(e){
+
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+
+    const local = pt.matrixTransform(svg.getScreenCTM().inverse());
+    const spot = shotMapFromSvgPoint(local.x, local.y);
+
+    let nearest = null;
+    let nearestD = 3.5;     // ft
+
+    list.forEach(s => {
+
+      if(!shotMapHasPin(s)){ return; }
+
+      const d = Math.hypot(Number(s.loc_x) - spot.x, Number(s.loc_y) - spot.y);
+
+      if(d < nearestD){
+        nearestD = d;
+        nearest = s;
+      }
+
+    });
+
+    if(!caption){ return; }
+
+    if(!nearest){
+      caption.textContent = "Tap a dot for details.";
+      return;
+    }
+
+    const bits = [
+      isGoal(nearest) ? "Goal" : "Save",
+      nearest.location || classifyShotLocation(Number(nearest.loc_x), Number(nearest.loc_y)),
+      `${shotMapDistanceFt(Number(nearest.loc_x), Number(nearest.loc_y))} ft`,
+      shotMapAngleLabel(Number(nearest.loc_x), Number(nearest.loc_y)),
+      nearest.period ? `P${nearest.period}` : null,
+      nearest.shot_type || null,
+      shotBoolean(nearest.rush) ? "Rush" : null,
+      shotBoolean(nearest.rebound) ? "Rebound" : null,
+      shotBoolean(nearest.screened) ? "Screened" : null,
+      nearest.xg !== null && nearest.xg !== undefined && nearest.xg !== ""
+        ? `xG ${Number(nearest.xg).toFixed(3)}`
+        : null
+    ].filter(Boolean);
+
+    caption.textContent = bits.join(" · ");
+
+  });
+
+}
+
+
+
+// A game can contain shots scored under different model versions
+// (pinned = v1.6, unpinned = v1.5), so label the report from the
+// shots themselves instead of one global constant.
+function pdfXgModelLabel(data){
+
+  const versions =
+    (data && data.xgModelVersions) || [];
+
+  if(!versions.length){ return XG_MODEL_VERSION; }
+
+  return versions.slice().sort().join(" + ");
+
+}
+
+
 function freshLiveTagState(){
 
   const reboundTally = {};
@@ -17820,6 +18388,8 @@ function freshLiveTagState(){
     currentPeriod: "1",
     outcome: "save",
     location: null,
+    loc_x: null,
+    loc_y: null,
     shot_type: null,
     flags: { rush:false, rebound:false, screened:false, breakaway:false, cross_ice:false, deflection:false },
     reboundTag: "skip",
@@ -17906,6 +18476,8 @@ function resetLiveTagShotPicker(){
 
   liveTagState.outcome = "save";
   liveTagState.location = null;
+  liveTagState.loc_x = null;
+  liveTagState.loc_y = null;
   liveTagState.shot_type = null;
   liveTagState.release_type = null;
   liveTagState.flags = { rush:false, rebound:false, screened:false, breakaway:false, cross_ice:false, deflection:false };
@@ -17915,9 +18487,7 @@ function resetLiveTagShotPicker(){
     btn.classList.toggle("selected", btn.dataset.value === "save");
   });
 
-  document.querySelectorAll("#lt-location-buttons .tag-btn").forEach(btn => {
-    btn.classList.remove("selected");
-  });
+  clearLiveTagPin();
 
   document.querySelectorAll("#lt-type-buttons .tag-btn").forEach(btn => {
     btn.classList.remove("selected");
@@ -17944,6 +18514,8 @@ function addLiveTagShot(){
     period: liveTagState.currentPeriod,
     outcome: liveTagState.outcome,
     location: liveTagState.location,
+    loc_x: liveTagState.loc_x,
+    loc_y: liveTagState.loc_y,
     shot_type: liveTagState.shot_type,
     release_type: liveTagState.release_type || null,
     rush: liveTagState.flags.rush,
@@ -18009,6 +18581,8 @@ function stepLiveTagCounter(kind, field, delta){
 
 
 function renderLiveTagUI(){
+
+  renderLiveTagMapDots();
 
   const totalShots = liveTagState.shots.length;
   const totalGoals = liveTagState.shots.filter(s => s.outcome === "goal").length;
@@ -18318,7 +18892,8 @@ async function appendLiveTagToGame(gameIdRaw, periodMinutes){
   if(newShots.length > 0){
     const { error } = await supabaseClient.from("Shots").insert(newShots.map(shot => ({
       game_id: gameId, user_id: userId, period: shot.period, distance: null,
-      location: shot.location, shot_type: shot.shot_type, release_type: shot.release_type || null,
+      location: shot.location, loc_x: shot.loc_x ?? null, loc_y: shot.loc_y ?? null,
+      shot_type: shot.shot_type, release_type: shot.release_type || null,
       outcome: shot.outcome, rush: shot.rush, rebound: shot.rebound, screened: shot.screened,
       breakaway: shot.breakaway, cross_ice: shot.cross_ice, deflection: shot.deflection
     })));
@@ -18509,6 +19084,8 @@ async function finishLiveTagGame(){
           period: shot.period,
           distance: null,
           location: shot.location,
+          loc_x: shot.loc_x ?? null,
+          loc_y: shot.loc_y ?? null,
           shot_type: shot.shot_type,
           release_type: shot.release_type || null,
           outcome: shot.outcome,
@@ -19754,6 +20331,8 @@ async function deleteGameVideo(gameVideoId, button){
 /* ============================================================
    START
 ============================================================ */
+
+initLiveTagShotMap();
 
 initAuth();
 
