@@ -4478,6 +4478,34 @@ textarea:focus-visible,
   </div>
 
 
+  <div class="section-heading">
+    <h3>Game Strength</h3>
+    <p>Every shot counts toward expected goals against. Strength is from your team's view (your skaters first). Shots on other strengths get a small xG adjustment &mdash; see Methodology.</p>
+  </div>
+
+  <div class="card">
+
+    <div style="overflow-x:auto">
+      <table class="shot-log-table">
+        <thead>
+          <tr>
+            <th>Strength</th>
+            <th>Shots</th>
+            <th>Goals</th>
+            <th>SV%</th>
+            <th>xGA</th>
+            <th>GSAx</th>
+          </tr>
+        </thead>
+        <tbody id="strengthBreakdownBody"></tbody>
+      </table>
+    </div>
+
+    <div class="small-note" id="strengthBreakdownNote"></div>
+
+  </div>
+
+
   <div class="card section-space">
 
     <h3>Development Priority</h3>
@@ -5092,6 +5120,45 @@ textarea:focus-visible,
     <button type="button" class="period-btn" data-period="2" onclick="setLiveTagPeriod('2')">2nd</button>
     <button type="button" class="period-btn" data-period="3" onclick="setLiveTagPeriod('3')">3rd</button>
     <button type="button" class="period-btn" data-period="OT" onclick="setLiveTagPeriod('OT')">OT</button>
+  </div>
+
+  <div class="section-heading">
+    <h3>Strength</h3>
+    <p>Skaters on the ice right now, from your goalie's team's view &mdash; <strong>your team's number first</strong> (4v5 = your team is a man down). Stays selected until you change it.</p>
+  </div>
+
+  <div class="card" id="lt-strength-card">
+    <div id="lt-strength-buttons">
+
+      <div class="tag-group">
+        <div class="tag-group-label">Even strength</div>
+        <div class="tag-btn-row">
+          <button type="button" class="tag-btn selected" data-value="5v5" onclick="setLiveTagStrength('5v5')">5v5</button>
+          <button type="button" class="tag-btn" data-value="4v4" onclick="setLiveTagStrength('4v4')">4v4</button>
+          <button type="button" class="tag-btn" data-value="3v3" onclick="setLiveTagStrength('3v3')">3v3</button>
+        </div>
+      </div>
+
+      <div class="tag-group">
+        <div class="tag-group-label">Your team is short-handed (penalty kill)</div>
+        <div class="tag-btn-row">
+          <button type="button" class="tag-btn" data-value="4v5" onclick="setLiveTagStrength('4v5')">4v5</button>
+          <button type="button" class="tag-btn" data-value="3v5" onclick="setLiveTagStrength('3v5')">3v5</button>
+          <button type="button" class="tag-btn" data-value="3v4" onclick="setLiveTagStrength('3v4')">3v4</button>
+          <button type="button" class="tag-btn" data-value="5v6" onclick="setLiveTagStrength('5v6')">5v6 (extra attacker)</button>
+        </div>
+      </div>
+
+      <div class="tag-group">
+        <div class="tag-group-label">Your team is on the power play</div>
+        <div class="tag-btn-row">
+          <button type="button" class="tag-btn" data-value="5v4" onclick="setLiveTagStrength('5v4')">5v4</button>
+          <button type="button" class="tag-btn" data-value="5v3" onclick="setLiveTagStrength('5v3')">5v3</button>
+          <button type="button" class="tag-btn" data-value="4v3" onclick="setLiveTagStrength('4v3')">4v3</button>
+        </div>
+      </div>
+
+    </div>
   </div>
 
   <div class="card">
@@ -5870,6 +5937,21 @@ textarea:focus-visible,
         </p>
 
         <p>
+          <strong>Game strength (v1.7)</strong> -- each shot is tagged
+          with the skaters on the ice, your team first (5v5, 4v5, ...).
+          Every shot counts toward xGA and GSAx, but a shot taken while
+          your team is outnumbered, or in more open 4v4 / 3v3 ice, is
+          scored a bit higher than the same shot at 5v5 -- for example
+          4v5 is &times;1.10, 3v5 is &times;1.35 and 3v3 is &times;1.20 --
+          because those shots go in more often. When your own team has
+          the advantage, no adjustment is applied: the shots against
+          are short-handed rushes whose danger is already captured by
+          the rush, breakaway and angle terms. These factors are informed
+          estimates, not fit to this platform's data. The Situational tab
+          breaks results out by strength so 5v5 can be read on its own.
+        </p>
+
+        <p>
           <strong>Shots without a pin</strong> (anything tagged before
           the shot map existed, or tagged without placing a pin) still
           use the older method: location stands in for angle -- Slot
@@ -6000,6 +6082,14 @@ textarea:focus-visible,
           <option value="goal">Goals</option>
         </select>
 
+        <select id="shotLogFilterStrength" onchange="renderShotLogTable()">
+          <option value="">All Strengths</option>
+          <option value="even">Even strength</option>
+          <option value="outnumbered">Penalty kill</option>
+          <option value="advantage">Power play</option>
+          <option value="untagged">Not tagged</option>
+        </select>
+
         <select id="shotLogFilterRelease" onchange="renderShotLogTable()">
           <option value="">All Release Contexts</option>
           <option value="extended">Extended Possession</option>
@@ -6016,6 +6106,7 @@ textarea:focus-visible,
           <thead>
             <tr>
               <th>Period</th>
+              <th>Strength</th>
               <th>Location</th>
               <th>Shot Type</th>
               <th>Release Context</th>
@@ -8535,6 +8626,7 @@ function openShotLogModal(gameId){
   document.getElementById("shotLogFilterPeriod").value = "";
   document.getElementById("shotLogFilterResult").value = "";
   document.getElementById("shotLogFilterRelease").value = "";
+  document.getElementById("shotLogFilterStrength").value = "";
 
   renderShotLogTable();
 
@@ -8909,6 +9001,9 @@ function renderShotLogTable(){
   const releaseFilter =
     document.getElementById("shotLogFilterRelease").value;
 
+  const strengthFilter =
+    document.getElementById("shotLogFilterStrength").value;
+
   let gameShotsList =
     allShots.filter(
       s => String(s.game_id) === String(shotLogModalGameId)
@@ -8931,9 +9026,14 @@ function renderShotLogTable(){
       gameShotsList.filter(s => releaseCategory(s) === releaseFilter);
   }
 
+  if(strengthFilter){
+    gameShotsList =
+      gameShotsList.filter(s => strengthCategory(s.strength) === strengthFilter);
+  }
+
   if(!gameShotsList.length){
     tbody.innerHTML =
-      `<tr><td colspan="7"><div class="empty-state">No shots match these filters.</div></td></tr>`;
+      `<tr><td colspan="8"><div class="empty-state">No shots match these filters.</div></td></tr>`;
     return;
   }
 
@@ -8994,6 +9094,7 @@ function renderShotLogTable(){
       return `
         <tr>
           <td>${escapeHtml(s.period) || "—"}</td>
+          <td>${escapeHtml(s.strength) || "—"}</td>
           <td>${escapeHtml(s.location) || "—"}</td>
           <td>${escapeHtml(s.shot_type) || "—"}</td>
           <td>${releaseLabel[releaseCategory(s)]}</td>
@@ -9995,9 +10096,106 @@ function renderPeriods(){
    SITUATIONAL
 ============================================================ */
 
+function strengthRowStats(list){
+
+  const goals = list.filter(isGoal).length;
+  const adv = calculateAdvancedForShots(list);
+
+  const xga = adv.shots ? adv.xGA : null;
+
+  return {
+    shots: list.length,
+    goals,
+    sv: list.length ? ((list.length - goals) / list.length * 100) : null,
+    xga,
+    gsax: xga !== null ? (xga - goals) : null
+  };
+
+}
+
+function renderStrengthBreakdown(){
+
+  const body = document.getElementById("strengthBreakdownBody");
+
+  if(!body){ return; }
+
+  const note = document.getElementById("strengthBreakdownNote");
+
+  const byCategory = { even:[], outnumbered:[], advantage:[], untagged:[] };
+  const byStrength = {};
+
+  seasonShots.forEach(shot => {
+
+    const cat = strengthCategory(shot.strength);
+
+    byCategory[cat].push(shot);
+
+    if(cat !== "untagged"){
+      (byStrength[shot.strength] = byStrength[shot.strength] || []).push(shot);
+    }
+
+  });
+
+  const fmtPct = v => v === null ? "—" : `${v.toFixed(1)}%`;
+  const fmtNum = v => v === null ? "—" : v.toFixed(2);
+  const fmtGsax = v => v === null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(2)}`;
+
+  const row = (label, st, strong, indent) => `
+    <tr${strong ? ' style="font-weight:700"' : ""}>
+      <td${indent ? ' style="padding-left:26px;color:var(--muted)"' : ""}>${label}</td>
+      <td>${st.shots}</td>
+      <td>${st.goals}</td>
+      <td>${fmtPct(st.sv)}</td>
+      <td>${fmtNum(st.xga)}</td>
+      <td>${fmtGsax(st.gsax)}</td>
+    </tr>
+  `;
+
+  const rows = [];
+
+  ["even", "outnumbered", "advantage"].forEach(cat => {
+
+    if(!byCategory[cat].length){ return; }
+
+    rows.push(row(STRENGTH_CATEGORY_LABELS[cat], strengthRowStats(byCategory[cat]), true, false));
+
+    STRENGTH_ORDER
+      .filter(st => strengthCategory(st) === cat && byStrength[st])
+      .forEach(st => {
+        rows.push(row(st, strengthRowStats(byStrength[st]), false, true));
+      });
+
+  });
+
+  if(byCategory.untagged.length){
+    rows.push(row(STRENGTH_CATEGORY_LABELS.untagged, strengthRowStats(byCategory.untagged), true, false));
+  }
+
+  if(seasonShots.length){
+    rows.push(row("All shots", strengthRowStats(seasonShots), true, false));
+  }
+
+  body.innerHTML =
+    rows.length
+      ? rows.join("")
+      : `<tr><td colspan="6"><div class="empty-state">No shots tracked yet.</div></td></tr>`;
+
+  if(note){
+
+    note.textContent =
+      byCategory.untagged.length
+        ? `${byCategory.untagged.length} shot${byCategory.untagged.length === 1 ? " was" : "s were"} tagged before strength tracking existed, so ${byCategory.untagged.length === 1 ? "it has" : "they have"} no strength. ${byCategory.untagged.length === 1 ? "It" : "They"} still count in All shots.`
+        : "";
+
+  }
+
+}
+
+
 function renderSituational(){
 
   renderShotMapDisplay();
+  renderStrengthBreakdown();
 
   const locationCounts = {};
   const locationGoals = {};
@@ -17597,7 +17795,9 @@ const PRESERVED_SHOT_FIELDS = [
   // Shot map pin -- without these, editing a game in My Games would
   // silently wipe every shot's pinned position.
   "loc_x",
-  "loc_y"
+  "loc_y",
+  // Same reason: strength isn't editable in that form.
+  "strength"
 ];
 
 
@@ -18347,6 +18547,7 @@ function renderShotMapDisplay(){
       `${shotMapDistanceFt(Number(nearest.loc_x), Number(nearest.loc_y))} ft`,
       shotMapAngleLabel(Number(nearest.loc_x), Number(nearest.loc_y)),
       nearest.period ? `P${nearest.period}` : null,
+      nearest.strength && nearest.strength !== "5v5" ? nearest.strength : null,
       nearest.shot_type || null,
       shotBoolean(nearest.rush) ? "Rush" : null,
       shotBoolean(nearest.rebound) ? "Rebound" : null,
@@ -18379,6 +18580,56 @@ function pdfXgModelLabel(data){
 }
 
 
+/* ============================================================
+   GAME STRENGTH
+   Always from the GOALIE'S TEAM's view: the first number is the
+   goalie's team's skaters. "5v4" = goalie's team is on the power
+   play; "4v5" = goalie's team is killing a penalty.
+============================================================ */
+
+const STRENGTH_ORDER =
+  ["5v5","4v4","3v3","4v5","3v5","3v4","5v6","5v4","5v3","4v3"];
+
+const STRENGTH_CATEGORY_LABELS = {
+  even:        "Even strength",
+  outnumbered: "Penalty kill (outnumbered)",
+  advantage:   "Power play (we have the advantage)",
+  untagged:    "Not tagged"
+};
+
+function strengthCategory(strength){
+
+  const m = /^([3-6])v([3-6])$/.exec(String(strength || ""));
+
+  if(!m){ return "untagged"; }
+
+  const ours = Number(m[1]);
+  const theirs = Number(m[2]);
+
+  if(ours === theirs){ return "even"; }
+
+  return ours < theirs ? "outnumbered" : "advantage";
+
+}
+
+function setLiveTagStrength(value){
+
+  liveTagState.strength = value;
+
+  document
+    .querySelectorAll("#lt-strength-buttons .tag-btn")
+    .forEach(btn => {
+      btn.classList.toggle("selected", btn.dataset.value === value);
+    });
+
+}
+
+// used after a session reset, when the state goes back to 5v5
+function syncLiveTagStrengthButtons(){
+  setLiveTagStrength(liveTagState.strength || "5v5");
+}
+
+
 function freshLiveTagState(){
 
   const reboundTally = {};
@@ -18391,6 +18642,9 @@ function freshLiveTagState(){
     loc_x: null,
     loc_y: null,
     shot_type: null,
+    // Game state like the period: stays selected from shot to shot until
+    // you change it (resetLiveTagShotPicker deliberately does NOT reset it).
+    strength: "5v5",
     flags: { rush:false, rebound:false, screened:false, breakaway:false, cross_ice:false, deflection:false },
     reboundTag: "skip",
     shots: [],
@@ -18513,6 +18767,7 @@ function addLiveTagShot(){
   const shot = {
     period: liveTagState.currentPeriod,
     outcome: liveTagState.outcome,
+    strength: liveTagState.strength || null,
     location: liveTagState.location,
     loc_x: liveTagState.loc_x,
     loc_y: liveTagState.loc_y,
@@ -18605,6 +18860,7 @@ function renderLiveTagUI(){
     listEl.innerHTML = liveTagState.shots.map((shot, index) => {
 
       const bits = [
+        shot.strength && shot.strength !== "5v5" ? shot.strength : null,
         shot.location,
         shot.shot_type,
         shot.rush ? "Rush" : null,
@@ -18676,6 +18932,7 @@ function resetLiveTagSession(){
   });
 
   setLiveTagPeriod("1");
+  syncLiveTagStrengthButtons();
   resetLiveTagShotPicker();
   renderLiveTagUI();
 
@@ -18892,6 +19149,7 @@ async function appendLiveTagToGame(gameIdRaw, periodMinutes){
   if(newShots.length > 0){
     const { error } = await supabaseClient.from("Shots").insert(newShots.map(shot => ({
       game_id: gameId, user_id: userId, period: shot.period, distance: null,
+      strength: shot.strength || null,
       location: shot.location, loc_x: shot.loc_x ?? null, loc_y: shot.loc_y ?? null,
       shot_type: shot.shot_type, release_type: shot.release_type || null,
       outcome: shot.outcome, rush: shot.rush, rebound: shot.rebound, screened: shot.screened,
@@ -19083,6 +19341,7 @@ async function finishLiveTagGame(){
           user_id: userId,
           period: shot.period,
           distance: null,
+          strength: shot.strength || null,
           location: shot.location,
           loc_x: shot.loc_x ?? null,
           loc_y: shot.loc_y ?? null,
