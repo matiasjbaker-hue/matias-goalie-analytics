@@ -5038,6 +5038,20 @@ textarea:focus-visible,
   <div id="livetag-error" class="form-error"></div>
   <div id="livetag-message" class="form-message"></div>
 
+  <div class="card" id="lt-drafts-card">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:240px">
+        <h3 style="margin:0 0 4px">Drafts</h3>
+        <div class="small-note" id="lt-draft-status">Stopping partway? Save a draft and pick it up later. Nothing in a draft counts toward anyone's stats until you finish and save the game.</div>
+      </div>
+      <button type="button" class="btn-secondary" data-draft-save onclick="saveLiveTagDraft()">Save draft</button>
+    </div>
+
+    <div id="lt-drafts-list" style="margin-top:12px"></div>
+
+  </div>
+
   <div class="section-heading">
     <h3>Game Info</h3>
     <p>Fill this in before or after tagging — whenever's easiest.</p>
@@ -5352,6 +5366,10 @@ textarea:focus-visible,
   <div class="section-space" style="display:flex;gap:12px">
     <button type="button" class="btn-primary" id="livetag-finish-btn" onclick="finishLiveTagGame()">
       Finish &amp; Save Game
+    </button>
+
+    <button type="button" class="btn-secondary" data-draft-save onclick="saveLiveTagDraft()">
+      Save Draft
     </button>
 
     <button type="button" class="btn-secondary" onclick="resetLiveTagSession()">
@@ -7635,6 +7653,10 @@ function showTab(id,button){
 
   if(id === "livetag" && currentRole === "admin"){
     setupAdminLiveTagGoalieSelect();
+  }
+
+  if(id === "livetag"){
+    loadLiveTagDrafts();
   }
 
   if(id === "about"){
@@ -18630,6 +18652,411 @@ function syncLiveTagStrengthButtons(){
 }
 
 
+/* ============================================================
+   LIVE TAG DRAFTS
+   A draft is an unfinished Live Tag session saved to the database
+   (table live_tag_drafts, private to whoever saved it). It lives
+   in its own table on purpose: nothing in a draft is a game, so it
+   can't appear in anyone's stats until Finish & Save turns it into
+   one. Saving to the database (not the browser) means it survives
+   a cleared cache and is the same on every URL / device.
+============================================================ */
+
+// the game-info + minutes inputs that are part of a session
+const LT_FIELD_IDS = {
+  date:"lt-date", season:"lt-season", team:"lt-team", opponent:"lt-opponent",
+  homeAway:"lt-home-away", result:"lt-result",
+  teamGoals:"lt-team-goals", opponentGoals:"lt-opponent-goals",
+  p1:"lt-p1-minutes", p2:"lt-p2-minutes", p3:"lt-p3-minutes", ot:"lt-ot-minutes"
+};
+
+// JSON of the session as of the last save / resume. The warning
+// before leaving the page compares against this.
+let liveTagLastSaved = null;
+
+// Everything that is real progress. Deliberately NOT included: the
+// half-picked next shot (outcome / location / pin / type / flags) --
+// that's a pending tap, not progress.
+function snapshotLiveTag(){
+
+  const fields = {};
+
+  Object.keys(LT_FIELD_IDS).forEach(k => {
+    const el = document.getElementById(LT_FIELD_IDS[k]);
+    fields[k] = el ? el.value : "";
+  });
+
+  const goalieSel = document.getElementById("lt-goalie-select");
+
+  return {
+    v: 1,
+    goalieId: currentRole === "admin" && goalieSel && goalieSel.value ? goalieSel.value : null,
+    fields,
+    continueGameId: liveTagState.continueGameId || null,
+    currentPeriod: liveTagState.currentPeriod,
+    strength: liveTagState.strength || "5v5",
+    shots: JSON.parse(JSON.stringify(liveTagState.shots)),
+    reboundTally: Object.assign({}, liveTagState.reboundTally),
+    puckTally: Object.assign({}, liveTagState.puckTally)
+  };
+
+}
+
+function liveTagHasProgress(snap){
+  return snap.shots.length > 0 || Object.values(snap.puckTally).some(v => v > 0);
+}
+
+function liveTagDraftLabel(snap){
+
+  const goalie =
+    Array.isArray(adminProfiles) && snap.goalieId
+      ? adminProfiles.find(p => p.id === snap.goalieId)
+      : null;
+
+  return [
+    snap.fields.opponent ? `vs ${snap.fields.opponent}` : "Untitled game",
+    snap.fields.date || null,
+    goalie && goalie.full_name ? goalie.full_name : null
+  ].filter(Boolean).join(" · ");
+
+}
+
+function setLiveTagDraftStatus(text){
+
+  const el = document.getElementById("lt-draft-status");
+
+  if(el){ el.textContent = text; }
+
+}
+
+function setLiveTagDraftButtonsBusy(busy){
+
+  document.querySelectorAll("[data-draft-save]").forEach(btn => {
+    btn.disabled = busy;
+  });
+
+}
+
+async function saveLiveTagDraft(){
+
+  hideLiveTagMessages();
+
+  if(!currentSession || !currentSession.user){
+    showLiveTagError("You must be signed in to save a draft.");
+    return;
+  }
+
+  const snap = snapshotLiveTag();
+
+  if(
+    !liveTagState.draftId &&
+    !liveTagHasProgress(snap) &&
+    !snap.fields.opponent &&
+    !snap.fields.date
+  ){
+    showLiveTagError("Nothing to save yet. Tag a shot or fill in the game info first.");
+    return;
+  }
+
+  const row = {
+    label: liveTagDraftLabel(snap),
+    goalie_id: snap.goalieId,
+    shot_count: snap.shots.length,
+    state: snap
+  };
+
+  setLiveTagDraftButtonsBusy(true);
+
+  try{
+
+    let savedId = liveTagState.draftId;
+
+    if(savedId){
+
+      const { data, error } =
+        await supabaseClient
+          .from("live_tag_drafts")
+          .update(row)
+          .eq("id", savedId)
+          .select("id");
+
+      if(error){ throw error; }
+
+      // zero rows back = the draft was deleted somewhere else;
+      // fall through and recreate it rather than lose the work
+      if(!data || !data.length){ savedId = null; }
+
+    }
+
+    if(!savedId){
+
+      const { data, error } =
+        await supabaseClient
+          .from("live_tag_drafts")
+          .insert({ ...row, owner_id: currentSession.user.id })
+          .select("id")
+          .single();
+
+      if(error){ throw error; }
+
+      savedId = data.id;
+
+    }
+
+    liveTagState.draftId = savedId;
+    liveTagLastSaved = JSON.stringify(snap);
+
+    const when =
+      new Date().toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
+
+    setLiveTagDraftStatus(
+      `Draft saved at ${when} (${snap.shots.length} shot${snap.shots.length === 1 ? "" : "s"}). ` +
+      `Keep tagging and save again to update it, or close this and resume it later from the list below.`
+    );
+
+    showToast("Draft saved.", "success");
+
+    await loadLiveTagDrafts();
+
+  }
+  catch(error){
+
+    console.error(error);
+    showLiveTagError(`Could not save the draft: ${error.message || error}`);
+
+  }
+  finally{
+
+    setLiveTagDraftButtonsBusy(false);
+
+  }
+
+}
+
+async function loadLiveTagDrafts(){
+
+  const list = document.getElementById("lt-drafts-list");
+
+  if(!list){ return; }
+
+  if(!currentSession || !currentSession.user){
+    list.innerHTML = "";
+    return;
+  }
+
+  const { data, error } =
+    await supabaseClient
+      .from("live_tag_drafts")
+      .select("id,label,shot_count,updated_at")
+      .order("updated_at", { ascending:false });
+
+  if(error){
+    console.error(error);
+    list.innerHTML = `<div class="small-note">Couldn't load your drafts: ${escapeHtml(error.message || "")}</div>`;
+    return;
+  }
+
+  if(!data || !data.length){
+    list.innerHTML = `<div class="small-note">No saved drafts.</div>`;
+    return;
+  }
+
+  list.innerHTML = data.map(d => {
+
+    const saved =
+      new Date(d.updated_at).toLocaleString([], {
+        month:"short", day:"numeric", hour:"numeric", minute:"2-digit"
+      });
+
+    const open =
+      String(liveTagState.draftId) === String(d.id)
+        ? ` · <strong>open now</strong>`
+        : "";
+
+    const arg = jsArg(d.id);
+
+    return `
+      <div class="shotlog-row">
+        <div class="shotlog-desc">
+          <strong>${escapeHtml(d.label || "Untitled game")}</strong>
+          <div class="small-note">${d.shot_count} shot${d.shot_count === 1 ? "" : "s"} · saved ${escapeHtml(saved)}${open}</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button type="button" class="btn-secondary" onclick="resumeLiveTagDraft(${arg})">Resume</button>
+          <button type="button" class="btn-danger" onclick="deleteLiveTagDraft(${arg})">Delete</button>
+        </div>
+      </div>
+    `;
+
+  }).join("");
+
+}
+
+async function resumeLiveTagDraft(id){
+
+  hideLiveTagMessages();
+
+  const current = snapshotLiveTag();
+
+  const unsaved =
+    liveTagHasProgress(current) &&
+    JSON.stringify(current) !== liveTagLastSaved;
+
+  if(unsaved && !confirm("You have tagging in progress that isn't saved as a draft. Replace it with this draft?")){
+    return;
+  }
+
+  const { data, error } =
+    await supabaseClient
+      .from("live_tag_drafts")
+      .select("id,state")
+      .eq("id", id)
+      .single();
+
+  if(error || !data){
+    showLiveTagError("Couldn't open that draft. It may have been deleted.");
+    await loadLiveTagDrafts();
+    return;
+  }
+
+  restoreLiveTagDraft(data.id, data.state);
+
+  showToast("Draft loaded. Pick up where you left off.", "success");
+
+  await loadLiveTagDrafts();
+
+}
+
+function restoreLiveTagDraft(draftId, snap){
+
+  snap = snap || {};
+
+  liveTagState = freshLiveTagState();
+  liveTagState.draftId = draftId;
+  liveTagState.currentPeriod = snap.currentPeriod || "1";
+  liveTagState.strength = snap.strength || "5v5";
+  liveTagState.shots = Array.isArray(snap.shots) ? snap.shots : [];
+  liveTagState.continueGameId = snap.continueGameId || null;
+
+  Object.keys(liveTagState.reboundTally).forEach(k => {
+    liveTagState.reboundTally[k] = num((snap.reboundTally || {})[k]);
+  });
+
+  Object.keys(liveTagState.puckTally).forEach(k => {
+    liveTagState.puckTally[k] = num((snap.puckTally || {})[k]);
+  });
+
+  // goalie first: the "add to a saved game" list is built from it
+  const goalieSel = document.getElementById("lt-goalie-select");
+
+  if(currentRole === "admin" && goalieSel && snap.goalieId){
+    goalieSel.value = snap.goalieId;
+  }
+
+  renderLiveTagContinueOptions();
+
+  const f = snap.fields || {};
+
+  Object.keys(LT_FIELD_IDS).forEach(k => {
+
+    const el = document.getElementById(LT_FIELD_IDS[k]);
+
+    if(el && f[k] !== undefined){ el.value = f[k]; }
+
+  });
+
+  Object.keys(liveTagState.puckTally).forEach(field => {
+
+    const el = document.getElementById("lt-count-" + field);
+
+    if(el){ el.textContent = liveTagState.puckTally[field]; }
+
+  });
+
+  setLiveTagPeriod(liveTagState.currentPeriod);
+  syncLiveTagStrengthButtons();
+  resetLiveTagShotPicker();
+  renderLiveTagUI();
+  updateLiveTagContinueNote();
+
+  liveTagLastSaved = JSON.stringify(snapshotLiveTag());
+
+  const n = liveTagState.shots.length;
+
+  setLiveTagDraftStatus(
+    `Resumed a draft with ${n} shot${n === 1 ? "" : "s"}. Keep tagging, then save the draft again or Finish & Save Game.`
+  );
+
+}
+
+async function deleteLiveTagDraft(id){
+
+  if(!confirm("Delete this draft? This can't be undone.")){
+    return;
+  }
+
+  const { error } =
+    await supabaseClient
+      .from("live_tag_drafts")
+      .delete()
+      .eq("id", id);
+
+  if(error){
+    showLiveTagError(`Couldn't delete the draft: ${error.message || error}`);
+    return;
+  }
+
+  // if it's the one on screen, the screen is now simply unsaved again
+  if(String(liveTagState.draftId) === String(id)){
+    liveTagState.draftId = null;
+    liveTagLastSaved = null;
+  }
+
+  await loadLiveTagDrafts();
+
+}
+
+// Used when a game is finished: its draft has done its job. Never
+// allowed to block or fail the save itself.
+async function deleteLiveTagDraftQuietly(id){
+
+  if(!id){ return; }
+
+  try{
+
+    await supabaseClient
+      .from("live_tag_drafts")
+      .delete()
+      .eq("id", id);
+
+  }
+  catch(e){
+
+    console.warn("Could not clear the finished draft", e);
+
+  }
+
+}
+
+// Closing the tab or refreshing mid-game would lose everything not
+// yet saved (as a draft or as a game) -- ask first.
+window.addEventListener("beforeunload", function(e){
+
+  try{
+
+    const snap = snapshotLiveTag();
+
+    if(liveTagHasProgress(snap) && JSON.stringify(snap) !== liveTagLastSaved){
+      e.preventDefault();
+      e.returnValue = "";
+    }
+
+  }
+  catch(_){ /* never block leaving over a bug in this check */ }
+
+});
+
+
 function freshLiveTagState(){
 
   const reboundTally = {};
@@ -18648,6 +19075,7 @@ function freshLiveTagState(){
     flags: { rush:false, rebound:false, screened:false, breakaway:false, cross_ice:false, deflection:false },
     reboundTag: "skip",
     shots: [],
+    draftId: null,
     continueGameId: null,
     reboundTally,
     puckTally: { rims_faced:0, rims_stopped:0, pass_attempts:0, passes_completed:0 }
@@ -18902,7 +19330,12 @@ function renderLiveTagUI(){
 function resetLiveTagSession(){
 
   if(liveTagState.shots.length > 0 || Object.values(liveTagState.puckTally).some(v => v > 0)){
-    if(!confirm("Discard everything tagged so far and start a new game?")){
+    const msg =
+      liveTagState.draftId
+        ? "Start over on a blank game? Anything tagged since your last draft save is lost. The saved draft itself stays in Drafts."
+        : "Discard everything tagged so far and start a new game?";
+
+    if(!confirm(msg)){
       return;
     }
   }
@@ -19240,10 +19673,15 @@ async function finishLiveTagGame(){
     const totalMinutes =
       periodMinutes["1"] + periodMinutes["2"] + periodMinutes["3"] + periodMinutes["OT"];
 
+    // captured now because both exits below replace liveTagState
+    const draftToClear = liveTagState.draftId || null;
+
     if(liveTagState.continueGameId){
 
       const continuedId = liveTagState.continueGameId;
       const ownerId = await appendLiveTagToGame(continuedId, periodMinutes);
+
+      await deleteLiveTagDraftQuietly(draftToClear);
 
       liveTagState = freshLiveTagState();
       resetLiveTagSession();
@@ -19407,6 +19845,8 @@ async function finishLiveTagGame(){
 
     }
 
+
+    await deleteLiveTagDraftQuietly(draftToClear);
 
     liveTagState = freshLiveTagState();
     resetLiveTagSession();
