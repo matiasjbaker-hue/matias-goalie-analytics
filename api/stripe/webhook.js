@@ -190,6 +190,6 @@ export default async function handler(req, res) {
   } catch (error) {
     // 500 makes Stripe retry later.
     console.error(error);
-    res.status(500).json({ error: error.message || "Webhook handling failed." });
+    res.status(500).json({ error: "Webhook handling failed." });
   }
 }

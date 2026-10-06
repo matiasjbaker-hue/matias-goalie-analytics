@@ -48,7 +48,7 @@ export default async function handler(req, res) {
 
     const existing = await getAccessRow(user.id);
 
-    const site = siteUrl(req);
+    const site = siteUrl();
 
     const params = {
       mode: "payment",
@@ -73,6 +73,6 @@ export default async function handler(req, res) {
     res.status(200).json({ url: session.url });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: error.message || "Could not start checkout." });
+    res.status(500).json({ error: "Could not start checkout." });
   }
 }

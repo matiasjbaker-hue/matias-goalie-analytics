@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sample game · GoalieIQ Analytics</title>
+<meta name="description" content="A full GoalieIQ breakdown of one sample game: shot map, goals, periods, situations, rebound control, GSAx and the post-game report.">
+<link rel="canonical" href="https://www.goalieiqanalytics.com/sample-game.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="GoalieIQ Analytics">
+<meta property="og:title" content="Sample game · GoalieIQ Analytics">
+<meta property="og:description" content="A full GoalieIQ breakdown of one sample game: shot map, goals, periods, situations, rebound control, GSAx and the post-game report.">
+<meta property="og:url" content="https://www.goalieiqanalytics.com/sample-game.html">
+<meta property="og:image" content="https://www.goalieiqanalytics.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0F4A35">
+<link rel="stylesheet" href="assets/site.css">
+<link rel="preload" href="assets/fonts/archivo-italic-var-latin.woff2" as="font" type="font/woff2" crossorigin>
+</head>
+<body>
+
+<header class="lp-bar is-page">
+  <a class="lp-wordmark" href="index.html" aria-label="GoalieIQ Analytics, home">Goalie<span>IQ</span></a>
+  <nav class="lp-bar-links" aria-label="Main">
+    <a href="sample-game.html" aria-current="page">Sample game</a>
+    <a href="goalies-coaches.html">Goalies &amp; coaches</a>
+    <a href="index.html#get-started" class="lp-signin">Sign in</a>
+  </nav>
+</header>
+
+<main>
+
+<section class="sp-hero" aria-labelledby="sp-title">
+  <div class="lp-inner">
+    <h1 id="sp-title">Sample game</h1>
+    <p>One game, every shot, broken down the way GoalieIQ breaks down yours. This is a sample with illustrative numbers, not a real goalie's game.</p>
+    <div class="sp-score">
+      <strong>Panthers 4 · Rivals 2</strong>
+      <span class="result-pill result-win">W</span>
+      <span>31 shots against · 29 saves · 60 minutes</span>
+    </div>
+  </div>
+</section>
+
+
+<section class="sp-section" aria-labelledby="sp-map-title">
+  <div class="lp-inner">
+    <h2 class="lp-h2" id="sp-map-title">Where they shot from</h2>
+    <p class="sp-lede">Each shot is pinned where it was released. Saves are solid dots; goals are broken-stitch rings. Both goals came from the low slot.</p>
+
+    <div class="sp-grid-2 sp-grid-map">
+
+      <div class="sp-panel">
+        <div class="sp-rink" role="img" aria-label="Shot map: 31 shots, spread across the slot, the circles and the point. Two goals, both from the low slot.">
+          <svg id="sgmap-svg" viewBox="-42.5 -1.5 85 77" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;" aria-hidden="true">
+    <defs>
+      <clipPath id="sgmap-clip"><path d="M -42.5 -1 L 42.5 -1 L 42.5 47 A 28 28 0 0 1 14.5 75 L -14.5 75 A 28 28 0 0 1 -42.5 47 Z"></path></clipPath>
+    </defs>
+
+    <path d="M -42.5 -1 L 42.5 -1 L 42.5 47 A 28 28 0 0 1 14.5 75 L -14.5 75 A 28 28 0 0 1 -42.5 47 Z" fill="#FCFDFC" stroke="#121412" stroke-width="0.8"></path>
+
+    <g clip-path="url(#sgmap-clip)">
+      <rect x="-42.5" y="-0.5" width="85" height="1" fill="#1F5FBF"></rect>
+      <line x1="-42.5" y1="64" x2="42.5" y2="64" stroke="#C8102E" stroke-width="0.5"></line>
+      
+        <circle cx="-22" cy="44" r="15" fill="none" stroke="#C8102E" stroke-width="0.4"></circle>
+        <circle cx="-22" cy="44" r="1" fill="#C8102E"></circle>
+        <line x1="-7" y1="41" x2="-5" y2="41" stroke="#C8102E" stroke-width="0.35"></line><line x1="-7" y1="47" x2="-5" y2="47" stroke="#C8102E" stroke-width="0.35"></line>
+        <line x1="-37" y1="41" x2="-39" y2="41" stroke="#C8102E" stroke-width="0.35"></line><line x1="-37" y1="47" x2="-39" y2="47" stroke="#C8102E" stroke-width="0.35"></line>
+      
+        <circle cx="22" cy="44" r="15" fill="none" stroke="#C8102E" stroke-width="0.4"></circle>
+        <circle cx="22" cy="44" r="1" fill="#C8102E"></circle>
+        <line x1="7" y1="41" x2="5" y2="41" stroke="#C8102E" stroke-width="0.35"></line><line x1="7" y1="47" x2="5" y2="47" stroke="#C8102E" stroke-width="0.35"></line>
+        <line x1="37" y1="41" x2="39" y2="41" stroke="#C8102E" stroke-width="0.35"></line><line x1="37" y1="47" x2="39" y2="47" stroke="#C8102E" stroke-width="0.35"></line>
+      
+      <path d="M -6 64 A 6 6 0 0 1 6 64 Z" fill="rgba(70,140,220,.32)" stroke="#C8102E" stroke-width="0.4"></path>
+      <rect x="-3" y="64" width="6" height="3.3" fill="rgba(18,20,18,.05)" stroke="#C8102E" stroke-width="0.4"></rect>
+    </g>
+
+    
+  <circle data-i="2" cx="0" cy="52" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="3" cx="-5" cy="50" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="4" cx="6" cy="53" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="5" cx="-2" cy="46" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="6" cx="4" cy="42" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="7" cx="-1" cy="37" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="8" cx="3" cy="33" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="9" cx="-6" cy="40" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="10" cx="-11" cy="45" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="11" cx="12" cy="43" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="12" cx="-21" cy="44" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="13" cx="23" cy="46" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="14" cx="-24" cy="55" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="15" cx="25" cy="53" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="16" cx="-20" cy="33" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="17" cx="19" cy="35" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="18" cx="-14" cy="58" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="19" cx="15" cy="60" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="20" cx="-30" cy="50" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="21" cx="31" cy="42" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="22" cx="-8" cy="26" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="23" cx="9" cy="23" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="24" cx="0" cy="18" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="25" cx="-28" cy="13" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="26" cx="26" cy="10" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="27" cx="-12" cy="7" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="28" cx="14" cy="5" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="29" cx="-36" cy="30" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="30" cx="35" cy="24" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"></circle><circle data-i="0" cx="-3" cy="55" r="2.3" fill="#FFFFFF" stroke="#121412" stroke-width="0.7" stroke-dasharray="1.2 .7"></circle><circle cx="-3" cy="55" r=".75" fill="#121412"></circle><circle data-i="1" cx="2" cy="57" r="2.3" fill="#FFFFFF" stroke="#121412" stroke-width="0.7" stroke-dasharray="1.2 .7"></circle><circle cx="2" cy="57" r=".75" fill="#121412"></circle></svg>
+        </div>
+        <p class="lp-legend" style="color:var(--muted-ink)"><span class="lg-save">Save</span><span class="lg-goal" style="--on-pine:var(--ink)">Goal</span></p>
+      </div>
+
+      <div class="sp-panel">
+        <h3>The two goals</h3>
+        <ul class="sp-goals">
+          <li>
+            <strong>2nd period · low slot</strong>
+            <span>Rush, cross-ice pass, one-timer. xG .38. Clean look from a lateral pass; no contact.</span>
+          </li>
+          <li>
+            <strong>3rd period · low slot</strong>
+            <span>Screened, wrist shot through the pads. xG .41. Shot came through traffic at the top of the crease.</span>
+          </li>
+        </ul>
+        <p>Both goals were high-danger chances. Neither was a soft goal from distance, which is exactly what the shot grades are there to show.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
+<section class="sp-section" aria-labelledby="sp-split-title">
+  <div class="lp-inner">
+    <h2 class="lp-h2" id="sp-split-title">Period by period, situation by situation</h2>
+    <p class="sp-lede">The totals split two ways: when in the game the shots came, and what kind of chance they were.</p>
+
+    <div class="sp-grid-2">
+
+      <div class="sp-panel">
+        <h3>By period</h3>
+        <div class="table-wrap">
+          <table class="sp-table">
+            <thead><tr><th>Period</th><th>Shots</th><th>Goals</th><th>SV%</th><th>xG</th></tr></thead>
+            <tbody>
+              <tr><td>1st</td><td>10</td><td>0</td><td>1.000</td><td>1.0</td></tr>
+              <tr><td>2nd</td><td>12</td><td>1</td><td>.917</td><td>1.5</td></tr>
+              <tr><td>3rd</td><td>9</td><td>1</td><td>.889</td><td>1.1</td></tr>
+              <tr><td><strong>Game</strong></td><td><strong>31</strong></td><td><strong>2</strong></td><td><strong>.935</strong></td><td><strong>3.6</strong></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="sp-panel">
+        <h3>By situation</h3>
+        <div class="table-wrap">
+          <table class="sp-table">
+            <thead><tr><th>Situation</th><th>Shots</th><th>Goals</th><th>SV%</th><th>xG</th></tr></thead>
+            <tbody>
+              <tr><td>Rush</td><td>7</td><td>1</td><td>.857</td><td>1.1</td></tr>
+              <tr><td>Cross-ice pass</td><td>5</td><td>1</td><td>.800</td><td>0.9</td></tr>
+              <tr><td>Screened<span class="sp-flag">small sample</span></td><td>4</td><td>1</td><td>.750</td><td>0.8</td></tr>
+              <tr><td>Rebound<span class="sp-flag">small sample</span></td><td>3</td><td>0</td><td>1.000</td><td>0.5</td></tr>
+              <tr><td>Breakaway<span class="sp-flag">small sample</span></td><td>1</td><td>0</td><td>1.000</td><td>0.3</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Fewer than five shots is a small sample: worth a look on film, not a verdict on its own.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
+<section class="sp-band" aria-labelledby="sp-control-title">
+  <div class="lp-inner">
+    <h2 class="lp-h2" id="sp-control-title">Control and the verdict</h2>
+
+    <div class="lp-channels">
+
+      <article class="lp-channel">
+        <h3>Where the rebounds went</h3>
+        <dl class="lp-rebounds">
+          <div class="lp-reb-row">
+            <dt>Glove <span>9 clean · 1 rebound</span></dt>
+            <dd><i class="good" style="flex:9"></i><i class="bad" style="flex:1"></i></dd>
+          </div>
+          <div class="lp-reb-row">
+            <dt>Blocker <span>4 good · 2 bad</span></dt>
+            <dd><i class="good" style="flex:4"></i><i class="bad" style="flex:2"></i><i style="flex:4"></i></dd>
+          </div>
+          <div class="lp-reb-row">
+            <dt>Midsection <span>6 good</span></dt>
+            <dd><i class="good" style="flex:6"></i><i style="flex:4"></i></dd>
+          </div>
+          <div class="lp-reb-row">
+            <dt>Pads &amp; stick <span>5 good · 2 bad · 1 goal</span></dt>
+            <dd><i class="good" style="flex:5"></i><i class="bad" style="flex:2"></i><i class="goal" style="flex:1"></i><i style="flex:2"></i></dd>
+          </div>
+        </dl>
+        <p class="lp-reb-key"><span class="k-good">Controlled</span><span class="k-bad">Rebound to danger</span><span class="k-goal">Goal</span></p>
+        <p>Puck playing: 5 of 6 rims stopped, 6 of 8 passes completed.</p>
+      </article>
+
+      <article class="lp-channel">
+        <h3>The verdict</h3>
+        <dl class="lp-ledger">
+          <div>
+            <dt>Expected goals against <b>3.6</b></dt>
+            <dd aria-hidden="true"><i class="xg"></i><i class="xg"></i><i class="xg"></i><i class="xg part"></i></dd>
+          </div>
+          <div>
+            <dt>Goals allowed <b>2</b></dt>
+            <dd aria-hidden="true"><i class="ga"></i><i class="ga"></i></dd>
+          </div>
+        </dl>
+        <p class="lp-ledger-sum"><b>+1.6</b> goals saved above expected, on a .935 save percentage against shots an average goalie stops at .884.</p>
+        <p>GSAx compares the goals you allowed with what an average goalie allows on the same shots. It separates your game from your team's.</p>
+      </article>
+
+    </div>
+  </div>
+</section>
+
+
+<section class="sp-section" aria-labelledby="sp-report-title">
+  <div class="lp-inner">
+    <h2 class="lp-h2" id="sp-report-title">The post-game report</h2>
+    <p class="sp-lede">Every game ends in a PDF report written from these numbers: what went well, what to work on, and what to practise next, each with the stat behind it.</p>
+
+    <div class="sp-report">
+      <div>
+        <h3>Went well</h3>
+        <ul>
+          <li>Glove control: 9 of 10 glove saves caught clean.</li>
+          <li>First period: 10 shots, 10 saves against 1.0 expected goals.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Work on</h3>
+        <ul>
+          <li>Cross-ice passes: 5 shots, 1 goal (.800), well below the game's .935.</li>
+          <li>Pad rebounds: 2 of 8 pad saves went back into danger, and one shot beat the pads.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Next practice</h3>
+        <ul>
+          <li>Post-to-post push to a cross-ice one-timer, 3 sets of 8. Target: cross-ice SV% above .850.</li>
+          <li>Low shots directed to the corner off the pads, 4 sets of 10. Target: no pad rebounds to the slot.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<section class="sp-cta" aria-labelledby="sp-cta-title">
+  <div class="lp-inner">
+    <div>
+      <h2 class="lp-h2" id="sp-cta-title">Get this for your own games</h2>
+      <p>Create an account and upload a game. New goalie accounts start with a free game.</p>
+    </div>
+    <div class="sp-cta-links">
+      <a class="btn-primary" href="index.html?start=signup#get-started">Create account</a>
+      <a class="lp-more" href="index.html#get-started">Sign in</a>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer" role="contentinfo">
+  <div>GoalieIQ Analytics · Operated by Matias Baker · Ontario, Canada · <a href="mailto:goalieiqanalytics@gmail.com">goalieiqanalytics@gmail.com</a></div>
+  <div role="navigation" aria-label="Legal" class="site-footer-links">
+    <a href="privacy.html">Privacy Policy</a>
+    <a href="terms.html">Terms of Service</a>
+    <a href="refund.html">Refund Policy</a>
+    <a href="cookies.html">Cookie Policy</a>
+  </div>
+</footer>
+
+</body>
+</html>

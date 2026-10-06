@@ -1,5 +1,6 @@
 // ============================================================
 // POST /api/admin/send-recap -- admin emails a game recap
+// (served through api/admin/[action].js)
 // ============================================================
 // Body: { accessToken, action, gameId, ... }
 //   action "lookup": returns the goalie's login email, whether sending
@@ -11,11 +12,11 @@
 // test send is written to recap_emails, and a game that has already
 // been emailed won't be sent again unless the admin confirms.
 
-import { verifyUser, getProfile, serviceSelect } from "../_lib/billing.js";
+import { verifyUser, getProfile, serviceSelect } from "./billing.js";
 import {
   emailConfigured, getAuthUserEmail, logRecap, buildEmail,
   makeTransport, fromAddress,
-} from "../_lib/email.js";
+} from "./email.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -156,6 +157,6 @@ export default async function handler(req, res) {
     res.status(200).json({ sent: true, to: recipient, test: isTest, dryRun: process.env.RECAP_DRY_RUN === "1" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: error.message || "Something went wrong." });
+    res.status(500).json({ error: "Something went wrong sending the recap." });
   }
 }

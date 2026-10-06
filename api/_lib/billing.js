@@ -17,9 +17,9 @@
 //   SITE_URL                   https://goalieiqanalytics.com
 
 import crypto from "crypto";
+import { SUPABASE_URL, SUPABASE_ANON_KEY, verifyUser } from "./supabase.js";
 
-export const SUPABASE_URL = "https://iiuqxxrrruvwvfehrzic.supabase.co";
-export const SUPABASE_ANON_KEY = "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
+export { SUPABASE_URL, SUPABASE_ANON_KEY, verifyUser };
 
 // Keep access for a couple of days past the billing date so a renewal
 // that's a few hours late (or a card retry) never locks a goalie out.
@@ -36,11 +36,12 @@ export function configuredPriceIds() {
     .filter(Boolean);
 }
 
-export function siteUrl(req) {
+// Where Stripe sends people back to. Never built from request headers:
+// a forged Host / X-Forwarded-Host would otherwise turn checkout and
+// the billing portal into a redirect to someone else's site.
+export function siteUrl() {
   const fromEnv = String(process.env.SITE_URL || "").trim().replace(/\/+$/, "");
-  if (fromEnv) return fromEnv;
-  const host = req && req.headers && (req.headers["x-forwarded-host"] || req.headers.host);
-  return host ? `https://${host}` : "https://www.goalieiqanalytics.com";
+  return /^https:\/\/[\w.-]+$/.test(fromEnv) ? fromEnv : "https://www.goalieiqanalytics.com";
 }
 
 // Stripe wants application/x-www-form-urlencoded with bracketed keys:
@@ -90,15 +91,6 @@ export async function stripe(method, path, params) {
   return data;
 }
 
-export async function verifyUser(accessToken) {
-  if (!accessToken) return null;
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken}` },
-  });
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data && data.id ? data : null;
-}
 
 function serviceHeaders(extra = {}) {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;

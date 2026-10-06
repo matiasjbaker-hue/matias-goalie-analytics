@@ -17,10 +17,12 @@
 <meta property="og:image" content="https://www.goalieiqanalytics.com/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
 
-<link rel="icon" type="image/png" href="/icon-192.png">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#061710">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0F4A35">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -39,2587 +41,12 @@
 }
 </script>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
-<style>
-
-*{
-  box-sizing:border-box;
-}
-
-:root{
-  --bg:#061710;
-  --bg2:#091e16;
-  --card:#0c261c;
-  --card2:#102d22;
-  --border:#1d4434;
-  --border2:#285640;
-  --text:#edf7f1;
-  --muted:#88a599;
-  --muted2:#7f9a8e;
-  --green:#69dda0;
-  --green2:#9be1bd;
-  --red:#ff8585;
-  --yellow:#e6d27a;
-}
-
-html{
-  scroll-behavior:smooth;
-}
-
-body{
-  margin:0;
-  font-family:Inter,Arial,sans-serif;
-  background:
-    radial-gradient(circle at top right,rgba(40,96,71,.14),transparent 30%),
-    var(--bg);
-  color:var(--text);
-}
-
-button{
-  font:inherit;
-}
-
-header{
-  padding:30px 35px;
-  background:
-    linear-gradient(135deg,#0b241a,#0a1e17);
-  border-bottom:1px solid var(--border);
-}
-
-.header-inner{
-  max-width:1500px;
-  margin:auto;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:25px;
-}
-
-.brand h1{
-  margin:0;
-  font-size:31px;
-  letter-spacing:-.5px;
-}
-
-.brand p{
-  margin:6px 0 0;
-  color:var(--muted);
-  font-size:14px;
-}
-
-.header-right{
-  display:flex;
-  align-items:center;
-  gap:12px;
-}
-
-.season-badge{
-  padding:9px 15px;
-  border-radius:20px;
-  background:#123c2b;
-  border:1px solid #286047;
-  color:var(--green2);
-  font-size:13px;
-  font-weight:700;
-}
-
-/* Season switcher: the badge becomes a dropdown once a goalie has
-   more than one season of games. */
-.season-badge.has-switcher{
-  padding:0;
-}
-
-.season-badge select{
-  appearance:none;
-  -webkit-appearance:none;
-  background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%239be1bd' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 13px center;
-  border:0;
-  border-radius:20px;
-  color:inherit;
-  font:inherit;
-  padding:9px 34px 9px 15px;
-  cursor:pointer;
-}
-
-.season-badge select:focus-visible{
-  outline:2px solid var(--green2);
-  outline-offset:2px;
-}
-
-.season-badge select option{
-  background:#0d3021;
-  color:var(--text);
-}
-
-nav{
-  background:#081c15;
-  border-bottom:1px solid var(--border);
-  overflow-x:auto;
-}
-
-.nav-inner{
-  max-width:1500px;
-  margin:auto;
-  display:flex;
-  gap:4px;
-  padding:9px 25px;
-}
-
-nav button{
-  border:0;
-  background:transparent;
-  color:#8da99d;
-  padding:11px 15px;
-  border-radius:7px;
-  cursor:pointer;
-  white-space:nowrap;
-  transition:.15s;
-}
-
-nav button:hover{
-  background:#123126;
-  color:#fff;
-}
-
-nav button.active{
-  background:#1a5139;
-  color:#fff;
-}
-
-.nav-dropdown-toggle{
-  border:0;
-  background:transparent;
-  color:#8da99d;
-  padding:11px 15px;
-  border-radius:7px;
-  cursor:pointer;
-  white-space:nowrap;
-  transition:.15s;
-  font:inherit;
-}
-
-.nav-dropdown-toggle:hover{
-  background:#123126;
-  color:#fff;
-}
-
-.nav-dropdown-toggle.active{
-  background:#1a5139;
-  color:#fff;
-}
-
-.nav-dropdown-menu{
-  display:none;
-  position:fixed;
-  background:#0c261c;
-  border:1px solid var(--border2);
-  border-radius:9px;
-  padding:6px;
-  min-width:190px;
-  box-shadow:0 12px 30px rgba(0,0,0,.5);
-  z-index:9999;
-}
-
-.nav-dropdown-menu.open{
-  display:flex;
-  flex-direction:column;
-  gap:2px;
-}
-
-.nav-dropdown-menu button{
-  border:0;
-  background:transparent;
-  color:#c7d9ce;
-  padding:9px 12px;
-  border-radius:6px;
-  cursor:pointer;
-  text-align:left;
-  font-size:13px;
-  white-space:nowrap;
-  font:inherit;
-}
-
-.nav-dropdown-menu button:hover{
-  background:#123126;
-  color:#fff;
-}
-
-.nav-dropdown-menu button.active{
-  background:#1a5139;
-  color:#fff;
-  font-weight:700;
-}
-
-main{
-  max-width:1500px;
-  margin:auto;
-  padding:30px 25px 70px;
-}
-
-.tab{
-  display:none;
-}
-
-.tab.active{
-  display:block;
-}
-
-.page-title{
-  margin-bottom:24px;
-}
-
-.page-title h2{
-  margin:0 0 6px;
-  font-size:26px;
-  letter-spacing:-.3px;
-}
-
-.page-title p{
-  margin:0;
-  color:var(--muted);
-  font-size:14px;
-}
-
-.section-space{
-  margin-top:20px;
-}
-
-.section-heading{
-  margin:30px 0 14px;
-}
-
-.section-heading h3{
-  margin:0 0 4px;
-  font-size:18px;
-}
-
-.section-heading p{
-  margin:0;
-  color:var(--muted2);
-  font-size:13px;
-}
-
-.grid{
-  display:grid;
-  gap:18px;
-}
-
-.grid-2{
-  grid-template-columns:repeat(2,minmax(0,1fr));
-}
-
-.grid-3{
-  grid-template-columns:repeat(3,minmax(0,1fr));
-}
-
-.grid-4{
-  grid-template-columns:repeat(4,minmax(0,1fr));
-}
-
-.card{
-  background:
-    linear-gradient(
-      145deg,
-      rgba(16,45,34,.92),
-      rgba(10,31,23,.96)
-    );
-  border:1px solid var(--border);
-  border-radius:13px;
-  padding:19px;
-  box-shadow:0 10px 30px rgba(0,0,0,.13);
-  min-width:0;
-}
-
-.card h3{
-  margin:0 0 14px;
-  font-size:14px;
-  font-weight:700;
-}
-
-.metric-card{
-  min-height:128px;
-  display:flex;
-  flex-direction:column;
-  justify-content:center;
-}
-
-.metric{
-  font-size:31px;
-  line-height:1;
-  font-weight:800;
-  letter-spacing:-.5px;
-}
-
-.metric-large{
-  font-size:39px;
-}
-
-.metric-label{
-  color:var(--muted);
-  font-size:11px;
-  margin-top:8px;
-  text-transform:uppercase;
-  letter-spacing:.7px;
-}
-
-.metric-context{
-  color:var(--muted2);
-  font-size:12px;
-  margin-top:8px;
-}
-
-.good{
-  color:var(--green);
-}
-
-.bad{
-  color:var(--red);
-}
-
-.neutral{
-  color:var(--text);
-}
-
-.warning{
-  color:var(--yellow);
-}
-
-.hero-card{
-  padding:24px;
-  min-height:150px;
-}
-
-.hero-card .metric{
-  font-size:42px;
-}
-
-.hero-label{
-  color:var(--muted);
-  font-size:12px;
-  text-transform:uppercase;
-  letter-spacing:.7px;
-  margin-top:8px;
-}
-
-.hero-description{
-  margin-top:10px;
-  color:var(--muted2);
-  font-size:12px;
-  line-height:1.5;
-}
-
-
-/* =========================================================
-   CLEANER CHARTS
-========================================================= */
-
-.chart-card{
-  min-height:370px;
-}
-
-.chart-card.compact{
-  min-height:330px;
-}
-
-.chart-wrap{
-  position:relative;
-  width:100%;
-  height:285px;
-}
-
-.chart-card.compact .chart-wrap{
-  height:250px;
-}
-
-.chart-caption{
-  font-size:12px;
-  color:#7f9a8e;
-  margin:2px 0 12px;
-}
-
-.giq-modal-overlay{
-  display:none;
-  position:fixed;
-  inset:0;
-  background:rgba(3,12,8,.72);
-  z-index:200;
-  align-items:center;
-  justify-content:center;
-  padding:20px;
-}
-
-.giq-modal-overlay.open{
-  display:flex;
-}
-
-.giq-modal{
-  background:var(--card);
-  border:1px solid var(--border);
-  border-radius:14px;
-  max-width:920px;
-  width:100%;
-  max-height:88vh;
-  display:flex;
-  flex-direction:column;
-  overflow:hidden;
-}
-
-.giq-modal-header{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  padding:16px 20px;
-  border-bottom:1px solid var(--border);
-}
-
-.giq-modal-header h3{
-  margin:0;
-  font-size:16px;
-}
-
-.giq-modal-close{
-  background:none;
-  border:none;
-  color:var(--muted);
-  font-size:20px;
-  cursor:pointer;
-  line-height:1;
-  padding:4px 8px;
-}
-
-.giq-modal-close:hover{
-  color:var(--text);
-}
-
-.giq-modal-body{
-  padding:16px 20px;
-  overflow-y:auto;
-}
-
-.giq-modal-filters{
-  display:flex;
-  gap:10px;
-  flex-wrap:wrap;
-  margin-bottom:14px;
-}
-
-.giq-modal-filters select{
-  background:#0d3021;
-  border:1px solid var(--border2);
-  color:var(--text);
-  border-radius:7px;
-  padding:7px 10px;
-  font-size:12px;
-}
-
-.shot-log-table{
-  width:100%;
-  border-collapse:collapse;
-  font-size:13px;
-}
-
-.shot-log-table th{
-  text-align:left;
-  color:var(--muted);
-  font-size:11px;
-  text-transform:uppercase;
-  letter-spacing:.4px;
-  padding:8px 10px;
-  border-bottom:1px solid var(--border);
-}
-
-.shot-log-table td{
-  padding:9px 10px;
-  border-bottom:1px solid rgba(255,255,255,.04);
-}
-
-.watch-btn{
-  background:rgba(105,221,160,.14);
-  border:1px solid rgba(105,221,160,.3);
-  color:#69dda0;
-  border-radius:7px;
-  padding:5px 11px;
-  font-size:12px;
-  font-weight:700;
-  cursor:pointer;
-}
-
-.watch-btn:disabled{
-  background:rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.08);
-  color:#7f9a8e;
-  cursor:default;
-}
-
-.clip-actions{
-  display:flex;
-  gap:6px;
-  flex-wrap:wrap;
-}
-
-.watch-btn.watch-btn-danger{
-  background:rgba(255,133,133,.10);
-  border:1px solid rgba(255,133,133,.35);
-  color:var(--red);
-}
-
-.watch-btn:disabled.watch-btn-danger,
-.watch-btn.is-busy{
-  opacity:.6;
-  cursor:default;
-}
-
-.giq-watch-modal .giq-modal{
-  max-width:760px;
-}
-
-.giq-watch-modal video{
-  width:100%;
-  max-height:60vh;
-  border-radius:8px;
-  background:#000;
-  display:block;
-}
-
-.chart-wrap canvas{
-  display:block !important;
-  width:100% !important;
-  height:100% !important;
-}
-
-
-/* =========================================================
-   GAME RESULT STYLING
-========================================================= */
-
-.result-pill{
-  display:inline-block;
-  padding:4px 9px;
-  border-radius:12px;
-  font-size:10px;
-  font-weight:800;
-  letter-spacing:.3px;
-}
-
-.result-win{
-  background:rgba(105,221,160,.12);
-  border:1px solid rgba(105,221,160,.22);
-  color:#69dda0;
-}
-
-.result-loss{
-  background:rgba(255,133,133,.12);
-  border:1px solid rgba(255,133,133,.22);
-  color:#ff8585;
-}
-
-.result-otl{
-  background:rgba(230,210,122,.12);
-  border:1px solid rgba(230,210,122,.22);
-  color:#e6d27a;
-}
-
-.result-neutral{
-  background:rgba(255,255,255,.05);
-  border:1px solid rgba(255,255,255,.08);
-  color:#a8beb4;
-}
-
-
-/* =========================================================
-   OTHER UI
-========================================================= */
-
-.insight{
-  margin-top:13px;
-  padding:11px 13px;
-  border-left:3px solid var(--border2);
-  background:rgba(255,255,255,.025);
-  border-radius:5px;
-  color:#a9beb5;
-  font-size:12px;
-  line-height:1.5;
-}
-
-.insight strong{
-  color:var(--text);
-}
-
-.stat-list{
-  display:flex;
-  flex-direction:column;
-  gap:0;
-}
-
-.stat-row{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:15px;
-  padding:11px 0;
-  border-bottom:1px solid rgba(255,255,255,.06);
-}
-
-.stat-row:last-child{
-  border-bottom:0;
-}
-
-.stat-name{
-  color:#9eb4aa;
-  font-size:13px;
-}
-
-.stat-value{
-  font-weight:700;
-  font-size:14px;
-}
-
-.small-note{
-  margin-top:10px;
-  color:var(--muted2);
-  font-size:11px;
-  line-height:1.5;
-}
-
-.table-wrap{
-  overflow-x:auto;
-}
-
-table{
-  width:100%;
-  border-collapse:collapse;
-}
-
-th{
-  text-align:left;
-  font-size:10px;
-  color:#78958a;
-  text-transform:uppercase;
-  letter-spacing:.65px;
-  padding:11px 10px;
-  border-bottom:1px solid #234638;
-  white-space:nowrap;
-}
-
-td{
-  padding:12px 10px;
-  border-bottom:1px solid #183a2d;
-  font-size:13px;
-  white-space:nowrap;
-}
-
-tr:hover td{
-  background:#102d22;
-}
-
-.pill{
-  display:inline-block;
-  padding:4px 8px;
-  border-radius:12px;
-  background:#143c2c;
-  color:#a6d6bb;
-  font-size:10px;
-  font-weight:700;
-}
-
-.empty{
-  padding:45px 20px;
-  text-align:center;
-  color:#718f82;
-}
-
-.error-box{
-  padding:16px;
-  border-radius:8px;
-  background:#351818;
-  border:1px solid #713333;
-  color:#ffb0b0;
-  margin-bottom:20px;
-  line-height:1.5;
-}
-
-.loading{
-  padding:60px;
-  text-align:center;
-  color:#88a89a;
-}
-
-.about-list{
-  line-height:1.8;
-  color:#a5bbb1;
-}
-
-.about-list strong{
-  color:#edf7f1;
-}
-
-.callout{
-  padding:17px 18px;
-  background:#0d3021;
-  border:1px solid #285640;
-  border-radius:10px;
-  color:#a9c8ba;
-  font-size:13px;
-  line-height:1.6;
-}
-
-.callout strong{
-  color:#edf7f1;
-}
-
-
-.recent-form-card{
-  display:flex;
-  flex-direction:column;
-  gap:16px;
-}
-
-.recent-form-header{
-  display:flex;
-  align-items:center;
-  gap:16px;
-  flex-wrap:wrap;
-}
-
-.recent-form-badge{
-  flex-shrink:0;
-  padding:10px 18px;
-  border-radius:10px;
-  font-size:15px;
-  font-weight:800;
-  letter-spacing:.4px;
-}
-
-.recent-form-badge.good{
-  background:rgba(105,221,160,.14);
-  border:1px solid rgba(105,221,160,.3);
-  color:#69dda0;
-}
-
-.recent-form-badge.bad{
-  background:rgba(255,133,133,.14);
-  border:1px solid rgba(255,133,133,.3);
-  color:#ff8585;
-}
-
-.recent-form-badge.neutral{
-  background:rgba(255,255,255,.06);
-  border:1px solid rgba(255,255,255,.12);
-  color:#a8beb4;
-}
-
-.recent-form-summary{
-  color:#dcece3;
-  font-size:14px;
-  line-height:1.6;
-  flex:1;
-  min-width:240px;
-}
-
-.recent-form-signals{
-  gap:12px;
-}
-
-.signal-card{
-  padding:14px 16px;
-  border-radius:10px;
-  background:#0d3021;
-  border:1px solid #285640;
-}
-
-.signal-label{
-  font-size:11px;
-  text-transform:uppercase;
-  letter-spacing:.5px;
-  color:#88a599;
-  margin-bottom:6px;
-}
-
-.signal-values{
-  display:flex;
-  align-items:baseline;
-  gap:8px;
-  font-size:18px;
-  font-weight:800;
-}
-
-.signal-verdict{
-  display:flex;
-  align-items:center;
-  gap:6px;
-  font-size:11px;
-  font-weight:800;
-  letter-spacing:.4px;
-  margin-bottom:6px;
-}
-
-.signal-verdict.up{ color:#69dda0; }
-.signal-verdict.down{ color:#ff8585; }
-.signal-verdict.flat{ color:#a8beb4; }
-
-.signal-verdict .arrow{
-  font-size:12px;
-}
-
-.signal-values.up{ color:#69dda0; }
-.signal-values.down{ color:#ff8585; }
-.signal-values.flat{ color:#a8beb4; }
-
-.signal-prior{
-  font-size:12px;
-  color:#7f9a8e;
-  margin-top:4px;
-}
-
-
-/* =========================================================
-   RESPONSIVE
-========================================================= */
-
-@media(max-width:1100px){
-
-  .grid-4{
-    grid-template-columns:repeat(2,minmax(0,1fr));
-  }
-
-  .grid-3{
-    grid-template-columns:repeat(2,minmax(0,1fr));
-  }
-
-}
-
-@media(max-width:750px){
-
-  header{
-    padding:22px 18px;
-  }
-
-  .header-inner{
-    flex-direction:column;
-    align-items:flex-start;
-  }
-
-  main{
-    padding:22px 15px 50px;
-  }
-
-  .grid-4,
-  .grid-3,
-  .grid-2{
-    grid-template-columns:1fr;
-  }
-
-  .chart-card{
-    min-height:345px;
-  }
-
-  .chart-wrap{
-    height:260px;
-  }
-
-  .metric-large{
-    font-size:34px;
-  }
-
-}
-
-
-/* =========================================================
-   AUTH / CLIENT PORTAL
-========================================================= */
-
-.auth-screen{
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  padding:10px 20px 20px;
-}
-
-.auth-card{
-  width:100%;
-  max-width:380px;
-  background:
-    linear-gradient(
-      145deg,
-      rgba(16,45,34,.92),
-      rgba(10,31,23,.96)
-    );
-  border:1px solid var(--border);
-  border-radius:13px;
-  padding:32px 28px;
-  box-shadow:0 10px 30px rgba(0,0,0,.13);
-}
-
-.auth-brand{
-  text-align:center;
-  margin-bottom:22px;
-}
-
-.auth-brand h1{
-  margin:0;
-  font-size:24px;
-  letter-spacing:-.5px;
-}
-
-.auth-brand p{
-  margin:6px 0 0;
-  color:var(--muted);
-  font-size:13px;
-}
-
-.auth-form{
-  display:flex;
-  flex-direction:column;
-}
-
-.auth-form label{
-  font-size:13px;
-  color:var(--muted);
-  margin-top:12px;
-  margin-bottom:6px;
-}
-
-.auth-form input{
-  background:#0c261c;
-  border:1px solid var(--border2);
-  border-radius:7px;
-  padding:10px 12px;
-  color:var(--text);
-  font-size:14px;
-  font-family:inherit;
-}
-
-.auth-form input:focus{
-  outline:none;
-  border-color:var(--green);
-}
-
-.auth-btn{
-  margin-top:20px;
-  border:0;
-  background:#1a5139;
-  color:#fff;
-  padding:11px 15px;
-  border-radius:7px;
-  cursor:pointer;
-  font-weight:700;
-  font-size:14px;
-  transition:.15s;
-}
-
-.auth-btn:hover{
-  background:#22684a;
-}
-
-.auth-btn:disabled{
-  opacity:.6;
-  cursor:default;
-}
-
-.auth-links{
-  display:flex;
-  justify-content:space-between;
-  margin-top:16px;
-  font-size:13px;
-}
-
-.auth-links a{
-  color:var(--green2);
-  text-decoration:none;
-  cursor:pointer;
-}
-
-.auth-links a:hover{
-  text-decoration:underline;
-}
-
-.auth-error{
-  background:rgba(255,133,133,.12);
-  border:1px solid rgba(255,133,133,.4);
-  color:var(--red);
-  padding:10px 12px;
-  border-radius:7px;
-  font-size:13px;
-  margin-bottom:14px;
-  display:none;
-}
-
-.auth-error.visible{
-  display:block;
-}
-
-.auth-message{
-  background:rgba(105,221,160,.12);
-  border:1px solid rgba(105,221,160,.4);
-  color:var(--green2);
-  padding:10px 12px;
-  border-radius:7px;
-  font-size:13px;
-  margin-bottom:14px;
-  display:none;
-}
-
-.auth-message.visible{
-  display:block;
-}
-
-.logout-btn{
-  border:1px solid var(--border2);
-  background:transparent;
-  color:var(--muted);
-  padding:8px 14px;
-  border-radius:7px;
-  cursor:pointer;
-  font-size:13px;
-  font-family:inherit;
-}
-
-.logout-btn:hover{
-  color:#fff;
-  border-color:var(--green);
-}
-
-.user-badge{
-  color:var(--muted);
-  font-size:13px;
-  margin-right:12px;
-}
-
-
-/* =========================================================
-   ADD GAME FORM
-========================================================= */
-
-.field-grid{
-  display:grid;
-  grid-template-columns:repeat(3,minmax(0,1fr));
-  gap:14px;
-}
-
-.field{
-  display:flex;
-  flex-direction:column;
-}
-
-.field label{
-  font-size:12px;
-  color:var(--muted);
-  margin-bottom:5px;
-}
-
-.field input,
-.field select,
-.field textarea{
-  background:#0c261c;
-  border:1px solid var(--border2);
-  border-radius:7px;
-  padding:9px 10px;
-  color:var(--text);
-  font-size:13px;
-  font-family:inherit;
-}
-
-.field input:focus,
-.field select:focus,
-.field textarea:focus{
-  outline:none;
-  border-color:var(--green);
-}
-
-.field.checkbox-field{
-  flex-direction:row;
-  align-items:center;
-  gap:8px;
-}
-
-.field.checkbox-field label{
-  margin:0;
-}
-
-.repeater-row{
-  border:1px solid var(--border);
-  border-radius:10px;
-  padding:14px;
-  margin-bottom:12px;
-  position:relative;
-}
-
-.repeater-row .field-grid{
-  grid-template-columns:repeat(4,minmax(0,1fr));
-}
-
-.repeater-remove{
-  border:1px solid var(--border2);
-  background:transparent;
-  color:var(--muted);
-  padding:5px 10px;
-  border-radius:6px;
-  cursor:pointer;
-  font-size:12px;
-  margin-top:10px;
-}
-
-.repeater-remove:hover{
-  color:var(--red);
-  border-color:var(--red);
-}
-
-.btn-secondary{
-  border:1px solid var(--border2);
-  background:transparent;
-  color:var(--green2);
-  padding:9px 14px;
-  border-radius:7px;
-  cursor:pointer;
-  font-size:13px;
-  font-weight:600;
-  font-family:inherit;
-}
-
-.btn-secondary:hover{
-  background:#123126;
-}
-
-.btn-primary{
-  border:0;
-  background:#1a5139;
-  color:#fff;
-  padding:12px 20px;
-  border-radius:7px;
-  cursor:pointer;
-  font-weight:700;
-  font-size:14px;
-  font-family:inherit;
-  transition:.15s;
-}
-
-.btn-primary:hover{
-  background:#22684a;
-}
-
-.btn-primary:disabled{
-  opacity:.6;
-  cursor:default;
-}
-
-.btn-danger{
-  border:1px solid rgba(255,133,133,.4);
-  background:transparent;
-  color:var(--red);
-  padding:8px 14px;
-  border-radius:7px;
-  cursor:pointer;
-  font-size:13px;
-  font-weight:600;
-  font-family:inherit;
-}
-
-.btn-danger:hover{
-  background:rgba(255,133,133,.12);
-}
-
-.mygame-item{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:14px;
-  padding:14px 16px;
-  margin-bottom:10px;
-}
-
-.mygame-item-info{
-  display:flex;
-  flex-direction:column;
-  gap:2px;
-}
-
-.mygame-item-info .mygame-title{
-  font-weight:700;
-  font-size:14px;
-}
-
-.mygame-item-info .mygame-sub{
-  font-size:12px;
-  color:var(--muted);
-}
-
-.mygame-item-actions{
-  display:flex;
-  gap:8px;
-  flex-shrink:0;
-}
-
-
-/* =========================================================
-   LIVE TAG
-========================================================= */
-
-.tag-group{
-  margin-bottom:16px;
-}
-
-.shotmap-wrap{
-  max-width:560px;
-  width:100%;
-  border:1px solid var(--border);
-  border-radius:10px;
-  overflow:hidden;
-  background:#0f2a21;
-}
-
-.shotmap-readout{
-  margin-top:8px;
-  font-size:13px;
-  color:var(--muted);
-  min-height:20px;
-}
-
-.shotmap-readout strong{
-  color:var(--text);
-}
-
-.shotmap-clear{
-  margin-left:8px;
-  padding:2px 10px;
-  border-radius:6px;
-  border:1px solid var(--border2);
-  background:transparent;
-  color:var(--green2);
-  font-size:12px;
-  cursor:pointer;
-}
-
-.shotmap-legend{
-  display:flex;
-  gap:16px;
-  flex-wrap:wrap;
-  margin-top:10px;
-  font-size:12px;
-  color:var(--muted);
-}
-
-.shotmap-legend span::before{
-  content:"";
-  display:inline-block;
-  width:10px;
-  height:10px;
-  border-radius:50%;
-  margin-right:6px;
-  vertical-align:-1px;
-}
-
-.shotmap-legend .lg-save::before{ background:rgba(105,221,160,.82); }
-.shotmap-legend .lg-goal::before{ background:#ff6b6b; box-shadow:0 0 0 1.5px #fff; }
-
-.shotmap-caption{
-  margin-top:8px;
-  font-size:13px;
-  color:var(--text);
-  min-height:20px;
-}
-
-.tag-group-label{
-  font-size:12px;
-  color:var(--muted);
-  margin-bottom:8px;
-}
-
-.tag-btn-row{
-  display:flex;
-  flex-wrap:wrap;
-  gap:8px;
-}
-
-.tag-btn{
-  border:1px solid var(--border2);
-  background:#0c261c;
-  color:var(--text);
-  padding:9px 14px;
-  border-radius:20px;
-  cursor:pointer;
-  font-size:13px;
-  font-family:inherit;
-}
-
-.tag-btn:hover{
-  border-color:var(--green);
-}
-
-.tag-btn.selected{
-  background:#1a5139;
-  border-color:#1a5139;
-  color:#fff;
-  font-weight:700;
-}
-
-.tag-btn.outcome-goal.selected{
-  background:#7a2b2b;
-  border-color:#7a2b2b;
-}
-
-.period-selector{
-  display:flex;
-  gap:8px;
-  margin-bottom:20px;
-}
-
-.period-btn{
-  border:1px solid var(--border2);
-  background:#0c261c;
-  color:var(--text);
-  padding:10px 18px;
-  border-radius:8px;
-  cursor:pointer;
-  font-size:14px;
-  font-weight:700;
-  font-family:inherit;
-}
-
-.period-btn.active{
-  background:#1a5139;
-  border-color:#1a5139;
-  color:#fff;
-}
-
-.livetag-stats{
-  display:flex;
-  gap:22px;
-  flex-wrap:wrap;
-  margin-bottom:18px;
-}
-
-.livetag-stat{
-  text-align:center;
-}
-
-.livetag-stat .num{
-  font-size:26px;
-  font-weight:700;
-}
-
-.livetag-stat .label{
-  font-size:11px;
-  color:var(--muted);
-  text-transform:uppercase;
-  letter-spacing:.4px;
-}
-
-.counter-row{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  padding:10px 0;
-  border-bottom:1px solid var(--border);
-}
-
-.counter-row:last-child{
-  border-bottom:0;
-}
-
-.counter-row .counter-name{
-  font-size:13px;
-  color:var(--text);
-}
-
-.counter-controls{
-  display:flex;
-  align-items:center;
-  gap:10px;
-}
-
-.counter-controls .counter-value{
-  min-width:24px;
-  text-align:center;
-  font-weight:700;
-  font-size:15px;
-}
-
-.counter-step-btn{
-  border:1px solid var(--border2);
-  background:#0c261c;
-  color:var(--text);
-  width:28px;
-  height:28px;
-  border-radius:6px;
-  cursor:pointer;
-  font-size:15px;
-  line-height:1;
-  font-family:inherit;
-}
-
-.counter-step-btn:hover{
-  border-color:var(--green);
-}
-
-.shotlog-row{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding:10px 14px;
-  border-bottom:1px solid var(--border);
-  font-size:13px;
-}
-
-.shotlog-row:last-child{
-  border-bottom:0;
-}
-
-.shotlog-row .shotlog-desc strong{
-  color:var(--text);
-}
-
-.shotlog-row .shotlog-desc{
-  color:var(--muted);
-}
-
-.reboundtally-summary{
-  font-size:12px;
-  color:var(--muted);
-  line-height:1.7;
-}
-
-
-/* =========================================================
-   AI COACH
-========================================================= */
-
-.coach-chat{
-  display:flex;
-  flex-direction:column;
-  gap:14px;
-  min-height:200px;
-  max-height:60vh;
-  overflow-y:auto;
-  padding:6px 2px;
-  margin-bottom:16px;
-}
-
-.coach-message{
-  max-width:80%;
-  padding:12px 15px;
-  border-radius:13px;
-  font-size:14px;
-  line-height:1.55;
-  white-space:pre-wrap;
-}
-
-.coach-message.user{
-  align-self:flex-end;
-  background:#1a5139;
-  color:#fff;
-}
-
-.coach-message.assistant{
-  align-self:flex-start;
-  background:
-    linear-gradient(
-      145deg,
-      rgba(16,45,34,.92),
-      rgba(10,31,23,.96)
-    );
-  border:1px solid var(--border);
-  color:var(--text);
-}
-
-.coach-message.assistant.loading{
-  color:var(--muted);
-  font-style:italic;
-}
-
-.coach-message.assistant.error{
-  border-color:rgba(255,133,133,.4);
-  color:var(--red);
-}
-
-.coach-message.assistant.info{
-  border-color:var(--border2);
-  color:var(--muted);
-  font-style:italic;
-}
-
-.coach-input-row{
-  display:flex;
-  gap:10px;
-}
-
-.coach-input-row textarea{
-  flex:1;
-  background:#0c261c;
-  border:1px solid var(--border2);
-  border-radius:9px;
-  padding:11px 13px;
-  color:var(--text);
-  font-size:14px;
-  font-family:inherit;
-  resize:none;
-}
-
-.coach-input-row textarea:focus{
-  outline:none;
-  border-color:var(--green);
-}
-
-.form-error{
-  background:rgba(255,133,133,.12);
-  border:1px solid rgba(255,133,133,.4);
-  color:var(--red);
-  padding:10px 12px;
-  border-radius:7px;
-  font-size:13px;
-  margin-bottom:14px;
-  display:none;
-}
-
-.form-error.visible{
-  display:block;
-}
-
-.form-message{
-  background:rgba(105,221,160,.12);
-  border:1px solid rgba(105,221,160,.4);
-  color:var(--green2);
-  padding:10px 12px;
-  border-radius:7px;
-  font-size:13px;
-  margin-bottom:14px;
-  display:none;
-}
-
-.form-message.visible{
-  display:block;
-}
-
-@media(max-width:750px){
-
-  .field-grid,
-  .repeater-row .field-grid{
-    grid-template-columns:1fr;
-  }
-
-}
-
-
-/* =========================================================
-   COACH DASHBOARD
-========================================================= */
-
-.goalie-card{
-  cursor:pointer;
-  transition:border-color .15s, transform .15s;
-}
-
-.goalie-card:hover{
-  border-color:var(--border2);
-  transform:translateY(-2px);
-}
-
-.goalie-card-top{
-  display:flex;
-  justify-content:space-between;
-  align-items:flex-start;
-  margin-bottom:18px;
-}
-
-.goalie-name{
-  font-size:17px;
-  font-weight:800;
-}
-
-.goalie-meta{
-  color:var(--muted);
-  font-size:12px;
-  margin-top:3px;
-}
-
-.goalie-card-stats{
-  display:grid;
-  grid-template-columns:repeat(4,minmax(0,1fr));
-  gap:10px;
-}
-
-.goalie-card-stats .metric{
-  font-size:19px;
-}
-
-.goalie-card-stats .metric-label{
-  font-size:10px;
-  margin-top:5px;
-}
-
-.goalie-card-footer{
-  margin-top:16px;
-  padding-top:12px;
-  border-top:1px solid rgba(255,255,255,.06);
-  color:var(--muted2);
-  font-size:12px;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-}
-
-.trend-badge{
-  font-size:11px;
-  font-weight:700;
-  padding:3px 9px;
-  border-radius:10px;
-  white-space:nowrap;
-}
-
-.trend-up{
-  background:rgba(105,221,160,.12);
-  color:var(--green);
-  border:1px solid rgba(105,221,160,.22);
-}
-
-.trend-down{
-  background:rgba(255,133,133,.12);
-  color:var(--red);
-  border:1px solid rgba(255,133,133,.22);
-}
-
-.trend-flat{
-  background:rgba(255,255,255,.05);
-  color:var(--muted);
-  border:1px solid rgba(255,255,255,.08);
-}
-
-.empty-state{
-  padding:40px 20px;
-  text-align:center;
-  color:var(--muted);
-  font-size:13px;
-}
-
-#toast-container{
-  position:fixed;
-  top:16px;
-  right:16px;
-  z-index:9999;
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-  max-width:360px;
-  width:calc(100% - 32px);
-}
-
-.toast{
-  background:var(--card2);
-  border:1px solid var(--border2);
-  border-left:4px solid var(--green);
-  border-radius:8px;
-  padding:14px 16px;
-  color:var(--text);
-  font-size:14px;
-  line-height:1.4;
-  box-shadow:0 8px 24px rgba(0,0,0,0.35);
-  animation:toast-in 0.2s ease-out;
-}
-
-.toast.toast-error{
-  border-left-color:var(--red);
-}
-
-.toast.toast-fade-out{
-  animation:toast-out 0.2s ease-in forwards;
-}
-
-@keyframes toast-in{
-  from{ opacity:0; transform:translateY(-8px); }
-  to{ opacity:1; transform:translateY(0); }
-}
-
-@keyframes toast-out{
-  from{ opacity:1; transform:translateY(0); }
-  to{ opacity:0; transform:translateY(-8px); }
-}
-
-.back-link{
-  display:inline-block;
-  color:var(--green2);
-  font-size:13px;
-  font-weight:600;
-  text-decoration:none;
-  cursor:pointer;
-  margin-bottom:10px;
-}
-
-.back-link:hover{
-  text-decoration:underline;
-}
-
-.coach-note-form textarea{
-  width:100%;
-  min-height:90px;
-  background:rgba(255,255,255,.03);
-  border:1px solid var(--border);
-  border-radius:8px;
-  color:var(--text);
-  padding:12px;
-  font-family:inherit;
-  font-size:14px;
-  resize:vertical;
-  box-sizing:border-box;
-}
-
-.coach-note-form button{
-  margin-top:12px;
-}
-
-.note-item{
-  padding:14px 0;
-  border-bottom:1px solid rgba(255,255,255,.06);
-}
-
-.note-item:last-child{
-  border-bottom:0;
-}
-
-.note-date{
-  color:var(--muted2);
-  font-size:11px;
-  margin-bottom:6px;
-}
-
-.note-text{
-  font-size:14px;
-  line-height:1.5;
-  white-space:pre-wrap;
-}
-
-@media (max-width:900px){
-  .goalie-card-stats{
-    grid-template-columns:repeat(2,minmax(0,1fr));
-  }
-}
-
-
-/* =========================================================
-   LANDING PAGE
-========================================================= */
-
-.landing-header{
-  padding:22px 35px;
-  border-bottom:1px solid var(--border);
-}
-
-.landing-header-inner{
-  max-width:1100px;
-  margin:0 auto;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-}
-
-.landing-brand{
-  font-size:18px;
-  font-weight:800;
-  letter-spacing:-.3px;
-}
-
-.landing-signin-link{
-  color:var(--green2);
-  text-decoration:none;
-  font-size:14px;
-  font-weight:600;
-  border:1px solid var(--border2);
-  padding:9px 16px;
-  border-radius:7px;
-  transition:.15s;
-}
-
-.landing-signin-link:hover{
-  background:#123126;
-}
-
-.landing-section-inner{
-  max-width:1100px;
-  margin:0 auto;
-  padding:70px 35px;
-}
-
-.landing-hero{
-  padding:0;
-}
-
-.landing-hero-inner{
-  max-width:1100px;
-  margin:0 auto;
-  padding:80px 35px;
-  display:grid;
-  grid-template-columns:1.1fr 1fr;
-  gap:50px;
-  align-items:center;
-}
-
-.landing-hero-text h1{
-  font-size:44px;
-  line-height:1.15;
-  letter-spacing:-1px;
-  margin:0 0 20px;
-}
-
-.landing-hero-text p{
-  color:var(--muted);
-  font-size:16px;
-  line-height:1.6;
-  max-width:480px;
-  margin:0 0 30px;
-}
-
-.landing-cta{
-  display:inline-block;
-  padding:14px 26px;
-  font-size:15px;
-  text-decoration:none;
-}
-
-.landing-preview{
-  background:
-    linear-gradient(
-      145deg,
-      rgba(16,45,34,.92),
-      rgba(10,31,23,.96)
-    );
-  border:1px solid var(--border);
-  border-radius:14px;
-  box-shadow:0 20px 60px rgba(0,0,0,.25);
-  overflow:hidden;
-}
-
-.landing-preview-chrome{
-  padding:12px 16px;
-  border-bottom:1px solid var(--border);
-  display:flex;
-  gap:6px;
-}
-
-.landing-preview-chrome span{
-  width:9px;
-  height:9px;
-  border-radius:50%;
-  background:var(--border2);
-  display:inline-block;
-}
-
-.landing-preview-body{
-  padding:24px;
-}
-
-.landing-preview-title{
-  font-size:12px;
-  text-transform:uppercase;
-  letter-spacing:.7px;
-  color:var(--muted);
-  margin-bottom:14px;
-}
-
-.landing-preview-card{
-  cursor:default;
-}
-
-.landing-preview-card:hover{
-  transform:none;
-  border-color:var(--border);
-}
-
-.landing-features{
-  border-top:1px solid var(--border);
-}
-
-.feature-card{
-  text-align:center;
-}
-
-.feature-icon{
-  font-size:30px;
-  margin-bottom:14px;
-}
-
-.feature-card h3{
-  margin:0 0 10px;
-  font-size:15px;
-}
-
-.feature-card p{
-  margin:0;
-  color:var(--muted);
-  font-size:13px;
-  line-height:1.6;
-}
-
-.landing-contact{
-  border-top:1px solid var(--border);
-  text-align:center;
-}
-
-.landing-contact h2{
-  margin:0 0 10px;
-  font-size:24px;
-}
-
-.landing-contact p{
-  color:var(--muted);
-  font-size:14px;
-}
-
-.landing-contact a{
-  color:var(--green2);
-  text-decoration:none;
-}
-
-.landing-contact a:hover{
-  text-decoration:underline;
-}
-
-.landing-get-started{
-  border-top:1px solid var(--border);
-  padding:70px 35px 90px;
-}
-
-@media(max-width:900px){
-
-  .landing-hero-inner{
-    grid-template-columns:1fr;
-    padding:50px 22px;
-  }
-
-  .landing-hero-text h1{
-    font-size:32px;
-  }
-
-  .landing-section-inner{
-    padding:50px 22px;
-  }
-
-  .landing-get-started{
-    padding:50px 18px 70px;
-  }
-
-}
-
-
-/* =========================================================
-   GAME OVERVIEW / DEVELOPMENT TREND / GOALIE SWITCHER
-========================================================= */
-
-.goalie-switcher{
-  max-width:1500px;
-  margin:0 auto;
-  padding:18px 25px 0;
-  display:flex;
-  align-items:center;
-  gap:12px;
-  flex-wrap:wrap;
-}
-
-.goalie-switcher label{
-  color:var(--muted);
-  font-size:11px;
-  text-transform:uppercase;
-  letter-spacing:.7px;
-  font-weight:700;
-}
-
-.goalie-switcher select,
-.go-select{
-  background:var(--card);
-  border:1px solid var(--border2);
-  border-radius:8px;
-  padding:9px 12px;
-  color:var(--text);
-  font-size:14px;
-  font-weight:700;
-  font-family:inherit;
-  min-width:220px;
-  max-width:100%;
-}
-
-.goalie-switcher select:focus,
-.go-select:focus{
-  outline:none;
-  border-color:var(--green);
-}
-
-.go-selector{
-  display:grid;
-  grid-template-columns:auto minmax(0,1fr) auto;
-  align-items:center;
-  gap:12px;
-  padding:14px;
-}
-
-.go-selector .go-select{
-  width:100%;
-  text-align:center;
-  text-align-last:center;
-  font-size:15px;
-  padding:11px 12px;
-}
-
-.go-nav-btn{
-  background:transparent;
-  border:1px solid var(--border2);
-  color:var(--text);
-  border-radius:8px;
-  padding:10px 14px;
-  font-size:13px;
-  font-weight:700;
-  font-family:inherit;
-  cursor:pointer;
-  white-space:nowrap;
-}
-
-.go-nav-btn:hover:not(:disabled){
-  border-color:var(--green);
-  color:var(--green);
-}
-
-.go-nav-btn:disabled{
-  opacity:.35;
-  cursor:default;
-}
-
-.go-position{
-  text-align:center;
-  color:var(--muted2);
-  font-size:12px;
-  margin:8px 0 18px;
-}
-
-.go-hero{
-  display:grid;
-  grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);
-  gap:0;
-  padding:0;
-  overflow:hidden;
-}
-
-.go-hero-block{
-  padding:22px 24px;
-}
-
-.go-hero-block + .go-hero-block{
-  border-left:1px solid var(--border);
-}
-
-.go-eyebrow{
-  color:var(--muted);
-  font-size:11px;
-  text-transform:uppercase;
-  letter-spacing:.8px;
-  font-weight:700;
-  margin-bottom:12px;
-}
-
-.go-score{
-  display:flex;
-  flex-direction:column;
-  gap:6px;
-}
-
-.go-score-row{
-  display:flex;
-  justify-content:space-between;
-  align-items:baseline;
-  gap:14px;
-  font-size:17px;
-  font-weight:700;
-}
-
-.go-score-row .go-score-num{
-  font-size:28px;
-  font-weight:800;
-  letter-spacing:-.5px;
-}
-
-.go-score-row.is-loser{
-  color:var(--muted);
-}
-
-.go-meta{
-  margin-top:12px;
-  color:var(--muted2);
-  font-size:12px;
-  display:flex;
-  gap:10px;
-  align-items:center;
-  flex-wrap:wrap;
-}
-
-.go-goaltending{
-  display:grid;
-  grid-template-columns:repeat(4,minmax(0,1fr));
-  gap:14px;
-  align-items:end;
-}
-
-.go-big{
-  font-size:34px;
-  font-weight:800;
-  line-height:1;
-  letter-spacing:-.6px;
-}
-
-.go-big-label{
-  color:var(--muted);
-  font-size:11px;
-  text-transform:uppercase;
-  letter-spacing:.7px;
-  margin-top:8px;
-}
-
-.go-kpi .metric{
-  font-size:28px;
-}
-
-.go-kpi-deltas{
-  margin-top:12px;
-  display:flex;
-  flex-direction:column;
-  gap:4px;
-  font-size:12px;
-  color:var(--muted2);
-}
-
-.go-kpi-deltas div{
-  display:flex;
-  justify-content:space-between;
-  gap:8px;
-}
-
-.go-delta{
-  font-weight:700;
-  white-space:nowrap;
-}
-
-/* Long metric lists in the trend summary must wrap on phones. */
-.insight .go-delta{
-  white-space:normal;
-}
-
-.go-delta-up{ color:var(--green); }
-.go-delta-down{ color:var(--red); }
-.go-delta-flat{ color:var(--muted); }
-
-.go-actions{
-  display:flex;
-  gap:10px;
-  flex-wrap:wrap;
-  margin-top:14px;
-}
-
-.go-mini-table th,
-.go-mini-table td{
-  padding:9px 8px;
-  font-size:13px;
-}
-
-.go-trend-controls{
-  display:inline-flex;
-  border:1px solid var(--border2);
-  border-radius:8px;
-  overflow:hidden;
-}
-
-.go-trend-controls button{
-  background:transparent;
-  border:0;
-  color:var(--muted);
-  padding:7px 12px;
-  font-size:12px;
-  font-weight:700;
-  font-family:inherit;
-  cursor:pointer;
-}
-
-.go-trend-controls button.active{
-  background:rgba(105,221,160,.12);
-  color:var(--green);
-}
-
-.go-trend-header{
-  display:flex;
-  justify-content:space-between;
-  align-items:flex-end;
-  gap:14px;
-  flex-wrap:wrap;
-  margin:34px 0 14px;
-}
-
-.go-trend-header h3{
-  margin:0 0 4px;
-  font-size:18px;
-}
-
-.go-trend-header p{
-  margin:0;
-  color:var(--muted2);
-  font-size:13px;
-}
-
-.go-trend-table th,
-.go-trend-table td{
-  white-space:nowrap;
-  text-align:right;
-  padding:10px 12px;
-  font-size:13px;
-}
-
-.go-trend-table th:first-child,
-.go-trend-table td:first-child{
-  text-align:left;
-  position:sticky;
-  left:0;
-  background:var(--card);
-  z-index:1;
-}
-
-.go-trend-table .is-selected{
-  background:rgba(105,221,160,.07);
-  font-weight:800;
-}
-
-.go-trend-table th.is-selected{
-  color:var(--green);
-}
-
-.go-trend-table .go-metric-hint{
-  display:block;
-  color:var(--muted2);
-  font-size:10px;
-  font-weight:600;
-  margin-top:2px;
-}
-
-#gameLogBody tr.go-clickable{
-  cursor:pointer;
-}
-
-#gameLogBody tr.go-clickable:hover td{
-  background:rgba(105,221,160,.05);
-}
-
-.go-opp-link{
-  color:var(--text);
-  font-weight:700;
-  text-decoration:none;
-  border-bottom:1px dotted var(--border2);
-}
-
-@media(max-width:1100px){
-
-  .go-goaltending{
-    grid-template-columns:repeat(2,minmax(0,1fr));
-  }
-
-}
-
-@media(max-width:750px){
-
-  .goalie-switcher{
-    padding:12px 15px 0;
-  }
-
-  .goalie-switcher select{
-    flex:1;
-    min-width:0;
-  }
-
-  .go-selector{
-    grid-template-columns:auto minmax(0,1fr) auto;
-    gap:8px;
-    padding:10px;
-  }
-
-  .go-nav-btn{
-    padding:10px 11px;
-  }
-
-  .go-nav-btn .go-nav-text{
-    display:none;
-  }
-
-  .go-selector .go-select{
-    font-size:13px;
-  }
-
-  .go-hero{
-    grid-template-columns:1fr;
-  }
-
-  .go-hero-block + .go-hero-block{
-    border-left:0;
-    border-top:1px solid var(--border);
-  }
-
-  .go-big{
-    font-size:28px;
-  }
-
-}
-
-
-/* Consolidated navigation */
-.go-title-row{
-  display:flex;
-  justify-content:space-between;
-  align-items:flex-end;
-  gap:14px;
-  flex-wrap:wrap;
-}
-
-.go-back-link{
-  background:none;
-  border:0;
-  padding:0;
-  margin-bottom:10px;
-  color:var(--muted);
-  font-size:13px;
-  font-weight:700;
-  font-family:inherit;
-  cursor:pointer;
-}
-
-.go-back-link:hover{ color:var(--green); }
-
-.add-mode-toggle{
-  margin-bottom:22px;
-}
-
-.add-mode-toggle button{
-  padding:10px 16px;
-  font-size:13px;
-}
-
-/* Access / paywall */
-.access-pill{
-  background:transparent;
-  font-family:inherit;
-  cursor:pointer;
-  border:1px solid var(--border2);
-  color:var(--muted);
-  border-radius:999px;
-  padding:7px 14px;
-  font-size:12px;
-  font-weight:700;
-  white-space:nowrap;
-}
-
-.paywall-card{
-  max-width:560px;
-  margin:40px auto;
-  text-align:center;
-  padding:40px 34px;
-}
-
-.paywall-logo{
-  width:84px;
-  height:84px;
-  margin-bottom:18px;
-}
-
-.paywall-card h2{
-  font-size:26px;
-  margin-bottom:10px;
-}
-
-.paywall-card > p{
-  color:var(--muted);
-  line-height:1.55;
-  margin-bottom:22px;
-}
-
-.paywall-list{
-  list-style:none;
-  text-align:left;
-  margin:0 auto 26px;
-  padding:0;
-  max-width:420px;
-}
-
-.paywall-list li{
-  padding:9px 0 9px 26px;
-  position:relative;
-  font-size:14px;
-  border-bottom:1px solid var(--border);
-}
-
-.paywall-list li::before{
-  content:"✓";
-  position:absolute;
-  left:0;
-  color:var(--green);
-  font-weight:800;
-}
-
-.paywall-card .btn-primary{
-  width:100%;
-  max-width:420px;
-}
-
-.paywall-card .small-note{
-  margin-top:14px;
-}
-
-.access-badge{
-  display:inline-block;
-  padding:4px 10px;
-  border-radius:999px;
-  font-size:11px;
-  font-weight:700;
-  white-space:nowrap;
-}
-
-.access-live{ background:rgba(105,221,160,.12); color:var(--green); }
-.access-none{ background:rgba(255,255,255,.04); color:var(--muted); }
-.access-pending{ background:rgba(230,210,122,.14); color:var(--yellow); }
-
-@media(max-width:750px){
-  .access-pill{ font-size:11px; padding:6px 10px; }
-  .paywall-card{ margin:10px auto; padding:30px 20px; }
-}
-
-.paywall-plans{
-  display:flex;
-  flex-direction:column;
-  gap:12px;
-  max-width:420px;
-  margin:0 auto 14px;
-}
-
-.paywall-plans:empty{ display:none; }
-
-.paywall-plan{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:16px;
-  text-align:left;
-  border:1px solid var(--border2);
-  border-radius:12px;
-  padding:16px;
-  background:var(--card2);
-}
-
-.paywall-plan-name{ font-weight:800; font-size:16px; }
-.paywall-plan-desc{ color:var(--muted); font-size:12px; margin-top:4px; line-height:1.4; }
-.paywall-plan-right{ text-align:right; flex-shrink:0; }
-.paywall-plan-price{ font-weight:800; font-size:15px; margin-bottom:8px; white-space:nowrap; }
-.paywall-plan-right .btn-primary{ width:auto; padding:9px 16px; }
-.paywall-card #paywallRequestBtn.btn-secondary{ width:100%; max-width:420px; }
-
-@media(max-width:480px){
-  .paywall-plan{ flex-direction:column; align-items:stretch; }
-  .paywall-plan-right{ text-align:left; display:flex; justify-content:space-between; align-items:center; }
-  .paywall-plan-price{ margin-bottom:0; }
-}
-
-.paywall-plan-trial{
-  border-color:rgba(105,221,160,.45);
-  background:rgba(105,221,160,.06);
-}
-
-.upgrade-card{
-  text-align:center;
-  padding:34px 26px;
-}
-
-.upgrade-card h3{ margin-bottom:10px; }
-
-.upgrade-card p{
-  color:var(--muted);
-  max-width:480px;
-  margin:0 auto 20px;
-  line-height:1.55;
-}
-
-.upgrade-card .small-note{ margin-top:12px; }
-
-/* Compliance: consent, footer, cookie notice, focus */
-.consent-row{
-  display:flex;
-  gap:10px;
-  align-items:flex-start;
-  font-size:13px;
-  color:var(--muted);
-  margin:10px 0 4px;
-  line-height:1.45;
-  text-align:left;
-}
-.consent-row input{ width:auto; margin-top:3px; flex-shrink:0; }
-.consent-row a{ color:var(--green); }
-
-.site-footer{
-  border-top:1px solid var(--border);
-  padding:22px 25px 30px;
-  text-align:center;
-  color:var(--muted);
-  font-size:12px;
-  line-height:1.7;
-}
-.site-footer a{ color:var(--green); }
-.site-footer-links{ margin-top:6px; display:flex; gap:16px; justify-content:center; flex-wrap:wrap; }
-
-.cookie-notice{
-  position:fixed;
-  left:16px;
-  bottom:16px;
-  max-width:420px;
-  background:var(--card2);
-  border:1px solid var(--border2);
-  border-radius:12px;
-  padding:14px 16px;
-  display:flex;
-  gap:14px;
-  align-items:center;
-  z-index:2000;
-  box-shadow:0 10px 30px rgba(0,0,0,.4);
-}
-.cookie-notice p{ margin:0; font-size:13px; color:var(--text); line-height:1.45; }
-.cookie-notice a{ color:var(--green); }
-.cookie-notice .btn-primary{ width:auto; padding:8px 14px; flex-shrink:0; }
-
-.sample-chip{
-  font-size:10px;
-  font-weight:700;
-  color:var(--muted);
-  border:1px solid var(--border2);
-  border-radius:999px;
-  padding:2px 8px;
-  margin-left:6px;
-  vertical-align:middle;
-}
-
-.plan-terms{ text-align:center; margin-top:2px; }
-.plan-terms a{ color:var(--green); }
-
-a:focus-visible,
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible,
-[tabindex="0"]:focus-visible{
-  outline:2px solid var(--green);
-  outline-offset:2px;
-}
-
-@media(max-width:750px){
-  .cookie-notice{ left:10px; right:10px; max-width:none; }
-}
-
-/* Landing testimonials */
-.landing-testimonials{ border-top:1px solid var(--border); }
-.testimonial-card{ margin:0; display:flex; flex-direction:column; justify-content:space-between; gap:20px; }
-.testimonial-card blockquote{ margin:0; }
-.testimonial-card blockquote p{ margin:0; font-size:15px; line-height:1.65; color:var(--text); }
-.testimonial-card figcaption{ display:flex; align-items:center; gap:14px; }
-.testimonial-card img{ width:112px; height:112px; border-radius:50%; object-fit:cover; border:2px solid var(--green); flex-shrink:0; }
-.testimonial-card figcaption strong{ display:block; font-size:15px; }
-.testimonial-card figcaption span span{ display:block; font-size:12px; color:var(--muted); line-height:1.45; margin-top:2px; }
-</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" integrity="sha384-NrKB+u6Ts6AtkIhwPixiKTzgSKNblyhlk0Sohlgar9UHUBzai/sgnNNWWd291xqt" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js" integrity="sha384-WgXwGL6fUsYJWNaKJgVbrJKGRQwc1vieh2oy4kw9nXqpNDz3tdSsqEYUgeHD/NuF" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
+
+<link rel="stylesheet" href="assets/site.css">
+<link rel="preload" href="assets/fonts/archivo-italic-var-latin.woff2" as="font" type="font/woff2" crossorigin>
 </head>
 
 <body>
@@ -2632,8 +59,8 @@ textarea:focus-visible,
 <!-- Feedback widget -- simple, always-available way for early users
      to report problems or ideas. Hidden until signed in (toggled in
      showAuthenticatedApp()/showAuthScreen()). -->
-<button id="feedback-fab" onclick="openFeedbackModal()" style="display:none;position:fixed;bottom:20px;right:20px;z-index:9998;background:var(--card2);border:1px solid var(--border2);color:var(--text);border-radius:999px;padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.3);">
-  💬 Feedback
+<button id="feedback-fab" onclick="openFeedbackModal()" style="display:none;position:fixed;bottom:20px;right:20px;z-index:9998;padding:10px 16px;font-size:14px;cursor:pointer;">
+  Feedback
 </button>
 
 <div id="feedback-modal-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9997;align-items:center;justify-content:center;">
@@ -2668,157 +95,172 @@ textarea:focus-visible,
 
 <div id="landing-page">
 
-  <header class="landing-header">
-    <div class="landing-header-inner">
-      <div class="landing-brand">GoalieIQ Analytics</div>
-      <a href="#get-started" class="landing-signin-link" onclick="showAuthView('signin')">Sign In</a>
-    </div>
+  <header class="lp-bar">
+    <a class="lp-wordmark" href="#top" aria-label="GoalieIQ Analytics, home">Goalie<span>IQ</span></a>
+    <nav class="lp-bar-links" aria-label="Main">
+      <a href="sample-game.html">Sample game</a>
+      <a href="goalies-coaches.html">Goalies &amp; coaches</a>
+      <a href="#get-started" class="lp-signin" onclick="showAuthView('signin')">Sign in</a>
+    </nav>
   </header>
 
-  <section class="landing-hero">
-    <div class="landing-hero-inner">
+  <section class="lp-hero" id="top" aria-labelledby="lp-hero-title">
 
-      <div class="landing-hero-text">
-        <h1>Turn raw goalie stats into coaching decisions.</h1>
-        <p>
-          GoalieIQ Analytics tracks every shot, rebound, and situation a
-          goaltender faces during a game, then turns it into the kind of
-          performance picture a coach can actually act on — not just a
-          pile of numbers.
-        </p>
-        <a href="#get-started" class="btn-primary landing-cta" onclick="showAuthView('signin')">Get Started</a>
+    <div class="lp-hero-frame">
+      <picture>
+        <source srcset="assets/hero-goalie.webp" type="image/webp">
+        <img src="assets/hero-goalie.jpg" alt="A goalie in a blue Oakville Rangers jersey sets in his stance beside the post, with a puck on the ice by the net." width="2496" height="1248" fetchpriority="high" decoding="async">
+      </picture>
+      <div class="lp-tag">
+        <span class="lp-tag-puck" aria-hidden="true"></span>
+        <span class="lp-tag-leader" aria-hidden="true"></span>
+        <button type="button" class="lp-tag-label" aria-expanded="false" aria-controls="lp-tag-more" onclick="toggleHeroTag(this)">
+          <strong>Shot 14 · 2nd period</strong>
+          <span class="lp-tag-line">Glove side · low · xG .21 <span class="lp-tag-result">Save</span></span>
+          <span class="lp-tag-more" id="lp-tag-more">
+            <span class="lp-tag-more-inner">
+              <span class="lp-tag-row"><span>Shot</span>Wrist shot off the rush</span>
+              <span class="lp-tag-row"><span>From</span>28 ft, left circle</span>
+              <span class="lp-tag-row"><span>Traffic</span>None, clean look</span>
+              <span class="lp-tag-row"><span>Rebound</span>Controlled, covered</span>
+              <span class="lp-tag-row"><span>Season</span>.921 on low glove (35 of 38)</span>
+            </span>
+          </span>
+          <span class="lp-tag-foot">
+            <em class="lp-tag-note">illustrative tag</em>
+            <span class="lp-tag-toggle">Details</span>
+          </span>
+        </button>
       </div>
-
-      <div class="landing-preview">
-
-        <div class="landing-preview-chrome">
-          <span></span><span></span><span></span>
-        </div>
-
-        <div class="landing-preview-body">
-
-          <div class="landing-preview-title">Coach Dashboard <span class="sample-chip">Sample data</span></div>
-
-          <div class="card goalie-card landing-preview-card">
-
-            <div class="goalie-card-top">
-              <div>
-                <div class="goalie-name">Sample Goalie</div>
-                <div class="goalie-meta">Panthers · 2026 Season</div>
-              </div>
-              <span class="trend-badge trend-up">↑ Improving</span>
-            </div>
-
-            <div class="goalie-card-stats">
-
-              <div>
-                <div class="metric good">.920</div>
-                <div class="metric-label">SV%</div>
-              </div>
-
-              <div>
-                <div class="metric">2.10</div>
-                <div class="metric-label">GAA</div>
-              </div>
-
-              <div>
-                <div class="metric good">+3.4</div>
-                <div class="metric-label">GSAx</div>
-              </div>
-
-              <div>
-                <div class="metric">12</div>
-                <div class="metric-label">Games</div>
-              </div>
-
-            </div>
-
-            <div class="goalie-card-footer">
-              <span>Last game: vs Rivals (W)</span>
-              <span>View analytics →</span>
-            </div>
-
-          </div>
-
-        </div>
-
-      </div>
-
     </div>
-  </section>
 
-
-  <section class="landing-features">
-
-    <div class="landing-section-inner">
-
-      <div class="page-title" style="text-align:center">
-        <h2>Built for goalies and the coaches who develop them</h2>
-        <p>Built from the ground up for goaltending, not adapted from a generic stats app.</p>
-      </div>
-
-      <div class="grid grid-3">
-
-        <div class="card feature-card">
-          <div class="feature-icon">🎬</div>
-          <h3>Upload Your Game Film, See Your Stats</h3>
-          <p>Upload your game film and every shot you face gets tracked for you: location, shot quality, rebounds, and more.</p>
-        </div>
-
-        <div class="card feature-card">
-          <div class="feature-icon">🥅</div>
-          <h3>Rebound Control Analytics</h3>
-          <p>Break down glove, blocker, pad, and midsection rebounds to see exactly where control is being lost.</p>
-        </div>
-
-        <div class="card feature-card">
-          <div class="feature-icon">📊</div>
-          <h3>Situational Breakdown</h3>
-          <p>See performance by rush chances, screens, breakaways, and other high-danger situations — not just totals.</p>
-        </div>
-
-        <div class="card feature-card">
-          <div class="feature-icon">📈</div>
-          <h3>Period-by-Period Trends</h3>
-          <p>Track how a goaltender's game changes from the first period to the third, game over game.</p>
-        </div>
-
-        <div class="card feature-card">
-          <div class="feature-icon">🧑‍🏫</div>
-          <h3>Coach Dashboard</h3>
-          <p>A dedicated view for coaches — every assigned goalie's performance, notes, and development areas in one place.</p>
-        </div>
-
-        <div class="card feature-card">
-          <div class="feature-icon">🤖</div>
-          <h3>AI Coach</h3>
-          <p>Ask plain-language questions about a goalie's season and get answers grounded in their actual tracked data.</p>
-        </div>
-
-      </div>
-
+    <div class="lp-hero-copy">
+      <h1 id="lp-hero-title">Turn raw goalie stats into coaching decisions.</h1>
+      <p>GoalieIQ tracks every shot, rebound and situation a goaltender faces from game film, then turns it into a picture a coach can actually act on.</p>
+      <form class="lp-start" onsubmit="return startFromLandingHero(event)">
+        <label for="lp-start-email" class="visually-hidden">Email</label>
+        <input type="email" id="lp-start-email" placeholder="Your email" autocomplete="email" required>
+        <button type="submit" class="btn-primary">Create account</button>
+      </form>
+      <p class="lp-hero-note">First game free for new goalie accounts. Already in? <a href="#get-started" onclick="showAuthView('signin')">Sign in</a></p>
     </div>
 
   </section>
 
 
-  <section class="landing-testimonials" aria-labelledby="testimonials-heading">
+  <section class="lp-proof" id="sample-game" aria-labelledby="lp-proof-title">
+    <div class="lp-inner">
 
-    <div class="landing-section-inner">
-
-      <div class="page-title" style="text-align:center">
-        <h2 id="testimonials-heading">What goalies are saying</h2>
-        <p>From goalies already using GoalieIQ.</p>
+      <div class="lp-proof-head">
+        <h2 class="lp-h2" id="lp-proof-title">One game. Every shot.</h2>
+        <p>Upload the game, every shot gets tagged, and the breakdown below is what comes back. This one is a sample with illustrative numbers, not a real goalie's.</p>
       </div>
 
-      <div class="grid grid-3">
+      <div class="lp-channels">
 
-        <figure class="card testimonial-card">
+        <article class="lp-channel">
+          <h3>Where they shot from</h3>
+          <div class="lp-rink" id="lp-sample-map" role="img" aria-label="Shot map of the sample game: 31 shots, mostly from the slot and the circles; both goals came from the low slot."></div>
+          <p class="lp-legend"><span class="lg-save">Save</span><span class="lg-goal">Goal</span></p>
+          <p>Every shot is pinned where it was released and graded for danger, so a goal from the slot isn't weighed like a goal from the point.</p>
+        </article>
+
+        <article class="lp-channel">
+          <h3>Where the rebounds went</h3>
+          <dl class="lp-rebounds">
+            <div class="lp-reb-row">
+              <dt>Glove <span>9 clean · 1 rebound</span></dt>
+              <dd><i class="good" style="flex:9"></i><i class="bad" style="flex:1"></i></dd>
+            </div>
+            <div class="lp-reb-row">
+              <dt>Blocker <span>4 good · 2 bad</span></dt>
+              <dd><i class="good" style="flex:4"></i><i class="bad" style="flex:2"></i><i style="flex:4"></i></dd>
+            </div>
+            <div class="lp-reb-row">
+              <dt>Midsection <span>6 good</span></dt>
+              <dd><i class="good" style="flex:6"></i><i style="flex:4"></i></dd>
+            </div>
+            <div class="lp-reb-row">
+              <dt>Pads &amp; stick <span>5 good · 2 bad · 1 goal</span></dt>
+              <dd><i class="good" style="flex:5"></i><i class="bad" style="flex:2"></i><i class="goal" style="flex:1"></i><i style="flex:2"></i></dd>
+            </div>
+          </dl>
+          <p class="lp-reb-key"><span class="k-good">Controlled</span><span class="k-bad">Rebound to danger</span><span class="k-goal">Goal</span></p>
+          <p>Rebound control is split by the part of the body that made the save, so you know whether to train the glove or the pads.</p>
+        </article>
+
+        <article class="lp-channel">
+          <h3>The verdict</h3>
+          <dl class="lp-ledger">
+            <div>
+              <dt>Expected goals against <b>3.6</b></dt>
+              <dd aria-hidden="true"><i class="xg"></i><i class="xg"></i><i class="xg"></i><i class="xg part"></i></dd>
+            </div>
+            <div>
+              <dt>Goals allowed <b>2</b></dt>
+              <dd aria-hidden="true"><i class="ga"></i><i class="ga"></i></dd>
+            </div>
+          </dl>
+          <p class="lp-ledger-sum"><b>+1.6</b> goals saved above expected, on a .935 save percentage against shots an average goalie stops at .884.</p>
+          <p>That's GSAx: the goals you allowed against what an average goalie allows on the same shots. It separates your game from your team's.</p>
+        </article>
+
+      </div>
+
+      <a class="lp-more" href="sample-game.html">See the full sample game</a>
+
+    </div>
+  </section>
+
+
+  <section class="lp-pair" id="goalies-coaches" aria-labelledby="lp-pair-title">
+    <div class="lp-inner">
+
+      <h2 class="lp-h2" id="lp-pair-title">Built for goalies and the coaches who develop them</h2>
+
+      <div class="lp-pair-grid">
+
+        <div class="lp-pad lp-pad-left">
+          <h3>For goalies</h3>
+          <ul>
+            <li><strong>Upload your film, see your stats</strong>Every shot you face gets tracked for you: location, shot quality, rebounds and more.</li>
+            <li><strong>Rebound control by body part</strong>Glove, blocker, pads and midsection, so you see exactly where control is being lost.</li>
+            <li><strong>Situations, not just totals</strong>Rush chances, screens, breakaways and the other high-danger looks.</li>
+            <li><strong>Period by period</strong>How your game changes from the first period to the third, game over game.</li>
+          </ul>
+        </div>
+
+        <div class="lp-pad lp-pad-right">
+          <h3>For coaches</h3>
+          <ul>
+            <li><strong>Every goalie in one place</strong>Each assigned goalie's performance, notes and development areas on one dashboard.</li>
+            <li><strong>Notes that stay with the goalie</strong>Write what you saw and what to work on, right beside the numbers.</li>
+            <li><strong>AI Coach</strong>Ask plain-language questions about a goalie's season and get answers grounded in their tracked data.</li>
+            <li><strong>Game reports</strong>A PDF after each game: what went well, what to work on, what to practise next.</li>
+          </ul>
+        </div>
+
+      </div>
+
+      <a class="lp-more" href="goalies-coaches.html">More for goalies and coaches</a>
+
+    </div>
+  </section>
+
+
+  <section class="lp-voices" aria-labelledby="testimonials-heading">
+    <div class="lp-inner">
+
+      <h2 class="lp-h2" id="testimonials-heading">What goalies are saying</h2>
+
+      <div class="lp-voices-grid">
+
+        <figure class="lp-voice lp-voice-lead">
           <blockquote>
-            <p>&ldquo;I&rsquo;ve found this app super helpful for understanding my game beyond just goals against and save percentage. Being able to see stats like expected save percentage, rebound control, successful rims, and so many other breakdowns gives you a much better picture of how you actually played. It helps tell the full story behind your game and points out specific areas to focus on.&rdquo;</p>
+            <p>I&rsquo;ve found this app super helpful for understanding my game beyond just goals against and save percentage. Being able to see stats like expected save percentage, rebound control, successful rims, and so many other breakdowns gives you a much better picture of how you actually played. It helps tell the full story behind your game and points out specific areas to focus on.</p>
           </blockquote>
           <figcaption>
-            <img src="/testimonial-maija.jpg" alt="Maija St-Pierre in net for Team Canada" width="112" height="112" loading="lazy">
+            <img src="testimonial-maija.jpg" alt="Maija St-Pierre in net for Team Canada" width="96" height="96" loading="lazy">
             <span>
               <strong>Maija St-Pierre</strong>
               <span>Etobicoke Jr. Dolphins · Team Canada U18 alum · Committed to St. Thomas (NCAA D1)</span>
@@ -2826,58 +268,96 @@ textarea:focus-visible,
           </figcaption>
         </figure>
 
-        <figure class="card testimonial-card">
-          <blockquote>
-            <p>&ldquo;The stat that surprised me the most is the rebound control from different areas of your body. It helped me understand where I need to work on instead of guessing and just thinking everything needed to get better.&rdquo;</p>
-          </blockquote>
-          <figcaption>
-            <img src="/testimonial-alex.jpg" alt="Alex Beaupre in goalie gear for the Niagara IceDogs" width="112" height="112" loading="lazy">
-            <span>
-              <strong>Alex Beaupre</strong>
-              <span>Pelham Panthers · Signed with the Niagara IceDogs (OHL)</span>
-            </span>
-          </figcaption>
-        </figure>
+        <div class="lp-voices-side">
 
-        <figure class="card testimonial-card">
-          <blockquote>
-            <p>&ldquo;I like being able to see my stats broken down by game and identify specific areas I need to work on. It makes tracking my progress throughout the season a lot easier.&rdquo;</p>
-          </blockquote>
-          <figcaption>
-            <img src="/testimonial-marcus.jpg" alt="Marcus Cruz D&rsquo;Annunzio making a save for the Oakville Blades" width="112" height="112" loading="lazy">
-            <span>
-              <strong>Marcus Cruz D&rsquo;Annunzio</strong>
-              <span>Oakville Blades (OJHL)</span>
-            </span>
-          </figcaption>
-        </figure>
+          <figure class="lp-voice">
+            <blockquote>
+              <p>The stat that surprised me the most is the rebound control from different areas of your body. It helped me understand where I need to work on instead of guessing and just thinking everything needed to get better.</p>
+            </blockquote>
+            <figcaption>
+              <img src="testimonial-alex.jpg" alt="Alex Beaupre in goalie gear for the Niagara IceDogs" width="64" height="64" loading="lazy">
+              <span>
+                <strong>Alex Beaupre</strong>
+                <span>Pelham Panthers · Signed with the Niagara IceDogs (OHL)</span>
+              </span>
+            </figcaption>
+          </figure>
+
+          <figure class="lp-voice">
+            <blockquote>
+              <p>I like being able to see my stats broken down by game and identify specific areas I need to work on. It makes tracking my progress throughout the season a lot easier.</p>
+            </blockquote>
+            <figcaption>
+              <img src="testimonial-marcus.jpg" alt="Marcus Cruz D&rsquo;Annunzio making a save for the Oakville Blades" width="64" height="64" loading="lazy">
+              <span>
+                <strong>Marcus Cruz D&rsquo;Annunzio</strong>
+                <span>Oakville Blades (OJHL)</span>
+              </span>
+            </figcaption>
+          </figure>
+
+        </div>
 
       </div>
 
     </div>
-
   </section>
 
 
-  <section class="landing-contact">
+  <section class="lp-faq" id="questions" aria-labelledby="lp-faq-title">
+    <div class="lp-inner lp-faq-grid">
 
-    <div class="landing-section-inner">
-      <h2>Questions?</h2>
-      <p>
-        Reach out any time —
-        <a href="mailto:goalieiqanalytics@gmail.com">goalieiqanalytics@gmail.com</a>
-      </p>
+      <div class="lp-faq-head">
+        <h2 class="lp-h2" id="lp-faq-title">Questions</h2>
+        <p>The things goalies, parents and coaches ask before they start. Anything else: <a href="mailto:goalieiqanalytics@gmail.com">goalieiqanalytics@gmail.com</a>.</p>
+      </div>
+
+      <div class="lp-faq-list">
+
+        <details>
+          <summary>What does it cost?</summary>
+          <p>New goalie accounts get their first game free. After that you buy games, one tracked game at a time. Goalie Plus adds AI Coach and an AI-written analysis in every game report, and covers up to 10 tracked games a month. Current prices are shown when you sign in.</p>
+        </details>
+
+        <details>
+          <summary>What film do I need?</summary>
+          <p>The game video you already have, filmed on a phone or a camera. Full games are fine: uploads go up in parts and pick up where they left off if your connection drops, up to 20&nbsp;GB per video.</p>
+        </details>
+
+        <details>
+          <summary>Who tags the shots?</summary>
+          <p>Every shot is tagged from your film by the GoalieIQ team, with AI doing a first pass on shot clips. Location, situation, shot type, release and rebound are all recorded, and any tag can be corrected.</p>
+        </details>
+
+        <details>
+          <summary>Can my coach see my stats?</summary>
+          <p>Yes, once your coach's account is connected to yours. A connected coach sees your games, stats and clips and can leave notes. Coaches never see goalies they aren't connected to.</p>
+        </details>
+
+        <details>
+          <summary>Who can see my video?</summary>
+          <p>Only you, a coach connected to you, and the GoalieIQ team. Videos are stored privately and played through links that expire.</p>
+        </details>
+
+        <details>
+          <summary>Can I delete my data?</summary>
+          <p>Yes. Deleting your account from the About tab permanently removes your profile, games, stats, notes and uploaded video, and cancels any subscription.</p>
+        </details>
+
+      </div>
+
     </div>
-
   </section>
 
 
-  <section class="landing-get-started" id="get-started">
+  <section class="landing-get-started" id="get-started" aria-labelledby="get-started-title">
+    <div class="lp-inner lp-start-grid">
 
-    <div class="page-title" style="text-align:center">
-      <h2>Get Started</h2>
-      <p>Sign in to your dashboard below.</p>
-    </div>
+      <div class="lp-start-copy">
+        <h2 class="lp-h2" id="get-started-title">Get started</h2>
+        <p>Create an account or sign in to your dashboard. New goalie accounts start with a free game.</p>
+        <p>Questions? Email <a href="mailto:goalieiqanalytics@gmail.com">goalieiqanalytics@gmail.com</a> or message <a href="https://www.instagram.com/goalieiqanalytics/" target="_blank" rel="noopener">@goalieiqanalytics</a> on Instagram.</p>
+      </div>
 
     <div id="auth-screen" class="auth-screen">
       <div class="auth-card">
@@ -2912,7 +392,7 @@ textarea:focus-visible,
 
           <label class="consent-row">
             <input type="checkbox" id="signup-terms" required>
-            <span>I agree to the <a href="/terms.html" target="_blank" rel="noopener">Terms of Service</a> and <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</span>
+            <span>I agree to the <a href="terms.html" target="_blank" rel="noopener">Terms of Service</a> and <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</span>
           </label>
 
           <label class="consent-row">
@@ -2948,18 +428,18 @@ textarea:focus-visible,
       </div>
     </div>
 
+    </div>
   </section>
+
 <footer class="site-footer" role="contentinfo">
   <div>GoalieIQ Analytics · Operated by Matias Baker · Ontario, Canada · <a href="mailto:goalieiqanalytics@gmail.com">goalieiqanalytics@gmail.com</a></div>
   <div role="navigation" aria-label="Legal" class="site-footer-links">
-    <a href="/privacy.html">Privacy Policy</a>
-    <a href="/terms.html">Terms of Service</a>
-    <a href="/refund.html">Refund Policy</a>
-    <a href="/cookies.html">Cookie Policy</a>
+    <a href="privacy.html">Privacy Policy</a>
+    <a href="terms.html">Terms of Service</a>
+    <a href="refund.html">Refund Policy</a>
+    <a href="cookies.html">Cookie Policy</a>
   </div>
 </footer>
-
-
 
 </div>
 
@@ -3017,7 +497,7 @@ textarea:focus-visible,
     </button>
 
     <button type="button" class="nav-dropdown-toggle" id="stats-toggle-btn" onclick="toggleNavDropdown(event)">
-      Stats ▾
+      Stats
     </button>
 
     <button id="goalie-nav-addgame" onclick="openAddGame('upload')">
@@ -3053,7 +533,7 @@ textarea:focus-visible,
     </button>
 
     <button type="button" class="nav-dropdown-toggle" id="coach-stats-toggle-btn" onclick="toggleNavDropdown(event)">
-      Stats ▾
+      Stats
     </button>
 
     <button id="coach-nav-notes" onclick="showTab('coachnotes',this)">
@@ -3085,7 +565,7 @@ textarea:focus-visible,
     </button>
 
     <button type="button" class="nav-dropdown-toggle" id="admin-stats-toggle-btn" onclick="toggleNavDropdown(event)">
-      Goalie Analytics ▾
+      Goalie Analytics
     </button>
 
     <button onclick="showTab('livetag',this)">
@@ -3147,7 +627,7 @@ textarea:focus-visible,
 
 <section id="paywall" class="tab">
   <div class="paywall-card card">
-    <svg class="paywall-logo" viewBox="0 0 1080 1080" aria-hidden="true"><circle cx="540" cy="540" r="540" fill="#061710"/><circle cx="540" cy="540" r="330" fill="none" stroke="#69dda0" stroke-width="44"/><circle cx="540" cy="540" r="250" fill="#0c261c"/><text x="540" y="640" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-weight="900" font-size="290" letter-spacing="-12" fill="#edf7f1">IQ</text><circle cx="773" cy="307" r="58" fill="#69dda0" stroke="#061710" stroke-width="22"/></svg>
+    <svg class="paywall-logo" viewBox="0 0 1080 1080" aria-hidden="true"><circle cx="540" cy="540" r="540" fill="#0F4A35"/><circle cx="540" cy="540" r="330" fill="none" stroke="#E8B923" stroke-width="40" stroke-dasharray="70 34"/><circle cx="540" cy="540" r="250" fill="#0A3627"/><text x="540" y="640" text-anchor="middle" font-family="Archivo,Arial,sans-serif" font-style="italic" font-weight="900" font-size="290" letter-spacing="-8" fill="#F4F5F1">IQ</text><circle cx="773" cy="307" r="58" fill="#E8B923" stroke="#0F4A35" stroke-width="22"/></svg>
     <h2 id="paywallTitle">Welcome to GoalieIQ</h2>
     <p id="paywallMessage"></p>
     <ul class="paywall-list">
@@ -3225,7 +705,7 @@ textarea:focus-visible,
 
   <div class="card" id="coachNotesPickerCard">
     <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:8px;">Goalie</label>
-    <select id="coachNotesGoalieSelect" onchange="selectCoachNotesGoalie(this.value)" style="width:100%;max-width:320px;background:#0c261c;border:1px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
+    <select id="coachNotesGoalieSelect" onchange="selectCoachNotesGoalie(this.value)" style="width:100%;max-width:320px;background:var(--field);border:1.5px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
   </div>
 
   <div class="grid grid-2 section-space">
@@ -3460,12 +940,12 @@ textarea:focus-visible,
 
       <div>
         <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px;">Coach</label>
-        <select id="adminAssignCoachSelect" style="width:100%;background:#0c261c;border:1px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
+        <select id="adminAssignCoachSelect" style="width:100%;background:var(--field);border:1.5px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
       </div>
 
       <div>
         <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px;">Goalie</label>
-        <select id="adminAssignGoalieSelect" style="width:100%;background:#0c261c;border:1px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
+        <select id="adminAssignGoalieSelect" style="width:100%;background:var(--field);border:1.5px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
       </div>
 
       <div style="display:flex;align-items:flex-end;">
@@ -3497,38 +977,6 @@ textarea:focus-visible,
 
 
 </section>
-
-
-<!-- ========================================================= -->
-<!-- ADMIN: ONE GOALIE'S GAMES (entry point into the Shot Log) -->
-<!-- ========================================================= -->
-
-<div class="giq-modal-overlay" id="adminGoalieGamesModalOverlay">
-  <div class="giq-modal">
-
-    <div class="giq-modal-header">
-      <h3 id="adminGoalieGamesTitle">Games</h3>
-      <button type="button" class="giq-modal-close" onclick="closeAdminGoalieGamesModal()">&times;</button>
-    </div>
-
-    <div class="giq-modal-body">
-      <div style="overflow-x:auto">
-        <table class="shot-log-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Opponent</th>
-              <th>Season</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="adminGoalieGamesBody"></tbody>
-        </table>
-      </div>
-    </div>
-
-  </div>
-</div>
 
 
 <!-- ========================================================= -->
@@ -5260,6 +2708,34 @@ textarea:focus-visible,
   </div>
 
 
+  <div class="section-heading" id="lt-ai-heading" style="display:none">
+    <h3>Auto-tag clips</h3>
+    <p>One pre-trimmed clip per shot. AI fills in each shot using the period and strength selected above; fix anything later from the game's Shot Log.</p>
+  </div>
+
+  <div class="card" id="lt-ai-card" style="display:none">
+    <div class="field-grid">
+      <div class="field">
+        <label for="lt-ai-files">Shot clips</label>
+        <input type="file" id="lt-ai-files" accept="video/*" multiple onchange="onAiTagFilesPicked(this)">
+      </div>
+      <div class="field">
+        <label for="lt-ai-jersey">Goalie's team jersey <span class="field-optional">optional</span></label>
+        <input type="text" id="lt-ai-jersey" maxlength="40" placeholder="white, #30" autocomplete="off">
+      </div>
+    </div>
+    <label class="consent-row">
+      <input type="checkbox" id="lt-ai-autosave" checked>
+      <span>Save the game as soon as every clip is tagged</span>
+    </label>
+    <ol id="lt-ai-list" class="ai-tag-list"></ol>
+    <div class="ai-tag-actions">
+      <button type="button" class="btn-primary" id="lt-ai-start" onclick="startAiTagRun()" disabled>Tag clips</button>
+      <button type="button" class="btn-secondary" id="lt-ai-clear" onclick="clearAiTagRun()" disabled>Clear</button>
+      <span class="small-note" id="lt-ai-status" aria-live="polite"></span>
+    </div>
+  </div>
+
   <div class="section-heading">
     <h3>Log a Shot</h3>
     <p>Tap what happened, then hit Add Shot. Extra tags are optional.</p>
@@ -5861,7 +3337,7 @@ textarea:focus-visible,
 
   <div class="card section-space self-delete-card" id="selfDeleteCard" style="display:none">
     <h3>Your account &amp; data</h3>
-    <p class="small-note" style="margin:6px 0 12px">Read our <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a>. To see or correct your data, email <a href="mailto:goalieiqanalytics@gmail.com">goalieiqanalytics@gmail.com</a>. Deleting your account permanently removes your profile, games, stats and notes, and cancels any subscription.</p>
+    <p class="small-note" style="margin:6px 0 12px">Read our <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>. To see or correct your data, email <a href="mailto:goalieiqanalytics@gmail.com">goalieiqanalytics@gmail.com</a>. Deleting your account permanently removes your profile, games, stats and notes, and cancels any subscription.</p>
     <button type="button" class="btn-danger" onclick="openSelfDeleteModal()">Delete my account</button>
   </div>
 
@@ -6103,10 +3579,10 @@ textarea:focus-visible,
 <footer class="site-footer" role="contentinfo">
   <div>GoalieIQ Analytics · Operated by Matias Baker · Ontario, Canada · <a href="mailto:goalieiqanalytics@gmail.com">goalieiqanalytics@gmail.com</a></div>
   <div role="navigation" aria-label="Legal" class="site-footer-links">
-    <a href="/privacy.html">Privacy Policy</a>
-    <a href="/terms.html">Terms of Service</a>
-    <a href="/refund.html">Refund Policy</a>
-    <a href="/cookies.html">Cookie Policy</a>
+    <a href="privacy.html">Privacy Policy</a>
+    <a href="terms.html">Terms of Service</a>
+    <a href="refund.html">Refund Policy</a>
+    <a href="cookies.html">Cookie Policy</a>
   </div>
 </footer>
 
@@ -6177,6 +3653,95 @@ textarea:focus-visible,
           </thead>
           <tbody id="shotLogTableBody"></tbody>
         </table>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ========================================================= -->
+<!-- ADMIN: EDIT ONE SHOT (fixes AI-tagged or hand-tagged shots) -->
+<!-- ========================================================= -->
+
+<div class="giq-modal-overlay" id="shotEditModalOverlay" style="z-index:220">
+  <div class="giq-modal giq-modal-narrow" role="dialog" aria-modal="true" aria-labelledby="shotEditTitle">
+
+    <div class="giq-modal-header">
+      <h3 id="shotEditTitle">Edit shot</h3>
+      <button type="button" class="giq-modal-close" onclick="closeShotEditModal()" aria-label="Close">&times;</button>
+    </div>
+
+    <div class="giq-modal-body">
+
+      <p class="small-note" id="shotEditAiNote" style="display:none"></p>
+
+      <div class="field-grid">
+        <div class="field">
+          <label for="shotEditOutcome">Result</label>
+          <select id="shotEditOutcome">
+            <option value="save">Save</option>
+            <option value="goal">Goal</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="shotEditPeriod">Period</label>
+          <select id="shotEditPeriod">
+            <option value="1">1st</option>
+            <option value="2">2nd</option>
+            <option value="3">3rd</option>
+            <option value="OT">OT</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="shotEditStrength">Strength</label>
+          <select id="shotEditStrength">
+            <option value="">Not tagged</option>
+            <option>5v5</option><option>4v4</option><option>3v3</option>
+            <option>4v5</option><option>3v5</option><option>3v4</option><option>5v6</option>
+            <option>5v4</option><option>5v3</option><option>4v3</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="shotEditType">Shot type</label>
+          <select id="shotEditType">
+            <option value="">Unknown</option>
+            <option>Wrist</option><option>Slap</option><option>Snap</option>
+            <option>Backhand</option><option>Tip</option><option>One-Timer</option>
+          </select>
+        </div>
+        <div class="field" style="grid-column:1/-1">
+          <label for="shotEditRelease">Release</label>
+          <select id="shotEditRelease">
+            <option value="">Unclear</option>
+            <option value="one_timer">One-Timer</option>
+            <option value="catch_and_release">Catch &amp; Release</option>
+            <option value="quick_release">Quick Release</option>
+            <option value="extended_possession">Extended Possession (&gt;2s)</option>
+          </select>
+        </div>
+      </div>
+
+      <fieldset class="shot-edit-flags">
+        <legend>Situation</legend>
+        <label><input type="checkbox" data-flag="rush"> Rush</label>
+        <label><input type="checkbox" data-flag="rebound"> Rebound</label>
+        <label><input type="checkbox" data-flag="screened"> Screened</label>
+        <label><input type="checkbox" data-flag="breakaway"> Breakaway</label>
+        <label><input type="checkbox" data-flag="cross_ice"> Cross Ice</label>
+        <label><input type="checkbox" data-flag="deflection"> Deflection</label>
+      </fieldset>
+
+      <div class="field">
+        <span class="field-label">Release point</span>
+        <div id="shotEditMap" class="shotmap-wrap"></div>
+        <div id="shotEditMapReadout" class="shotmap-readout"></div>
+      </div>
+
+      <div class="giq-modal-actions">
+        <button type="button" class="btn-primary" id="shotEditSaveBtn" onclick="saveShotEdit()">Save shot</button>
+        <button type="button" class="btn-secondary" onclick="closeShotEditModal()">Cancel</button>
       </div>
 
     </div>
@@ -6302,6 +3867,14 @@ const supabaseClient =
     SUPABASE_URL,
     SUPABASE_KEY
   );
+
+
+// Charts speak the same type and ink as the rest of the page.
+if(window.Chart){
+  Chart.defaults.font.family = '"Archivo", system-ui, sans-serif';
+  Chart.defaults.color = "#3B413C";
+  Chart.defaults.borderColor = "rgba(18,20,18,.08)";
+}
 
 
 /* ============================================================
@@ -6610,7 +4183,7 @@ function escapeHtml(value){
 // Safe way to pass a number OR string id into an inline onclick="".
 function jsArg(value){
 
-  return JSON.stringify(value).replace(/"/g, "&quot;");
+  return escapeHtml(JSON.stringify(value));
 
 }
 
@@ -7386,7 +4959,7 @@ function percentageScale(){
 
     ticks:{
 
-      color:"#829f93",
+      color:"#596159",
 
       font:{
         size:10
@@ -7401,7 +4974,7 @@ function percentageScale(){
 
     grid:{
 
-      color:"rgba(255,255,255,.035)",
+      color:"rgba(18,20,18,.08)",
 
       lineWidth:1
 
@@ -7426,7 +4999,7 @@ function distributionScale(){
 
     ticks:{
 
-      color:"#829f93",
+      color:"#596159",
 
       precision:0,
 
@@ -7440,7 +5013,7 @@ function distributionScale(){
 
     grid:{
 
-      color:"rgba(255,255,255,.035)",
+      color:"rgba(18,20,18,.08)",
 
       lineWidth:1
 
@@ -7465,9 +5038,9 @@ function barDatasetDefaults(){
 
   return {
 
-    backgroundColor:"rgba(105,221,160,.62)",
+    backgroundColor:"rgba(23,112,79,.78)",
 
-    borderColor:"#69dda0",
+    borderColor:"#17704F",
 
     borderWidth:0,
 
@@ -7509,7 +5082,7 @@ function chartOptions(){
         position:"top",
 
         labels:{
-          color:"#a8beb4",
+          color:"#3B413C",
 
           boxWidth:9,
 
@@ -7530,15 +5103,15 @@ function chartOptions(){
 
       tooltip:{
 
-        backgroundColor:"rgba(6,23,16,.96)",
+        backgroundColor:"rgba(18,20,18,.94)",
 
-        borderColor:"#285640",
+        borderColor:"#121412",
 
         borderWidth:1,
 
-        titleColor:"#edf7f1",
+        titleColor:"#F4F5F1",
 
-        bodyColor:"#a8beb4",
+        bodyColor:"#D9DDD6",
 
         padding:10,
 
@@ -7592,7 +5165,7 @@ function chartOptions(){
 
         ticks:{
 
-          color:"#829f93",
+          color:"#596159",
 
           font:{
             size:10
@@ -7616,7 +5189,7 @@ function chartOptions(){
 
         ticks:{
 
-          color:"#829f93",
+          color:"#596159",
 
           font:{
             size:10
@@ -7628,7 +5201,7 @@ function chartOptions(){
 
         grid:{
 
-          color:"rgba(255,255,255,.035)",
+          color:"rgba(18,20,18,.08)",
 
           lineWidth:1
 
@@ -8854,7 +6427,7 @@ function renderBulkClipsPreview(){
     summary.textContent = `${files.length} clips for ${shots.length} shots. Check a few rows, then attach.`;
   }
   else{
-    summary.style.color = "#ffb020";
+    summary.style.color = "#7A5300";
     summary.textContent =
       `${files.length} clips but ${shots.length} shots -- counts don't match. ` +
       `Only the first ${pairs} will be attached, so check the order before continuing.`;
@@ -8883,8 +6456,8 @@ function renderBulkClipsPreview(){
         !shot || !file ? `<span style="color:var(--muted)">Won't attach</span>` :
         !st ? `<span style="color:var(--muted)">Ready</span>` :
         st.state === "uploading" ? `Uploading ${st.pct || 0}%` :
-        st.state === "done" ? `<span style="color:#3ddc84">Attached</span>` :
-        `<span style="color:#ff6b6b" title="${escapeHtml(st.error || "")}">Failed</span>`;
+        st.state === "done" ? `<span style="color:#17704F">Attached</span>` :
+        `<span style="color:#B42318" title="${escapeHtml(st.error || "")}">Failed</span>`;
 
       return `
         <tr>
@@ -8953,7 +6526,7 @@ async function startBulkClipsUpload(){
         await uploadFileToR2(file, (sent, total) => {
           bulkClipsStatus[key].pct = total ? Math.round((sent / total) * 100) : 0;
           renderBulkClipsPreview();
-        });
+        }, shot.user_id);
 
       const { data: insertedVideo, error: videoError } =
         await supabaseClient
@@ -9124,6 +6697,11 @@ function renderShotLogTable(){
 
       let actionCell;
 
+      const editBtn =
+        isAdmin
+          ? `<button type="button" class="watch-btn" onclick="openShotEditModal(${arg})">Edit</button>`
+          : "";
+
       if(canWatch){
 
         // Watch is for everyone who can see the shot. Replace/Delete
@@ -9132,6 +6710,7 @@ function renderShotLogTable(){
         actionCell = `
           <div class="clip-actions">
             <button type="button" class="watch-btn" onclick="watchShotClip(${arg})">▶ Watch</button>
+            ${editBtn}
             ${
               isAdmin
                 ? `<button type="button" class="watch-btn" onclick="promptReplaceClip(${arg})">Replace</button>
@@ -9145,7 +6724,7 @@ function renderShotLogTable(){
       else if(isAdmin){
 
         actionCell =
-          `<button type="button" class="watch-btn" onclick="promptAttachClip(${arg})">+ Attach Clip</button>`;
+          `<div class="clip-actions"><button type="button" class="watch-btn" onclick="promptAttachClip(${arg})">+ Attach Clip</button>${editBtn}</div>`;
 
       }
       else{
@@ -9163,12 +6742,257 @@ function renderShotLogTable(){
           <td>${escapeHtml(s.shot_type) || "—"}</td>
           <td>${releaseLabel[releaseCategory(s)]}</td>
           <td>${s.rebound ? "Yes" : "—"}</td>
-          <td><span class="result-pill ${isGoal(s) ? "result-loss" : "result-win"}">${isGoal(s) ? "Goal" : "Save"}</span></td>
+          <td><span class="result-pill ${isGoal(s) ? "result-loss" : "result-win"}">${isGoal(s) ? "Goal" : "Save"}</span>${s.ai_tagged && !s.ai_reviewed_at ? ` <span class="ai-badge" title="Tagged by AI, not reviewed yet">AI</span>` : ""}</td>
           <td>${actionCell}</td>
         </tr>
       `;
 
     }).join("");
+
+}
+
+
+/* ------------------------------------------------------------
+   ADMIN: EDIT ONE SHOT
+   Corrects any field of a saved shot (AI-tagged or hand-tagged).
+   When the result or period changes, the game's and periods' saved
+   totals are adjusted by the same difference, so SV% / GAA stay
+   consistent with the shot list. Saving an AI-tagged shot marks it
+   reviewed.
+------------------------------------------------------------ */
+
+let shotEditState = null; // { shotId, original, loc_x, loc_y }
+
+function openShotEditModal(shotId){
+
+  if(currentRole !== "admin"){ return; }
+
+  const shot = findShotById(shotId);
+
+  if(!shot){
+    showToast("That shot isn't loaded anymore. Refresh and try again.", "error");
+    return;
+  }
+
+  shotEditState = {
+    shotId,
+    original: shot,
+    loc_x: shotMapHasPin(shot) ? Number(shot.loc_x) : null,
+    loc_y: shotMapHasPin(shot) ? Number(shot.loc_y) : null
+  };
+
+  document.getElementById("shotEditOutcome").value = isGoal(shot) ? "goal" : "save";
+  document.getElementById("shotEditPeriod").value = ["1","2","3","OT"].includes(String(shot.period)) ? String(shot.period) : "1";
+  document.getElementById("shotEditStrength").value = shot.strength || "";
+  document.getElementById("shotEditType").value = shot.shot_type || "";
+  document.getElementById("shotEditRelease").value = shot.release_type || "";
+
+  document.querySelectorAll("#shotEditModalOverlay [data-flag]").forEach(box => {
+    box.checked = shotBoolean(shot[box.dataset.flag]);
+  });
+
+  const aiNote = document.getElementById("shotEditAiNote");
+
+  if(shot.ai_tagged){
+    const sure = shot.ai_confidence !== null && shot.ai_confidence !== undefined ? ` (${Math.round(Number(shot.ai_confidence) * 100)}% sure)` : "";
+    aiNote.textContent =
+      (shot.ai_reviewed_at ? "Tagged by AI, reviewed." : `Tagged by AI${sure}. Saving marks it reviewed.`) +
+      (shot.ai_notes ? ` AI note: ${shot.ai_notes}` : "");
+    aiNote.style.display = "";
+  }
+  else{
+    aiNote.style.display = "none";
+  }
+
+  const host = document.getElementById("shotEditMap");
+  host.innerHTML = shotMapSvg("semap", `<g id="semap-pin"></g>`, true);
+
+  const svg = document.getElementById("semap-svg");
+
+  svg.addEventListener("click", e => {
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const local = pt.matrixTransform(svg.getScreenCTM().inverse());
+    const spot = shotMapFromSvgPoint(local.x, local.y);
+    shotEditState.loc_x = spot.x;
+    shotEditState.loc_y = spot.y;
+    renderShotEditPin();
+  });
+
+  renderShotEditPin();
+
+  document.getElementById("shotEditModalOverlay").classList.add("open");
+  document.getElementById("shotEditOutcome").focus();
+
+}
+
+function closeShotEditModal(){
+  document.getElementById("shotEditModalOverlay").classList.remove("open");
+  shotEditState = null;
+}
+
+function clearShotEditPin(){
+  shotEditState.loc_x = null;
+  shotEditState.loc_y = null;
+  renderShotEditPin();
+}
+
+function renderShotEditPin(){
+
+  const pin = document.getElementById("semap-pin");
+  const readout = document.getElementById("shotEditMapReadout");
+  const { loc_x: x, loc_y: y } = shotEditState;
+
+  if(shotMapHasPin({ loc_x: x, loc_y: y })){
+    pin.innerHTML = shotMapPinMarkup(x, y);
+    readout.innerHTML =
+      `<strong>${escapeHtml(classifyShotLocation(x, y))}</strong> · ${shotMapDistanceFt(x, y)} ft from the net · ${shotMapAngleLabel(x, y)} ` +
+      `<button type="button" class="shotmap-clear" onclick="clearShotEditPin()">Clear</button>`;
+  }
+  else{
+    pin.innerHTML = "";
+    readout.textContent = "Tap the rink to set where the shot came from.";
+  }
+
+}
+
+// Adds `delta` shots and `goalDelta` goals to one period row (creating
+// it if needed) and keeps saves = shots - goals.
+async function adjustPeriodTotals(gameId, ownerId, period, delta, goalDelta){
+
+  if(!delta && !goalDelta){ return; }
+
+  const { data: rows, error } =
+    await supabaseClient.from("Period Stats").select("*").eq("game_id", gameId).eq("period", period).limit(1);
+
+  if(error){ throw error; }
+
+  if(rows && rows.length){
+    const sa = Math.max(0, num(rows[0].shots_against) + delta);
+    const ga = Math.max(0, Math.min(sa, num(rows[0].goals_against) + goalDelta));
+    const { error: upErr } =
+      await supabaseClient.from("Period Stats").update({ shots_against: sa, goals_against: ga, saves: sa - ga }).eq("id", rows[0].id);
+    if(upErr){ throw upErr; }
+  }
+  else if(delta > 0){
+    const ga = Math.max(0, goalDelta);
+    const { error: inErr } =
+      await supabaseClient.from("Period Stats").insert({
+        game_id: gameId, user_id: ownerId, period,
+        minutes_played: null, shots_against: delta, saves: delta - ga, goals_against: ga, Notes: null
+      });
+    if(inErr){ throw inErr; }
+  }
+
+}
+
+async function saveShotEdit(){
+
+  if(!shotEditState){ return; }
+
+  const btn = document.getElementById("shotEditSaveBtn");
+  const shot = shotEditState.original;
+  const hasPin = shotMapHasPin({ loc_x: shotEditState.loc_x, loc_y: shotEditState.loc_y });
+
+  const patch = {
+    outcome: document.getElementById("shotEditOutcome").value,
+    period: document.getElementById("shotEditPeriod").value,
+    strength: document.getElementById("shotEditStrength").value || null,
+    shot_type: document.getElementById("shotEditType").value || null,
+    release_type: document.getElementById("shotEditRelease").value || null,
+    loc_x: hasPin ? shotEditState.loc_x : null,
+    loc_y: hasPin ? shotEditState.loc_y : null,
+    location: hasPin ? classifyShotLocation(shotEditState.loc_x, shotEditState.loc_y) : (shot.location || null)
+  };
+
+  document.querySelectorAll("#shotEditModalOverlay [data-flag]").forEach(box => {
+    patch[box.dataset.flag] = box.checked;
+  });
+
+  if(shot.ai_tagged){
+    patch.ai_reviewed_at = new Date().toISOString();
+  }
+
+  btn.disabled = true;
+  btn.textContent = "Saving…";
+
+  try{
+
+    const idCol = shotIdColumn(shot);
+    const idVal = shot.shot_id ?? shot.id;
+
+    let { data, error } =
+      await supabaseClient.from("Shots").update(patch).eq(idCol, idVal).select();
+
+    if(error && isMissingShotAiColumn(error)){
+      delete patch.ai_reviewed_at;
+      ({ data, error } = await supabaseClient.from("Shots").update(patch).eq(idCol, idVal).select());
+    }
+
+    if(error){ throw error; }
+
+    if(!data || !data.length){
+      throw new Error("Nothing was updated -- you may not have permission to edit this shot.");
+    }
+
+    // Keep the game's and periods' totals in step with the shot.
+    const wasGoal = isGoal(shot) ? 1 : 0;
+    const nowGoal = patch.outcome === "goal" ? 1 : 0;
+    const oldPeriod = String(shot.period || "");
+    const newPeriod = patch.period;
+
+    if(wasGoal !== nowGoal){
+
+      const { data: game, error: gErr } =
+        await supabaseClient.from("Games").select("*").eq("id", shot.game_id).single();
+
+      if(gErr){ throw gErr; }
+
+      const sa = num(game.shots_against);
+      const ga = Math.max(0, Math.min(sa, num(game.goals_against) + (nowGoal - wasGoal)));
+
+      const { error: upErr } =
+        await supabaseClient.from("Games").update({
+          goals_against: ga,
+          saves: sa - ga,
+          shutout: sa > 0 && ga === 0
+        }).eq("id", shot.game_id);
+
+      if(upErr){ throw upErr; }
+
+    }
+
+    if(oldPeriod !== newPeriod){
+      if(oldPeriod){ await adjustPeriodTotals(shot.game_id, shot.user_id, oldPeriod, -1, -wasGoal); }
+      await adjustPeriodTotals(shot.game_id, shot.user_id, newPeriod, 1, nowGoal);
+    }
+    else if(wasGoal !== nowGoal){
+      await adjustPeriodTotals(shot.game_id, shot.user_id, newPeriod, 0, nowGoal - wasGoal);
+    }
+
+    Object.assign(shot, data[0]);
+
+    closeShotEditModal();
+    renderShotLogTable();
+    showToast("Shot updated.", "success");
+
+    // Refresh every chart and total in the background.
+    loadDashboard().catch(err => console.error(err));
+
+  }
+  catch(error){
+
+    console.error(error);
+    showToast(`Could not save this shot: ${error.message || error}`, "error");
+
+  }
+  finally{
+
+    btn.disabled = false;
+    btn.textContent = "Save shot";
+
+  }
 
 }
 
@@ -9355,7 +7179,7 @@ async function attachClipToShot(shotId, file){
   try{
 
     const storagePath =
-      await uploadFileToR2(file, () => {});
+      await uploadFileToR2(file, () => {}, shot.user_id);
 
     const { data: insertedVideo, error: videoError } =
       await supabaseClient
@@ -10948,13 +8772,13 @@ function renderReboundControl(){
             ],
 
             backgroundColor:[
-              "rgba(105,221,160,.62)",
-              "rgba(255,133,133,.62)"
+              "rgba(23,112,79,.78)",
+              "rgba(180,35,24,.72)"
             ],
 
             borderColor:[
-              "#69dda0",
-              "#ff8585"
+              "#17704F",
+              "#B42318"
             ],
 
             borderWidth:0
@@ -11009,10 +8833,10 @@ function renderReboundControl(){
                 ),
 
               backgroundColor:
-                "rgba(105,221,160,.62)",
+                "rgba(23,112,79,.78)",
 
               borderColor:
-                "#69dda0",
+                "#17704F",
 
               borderWidth:0
 
@@ -11029,10 +8853,10 @@ function renderReboundControl(){
                 ),
 
               backgroundColor:
-                "rgba(255,133,133,.62)",
+                "rgba(180,35,24,.72)",
 
               borderColor:
-                "#ff8585",
+                "#B42318",
 
               borderWidth:0
 
@@ -11570,9 +9394,9 @@ function renderRecentFormChart(sorted, recentGames, priorGames){
 
       const id = String(g.id ?? g.game_id);
 
-      if(recentIds.has(id)){ return "#69dda0"; }
-      if(priorIds.has(id)){ return "#5a7a6d"; }
-      return "rgba(168,190,180,.35)";
+      if(recentIds.has(id)){ return "#17704F"; }
+      if(priorIds.has(id)){ return "#8A938B"; }
+      return "rgba(18,20,18,.18)";
 
     });
 
@@ -11968,13 +9792,13 @@ function renderIncremental(){
         gameAdvanced.actualSV - gameAdvanced.expectedSV;
 
       svAboveExpectedValues.push(delta);
-      svAboveExpectedColors.push(delta >= 0 ? "rgba(105,221,160,.55)" : "rgba(255,133,133,.55)");
+      svAboveExpectedColors.push(delta >= 0 ? "rgba(23,112,79,.7)" : "rgba(180,35,24,.66)");
 
     }
     else{
 
       svAboveExpectedValues.push(null);
-      svAboveExpectedColors.push("rgba(168,190,180,.25)");
+      svAboveExpectedColors.push("rgba(18,20,18,.14)");
 
     }
 
@@ -12043,11 +9867,11 @@ function renderIncremental(){
               type:"line",
               label:`Trend (${ROLL_WINDOW}-game rolling avg)`,
               data:rollingAvgValues,
-              borderColor:"#edf7f1",
+              borderColor:"#121412",
               borderWidth:2.5,
               tension:.3,
               pointRadius:3,
-              pointBackgroundColor:"#edf7f1",
+              pointBackgroundColor:"#121412",
               pointHoverRadius:5,
               spanGaps:true,
               order:1
@@ -12056,7 +9880,7 @@ function renderIncremental(){
               type:"line",
               label:"Zero",
               data:labels.map(() => 0),
-              borderColor:"rgba(168,190,180,.4)",
+              borderColor:"rgba(18,20,18,.35)",
               borderWidth:1,
               borderDash:[4,4],
               pointRadius:0,
@@ -12460,9 +10284,9 @@ function renderPuckPlaying(){
 
     tr.innerHTML = `
 
-      <td>${gameDate(game) || "—"}</td>
+      <td>${escapeHtml(gameDate(game) || "—")}</td>
 
-      <td>${gameOpponent(game)}</td>
+      <td>${escapeHtml(gameOpponent(game))}</td>
 
       <td>${data.rimsFaced}</td>
 
@@ -12626,7 +10450,7 @@ function showAuthScreen(){
   const fab = document.getElementById("feedback-fab");
   if(fab){ fab.style.display = "none"; }
 
-  showAuthView("signin");
+  showAuthView(consumeStartSignupParam() ? "signup" : "signin");
 
 }
 
@@ -13097,10 +10921,10 @@ async function loadXGVersionHistory(){
         return `
           <div class="note-item">
             <div class="note-date">
-              <strong>${v.version}</strong> · ${date}
+              <strong>${escapeHtml(v.version)}</strong> · ${escapeHtml(date)}
             </div>
-            <div class="note-text">${v.summary}</div>
-            ${v.notes ? `<div class="metric-context" style="margin-top:8px">${v.notes}</div>` : ""}
+            <div class="note-text">${escapeHtml(v.summary)}</div>
+            ${v.notes ? `<div class="metric-context" style="margin-top:8px">${escapeHtml(v.notes)}</div>` : ""}
           </div>
         `;
 
@@ -13251,7 +11075,7 @@ async function loadCoachExtras(){
     errorBox.innerHTML += `
       <div class="error-box">
         <strong>Couldn't load your goalies.</strong>
-        <br>${err.message}
+        <br>${escapeHtml(err.message)}
       </div>
     `;
 
@@ -13354,7 +11178,7 @@ function renderCoachHome(){
 
       const lastGameLabel =
         summary.lastGame
-          ? `vs ${summary.lastGame.opponent || "opponent"} (${summary.lastGame.date || ""})`
+          ? `vs ${escapeHtml(summary.lastGame.opponent || "opponent")} (${escapeHtml(summary.lastGame.date || "")})`
           : "No games yet";
 
       return `
@@ -13362,8 +11186,8 @@ function renderCoachHome(){
 
           <div class="goalie-card-top">
             <div>
-              <div class="goalie-name">${profile.full_name || "Unnamed Goalie"}</div>
-              <div class="goalie-meta">${profile.team || "No team set"} · ${profile.season || CURRENT_SEASON}</div>
+              <div class="goalie-name">${escapeHtml(profile.full_name || "Unnamed Goalie")}</div>
+              <div class="goalie-meta">${escapeHtml(profile.team || "No team set")} · ${escapeHtml(profile.season || CURRENT_SEASON)}</div>
             </div>
             ${trendBadge(summary.trend)}
           </div>
@@ -13533,9 +11357,9 @@ function renderGoalieProfile(goalieId){
 
         return `
           <tr>
-            <td>${g.date || ""}</td>
-            <td>${g.opponent || ""}</td>
-            <td><span class="result-pill ${resultPillClass(g.result)}">${g.result || "-"}</span></td>
+            <td>${escapeHtml(g.date || "")}</td>
+            <td>${escapeHtml(g.opponent || "")}</td>
+            <td><span class="result-pill ${resultPillClass(g.result)}">${escapeHtml(g.result || "-")}</span></td>
             <td>${num(g.shots_against)}</td>
             <td>${num(g.saves)}</td>
             <td>${sv !== null ? sv.toFixed(1) + "%" : "—"}</td>
@@ -13644,7 +11468,7 @@ function renderCoachNotesGoaliePicker(){
 
     pickerCard.innerHTML = `
       <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:8px;">Goalie</label>
-      <select id="coachNotesGoalieSelect" onchange="selectCoachNotesGoalie(this.value)" style="width:100%;max-width:320px;background:#0c261c;border:1px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
+      <select id="coachNotesGoalieSelect" onchange="selectCoachNotesGoalie(this.value)" style="width:100%;max-width:320px;background:var(--field);border:1.5px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
     `;
 
   }
@@ -13653,7 +11477,7 @@ function renderCoachNotesGoaliePicker(){
 
   freshSelect.innerHTML =
     coachGoalieProfiles
-      .map(p => `<option value="${p.id}">${p.full_name || p.id}</option>`)
+      .map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.full_name || p.id)}</option>`)
       .join("");
 
   if(!coachPrimaryGoalieId || !coachGoalieProfiles.some(p => p.id === coachPrimaryGoalieId)){
@@ -13849,7 +11673,7 @@ async function loadAdminExtras(){
     errorBox.innerHTML += `
       <div class="error-box">
         <strong>Couldn't load platform data.</strong>
-        <br>${err.message}
+        <br>${escapeHtml(err.message)}
       </div>
     `;
 
@@ -14266,7 +12090,7 @@ async function loadPaywallPlans(){
   `).join("");
 
   box.insertAdjacentHTML("beforeend",
-    `<div class="small-note plan-terms">Prices in CAD. One-time payment, no subscription. Games never expire. <a href="/refund.html" target="_blank" rel="noopener">Refund Policy</a></div>`);
+    `<div class="small-note plan-terms">Prices in CAD. One-time payment, no subscription. Games never expire. <a href="refund.html" target="_blank" rel="noopener">Refund Policy</a></div>`);
 
   // With paid plans on screen, requesting an invite becomes the secondary path.
   requestBtn.className = "btn-secondary";
@@ -15387,43 +13211,6 @@ async function sendRecapEmail(isTest){
 }
 
 
-function openAdminGoalieGamesModal(goalieId){
-
-  const goalie =
-    adminProfiles.find(p => p.id === goalieId);
-
-  document.getElementById("adminGoalieGamesTitle").textContent =
-    goalie ? `${goalie.full_name || "Goalie"}'s Games` : "Games";
-
-  const goalieGames =
-    sortGamesByDate(allGames.filter(gm => gm.user_id === goalieId)).reverse();
-
-  const tbody =
-    document.getElementById("adminGoalieGamesBody");
-
-  tbody.innerHTML =
-    goalieGames.length
-      ? goalieGames.map(g => `
-          <tr>
-            <td>${gameDate(g)}</td>
-            <td>${gameOpponent(g)}</td>
-            <td>${g.season || "—"}</td>
-            <td style="white-space:nowrap">
-              <button type="button" class="watch-btn" onclick="openShotLogModal(${g.id})">Shots</button>
-              <button type="button" class="watch-btn" onclick="openRecapEmailModal(${g.id})">Email recap</button>
-            </td>
-          </tr>
-        `).join("")
-      : `<tr><td colspan="4"><div class="empty-state">No games logged for this goalie yet.</div></td></tr>`;
-
-  document.getElementById("adminGoalieGamesModalOverlay").classList.add("open");
-
-}
-
-
-function closeAdminGoalieGamesModal(){
-  document.getElementById("adminGoalieGamesModalOverlay").classList.remove("open");
-}
 
 
 
@@ -15484,7 +13271,7 @@ async function saveAdminProfile(button){
   const statusEl = document.getElementById("adminProfileStatus");
   const fail = (msg) => {
     statusEl.textContent = msg;
-    statusEl.style.color = "#ff6b6b";
+    statusEl.style.color = "#B42318";
   };
 
   const name = document.getElementById("adminProfileName").value.trim();
@@ -15597,12 +13384,12 @@ function renderAdminAssignments(){
 
   coachSelect.innerHTML =
     coaches.length
-      ? coaches.map(c => `<option value="${c.id}">${c.full_name || c.id}</option>`).join("")
+      ? coaches.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.full_name || c.id)}</option>`).join("")
       : `<option value="">No coaches yet</option>`;
 
   goalieSelect.innerHTML =
     goalies.length
-      ? goalies.map(g => `<option value="${g.id}">${g.full_name || g.id}</option>`).join("")
+      ? goalies.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.full_name || g.id)}</option>`).join("")
       : `<option value="">No goalies yet</option>`;
 
   const tbody = document.getElementById("adminAssignmentsBody");
@@ -15629,8 +13416,8 @@ function renderAdminAssignments(){
 
       return `
         <tr>
-          <td>${coach ? coach.full_name : a.coach_id}</td>
-          <td>${goalie ? goalie.full_name : a.goalie_id}</td>
+          <td>${escapeHtml(coach ? coach.full_name : a.coach_id)}</td>
+          <td>${escapeHtml(goalie ? goalie.full_name : a.goalie_id)}</td>
           <td>${statusPill}</td>
           <td>
             <button class="btn-secondary" onclick="toggleAssignment(${a.id}, ${!a.active}, this)">
@@ -16728,7 +14515,7 @@ async function loadDashboard(){
 
         <br><br>
 
-        ${error.message}
+        ${escapeHtml(error.message)}
 
       </div>
 
@@ -17316,7 +15103,6 @@ function renderGameOverviewHero(game, m){
 
   hero.innerHTML = `
     <div class="go-hero-block">
-      <div class="go-eyebrow">Game Result</div>
       ${scoreBlock}
       <div class="go-meta">
         ${res ? `<span class="result-pill ${goResultClass(game)}">${escapeHtml(res)}</span>` : ""}
@@ -17326,7 +15112,6 @@ function renderGameOverviewHero(game, m){
       </div>
     </div>
     <div class="go-hero-block">
-      <div class="go-eyebrow">Goaltending</div>
       <div class="go-goaltending">
         <div>
           <div class="go-big">${m.saves}<span style="color:var(--muted);font-weight:700"> / ${m.shotsAgainst}</span></div>
@@ -17348,6 +15133,7 @@ function renderGameOverviewHero(game, m){
       <div class="go-actions">
         <button type="button" class="btn-secondary" onclick="generateGameReportPDF(${Number(game.id)}, this)">Download PDF Report</button>
         <button type="button" class="btn-secondary" onclick="openShotLogModal(${Number(game.id)})">Shot Log</button>
+        ${currentRole === "admin" ? `<button type="button" class="btn-secondary" onclick="openRecapEmailModal(${Number(game.id)})">Email recap</button>` : ""}
         ${currentRole === "admin" ? `
           <button type="button" class="btn-secondary" onclick="openGameDetailsModal(${Number(game.id)})">Edit details</button>
         ` : ""}
@@ -17692,8 +15478,8 @@ function renderGameTrendCharts(windowGames, windowMetrics, selectedGame){
           {
             label:"SV%",
             data:windowMetrics.map(m => m.svPct === null ? null : Number(m.svPct.toFixed(1))),
-            borderColor:"#69dda0",
-            backgroundColor:"#69dda0",
+            borderColor:"#17704F",
+            backgroundColor:"#17704F",
             pointRadius,
             pointHoverRadius:7,
             tension:.15,
@@ -17702,8 +15488,8 @@ function renderGameTrendCharts(windowGames, windowMetrics, selectedGame){
           {
             label:"Expected SV%",
             data:windowMetrics.map(m => m.expectedSV === null ? null : Number(m.expectedSV.toFixed(1))),
-            borderColor:"#88a599",
-            backgroundColor:"#88a599",
+            borderColor:"#8A938B",
+            backgroundColor:"#8A938B",
             borderDash:[5,4],
             pointRadius:2,
             tension:.25,
@@ -17739,7 +15525,7 @@ function renderGameTrendCharts(windowGames, windowMetrics, selectedGame){
           data:vals,
           backgroundColor:vals.map((v,i) =>
             v === null ? "transparent"
-            : (v >= 0 ? "rgba(105,221,160," : "rgba(255,133,133,") + (i === selIndex ? ".95)" : ".45)")
+            : (v >= 0 ? "rgba(23,112,79," : "rgba(180,35,24,") + (i === selIndex ? ".95)" : ".45)")
           ),
           borderRadius:4,
           maxBarThickness:34
@@ -17940,7 +15726,6 @@ function applyActiveGoalieFilter(){
 
   renderPuckPlaying();
 
-  renderMyGamesList();
 
   renderGoalieSwitcher();
 
@@ -18413,53 +16198,6 @@ const PRESERVED_SHOT_FIELDS = [
 ];
 
 
-function renderMyGamesList(){
-
-  const container =
-    document.getElementById("my-games-list");
-
-  if(!container){
-    return;
-  }
-
-  const sorted =
-    [...games].sort((a, b) => {
-      const da = String(a.date || "");
-      const db = String(b.date || "");
-      return db.localeCompare(da);
-    });
-
-  if(sorted.length === 0){
-    container.innerHTML = `<div class="card empty">No games yet. Add one below.</div>`;
-    return;
-  }
-
-  container.innerHTML = sorted.map(game => {
-
-    const dateLabel = game.date || "No date";
-    const oppLabel = game.opponent || "Unknown opponent";
-    const resultLabel = game.result || "";
-    const scoreLabel =
-      (game.team_goals ?? "?") + " - " + (game["opponent goals"] ?? "?");
-
-    return `
-      <div class="card mygame-item">
-        <div class="mygame-item-info">
-          <span class="mygame-title">${dateLabel} vs ${oppLabel}</span>
-          <span class="mygame-sub">${resultLabel} &middot; ${scoreLabel} &middot; ${game.shots_against ?? "?"} SA, ${game.saves ?? "?"} SV</span>
-        </div>
-        <div class="mygame-item-actions">
-          <button type="button" class="btn-secondary" onclick="generateGameReportPDF(${game.id}, this)">Report</button>
-          <button type="button" class="btn-secondary" onclick="editGame(${game.id})">Edit</button>
-          <button type="button" class="btn-danger" onclick="deleteGame(${game.id})">Delete</button>
-        </div>
-      </div>
-    `;
-
-  }).join("");
-
-}
-
 
 function editGame(gameId){
 
@@ -18855,7 +16593,7 @@ function shotMapBaseMarkup(prefix){
     "M -42.5 -1 L 42.5 -1 L 42.5 47 A 28 28 0 0 1 14.5 75 " +
     "L -14.5 75 A 28 28 0 0 1 -42.5 47 Z";
 
-  const red = "#d9534f";
+  const red = "#C8102E";
 
   const circles =
     [-1, 1].map(side => {
@@ -18883,7 +16621,7 @@ function shotMapBaseMarkup(prefix){
       ? ` transform="rotate(${opts.rotate} ${x} ${sy(y)})"`
       : "";
 
-    return `<text x="${x}" y="${sy(y)}" font-size="${size}" text-anchor="middle" dominant-baseline="middle"${rot} font-family="Inter,Arial,sans-serif" font-weight="600" letter-spacing=".2" fill="rgba(237,247,241,.38)" style="pointer-events:none;user-select:none">${text}</text>`;
+    return `<text x="${x}" y="${sy(y)}" font-size="${size}" text-anchor="middle" dominant-baseline="middle"${rot} font-family="Archivo,Arial,sans-serif" font-weight="700" letter-spacing=".2" fill="rgba(18,20,18,.34)" style="pointer-events:none;user-select:none">${text}</text>`;
 
   };
 
@@ -18911,14 +16649,14 @@ function shotMapBaseMarkup(prefix){
       <clipPath id="${prefix}-clip"><path d="${outline}"/></clipPath>
     </defs>
 
-    <path d="${outline}" fill="#0f2a21" stroke="#88a599" stroke-width="0.8"/>
+    <path d="${outline}" fill="#FCFDFC" stroke="#121412" stroke-width="0.8"/>
 
     <g clip-path="url(#${prefix}-clip)">
-      <rect x="-42.5" y="-0.5" width="85" height="1" fill="#3b7bd9"/>
+      <rect x="-42.5" y="-0.5" width="85" height="1" fill="#1F5FBF"/>
       <line x1="-42.5" y1="${sy(0)}" x2="42.5" y2="${sy(0)}" stroke="${red}" stroke-width="0.5"/>
       ${circles}
-      <path d="M -6 ${sy(0)} A 6 6 0 0 1 6 ${sy(0)} Z" fill="rgba(80,150,235,.28)" stroke="${red}" stroke-width="0.4"/>
-      <rect x="-3" y="${sy(0)}" width="6" height="3.3" fill="rgba(255,255,255,.10)" stroke="${red}" stroke-width="0.4"/>
+      <path d="M -6 ${sy(0)} A 6 6 0 0 1 6 ${sy(0)} Z" fill="rgba(70,140,220,.32)" stroke="${red}" stroke-width="0.4"/>
+      <rect x="-3" y="${sy(0)}" width="6" height="3.3" fill="rgba(18,20,18,.05)" stroke="${red}" stroke-width="0.4"/>
     </g>
 
     ${labels}
@@ -18947,8 +16685,9 @@ function shotMapDotMarkup(shot, index){
   const y = shotMapSvgY(Number(shot.loc_y));
 
   return goal
-    ? `<circle data-i="${index}" cx="${x}" cy="${y}" r="1.9" fill="#ff6b6b" stroke="#fff" stroke-width="0.35"/>`
-    : `<circle data-i="${index}" cx="${x}" cy="${y}" r="1.3" fill="rgba(105,221,160,.82)" stroke="rgba(6,23,16,.7)" stroke-width="0.25"/>`;
+    // A goal also gets a broken-stitch ring: results never rely on colour alone.
+    ? `<circle data-i="${index}" cx="${x}" cy="${y}" r="2.3" fill="#FFFFFF" stroke="#121412" stroke-width="0.7" stroke-dasharray="1.2 .7"/><circle cx="${x}" cy="${y}" r=".75" fill="#121412"/>`
+    : `<circle data-i="${index}" cx="${x}" cy="${y}" r="1.3" fill="rgba(23,112,79,.85)" stroke="#FFFFFF" stroke-width="0.3"/>`;
 
 }
 
@@ -18975,8 +16714,8 @@ function shotMapPinMarkup(x, y){
   const sy = shotMapSvgY(y);
 
   return `
-    <circle cx="${x}" cy="${sy}" r="2.8" fill="none" stroke="#ffd84d" stroke-width="0.5"/>
-    <circle cx="${x}" cy="${sy}" r="1.1" fill="#ffd84d" stroke="#061710" stroke-width="0.25"/>
+    <circle cx="${x}" cy="${sy}" r="2.8" fill="none" stroke="#121412" stroke-width="0.5" stroke-dasharray="1 .6"/>
+    <circle cx="${x}" cy="${sy}" r="1.1" fill="#E8B923" stroke="#121412" stroke-width="0.3"/>
   `;
 
 }
@@ -19057,7 +16796,7 @@ function renderLiveTagMapReadout(){
   if(shotMapHasPin({ loc_x: liveTagState.loc_x, loc_y: liveTagState.loc_y })){
 
     el.innerHTML =
-      `<strong>${liveTagState.location}</strong> · ` +
+      `<strong>${escapeHtml(liveTagState.location)}</strong> · ` +
       `${shotMapDistanceFt(liveTagState.loc_x, liveTagState.loc_y)} ft from the net · ` +
       `${shotMapAngleLabel(liveTagState.loc_x, liveTagState.loc_y)} ` +
       `<button type="button" class="shotmap-clear" onclick="clearLiveTagPin()">Clear</button>`;
@@ -19731,12 +17470,17 @@ function setupAdminLiveTagGoalieSelect(){
 
   field.style.display = "";
 
+  // AI clip tagging spends API budget, so it's admin-only (the
+  // endpoint enforces this too).
+  document.getElementById("lt-ai-heading").style.display = "";
+  document.getElementById("lt-ai-card").style.display = "";
+
   const goalies =
     adminProfiles.filter(p => p.role === "goalie");
 
   select.innerHTML =
     goalies.length
-      ? goalies.map(g => `<option value="${g.id}">${g.full_name || g.id}</option>`).join("")
+      ? goalies.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.full_name || g.id)}</option>`).join("")
       : `<option value="">No goalie accounts exist yet</option>`;
 
   renderLiveTagContinueOptions();
@@ -19889,11 +17633,16 @@ function renderLiveTagUI(){
         shot.deflection ? "Deflection" : null
       ].filter(Boolean).join(", ");
 
+      const aiBadge = shot.ai
+        ? `<span class="ai-badge" title="${escapeHtml(shot.ai.notes || "Tagged by AI")}">AI ${Math.round((shot.ai.confidence || 0) * 100)}%</span>`
+        : "";
+
       return `
         <div class="shotlog-row">
           <div class="shotlog-desc">
-            <strong>P${shot.period} — ${shot.outcome === "goal" ? "Goal" : "Save"}</strong>
-            ${bits ? " — " + bits : ""}
+            <strong>P${escapeHtml(shot.period)} — ${shot.outcome === "goal" ? "Goal" : "Save"}</strong>
+            ${bits ? " — " + escapeHtml(bits) : ""}
+            ${aiBadge}
           </div>
           <button type="button" class="repeater-remove" onclick="removeLiveTagShot(${index})">Remove</button>
         </div>
@@ -19987,15 +17736,6 @@ function showLiveTagError(message){
 
 }
 
-
-function showLiveTagMessage(message){
-
-  const msg = document.getElementById("livetag-message");
-
-  msg.textContent = message;
-  msg.classList.add("visible");
-
-}
 
 
 
@@ -20170,15 +17910,9 @@ async function appendLiveTagToGame(gameIdRaw, periodMinutes){
   }
 
   if(newShots.length > 0){
-    const { error } = await supabaseClient.from("Shots").insert(newShots.map(shot => ({
-      game_id: gameId, user_id: userId, period: shot.period, distance: null,
-      strength: shot.strength || null,
-      location: shot.location, loc_x: shot.loc_x ?? null, loc_y: shot.loc_y ?? null,
-      shot_type: shot.shot_type, release_type: shot.release_type || null,
-      outcome: shot.outcome, rush: shot.rush, rebound: shot.rebound, screened: shot.screened,
-      breakaway: shot.breakaway, cross_ice: shot.cross_ice, deflection: shot.deflection
-    })));
-    if(error){ throw error; }
+    const insertedShots =
+      await insertLiveTagShots(newShots.map(shot => liveTagShotPayload(shot, gameId, userId)));
+    await attachLiveTagClips(newShots, insertedShots, userId, gameId);
   }
 
   async function addTally(table, tally){
@@ -20363,33 +18097,12 @@ async function finishLiveTagGame(){
 
     if(liveTagState.shots.length > 0){
 
-      const shotPayloads =
-        liveTagState.shots.map(shot => ({
-          game_id: gameId,
-          user_id: userId,
-          period: shot.period,
-          distance: null,
-          strength: shot.strength || null,
-          location: shot.location,
-          loc_x: shot.loc_x ?? null,
-          loc_y: shot.loc_y ?? null,
-          shot_type: shot.shot_type,
-          release_type: shot.release_type || null,
-          outcome: shot.outcome,
-          rush: shot.rush,
-          rebound: shot.rebound,
-          screened: shot.screened,
-          breakaway: shot.breakaway,
-          cross_ice: shot.cross_ice,
-          deflection: shot.deflection
-        }));
+      const taggedShots = liveTagState.shots.slice();
 
-      const { error: shotError } =
-        await supabaseClient.from("Shots").insert(shotPayloads);
+      const insertedShots =
+        await insertLiveTagShots(taggedShots.map(shot => liveTagShotPayload(shot, gameId, userId)));
 
-      if(shotError){
-        throw shotError;
-      }
+      await attachLiveTagClips(taggedShots, insertedShots, userId, gameId);
 
     }
 
@@ -20463,6 +18176,500 @@ async function finishLiveTagGame(){
 
     finishBtn.disabled = false;
 
+  }
+
+}
+
+
+/* ---------- Saving Live Tag shots ---------- */
+
+// One shot from the Live Tag list -> one Shots row. AI-tagged shots also
+// carry ai_* fields so they can be told apart and reviewed later.
+function liveTagShotPayload(shot, gameId, userId){
+
+  const row = {
+    game_id: gameId,
+    user_id: userId,
+    period: shot.period,
+    distance: null,
+    strength: shot.strength || null,
+    location: shot.location,
+    loc_x: shot.loc_x ?? null,
+    loc_y: shot.loc_y ?? null,
+    shot_type: shot.shot_type,
+    release_type: shot.release_type || null,
+    outcome: shot.outcome,
+    rush: shot.rush,
+    rebound: shot.rebound,
+    screened: shot.screened,
+    breakaway: shot.breakaway,
+    cross_ice: shot.cross_ice,
+    deflection: shot.deflection
+  };
+
+  if(shot.ai){
+    row.ai_tagged = true;
+    row.ai_confidence = shot.ai.confidence ?? null;
+    row.ai_model = shot.ai.model || null;
+    row.ai_notes = shot.ai.notes || null;
+  }
+
+  return row;
+
+}
+
+const SHOT_AI_COLUMNS = ["ai_tagged", "ai_confidence", "ai_model", "ai_notes", "ai_reviewed_at"];
+
+function isMissingShotAiColumn(error){
+  return !!error && (error.code === "PGRST204" || /\bai_(tagged|confidence|model|notes|reviewed_at)\b/.test(error.message || ""));
+}
+
+// Returns the inserted rows (in the same order) so clips can be attached
+// to them. The ai_* columns come from supabase/migrations; until that has
+// been run, the shots still save, just without their AI markers.
+async function insertLiveTagShots(payloads){
+
+  let { data, error } =
+    await supabaseClient.from("Shots").insert(payloads).select();
+
+  if(error && isMissingShotAiColumn(error) && payloads.some(p => "ai_tagged" in p)){
+
+    console.warn("Shots has no ai_* columns yet; run supabase/migrations/20261006_ai_clip_tagging.sql. Saving without AI markers.");
+
+    const stripped = payloads.map(p => {
+      const copy = { ...p };
+      SHOT_AI_COLUMNS.forEach(k => delete copy[k]);
+      return copy;
+    });
+
+    ({ data, error } = await supabaseClient.from("Shots").insert(stripped).select());
+
+  }
+
+  if(error){ throw error; }
+
+  return data || [];
+
+}
+
+// After the shots exist, upload each AI-tagged shot's own clip and link
+// it, exactly like "+ Attach Clip" in the Shot Log. A clip that fails
+// never undoes the saved game; it can be attached by hand afterwards.
+async function attachLiveTagClips(shots, insertedRows, ownerId, gameId){
+
+  const jobs =
+    shots
+      .map((shot, i) => ({ file: shot._clipFile, row: insertedRows[i] }))
+      // A shot restored from a draft has lost its File (drafts are JSON).
+      .filter(job => job.file instanceof File && job.row);
+
+  if(!jobs.length){ return; }
+
+  let attached = 0;
+  let failed = 0;
+
+  for(const job of jobs){
+
+    setAiTagStatus(`Attaching clips… ${attached + failed + 1} of ${jobs.length}`);
+
+    try{
+
+      const storagePath = await uploadFileToR2(job.file, () => {}, ownerId);
+
+      const { data: video, error: videoError } =
+        await supabaseClient
+          .from("game_videos")
+          .insert({ user_id: ownerId, game_id: gameId, storage_path: storagePath, status: "clip" })
+          .select()
+          .single();
+
+      if(videoError){ throw videoError; }
+
+      const { error: shotError } =
+        await supabaseClient
+          .from("Shots")
+          .update({ game_video_id: video.id, clip_start_seconds: 0, clip_end_seconds: null })
+          .eq(shotIdColumn(job.row), job.row.shot_id ?? job.row.id);
+
+      if(shotError){ throw shotError; }
+
+      attached++;
+
+    }
+    catch(error){
+
+      console.error("Clip attach failed:", error);
+      failed++;
+
+    }
+
+  }
+
+  setAiTagStatus(failed ? `${attached} clips attached, ${failed} failed.` : `${attached} clips attached.`);
+
+  if(failed){
+    showToast(`${failed} clip${failed === 1 ? "" : "s"} couldn't be attached. Attach ${failed === 1 ? "it" : "them"} from the game's Shot Log.`, "error");
+  }
+
+}
+
+
+/* ---------- Live Tag: AI auto-tag from clips ----------
+   The admin picks pre-trimmed clips, one per shot. For each clip the
+   browser pulls a few still frames (the video itself never leaves
+   this page here), /api/video/analyze-clip reads them with Claude, and
+   the result joins the Live Tag shot list marked AI. When the batch is
+   done the game saves through the normal Finish path, so totals,
+   period rows and rebound tallies are computed exactly as for hand
+   tagging. Every field stays editable afterwards from the Shot Log. */
+
+const AI_TAG_FRAME_COUNT = 8;
+const AI_TAG_FRAME_WIDTH = 640;
+const AI_TAG_CONCURRENCY = 3;
+
+let aiTagItems = [];   // { file, state, shot, message }
+let aiTagRunning = false;
+
+function setAiTagStatus(text){
+  const el = document.getElementById("lt-ai-status");
+  if(el){ el.textContent = text || ""; }
+}
+
+function onAiTagFilesPicked(input){
+
+  if(aiTagRunning){ return; }
+
+  const files =
+    Array.from(input.files || [])
+      .filter(f => f.type.startsWith("video/") || /\.(mp4|mov|m4v|webm|mkv)$/i.test(f.name))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
+  aiTagItems = files.map(file => ({ file, state: "queued", shot: null, message: "" }));
+  renderAiTagList();
+  setAiTagStatus(files.length ? `${files.length} clip${files.length === 1 ? "" : "s"} ready, in file-name order.` : "");
+
+}
+
+function clearAiTagRun(){
+
+  if(aiTagRunning){ return; }
+
+  aiTagItems = [];
+  document.getElementById("lt-ai-files").value = "";
+  renderAiTagList();
+  setAiTagStatus("");
+
+}
+
+const AI_TAG_STATE_LABEL = {
+  queued: "Waiting",
+  reading: "Reading frames",
+  asking: "Tagging",
+  tagged: "Tagged",
+  noshot: "No shot found",
+  failed: "Failed"
+};
+
+function renderAiTagList(){
+
+  const list = document.getElementById("lt-ai-list");
+  const startBtn = document.getElementById("lt-ai-start");
+  const clearBtn = document.getElementById("lt-ai-clear");
+
+  list.innerHTML = aiTagItems.map(item => {
+
+    const detail =
+      item.state === "tagged" && item.shot
+        ? `${item.shot.outcome === "goal" ? "Goal" : "Save"}${item.shot.location ? " · " + item.shot.location : ""} · ${Math.round((item.shot.ai.confidence || 0) * 100)}% sure`
+        : item.message;
+
+    return `
+      <li class="ai-tag-item is-${item.state}">
+        <span class="ai-tag-name">${escapeHtml(item.file.name)}</span>
+        <span class="ai-tag-state">${AI_TAG_STATE_LABEL[item.state]}</span>
+        ${detail ? `<span class="ai-tag-detail">${escapeHtml(detail)}</span>` : ""}
+      </li>
+    `;
+
+  }).join("");
+
+  startBtn.disabled = aiTagRunning || !aiTagItems.some(i => i.state === "queued" || i.state === "failed");
+  clearBtn.disabled = aiTagRunning || !aiTagItems.length;
+  startBtn.textContent = aiTagItems.some(i => i.state === "failed") && !aiTagItems.some(i => i.state === "queued") ? "Retry failed" : "Tag clips";
+
+}
+
+function seekVideo(video, time){
+
+  return new Promise((resolve, reject) => {
+
+    const timer = setTimeout(() => { cleanup(); reject(new Error("The clip stopped responding while reading frames.")); }, 10000);
+
+    function cleanup(){
+      clearTimeout(timer);
+      video.removeEventListener("seeked", onSeeked);
+    }
+
+    function onSeeked(){ cleanup(); resolve(); }
+
+    video.addEventListener("seeked", onSeeked);
+    video.currentTime = time;
+
+  });
+
+}
+
+// Evenly spaced stills across the clip, scaled to AI_TAG_FRAME_WIDTH,
+// as base64 JPEG. Small enough that 8 frames stay well under the
+// request size limit.
+function extractClipFrames(file){
+
+  return new Promise((resolve, reject) => {
+
+    const url = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    let settled = false;
+
+    const timer = setTimeout(() => fail("This clip took too long to open."), 30000);
+
+    function cleanup(){
+      clearTimeout(timer);
+      video.removeAttribute("src");
+      video.load();
+      URL.revokeObjectURL(url);
+    }
+
+    function fail(message){
+      if(settled){ return; }
+      settled = true;
+      cleanup();
+      reject(new Error(message));
+    }
+
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "auto";
+
+    video.onerror = () => fail("This browser can't read that video file.");
+
+    video.onloadeddata = async () => {
+
+      try{
+
+        const duration = video.duration;
+
+        if(!Number.isFinite(duration) || duration <= 0){
+          fail("Couldn't read how long this clip is.");
+          return;
+        }
+
+        const width = video.videoWidth || AI_TAG_FRAME_WIDTH;
+        const height = video.videoHeight || Math.round(AI_TAG_FRAME_WIDTH * 9 / 16);
+        const scale = Math.min(1, AI_TAG_FRAME_WIDTH / width);
+
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(width * scale);
+        canvas.height = Math.round(height * scale);
+
+        const ctx = canvas.getContext("2d");
+        const frames = [];
+
+        for(let i = 0; i < AI_TAG_FRAME_COUNT; i++){
+
+          const time = duration * (0.03 + 0.94 * (i / (AI_TAG_FRAME_COUNT - 1)));
+
+          await seekVideo(video, Math.min(time, Math.max(0, duration - 0.05)));
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+          frames.push({
+            t: Math.round(time * 100) / 100,
+            data: canvas.toDataURL("image/jpeg", 0.72).split(",")[1]
+          });
+
+        }
+
+        settled = true;
+        cleanup();
+        resolve(frames);
+
+      }
+      catch(error){
+        fail(error.message || "Couldn't read frames from this clip.");
+      }
+
+    };
+
+    video.src = url;
+
+  });
+
+}
+
+async function tagOneClip(item){
+
+  item.state = "reading";
+  item.message = "";
+  renderAiTagList();
+
+  try{
+
+    const frames = await extractClipFrames(item.file);
+
+    item.state = "asking";
+    renderAiTagList();
+
+    const res =
+      await fetch("/api/video/analyze-clip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accessToken: currentSession.access_token,
+          frames,
+          context: { goalieJersey: document.getElementById("lt-ai-jersey").value.trim() }
+        })
+      });
+
+    let data = {};
+    try{ data = await res.json(); }catch(e){ data = {}; }
+
+    if(!res.ok){
+      throw new Error(data.error || "The AI couldn't tag this clip.");
+    }
+
+    const ai = data.shot;
+
+    if(!ai.shot_detected){
+      item.state = "noshot";
+      item.message = "Tag this one by hand.";
+      return;
+    }
+
+    const hasPin = ai.loc_x !== null && ai.loc_y !== null;
+
+    item.shot = {
+      period: liveTagState.currentPeriod,
+      outcome: ai.outcome,
+      strength: liveTagState.strength || null,
+      location: hasPin ? classifyShotLocation(ai.loc_x, ai.loc_y) : null,
+      loc_x: hasPin ? ai.loc_x : null,
+      loc_y: hasPin ? ai.loc_y : null,
+      shot_type: ai.shot_type,
+      release_type: ai.release_type,
+      rush: ai.rush,
+      rebound: ai.rebound,
+      screened: ai.screened,
+      breakaway: ai.breakaway,
+      cross_ice: ai.cross_ice,
+      deflection: ai.deflection,
+      reboundTag: ai.reboundTag,
+      ai: { confidence: ai.confidence, model: data.model, notes: ai.notes },
+      _clipFile: item.file
+    };
+
+    item.state = "tagged";
+
+  }
+  catch(error){
+
+    console.error("AI clip tagging failed:", item.file.name, error);
+    item.state = "failed";
+    item.message = error.message || "Something went wrong.";
+
+  }
+  finally{
+
+    renderAiTagList();
+
+  }
+
+}
+
+// Before spending anything, make sure the batch can actually be saved.
+function aiTagPrecheck(){
+
+  if(!currentSession || !currentSession.access_token){
+    return "You need to be signed in.";
+  }
+
+  if(currentRole === "admin" && !document.getElementById("lt-goalie-select").value){
+    return "Pick which goalie this game belongs to first.";
+  }
+
+  if(document.getElementById("lt-ai-autosave").checked &&
+     !liveTagState.continueGameId &&
+     !textOrNull(document.getElementById("lt-opponent").value)){
+    return "Fill in the opponent first, so the game can save on its own.";
+  }
+
+  return null;
+
+}
+
+async function startAiTagRun(){
+
+  if(aiTagRunning){ return; }
+
+  const problem = aiTagPrecheck();
+
+  if(problem){
+    showLiveTagError(problem);
+    return;
+  }
+
+  hideLiveTagMessages();
+
+  const pending = aiTagItems.filter(i => i.state === "queued" || i.state === "failed");
+
+  if(!pending.length){ return; }
+
+  aiTagRunning = true;
+  renderAiTagList();
+
+  let next = 0;
+
+  async function worker(){
+    while(next < pending.length){
+      const item = pending[next++];
+      setAiTagStatus(`Tagging ${Math.min(next, pending.length)} of ${pending.length}…`);
+      await tagOneClip(item);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(AI_TAG_CONCURRENCY, pending.length) }, worker));
+
+  // Add to the shot list in clip order (the list shows newest first).
+  const added = pending.filter(i => i.state === "tagged" && i.shot);
+
+  added.forEach(item => {
+    liveTagState.shots.unshift(item.shot);
+    if(item.shot.reboundTag && item.shot.reboundTag !== "skip"){
+      liveTagState.reboundTally[item.shot.reboundTag]++;
+    }
+    item.state = "added";
+  });
+
+  renderLiveTagUI();
+
+  const failed = aiTagItems.filter(i => i.state === "failed").length;
+  const noShot = aiTagItems.filter(i => i.state === "noshot").length;
+
+  aiTagRunning = false;
+  aiTagItems = aiTagItems.filter(i => i.state !== "added");
+  renderAiTagList();
+
+  const summary =
+    `${added.length} shot${added.length === 1 ? "" : "s"} added` +
+    (noShot ? `, ${noShot} with no shot found` : "") +
+    (failed ? `, ${failed} failed` : "") + ".";
+
+  setAiTagStatus(summary);
+
+  if(added.length && document.getElementById("lt-ai-autosave").checked && !failed){
+    setAiTagStatus(summary + " Saving the game…");
+    await finishLiveTagGame();
+  }
+  else if(added.length){
+    showToast(`${summary} Review the shot list, then Finish & Save.`);
   }
 
 }
@@ -20941,7 +19148,7 @@ function toggleVideoNewGameFields(){
 
     goalieSelect.innerHTML =
       goalies.length
-        ? goalies.map(g => `<option value="${g.id}">${g.full_name || g.id}</option>`).join("")
+        ? goalies.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.full_name || g.id)}</option>`).join("")
         : `<option value="">No goalie accounts exist yet</option>`;
 
   }
@@ -20982,7 +19189,7 @@ async function loadVideoPipelineData(){
             const ownerName =
               (owner && owner.full_name) || "Unknown goalie";
 
-            return `<option value="${g.id}" data-user-id="${g.user_id}">${ownerName} — ${gameDate(g)} vs ${gameOpponent(g)}</option>`;
+            return `<option value="${g.id}" data-user-id="${g.user_id}">${escapeHtml(ownerName)} — ${escapeHtml(gameDate(g))} vs ${escapeHtml(gameOpponent(g))}</option>`;
 
           })
           .join("");
@@ -21001,7 +19208,7 @@ async function loadVideoPipelineData(){
     select.innerHTML =
       games
         .map(g =>
-          `<option value="${g.id}" data-user-id="${g.user_id}">${gameDate(g)} vs ${gameOpponent(g)}</option>`
+          `<option value="${g.id}" data-user-id="${g.user_id}">${escapeHtml(gameDate(g))} vs ${escapeHtml(gameOpponent(g))}</option>`
         )
         .join("");
 
@@ -21048,7 +19255,7 @@ async function renderCustomerVideoList(){
       .map(v => `
         <div class="card mygame-item">
           <div class="mygame-item-info">
-            <span class="mygame-title">${v.storage_path.split("/").pop()}</span>
+            <span class="mygame-title">${escapeHtml(v.storage_path.split("/").pop())}</span>
             <span class="mygame-sub">${friendlyStatus(v.status)}</span>
           </div>
         </div>
@@ -21066,18 +19273,21 @@ async function renderCustomerVideoList(){
 // localStorage, and can resume from the last completed part instead
 // of restarting from zero -- even after closing the tab, as long as
 // the same file is picked again.
-function r2FileFingerprint(file){
-  return `r2upload:${file.name}:${file.size}:${file.lastModified}`;
+function r2FileFingerprint(file, ownerId){
+  return `r2upload:${ownerId || "self"}:${file.name}:${file.size}:${file.lastModified}`;
 }
 
 
-async function uploadFileToR2(file, onProgress){
+// ownerId: the account the file belongs to when an admin uploads for a
+// goalie. The file is then stored in that goalie's folder, matching the
+// owner of its game_videos row (the server checks both line up).
+async function uploadFileToR2(file, onProgress, ownerId){
 
   const fingerprint =
-    r2FileFingerprint(file);
+    r2FileFingerprint(file, ownerId);
 
-  let session =
-    JSON.parse(localStorage.getItem(fingerprint) || "null");
+  let session = null;
+  try{ session = JSON.parse(localStorage.getItem(fingerprint) || "null"); }catch(e){ session = null; }
 
   if(!session){
 
@@ -21089,7 +19299,8 @@ async function uploadFileToR2(file, onProgress){
           accessToken: currentSession.access_token,
           fileName: file.name,
           fileSizeBytes: file.size,
-          contentType: file.type || "video/mp4"
+          contentType: file.type || "video/mp4",
+          ownerId: ownerId || undefined
         })
       });
 
@@ -21108,7 +19319,7 @@ async function uploadFileToR2(file, onProgress){
       completedParts: {} // partNumber -> ETag
     };
 
-    localStorage.setItem(fingerprint, JSON.stringify(session));
+    try{ localStorage.setItem(fingerprint, JSON.stringify(session)); }catch(e){}
 
   }
 
@@ -21150,7 +19361,7 @@ async function uploadFileToR2(file, onProgress){
     }
 
     session.completedParts[partNumber] = etag;
-    localStorage.setItem(fingerprint, JSON.stringify(session));
+    try{ localStorage.setItem(fingerprint, JSON.stringify(session)); }catch(e){}
 
     bytesUploaded += blob.size;
 
@@ -21182,7 +19393,7 @@ async function uploadFileToR2(file, onProgress){
     throw new Error(completeData.error || "Could not finish the upload.");
   }
 
-  localStorage.removeItem(fingerprint);
+  try{ localStorage.removeItem(fingerprint); }catch(e){}
 
   return session.key;
 
@@ -21388,7 +19599,7 @@ async function renderAdminVideoList(){
         return `
           <div class="card mygame-item">
             <div class="mygame-item-info">
-              <span class="mygame-title">${v.storage_path.split("/").pop()}</span>
+              <span class="mygame-title">${escapeHtml(v.storage_path.split("/").pop())}</span>
               <span class="mygame-sub">${statusBadge(v.status)}</span>
             </div>
             <div class="mygame-item-actions">
@@ -21496,12 +19707,13 @@ async function downloadGameVideo(gameVideoId, button){
   try{
 
     const res =
-      await fetch("/api/video/get-download-url", {
+      await fetch("/api/video/get-watch-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           accessToken: currentSession.access_token,
-          gameVideoId: gameVideoId
+          gameVideoId: gameVideoId,
+          download: true
         })
       });
 
@@ -21625,10 +19837,84 @@ initLiveTagShotMap();
 
 initAuth();
 
+
+
+/* ============================================================
+   LANDING PAGE
+============================================================ */
+
+// Links from the other pages arrive as /?start=signup#get-started. Read
+// it once, then drop it so a later sign-out shows the normal sign-in.
+function consumeStartSignupParam(){
+
+  const params = new URLSearchParams(location.search);
+
+  if(params.get("start") !== "signup"){ return false; }
+
+  params.delete("start");
+  const query = params.toString();
+  history.replaceState(null, "", location.pathname + (query ? "?" + query : "") + location.hash);
+
+  return true;
+
+}
+
+// The hero's example shot tag opens to show the full shot breakdown.
+function toggleHeroTag(button){
+
+  const open = button.getAttribute("aria-expanded") !== "true";
+
+  button.setAttribute("aria-expanded", String(open));
+
+}
+
+// The hero's email field starts sign-up with the address filled in.
+function startFromLandingHero(event){
+
+  event.preventDefault();
+
+  const email = document.getElementById("lp-start-email").value.trim();
+
+  showAuthView("signup");
+  document.getElementById("signup-email").value = email;
+
+  document.getElementById("get-started").scrollIntoView({ behavior: "smooth", block: "start" });
+
+  setTimeout(() => {
+    document.getElementById("signup-name").focus({ preventScroll: true });
+  }, 450);
+
+  return false;
+
+}
+
+// Sample game for the landing page: drawn with the same shot map the
+// app uses. Illustrative data, labeled as such on the page. 31 shots,
+// 2 goals (both from the low slot), matching the figures beside it.
+const LANDING_SAMPLE_SHOTS = [
+  [-3, 9, "goal"], [2, 7, "goal"],
+  [0, 12], [-5, 14], [6, 11], [-2, 18], [4, 22], [-1, 27], [3, 31], [-6, 24],
+  [-11, 19], [12, 21], [-21, 20], [23, 18], [-24, 9], [25, 11], [-20, 31], [19, 29],
+  [-14, 6], [15, 4], [-30, 14], [31, 22], [-8, 38], [9, 41], [0, 46],
+  [-28, 51], [26, 54], [-12, 57], [14, 59], [-36, 34], [35, 40]
+].map(([x, y, outcome]) => ({ loc_x: x, loc_y: y, outcome: outcome || "save" }));
+
+function initLandingSample(){
+
+  const host = document.getElementById("lp-sample-map");
+
+  if(!host || host.dataset.drawn){ return; }
+
+  host.innerHTML = shotMapSvg("lpmap", shotMapDotsMarkup(LANDING_SAMPLE_SHOTS), false);
+  host.dataset.drawn = "1";
+
+}
+
+initLandingSample();
 </script>
 
 <div class="cookie-notice" id="cookie-notice" role="region" aria-label="Cookie notice" style="display:none">
-  <p>We only use essential storage to keep you signed in. No ads or tracking. <a href="/cookies.html">Cookie Policy</a></p>
+  <p>We only use essential storage to keep you signed in. No ads or tracking. <a href="cookies.html">Cookie Policy</a></p>
   <button type="button" class="btn-primary" onclick="dismissCookieNotice()">Got it</button>
 </div>
 </body>
