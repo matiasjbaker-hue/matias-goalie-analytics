@@ -19119,12 +19119,13 @@ async function downloadGameVideo(gameVideoId, button){
   try{
 
     const res =
-      await fetch("/api/video/get-download-url", {
+      await fetch("/api/video/get-watch-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           accessToken: currentSession.access_token,
-          gameVideoId: gameVideoId
+          gameVideoId: gameVideoId,
+          download: true
         })
       });
 
