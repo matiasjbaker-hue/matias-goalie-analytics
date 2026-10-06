@@ -1,70 +1,21 @@
 // ============================================================
 // VIDEO PIPELINE — GET A DOWNLOAD LINK FOR THE ACTUAL FILE
 // ============================================================
-// Returns a short-lived signed URL pointing straight at the video
-// file in R2, with a content-disposition header that forces a
-// download (rather than trying to stream/play inline, since the
-// point here is "let the admin watch it themselves outside the
-// app," not preview it).
-//
+// Returns a short-lived signed URL pointing straight at the video file
+// in R2, with a content-disposition header that forces a download.
 // Admin-only, same pattern as the rest of Video Review.
 
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import {
+  verifyUser, callerRole, userSelect, r2Configured, r2Client,
+  storagePathIsTrusted, sendServerError,
+} from "../_lib/supabase.js";
 
-const SUPABASE_URL = "https://iiuqxxrrruvwvfehrzic.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
-
-function r2Client() {
-  return new S3Client({
-    region: "auto",
-    endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-    credentials: {
-      accessKeyId: process.env.R2_ACCESS_KEY_ID,
-      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
-    },
-  });
-}
-
-async function verifyAccessToken(accessToken) {
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data && data.id ? data : null;
-}
-
-async function isAdminUser(userId, accessToken) {
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/profiles?select=role&id=eq.${encodeURIComponent(userId)}`,
-    {
-      headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${accessToken}`,
-      },
-    }
-  );
-  if (!res.ok) return false;
-  const rows = await res.json();
-  return rows[0] && rows[0].role === "admin";
-}
-
-async function supabaseGet(table, filter, accessToken) {
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/${table}?${filter}&select=*`,
-    {
-      headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${accessToken}`,
-      },
-    }
-  );
-  if (!res.ok) throw new Error(`Supabase GET ${table} failed: ${res.status}`);
-  return res.json();
+// Keep only characters that are safe inside a quoted header value.
+function safeFileName(path) {
+  const base = String(path).split("/").pop() || "video";
+  return base.replace(/[^\w.\- ]+/g, "_").slice(0, 150) || "video";
 }
 
 export default async function handler(req, res) {
@@ -79,56 +30,42 @@ export default async function handler(req, res) {
     return;
   }
 
-  if (
-    !process.env.R2_ACCOUNT_ID ||
-    !process.env.R2_ACCESS_KEY_ID ||
-    !process.env.R2_SECRET_ACCESS_KEY ||
-    !process.env.R2_BUCKET_NAME
-  ) {
+  if (!r2Configured()) {
     res.status(503).json({ error: "Storage isn't configured yet." });
     return;
   }
 
   try {
-    const user = await verifyAccessToken(accessToken);
+    const user = await verifyUser(accessToken);
     if (!user) {
       res.status(401).json({ error: "Invalid or expired session." });
       return;
     }
 
-    const callerIsAdmin = await isAdminUser(user.id, accessToken);
-    if (!callerIsAdmin) {
+    if ((await callerRole(user.id, accessToken)) !== "admin") {
       res.status(403).json({ error: "Only an admin account can download videos here." });
       return;
     }
 
-    const rows = await supabaseGet(
-      "game_videos",
-      `id=eq.${encodeURIComponent(gameVideoId)}`,
-      accessToken
-    );
+    const rows = await userSelect("game_videos", `id=eq.${encodeURIComponent(gameVideoId)}&select=*`, accessToken);
     const gameVideo = rows[0];
-    if (!gameVideo) {
+    if (!gameVideo || !(await storagePathIsTrusted(gameVideo))) {
       res.status(404).json({ error: "Video not found." });
       return;
     }
 
-    const fileName = gameVideo.storage_path.split("/").pop();
-
-    const client = r2Client();
     const url = await getSignedUrl(
-      client,
+      r2Client(),
       new GetObjectCommand({
         Bucket: process.env.R2_BUCKET_NAME,
         Key: gameVideo.storage_path,
-        ResponseContentDisposition: `attachment; filename="${fileName}"`,
+        ResponseContentDisposition: `attachment; filename="${safeFileName(gameVideo.storage_path)}"`,
       }),
       { expiresIn: 60 * 10 } // 10 minutes -- just long enough to start the download
     );
 
     res.status(200).json({ url });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message || "Something went wrong." });
+    sendServerError(res, error, "Could not create a download link.");
   }
 }

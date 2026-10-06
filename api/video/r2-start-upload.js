@@ -1,89 +1,56 @@
 // ============================================================
 // R2 UPLOAD — STEP 1: START MULTIPART UPLOAD
 // ============================================================
-// Replaces Supabase Storage as the home for raw game film. Why:
-// Supabase's Free plan hard-caps file size at 50MB (and only gives
-// 1GB total storage) with no workaround short of upgrading to Pro.
-// Cloudflare R2 has a real free tier for this (10GB storage, zero
-// egress fees -- important since every video also gets fetched back
-// out by memories.ai for indexing), and is S3-compatible, so this
-// uses the standard AWS SDK pointed at R2's S3-compatible endpoint.
-//
-// This does NOT receive the file itself -- it creates an R2
-// multipart upload and hands back presigned PUT URLs for each part,
-// so the browser uploads parts directly to R2. This function's own
-// body never touches the video bytes, so it's unaffected by
-// Vercel's serverless request-size/time limits regardless of how
-// large the video is.
+// Raw game film lives in Cloudflare R2 (S3-compatible; real free tier,
+// zero egress). This does NOT receive the file itself -- it creates an
+// R2 multipart upload and hands back presigned PUT URLs for each part,
+// so the browser uploads parts directly to R2 and Vercel's request
+// size/time limits never apply to the video bytes.
 //
 // Setup required in Vercel:
 //   - R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY,
-//     R2_BUCKET_NAME -- from Cloudflare dashboard: R2 -> Manage
-//     API Tokens (create one scoped to Object Read & Write on this
-//     bucket only, not your whole account).
-//   - In the R2 bucket's settings, set a lifecycle rule to abort
-//     incomplete multipart uploads after a few days -- otherwise an
-//     interrupted upload that's never resumed or retried leaves
-//     orphaned part data billed as storage indefinitely.
+//     R2_BUCKET_NAME -- Cloudflare dashboard: R2 -> Manage API Tokens
+//     (scope it to Object Read & Write on this bucket only).
+//   - In the bucket settings, add a lifecycle rule that aborts
+//     incomplete multipart uploads after a few days, so interrupted
+//     uploads don't sit billed as storage forever.
 
-import {
-  S3Client,
-  CreateMultipartUploadCommand,
-  UploadPartCommand,
-} from "@aws-sdk/client-s3";
+import { CreateMultipartUploadCommand, UploadPartCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import {
+  verifyUser, callerHasAccess, callerRole, r2Configured, r2Client, sendServerError, UUID_RE,
+} from "../_lib/supabase.js";
 
-const SUPABASE_URL = "https://iiuqxxrrruvwvfehrzic.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
-
-// 25MB per part -- big enough to keep the number of requests
-// reasonable for a multi-GB game file, small enough that a single
-// failed part is a cheap retry, not a lost hour of upload.
+// 25MB per part -- keeps the request count reasonable for a multi-GB
+// game file, while a failed part is a cheap retry.
 const PART_SIZE_BYTES = 25 * 1024 * 1024;
 
-// Presigned URLs are valid this long from creation. Generous on
-// purpose: for a slow home connection, later parts might not start
-// uploading until hours after the request that minted their URL.
+// A full game at high bitrate fits well inside this. Anything larger is
+// either a mistake or abuse, and an unbounded size would make this
+// function mint millions of presigned URLs.
+const MAX_FILE_BYTES = 20 * 1024 * 1024 * 1024; // 20 GB
+
+// Presigned URLs are valid this long from creation. Generous on purpose:
+// on a slow connection, later parts may start hours after this request.
 const PRESIGN_EXPIRY_SECONDS = 60 * 60 * 24;
 
-function r2Client() {
-  return new S3Client({
-    region: "auto",
-    endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-    credentials: {
-      accessKeyId: process.env.R2_ACCESS_KEY_ID,
-      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
-    },
-  });
+// Only video files are stored; anything else could be served back from
+// the bucket as something other than video.
+function safeContentType(value) {
+  const type = String(value || "").toLowerCase().trim();
+  return /^video\/[a-z0-9.+-]{1,40}$/.test(type) ? type : "video/mp4";
 }
 
-async function verifyAccessToken(accessToken) {
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data && data.id ? data : null;
-}
-
-// Paywall: goalies need active access (comp / trial / paid) to use
-// paid-cost features. Coaches and admin always pass. Evaluated in the
-// database (my_has_access), with the caller's own token.
-async function callerHasAccess(accessToken) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/my_has_access`, {
-    method: "POST",
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: "{}",
-  });
-  if (!res.ok) return false;
-  return (await res.json()) === true;
+// The original file name ends up in the object key and later in
+// download headers; keep it to plain, header-safe characters.
+function safeFileName(value) {
+  const cleaned = String(value || "")
+    .split(/[\\/]/).pop()
+    .replace(/[^\w.\- ]+/g, "_")
+    .replace(/\.{2,}/g, ".")
+    .trim()
+    .slice(0, 120);
+  return cleaned || "video.mp4";
 }
 
 export default async function handler(req, res) {
@@ -92,31 +59,28 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { accessToken, fileName, fileSizeBytes, contentType } =
-    req.body || {};
+  // ownerId: an admin uploading a clip for a goalie stores it in that
+  // goalie's folder, so the file and its game_videos row match owners.
+  const { accessToken, fileName, fileSizeBytes, contentType, ownerId } = req.body || {};
+  const size = Number(fileSizeBytes);
 
   if (!accessToken || !fileName || !fileSizeBytes) {
-    res.status(400).json({
-      error: "Missing accessToken, fileName, or fileSizeBytes.",
-    });
+    res.status(400).json({ error: "Missing accessToken, fileName, or fileSizeBytes." });
     return;
   }
 
-  if (
-    !process.env.R2_ACCOUNT_ID ||
-    !process.env.R2_ACCESS_KEY_ID ||
-    !process.env.R2_SECRET_ACCESS_KEY ||
-    !process.env.R2_BUCKET_NAME
-  ) {
-    res.status(503).json({
-      error:
-        "Video storage isn't configured yet -- add R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_BUCKET_NAME in Vercel project settings.",
-    });
+  if (!Number.isFinite(size) || size <= 0 || size > MAX_FILE_BYTES) {
+    res.status(400).json({ error: "That file is too large. The limit is 20 GB per video." });
+    return;
+  }
+
+  if (!r2Configured()) {
+    res.status(503).json({ error: "Video storage isn't configured yet." });
     return;
   }
 
   try {
-    const user = await verifyAccessToken(accessToken);
+    const user = await verifyUser(accessToken);
     if (!user) {
       res.status(401).json({ error: "Invalid or expired session." });
       return;
@@ -126,43 +90,45 @@ export default async function handler(req, res) {
       return;
     }
 
-    const key = `${user.id}/${Date.now()}_${fileName}`;
-    const client = r2Client();
-
-    const created = await client.send(
-      new CreateMultipartUploadCommand({
-        Bucket: process.env.R2_BUCKET_NAME,
-        Key: key,
-        ContentType: contentType || "video/mp4",
-      })
-    );
-
-    const uploadId = created.UploadId;
-    const partCount = Math.ceil(fileSizeBytes / PART_SIZE_BYTES);
-
-    const partUrls = [];
-    for (let partNumber = 1; partNumber <= partCount; partNumber++) {
-      const url = await getSignedUrl(
-        client,
-        new UploadPartCommand({
-          Bucket: process.env.R2_BUCKET_NAME,
-          Key: key,
-          UploadId: uploadId,
-          PartNumber: partNumber,
-        }),
-        { expiresIn: PRESIGN_EXPIRY_SECONDS }
-      );
-      partUrls.push({ partNumber, url });
+    let folder = user.id;
+    if (ownerId && ownerId !== user.id) {
+      if (typeof ownerId !== "string" || !UUID_RE.test(ownerId) || (await callerRole(user.id, accessToken)) !== "admin") {
+        res.status(403).json({ error: "Only an admin can upload on behalf of another account." });
+        return;
+      }
+      folder = ownerId;
     }
 
-    res.status(200).json({
-      key,
-      uploadId,
-      partSize: PART_SIZE_BYTES,
-      partUrls,
-    });
+    const key = `${folder}/${Date.now()}_${safeFileName(fileName)}`;
+    const client = r2Client();
+
+    const created = await client.send(new CreateMultipartUploadCommand({
+      Bucket: process.env.R2_BUCKET_NAME,
+      Key: key,
+      ContentType: safeContentType(contentType),
+    }));
+
+    const uploadId = created.UploadId;
+    const partCount = Math.ceil(size / PART_SIZE_BYTES);
+
+    const partUrls = await Promise.all(
+      Array.from({ length: partCount }, (_, i) => i + 1).map(async partNumber => ({
+        partNumber,
+        url: await getSignedUrl(
+          client,
+          new UploadPartCommand({
+            Bucket: process.env.R2_BUCKET_NAME,
+            Key: key,
+            UploadId: uploadId,
+            PartNumber: partNumber,
+          }),
+          { expiresIn: PRESIGN_EXPIRY_SECONDS }
+        ),
+      }))
+    );
+
+    res.status(200).json({ key, uploadId, partSize: PART_SIZE_BYTES, partUrls });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message || "Something went wrong." });
+    sendServerError(res, error, "Could not start the upload.");
   }
 }

@@ -20,11 +20,16 @@
 //     Get one at https://console.anthropic.com — this is a
 //     separate account/billing from a claude.ai subscription.
 
-const SUPABASE_URL = "https://iiuqxxrrruvwvfehrzic.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
+import {
+  verifyUser, userSelect, callerHasAccess, callerHasAiAccess, sendServerError,
+} from "./_lib/supabase.js";
+import { claude, claudeConfigured, textOf } from "./_lib/claude.js";
 
-// Change this if Anthropic retires this model name — check
-// https://docs.claude.com for current model strings.
+// Long enough for any real question; stops one request from turning
+// into a very large (and very expensive) prompt.
+const MAX_QUESTION_CHARS = 2000;
+
+// Change this if Anthropic retires this model name.
 const CLAUDE_MODEL = "claude-sonnet-5";
 
 
@@ -65,23 +70,8 @@ function pct(numerator, denominator) {
   return Math.round((numerator / denominator) * 1000) / 10; // one decimal
 }
 
-async function supabaseQuery(table, accessToken) {
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/${encodeURIComponent(table)}?select=*`,
-    {
-      headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${accessToken}`
-      }
-    }
-  );
-
-  if (!res.ok) {
-    throw new Error(`Supabase error ${res.status} on ${table}`);
-  }
-
-  const data = await res.json();
-  return Array.isArray(data) ? data : [];
+function supabaseQuery(table, accessToken) {
+  return userSelect(table, "select=*", accessToken);
 }
 
 
@@ -229,59 +219,9 @@ function buildStatsSummary({ games, periodStats, shots, reboundControls, puckPla
 }
 
 
-// Builds the headers for every Anthropic API call. If the API key
-// was created at the organization level (not inside a workspace),
-// Anthropic requires an anthropic-workspace-id header naming the
-// workspace to bill/run in. Set ANTHROPIC_WORKSPACE_ID in Vercel
-// for that case. A key created inside a workspace doesn't need it,
-// and an empty header is rejected, so it's only sent when set.
-function anthropicHeaders() {
-  const headers = {
-    "Content-Type": "application/json",
-    "x-api-key": process.env.ANTHROPIC_API_KEY,
-    "anthropic-version": "2023-06-01"
-  };
-  const workspaceId = (process.env.ANTHROPIC_WORKSPACE_ID || "").trim();
-  if (workspaceId) {
-    headers["anthropic-workspace-id"] = workspaceId;
-  }
-  return headers;
-}
 
 
-// Paywall: goalies need active access (comp / trial / paid) to use
-// paid-cost features. Coaches and admin always pass. Evaluated in the
-// database (my_has_access), with the caller's own token.
-async function callerHasAccess(accessToken) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/my_has_access`, {
-    method: "POST",
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: "{}",
-  });
-  if (!res.ok) return false;
-  return (await res.json()) === true;
-}
 
-// AI Coach + AI game reports are Goalie Plus features (also free/comp,
-// trials, coaches and admin). Evaluated in the database with the
-// caller's own token.
-async function callerHasAiAccess(accessToken) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/my_has_ai_access`, {
-    method: "POST",
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: "{}",
-  });
-  if (!res.ok) return false;
-  return (await res.json()) === true;
-}
 
 export default async function handler(req, res) {
 
@@ -292,23 +232,32 @@ export default async function handler(req, res) {
 
   const { accessToken, question, goalieId, viewerRole } = req.body || {};
 
-  if (!accessToken || !question) {
+  if (!accessToken || typeof question !== "string" || !question.trim()) {
     res.status(400).json({ error: "Missing accessToken or question." });
     return;
   }
 
-  if (!goalieId) {
+  if (question.length > MAX_QUESTION_CHARS) {
+    res.status(400).json({ error: `Please keep questions under ${MAX_QUESTION_CHARS} characters.` });
+    return;
+  }
+
+  if (typeof goalieId !== "string" || !/^[0-9a-f-]{36}$/i.test(goalieId)) {
     res.status(400).json({ error: "Missing goalieId." });
     return;
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!claudeConfigured()) {
     res.status(503).json({ error: "AI Coach is being finalized and will be available soon." });
     return;
   }
 
   try {
 
+    if (!(await verifyUser(accessToken))) {
+      res.status(401).json({ error: "Invalid or expired session." });
+      return;
+    }
     if (!(await callerHasAccess(accessToken))) {
       res.status(402).json({ error: "Your GoalieIQ access isn't active." });
       return;
@@ -358,38 +307,25 @@ export default async function handler(req, res) {
           "confidently, say so plainly rather than guessing. Keep answers focused and practical.\n\n" +
           "STATS SUMMARY:\n" + statsSummary;
 
-    const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: anthropicHeaders(),
-      body: JSON.stringify({
-        model: CLAUDE_MODEL,
-        max_tokens: 700,
-        system: systemPrompt,
-        messages: [
-          { role: "user", content: question }
-        ]
-      })
+    const message = await claude().messages.create({
+      model: CLAUDE_MODEL,
+      max_tokens: 2000,
+      system: systemPrompt,
+      messages: [
+        { role: "user", content: question.trim() }
+      ]
     });
 
-    if (!anthropicRes.ok) {
-      const errText = await anthropicRes.text();
-      throw new Error(`Anthropic API error ${anthropicRes.status}: ${errText}`);
-    }
-
-    const anthropicData = await anthropicRes.json();
-
     const answerText =
-      (anthropicData.content || [])
-        .filter(block => block.type === "text")
-        .map(block => block.text)
-        .join("\n") || "No response generated.";
+      message.stop_reason === "refusal"
+        ? "I can't help with that one. Try asking about this season's stats."
+        : (textOf(message) || "No response generated.");
 
     res.status(200).json({ answer: answerText });
 
   } catch (error) {
 
-    console.error(error);
-    res.status(500).json({ error: error.message || "Something went wrong." });
+    sendServerError(res, error, "AI Coach couldn't answer right now. Please try again.");
 
   }
 

@@ -8,10 +8,8 @@ import { stripe, stripeConfigured, configuredPriceIds } from "../_lib/billing.js
 
 export default async function handler(req, res) {
   if (!stripeConfigured() || !configuredPriceIds().length) {
-    res.status(200).json({
-      plans: [],
-      error: !stripeConfigured() ? "STRIPE_SECRET_KEY is not set." : "STRIPE_PRICE_IDS is not set.",
-    });
+    console.error(!stripeConfigured() ? "STRIPE_SECRET_KEY is not set." : "STRIPE_PRICE_IDS is not set.");
+    res.status(200).json({ plans: [], error: "Plans aren't available yet." });
     return;
   }
 
@@ -33,9 +31,8 @@ export default async function handler(req, res) {
     res.setHeader("Cache-Control", "s-maxage=300, stale-while-revalidate=600");
     res.status(200).json({ plans });
   } catch (error) {
-    console.error(error);
-    // Safe diagnostics only: Stripe's message (it masks keys itself) and
-    // which KIND of key is configured -- never the key itself.
+    // This endpoint is public: details (Stripe's message, which kind of
+    // key is set, the price IDs) go to the Vercel logs, not the browser.
     const key = String(process.env.STRIPE_SECRET_KEY || "");
     const keyType =
       key.startsWith("sk_test_") ? "secret key (test)" :
@@ -43,12 +40,7 @@ export default async function handler(req, res) {
       key.startsWith("rk_") ? "restricted key" :
       key.startsWith("pk_") ? "PUBLISHABLE key (wrong key)" :
       key ? "unrecognized key" : "missing";
-    res.status(200).json({
-      plans: [],
-      error: "Could not load plans.",
-      detail: error.message,
-      keyType,
-      priceIds: configuredPriceIds(),
-    });
+    console.error("Could not load plans:", error.message, "| key:", keyType, "| prices:", configuredPriceIds());
+    res.status(200).json({ plans: [], error: "Could not load plans." });
   }
 }

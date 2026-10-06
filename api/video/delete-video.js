@@ -2,76 +2,17 @@
 // VIDEO PIPELINE — DELETE AN UPLOADED VIDEO
 // ============================================================
 // Deletes both the actual video file in R2 and its game_videos row.
-// Deleting the row cascades to any shot_drafts tied to it (already
-// set up via ON DELETE CASCADE), so there's nothing extra to clean
-// up on that side.
+// Deleting the row cascades to any shot_drafts tied to it (ON DELETE
+// CASCADE), so there's nothing extra to clean up on that side.
 //
-// Admin-only, same as everything else in the Video Review tab. RLS
-// on game_videos also allows the video's own owner to delete it
-// (matches "delete own or admin game_videos" policy), so this
-// endpoint checks for either rather than admin-only, in case this
-// ever gets exposed on the customer-facing side too.
+// RLS on game_videos ("delete own or admin game_videos") decides who
+// may delete; this endpoint works with the caller's own token.
 
-import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3";
-
-const SUPABASE_URL = "https://iiuqxxrrruvwvfehrzic.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
-
-function r2Client() {
-  return new S3Client({
-    region: "auto",
-    endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-    credentials: {
-      accessKeyId: process.env.R2_ACCESS_KEY_ID,
-      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
-    },
-  });
-}
-
-async function verifyAccessToken(accessToken) {
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data && data.id ? data : null;
-}
-
-async function supabaseGet(table, filter, accessToken) {
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/${table}?${filter}&select=*`,
-    {
-      headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${accessToken}`,
-      },
-    }
-  );
-  if (!res.ok) throw new Error(`Supabase GET ${table} failed: ${res.status}`);
-  return res.json();
-}
-
-// Uses the caller's own access token, not a service-role key -- RLS
-// on game_videos ("delete own or admin") decides whether this is
-// actually allowed, same as every other write in this pipeline.
-async function supabaseDelete(table, filter, accessToken) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${filter}`, {
-    method: "DELETE",
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${accessToken}`,
-      Prefer: "return=representation",
-    },
-  });
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Supabase DELETE ${table} failed: ${res.status} ${errText}`);
-  }
-  return res.json();
-}
+import { DeleteObjectCommand } from "@aws-sdk/client-s3";
+import {
+  verifyUser, userSelect, userDelete, r2Configured, r2Client,
+  storagePathIsTrusted, sendServerError,
+} from "../_lib/supabase.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -86,17 +27,14 @@ export default async function handler(req, res) {
   }
 
   try {
-    const user = await verifyAccessToken(accessToken);
+    const user = await verifyUser(accessToken);
     if (!user) {
       res.status(401).json({ error: "Invalid or expired session." });
       return;
     }
 
-    const rows = await supabaseGet(
-      "game_videos",
-      `id=eq.${encodeURIComponent(gameVideoId)}`,
-      accessToken
-    );
+    const filter = `id=eq.${encodeURIComponent(gameVideoId)}`;
+    const rows = await userSelect("game_videos", `${filter}&select=*`, accessToken);
     const gameVideo = rows[0];
     if (!gameVideo) {
       // Already gone, or RLS hid it -- either way, nothing left to do.
@@ -104,46 +42,36 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Delete the actual file in R2 first. If R2 credentials aren't
-    // configured, skip this rather than block the DB cleanup --
-    // better to remove the record and leave an orphaned file than
-    // get stuck unable to delete anything.
-    if (
-      process.env.R2_ACCOUNT_ID &&
-      process.env.R2_ACCESS_KEY_ID &&
-      process.env.R2_SECRET_ACCESS_KEY &&
-      process.env.R2_BUCKET_NAME
-    ) {
-      try {
-        const client = r2Client();
-        await client.send(
-          new DeleteObjectCommand({
-            Bucket: process.env.R2_BUCKET_NAME,
-            Key: gameVideo.storage_path,
-          })
-        );
-      } catch (r2Error) {
-        console.error("R2 delete failed, continuing with DB cleanup:", r2Error);
-      }
+    // Decide about the file before the row goes: the trust check looks
+    // for other rows that reference the same path.
+    const fileIsOwn = await storagePathIsTrusted(gameVideo);
+
+    // Delete the row first: RLS decides here whether the caller may
+    // delete at all, so a file is never removed for someone who
+    // couldn't remove its record.
+    const deletedRows = await userDelete("game_videos", filter, accessToken);
+    if (!deletedRows || !deletedRows.length) {
+      res.status(403).json({ error: "Nothing was deleted -- you may not have permission to delete this video." });
+      return;
     }
 
-    // Deleting the row cascades to shot_drafts automatically.
-    const deletedRows = await supabaseDelete(
-      "game_videos",
-      `id=eq.${encodeURIComponent(gameVideoId)}`,
-      accessToken
-    );
-
-    if (!deletedRows || !deletedRows.length) {
-      res.status(403).json({
-        error: "Nothing was deleted -- you may not have permission to delete this video.",
-      });
-      return;
+    // If storage isn't configured, the record is still removed; better an
+    // orphaned file than being stuck unable to delete anything.
+    if (!fileIsOwn) {
+      console.warn("Skipped R2 delete for a path this row doesn't own:", gameVideo.id);
+    } else if (r2Configured()) {
+      try {
+        await r2Client().send(new DeleteObjectCommand({
+          Bucket: process.env.R2_BUCKET_NAME,
+          Key: gameVideo.storage_path,
+        }));
+      } catch (r2Error) {
+        console.error("R2 delete failed after the row was removed:", r2Error);
+      }
     }
 
     res.status(200).json({ deleted: true });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: error.message || "Something went wrong." });
+    sendServerError(res, error, "Could not delete the video.");
   }
 }

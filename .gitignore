@@ -1,0 +1,12 @@
+node_modules/
+.vercel/
+.env
+.env.*
+.DS_Store
+# Local tooling state
+.impeccable/config.local.json
+.impeccable/review/
+.impeccable/build/
+.impeccable/live/
+.claude/settings.local.json
+.impeccable/questions/

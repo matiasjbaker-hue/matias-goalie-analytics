@@ -11,7 +11,7 @@
 // returned in the same "WENT WELL: / - bullet" text format the
 // browser already parses.
 //
-// It does NOT fetch anything from Supabase itself and does NOT
+// It does NOT read stats from Supabase itself and does NOT
 // compute any stats. It only reads the summary text the client
 // already built from real, RLS-scoped data. To stop this endpoint
 // being hit with made-up stats by someone who was never signed in,
@@ -20,29 +20,18 @@
 //
 // Setup: same ANTHROPIC_API_KEY environment variable as api/coach.js.
 
-const SUPABASE_URL = "https://iiuqxxrrruvwvfehrzic.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
+import {
+  verifyUser, callerHasAccess, callerHasAiAccess, sendServerError,
+} from "./_lib/supabase.js";
+import { claude, claudeConfigured } from "./_lib/claude.js";
+
+// A full game summary is a few thousand characters; anything far past
+// this isn't a real summary and would only burn API budget.
+const MAX_SUMMARY_CHARS = 30000;
 
 const CLAUDE_MODEL = "claude-sonnet-5";
 
 
-async function verifyAccessToken(accessToken) {
-
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${accessToken}`
-    }
-  });
-
-  if (!res.ok) {
-    return false;
-  }
-
-  const data = await res.json();
-  return !!(data && data.id);
-
-}
 
 
 function buildSystemPrompt(summaryText, viewerRole) {
@@ -87,24 +76,6 @@ ${summaryText}`;
 }
 
 
-// Builds the headers for every Anthropic API call. If the API key
-// was created at the organization level (not inside a workspace),
-// Anthropic requires an anthropic-workspace-id header naming the
-// workspace to bill/run in. Set ANTHROPIC_WORKSPACE_ID in Vercel
-// for that case. A key created inside a workspace doesn't need it,
-// and an empty header is rejected, so it's only sent when set.
-function anthropicHeaders() {
-  const headers = {
-    "Content-Type": "application/json",
-    "x-api-key": process.env.ANTHROPIC_API_KEY,
-    "anthropic-version": "2023-06-01"
-  };
-  const workspaceId = (process.env.ANTHROPIC_WORKSPACE_ID || "").trim();
-  if (workspaceId) {
-    headers["anthropic-workspace-id"] = workspaceId;
-  }
-  return headers;
-}
 
 
 // The analysis comes back through a forced tool call instead of free
@@ -156,29 +127,18 @@ function cleanItems(list) {
 
 async function requestAnalysis(systemPrompt) {
 
-  const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: anthropicHeaders(),
-    body: JSON.stringify({
-      model: CLAUDE_MODEL,
-      max_tokens: 2000,
-      system: systemPrompt,
-      tools: [ANALYSIS_TOOL],
-      tool_choice: { type: "tool", name: ANALYSIS_TOOL.name },
-      messages: [
-        { role: "user", content: "Write the game analysis now." }
-      ]
-    })
+  const message = await claude().messages.create({
+    model: CLAUDE_MODEL,
+    max_tokens: 4000,
+    system: systemPrompt,
+    tools: [ANALYSIS_TOOL],
+    tool_choice: { type: "tool", name: ANALYSIS_TOOL.name },
+    messages: [
+      { role: "user", content: "Write the game analysis now." }
+    ]
   });
 
-  if (!anthropicRes.ok) {
-    const errText = await anthropicRes.text();
-    throw new Error(`Anthropic API error ${anthropicRes.status}: ${errText}`);
-  }
-
-  const anthropicData = await anthropicRes.json();
-
-  const toolBlock = (anthropicData.content || [])
+  const toolBlock = (message.content || [])
     .find(block => block.type === "tool_use" && block.name === ANALYSIS_TOOL.name);
 
   const input = (toolBlock && toolBlock.input) || {};
@@ -211,39 +171,7 @@ function toNarrativeText(analysis) {
 }
 
 
-// Paywall: goalies need active access (comp / trial / paid) to use
-// paid-cost features. Coaches and admin always pass. Evaluated in the
-// database (my_has_access), with the caller's own token.
-async function callerHasAccess(accessToken) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/my_has_access`, {
-    method: "POST",
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: "{}",
-  });
-  if (!res.ok) return false;
-  return (await res.json()) === true;
-}
 
-// AI Coach + AI game reports are Goalie Plus features (also free/comp,
-// trials, coaches and admin). Evaluated in the database with the
-// caller's own token.
-async function callerHasAiAccess(accessToken) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/my_has_ai_access`, {
-    method: "POST",
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: "{}",
-  });
-  if (!res.ok) return false;
-  return (await res.json()) === true;
-}
 
 export default async function handler(req, res) {
 
@@ -254,21 +182,24 @@ export default async function handler(req, res) {
 
   const { accessToken, summaryText, viewerRole } = req.body || {};
 
-  if (!accessToken || !summaryText) {
+  if (!accessToken || typeof summaryText !== "string" || !summaryText.trim()) {
     res.status(400).json({ error: "Missing accessToken or summaryText." });
     return;
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (summaryText.length > MAX_SUMMARY_CHARS) {
+    res.status(400).json({ error: "That game summary is too long to analyze." });
+    return;
+  }
+
+  if (!claudeConfigured()) {
     res.status(503).json({ error: "AI Coach analysis is being finalized and will be available soon." });
     return;
   }
 
   try {
 
-    const validSession = await verifyAccessToken(accessToken);
-
-    if (!validSession) {
+    if (!(await verifyUser(accessToken))) {
       res.status(401).json({ error: "Invalid or expired session." });
       return;
     }
@@ -300,8 +231,7 @@ export default async function handler(req, res) {
 
   } catch (error) {
 
-    console.error(error);
-    res.status(500).json({ error: error.message || "Something went wrong." });
+    sendServerError(res, error, "The AI analysis couldn't be written right now. Please try again.");
 
   }
 

@@ -1,0 +1,129 @@
+{
+  "title": "Choose the visual world for GoalieIQ",
+  "question": "The roll assigned Custom Pads. Keep it, take an alternate, or re-roll.",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "Custom Pads",
+      "kicker": "THE ROLL",
+      "lineage": "custom goalie leg-pad graphics: angled colour panels, quilted channels, stitched wordmarks",
+      "thesis": "GoalieIQ cut and stitched like a goalie's own custom pads.",
+      "palette": ["#F3F4F0", "#0F4A35", "#121412", "#E8B923"],
+      "materials": ["white PU face with vertical quilted channels", "pine-green panels with angled breaks", "black outer roll", "gold piping stitch"],
+      "viewport": "Your save photo edge to edge; a heavy condensed-italic headline across its lower third, a tag label pinned to the puck, and a start-free email field; the photo ends at an angled pad seam into the green panel.",
+      "risk": "Pushed too far it turns into a gear costume; panels and stitching must do structural work, not decorate.",
+      "raised": [
+        { "from": "Jackfield normalling schedule", "raise": "Shot results are drawn by stitch, not colour alone: solid stitch for a save, broken stitch for a goal, everywhere a shot appears." },
+        { "from": "Jacquard punched brocade", "raise": "Every headline number unpicks to its shots: a stat opens down to the tagged shots and clips that made it." },
+        { "from": "Fashion flagship", "raise": "The hero photo gets the whole viewport and quiet: one headline, one field, nothing else on the ice." },
+        { "from": "Emigre bitmap specimen", "raise": "One type family at five width steps carries the whole hierarchy, from pad-wordmark italic to table digits." }
+      ]
+    },
+    {
+      "id": "model-pick",
+      "label": "Telestrator Replay",
+      "kicker": "IMPECCABLE’S PICK",
+      "lineage": "Hockey Night in Canada replay telestrator and broadcast stat packages",
+      "thesis": "Every page is a paused replay with the analyst's marker on it.",
+      "palette": ["#0B1F44", "#FFE14D", "#FFFFFF", "#D7263D"],
+      "materials": ["freeze-frame footage", "hand-drawn telestrator circles and arrows", "broadcast lower-thirds"],
+      "viewport": "Your save photo as a paused replay, telestrator circle on the puck and an arrow to the glove, the headline in a lower-third bar with the start field.",
+      "risk": "Familiar: this is where most sports-analytics pages land, and the TV-graphics look dates fast."
+    },
+    {
+      "id": "challenger-event-display",
+      "label": "Shot Event Display",
+      "verdict": "competitive",
+      "lineage": "particle-collider event displays",
+      "thesis": "A game drawn as one event: every shot a track curving into the crease rings.",
+      "palette": ["#07090D", "#5B7A99", "#F2D33B", "#4FD1E8", "#E2453C"],
+      "materials": ["near-black vacuum ground", "steel-blue concentric crease rings", "signal-yellow shot tracks"],
+      "viewport": "Photo first, then the page drops into a full-width ring section where a sample game's shots arc in, goals as red bars stacked at the net.",
+      "case": "Carries the shot-level mechanism vividly; loses on identification, since it reads as a physics lab, not a rink.",
+      "risk": "Dark glowing data on black is close to the neon-on-black look the brief wants to avoid.",
+      "hero": "https://impeccable.style/worlds/cards/scientific-notation-particle-detector-event-display-hero.webp"
+    },
+    {
+      "id": "challenger-fashion-flagship",
+      "label": "Fashion Flagship",
+      "verdict": "declined",
+      "lineage": "luxury fashion lookbook sites",
+      "thesis": "Slow full-bleed looks framed by vast space.",
+      "palette": ["#EFEDE6", "#111111"],
+      "materials": ["full-bleed photography", "matte negative space"],
+      "viewport": "The save photo alone with one enormous word.",
+      "case": "Fits the photo, but hides the data goalies and coaches come for.",
+      "kept": "The photo owns the viewport with nothing else on the ice.",
+      "risk": "Pretty and empty for an analytics product.",
+      "hero": "https://impeccable.style/worlds/cards/luxury-fashion-flagship-hero.webp"
+    },
+    {
+      "id": "challenger-jackfield",
+      "label": "Jackfield Schedule",
+      "verdict": "declined",
+      "lineage": "machine-room patch-bay normalling schedules",
+      "thesis": "Numbered amber lanes where every state is drawn by line pattern.",
+      "palette": ["#0A0A0A", "#F2A12E"],
+      "materials": ["black glass", "amber link lines"],
+      "viewport": "Numbered lanes, one per shot.",
+      "case": "Nothing in it says hockey to a goalie or a parent.",
+      "kept": "State drawn by stroke pattern instead of colour.",
+      "risk": "Reads as an engineering tool.",
+      "hero": "https://impeccable.style/worlds/cards/operate-b-normalled-jackfield-hero.webp"
+    },
+    {
+      "id": "challenger-jacquard",
+      "label": "Jacquard Brocade",
+      "verdict": "declined",
+      "lineage": "punched-card jacquard weaving",
+      "thesis": "A finished pattern traceable to every thread decision.",
+      "palette": ["#14213D", "#D4A537", "#F1E9D2"],
+      "materials": ["midnight silk", "gold weft"],
+      "viewport": "A woven motif over its instruction rows.",
+      "case": "Beautiful, but the audience has no connection to looms.",
+      "kept": "Traceability from the finished picture down to each decision.",
+      "risk": "Ornamental for a sports product.",
+      "hero": "https://impeccable.style/worlds/cards/textiles-weave-drape-fashion-jacquard-punched-brocade-hero.webp"
+    },
+    {
+      "id": "challenger-bitmap",
+      "label": "Bitmap Specimen",
+      "verdict": "declined",
+      "lineage": "Emigre bitmap type specimens",
+      "thesis": "One face at many sizes as the whole page.",
+      "palette": ["#F4F4F0", "#000000", "#FF3B1F"],
+      "materials": ["newsprint", "pixel letterforms"],
+      "viewport": "A pixel headline over dense columns.",
+      "case": "No hockey in it, and pixel type fights the photo.",
+      "kept": "One family carries every level of hierarchy.",
+      "risk": "Design-school in-joke for this audience.",
+      "hero": "https://impeccable.style/worlds/cards/emigre-bitmap-specimen-hero.webp"
+    },
+    {
+      "id": "challenger-night-city",
+      "label": "Rain Night City",
+      "verdict": "declined",
+      "lineage": "blue-hour cityscape nocturnes",
+      "thesis": "Synchronized night bands of skyline, street and reflection.",
+      "palette": ["#1B2A6B", "#F2A541", "#C9D3DD"],
+      "materials": ["wet reflections", "neon signs"],
+      "viewport": "A skyline band over its own reflection.",
+      "case": "Mood without mechanism; nothing to do with the rink.",
+      "kept": "Stacked synchronized bands, like periods 1-2-3.",
+      "risk": "Atmosphere replaces information.",
+      "hero": "https://impeccable.style/worlds/cards/light-shadow-caustics-rain-night-cityscape-hero.webp"
+    }
+  ],
+  "reroll": { "registers": ["safer", "bolder"] },
+  "buildPath": { "value": "code", "toggle": false },
+  "canon": true,
+  "canonCard": {
+    "label": "The category standard",
+    "thesis": "A sports-analytics SaaS page, executed impeccably.",
+    "palette": ["#0B1220", "#FFFFFF", "#2F80ED"],
+    "materials": ["dark navy dashboard", "product screenshots"],
+    "viewport": "Photo hero with headline and button, then a dashboard screenshot and feature rows.",
+    "risk": "Indistinguishable from every other stats app, which is what the brief asked to avoid."
+  },
+  "steer": true
+}

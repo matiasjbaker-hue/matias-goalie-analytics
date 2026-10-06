@@ -32,12 +32,12 @@ export default async function handler(req, res) {
 
     const session = await stripe("POST", "/billing_portal/sessions", {
       customer: row.stripe_customer_id,
-      return_url: siteUrl(req),
+      return_url: siteUrl(),
     });
 
     res.status(200).json({ url: session.url });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: error.message || "Could not open billing." });
+    res.status(500).json({ error: "Could not open billing." });
   }
 }
