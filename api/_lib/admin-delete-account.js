@@ -1,5 +1,6 @@
 // ============================================================
 // POST /api/admin/delete-account -- admin removes a goalie/coach
+// (served through api/admin/[action].js)
 // ============================================================
 // Body: { accessToken, targetId }. An admin can delete any non-admin
 // account; any non-admin user can delete their own. Order matters:
@@ -14,8 +15,8 @@ import { ListObjectsV2Command, DeleteObjectsCommand } from "@aws-sdk/client-s3";
 import {
   stripe, stripeConfigured, verifyUser, getProfile, getAccessRow,
   serviceRpc, deleteAuthUser,
-} from "../_lib/billing.js";
-import { r2Configured, r2Client } from "../_lib/supabase.js";
+} from "./billing.js";
+import { r2Configured, r2Client } from "./supabase.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
