@@ -3532,6 +3532,48 @@ textarea:focus-visible,
 
 
 <!-- ========================================================= -->
+<!-- ADMIN: EMAIL A GAME RECAP (review, edit, send) -->
+<!-- ========================================================= -->
+
+<div class="giq-modal-overlay" id="recapEmailModalOverlay">
+  <div class="giq-modal">
+
+    <div class="giq-modal-header">
+      <h3 id="recapEmailTitle">Email recap</h3>
+      <button type="button" class="giq-modal-close" onclick="closeRecapEmailModal()">&times;</button>
+    </div>
+
+    <div class="giq-modal-body">
+
+      <div class="field">
+        <label for="recapTo">To</label>
+        <input type="email" id="recapTo" placeholder="goalie's email" autocomplete="off">
+      </div>
+
+      <div class="field" style="margin-top:10px">
+        <label for="recapSubject">Subject</label>
+        <input type="text" id="recapSubject" maxlength="200" autocomplete="off">
+      </div>
+
+      <div class="field" style="margin-top:10px">
+        <label for="recapBody">Message (edit anything before sending)</label>
+        <textarea id="recapBody" rows="16" style="min-height:260px"></textarea>
+      </div>
+
+      <div id="recapStatus" class="small-note" style="margin-top:10px;min-height:20px"></div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+        <button type="button" class="btn-secondary" id="recapTestBtn" onclick="sendRecapEmail(true)">Send test to me</button>
+        <button type="button" class="btn-primary" id="recapSendBtn" onclick="sendRecapEmail(false)">Send to goalie</button>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ========================================================= -->
 <!-- ADMIN: EDIT PROFILE (goalies and coaches) -->
 <!-- ========================================================= -->
 
@@ -14800,6 +14842,551 @@ function renderAdminGoalies(){
 }
 
 
+/* ============================================================
+   GAME RECAP EMAIL
+   Builds a plain-language recap of one game from the numbers
+   already in the database, for the admin to review, edit and
+   email to the goalie from the company address. Everything it
+   says is computed from tagged shots; if a game isn't tagged
+   well enough to say something real, it says less rather than
+   guessing. Sending itself happens on the server
+   (/api/admin/send-recap).
+============================================================ */
+
+// closes every recap -- change this to your own name if you like
+const RECAP_SIGNOFF = "GoalieIQ Analytics";
+
+function recapIsGoal(shot){
+  return String(shot.outcome || "").toLowerCase() === "goal";
+}
+
+function recapPlural(n, word){
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
+
+function recapSv(saves, shots){
+  return (saves / shots).toFixed(3).replace(/^0/, "");
+}
+
+function recapJoin(items){
+
+  if(items.length <= 1){ return items.join(""); }
+
+  return items.slice(0, -1).join(", ") + " and " + items[items.length - 1];
+
+}
+
+// "2026-09-26" -> "Sep 26" (read straight from the text, so no
+// timezone can shift the day)
+function recapDateLabel(dateStr){
+
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dateStr || ""));
+
+  if(!m){ return ""; }
+
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  return `${months[Number(m[2]) - 1]} ${Number(m[3])}`;
+
+}
+
+function recapResultPhrase(game){
+
+  const ts = game.team_goals;
+  const os = game["opponent goals"];
+
+  const present = v => v !== null && v !== undefined && v !== "";
+
+  if(!present(ts) || !present(os)){ return ""; }
+
+  const a = Number(ts);
+  const b = Number(os);
+
+  if(!Number.isFinite(a) || !Number.isFinite(b)){ return ""; }
+
+  const r = String(game.result || "").toUpperCase();
+
+  let word = a > b ? "win" : a < b ? "loss" : "tie";
+
+  if(r === "OTL" || r === "SOL"){ word = "overtime loss"; }
+
+  return ` in the ${a}-${b} ${word}`;
+
+}
+
+const RECAP_BODY_PARTS = {
+  glove:      { good: "glove_caught",   bad: "glove_rebound",   label: "glove" },
+  blocker:    { good: "blocker_good",   bad: "blocker_bad",     label: "blocker" },
+  midsection: { good: "midsection_good",bad: "midsection_bad",  label: "midsection" },
+  pad_stick:  { good: "pad_stick_good", bad: "pad_stick_bad",   label: "pad and stick" }
+};
+
+// rebound: one row, an array of rows, or null
+function recapReboundTotals(rebound){
+
+  const rows = Array.isArray(rebound) ? rebound : (rebound ? [rebound] : []);
+
+  const parts = {};
+  let good = 0;
+  let bad = 0;
+
+  Object.keys(RECAP_BODY_PARTS).forEach(key => {
+
+    const def = RECAP_BODY_PARTS[key];
+
+    const g = rows.reduce((sum, r) => sum + num(r[def.good]), 0);
+    const b = rows.reduce((sum, r) => sum + num(r[def.bad]), 0);
+
+    parts[key] = { good: g, bad: b };
+
+    good += g;
+    bad += b;
+
+  });
+
+  return { parts, good, bad, total: good + bad };
+
+}
+
+// Returns { subject, body, facts } or null when there's nothing to recap.
+function buildGameRecap({ game, shots, rebound, goalieName, creditsLeft }){
+
+  const shotsAgainst = gameShots(game);
+  const saves = gameSaves(game);
+  const goalsAllowed = gameGoals(game);
+
+  if(!shotsAgainst){ return null; }
+
+  const first = String(goalieName || "").trim().split(/\s+/)[0] || "there";
+
+  const opp = String(game.opponent || "").trim();
+  const oppKnown = !!opp && opp.toLowerCase() !== "unknown";
+
+  const dateLabel = recapDateLabel(gameDate(game));
+  const resultPhrase = recapResultPhrase(game);
+
+  const sv = recapSv(saves, shotsAgainst);
+
+  // shot-level claims need a game that's actually been tagged
+  const tagged = shots.length;
+  const shotLevel = tagged >= 10 && tagged >= shotsAgainst * 0.8;
+
+  const facts = { shotsAgainst, saves, goalsAllowed, sv, tagged, shotLevel };
+
+  const bullets = [];
+
+  // ---- 1. headline + expected goals ----
+  let headline =
+    goalsAllowed === 0
+      ? `A shutout: ${saves} saves on ${shotsAgainst} shots${resultPhrase}.`
+      : `${recapPlural(saves, "save")} on ${recapPlural(shotsAgainst, "shot")} (${sv})${resultPhrase}.`;
+
+  const goalShots = shots.filter(recapIsGoal);
+  const goalsTagged = goalShots.length;
+
+  const allScored =
+    tagged > 0 &&
+    shots.every(s => s.xg !== null && s.xg !== undefined && s.xg !== "" && Number.isFinite(Number(s.xg)));
+
+  if(shotLevel && allScored){
+
+    const xga = shots.reduce((sum, s) => sum + Number(s.xg), 0);
+    const diff = xga - goalsTagged;
+
+    facts.xga = xga;
+    facts.diff = diff;
+
+    const base = `The chances you faced were worth about ${xga.toFixed(1)} goals and you allowed ${goalsTagged}`;
+
+    if(diff >= 0.5){
+      headline += ` ${base}, so roughly ${diff.toFixed(1)} goals better than expected.`;
+    }
+    else if(diff > -0.5){
+      headline += ` ${base}, right in line with expected.`;
+    }
+    else{
+      headline += ` ${base}, so a few more went in than the chances suggested.`;
+    }
+
+  }
+
+  bullets.push(headline);
+
+  if(shotLevel){
+
+    // ---- 2. what was stopped ----
+    const frags = [];
+
+    const hd = shots.filter(s => s.xg_grade === "A+" || s.xg_grade === "A");
+
+    if(hd.length >= 5){
+
+      const hdGoals = hd.filter(recapIsGoal).length;
+
+      frags.push({
+        n: 1000,
+        text: hdGoals === 0
+          ? `all ${hd.length} of the highest-danger chances`
+          : `${hd.length - hdGoals} of the ${hd.length} highest-danger chances`
+      });
+
+      facts.highDanger = { shots: hd.length, goals: hdGoals };
+
+    }
+
+    const clean = (list, minN, text) => {
+      if(list.length >= minN && !list.some(recapIsGoal)){
+        frags.push({ n: list.length, text: text(list.length) });
+      }
+    };
+
+    clean(shots.filter(s => shotBoolean(s.rush)), 5, n => `all ${n} rush chances`);
+    clean(shots.filter(s => shotBoolean(s.breakaway)), 2, n => `all ${n} breakaways`);
+    clean(shots.filter(s => shotBoolean(s.cross_ice)), 2, n => n === 2 ? "both cross-ice plays" : `all ${n} cross-ice plays`);
+    clean(shots.filter(s => strengthCategory(s.strength) === "outnumbered"), 3, n => `all ${n} shots on the penalty kill`);
+    clean(shots.filter(s => s.release_type === "extended_possession"), 6, n => `all ${n} shots where the shooter had time to pick a spot`);
+    clean(shots.filter(s => shotBoolean(s.screened)), 4, n => `all ${n} screened shots`);
+    clean(shots.filter(s => s.release_type === "one_timer"), 4, n => `all ${n} one-timers`);
+
+    frags.sort((a, b) => b.n - a.n);
+
+    const top = frags.slice(0, 5).map(f => f.text);
+
+    let stopped = top.length ? `You stopped ${recapJoin(top)}.` : "";
+
+    // ---- where the goals came from ----
+    let goalNote = "";
+
+    if(goalsTagged >= 1){
+
+      const isHd = s => s.xg_grade === "A+" || s.xg_grade === "A";
+
+      const hdGoals = goalShots.filter(isHd).length;
+      const bkGoals = goalShots.filter(s => shotBoolean(s.breakaway)).length;
+      const rbGoals = goalShots.filter(s => shotBoolean(s.rebound)).length;
+
+      if(goalsTagged === 1 && bkGoals === 1){
+        goalNote = "The only goal was a breakaway.";
+      }
+      else if(goalsTagged === 1 && hdGoals === 1){
+        goalNote = "The only goal came on a high-danger chance.";
+      }
+      else if(goalsTagged >= 2 && hdGoals === goalsTagged){
+        goalNote = goalsTagged === 2 ? "Both goals came on high-danger chances." : `All ${goalsTagged} goals came on high-danger chances.`;
+      }
+      else if(rbGoals >= 1){
+        goalNote = rbGoals === 1 ? "One goal came off a rebound." : `${rbGoals} goals came off rebounds.`;
+      }
+
+    }
+
+    const line2 = [stopped, goalNote].filter(Boolean).join(" ");
+
+    if(line2){ bullets.push(line2); }
+
+    // ---- 3. rebound control ----
+    const rb = recapReboundTotals(rebound);
+
+    facts.rebound = { good: rb.good, bad: rb.bad };
+
+    let leak = null;
+
+    if(rb.total >= 8){
+
+      bullets.push(
+        `Rebound control: ${rb.good} of ${rb.total} saves stayed under control (${Math.round(rb.good / rb.total * 100)}%).`
+      );
+
+      // the body part responsible for a big share of the loose rebounds
+      Object.keys(rb.parts).forEach(key => {
+
+        const p = rb.parts[key];
+
+        if(p.bad >= 3 && p.bad / rb.bad >= 0.4 && (!leak || p.bad > leak.bad)){
+          leak = { key, bad: p.bad, good: p.good };
+        }
+
+      });
+
+    }
+
+    // ---- 4. one thing to watch ----
+    let watch = "";
+
+    if(leak){
+
+      watch =
+        `One thing to watch: ${leak.bad} of your ${rb.bad} rebounds came off ` +
+        `${RECAP_BODY_PARTS[leak.key].label} saves.`;
+
+    }
+    else{
+
+      const quick = goalShots.filter(s => s.release_type === "catch_and_release").length;
+
+      if(quick >= 2){
+        watch = `One thing to watch: ${quick} of the ${goalsTagged} goals came off quick catch-and-release shots.`;
+      }
+
+    }
+
+    facts.watch = watch;
+
+    if(watch){
+      bullets.push(watch);
+    }
+    else if(goalsAllowed > 0 || shotsAgainst >= 10){
+      bullets.push("Nothing stood out as a weak spot this game. A few more games will show whether that holds.");
+    }
+
+  }
+
+  // ---- assemble ----
+  const intro =
+    `Hi ${first},\n\n` +
+    `Thank you for giving GoalieIQ your business. It really means a lot to me. ` +
+    `Here's the recap from your ${dateLabel ? dateLabel + " " : ""}game${oppKnown ? " against " + opp : ""}:`;
+
+  const credits =
+    Number.isFinite(Number(creditsLeft)) && Number(creditsLeft) > 0
+      ? `You have ${recapPlural(Number(creditsLeft), "game")} left on your account. `
+      : "";
+
+  const closing =
+    `${credits}Your full report, shot map and shot log are in your account at goalieiqanalytics.com anytime.\n\n` +
+    `If anything looks off, or there's something you'd like me to focus on, just reply to this email.\n\n` +
+    `Thanks again,\n${RECAP_SIGNOFF}`;
+
+  const body =
+    intro + "\n\n" +
+    bullets.map(b => `• ${b}`).join("\n") + "\n\n" +
+    closing;
+
+  const subject =
+    `Your game recap${oppKnown ? " vs " + opp : (dateLabel ? " (" + dateLabel + ")" : "")}: ` +
+    `${recapPlural(saves, "save")} on ${recapPlural(shotsAgainst, "shot")}`;
+
+  return { subject, body, facts };
+
+}
+
+
+/* ---------- admin: review, edit and send ---------- */
+
+let recapModalGameId = null;
+let recapModalPrior = [];
+
+function setRecapStatus(text, isError){
+
+  const el = document.getElementById("recapStatus");
+
+  if(el){
+    el.textContent = text || "";
+    el.style.color = isError ? "var(--red)" : "";
+  }
+
+}
+
+function setRecapButtonsBusy(busy){
+
+  ["recapTestBtn", "recapSendBtn"].forEach(id => {
+    const b = document.getElementById(id);
+    if(b){ b.disabled = busy; }
+  });
+
+}
+
+async function recapApi(payload){
+
+  const res =
+    await fetch("/api/admin/send-recap", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessToken: currentSession.access_token, ...payload })
+    });
+
+  let data = {};
+
+  try{ data = await res.json(); }
+  catch(_){ /* non-JSON error page */ }
+
+  return { ok: res.ok, status: res.status, data };
+
+}
+
+async function openRecapEmailModal(gameId){
+
+  if(!currentSession || !currentSession.access_token){
+    showToast("You need to be signed in.", "error");
+    return;
+  }
+
+  const game = allGames.find(g => String(g.id) === String(gameId));
+
+  if(!game){
+    showToast("Could not find that game.", "error");
+    return;
+  }
+
+  const goalie = adminProfiles.find(p => p.id === game.user_id);
+  const access = adminAccess.find(a => a.user_id === game.user_id);
+
+  const draft =
+    buildGameRecap({
+      game,
+      shots: allShots.filter(s => String(s.game_id) === String(game.id)),
+      rebound: (allReboundControls || []).filter(r => String(r.game_id) === String(game.id)),
+      goalieName: goalie && goalie.full_name,
+      creditsLeft: access && access.plan === "pay_per_game" ? access.game_credits : null
+    });
+
+  if(!draft){
+    showToast("This game has no shots to recap yet.", "error");
+    return;
+  }
+
+  recapModalGameId = game.id;
+  recapModalPrior = [];
+
+  document.getElementById("recapEmailTitle").textContent =
+    `Email recap · ${(goalie && goalie.full_name) || "Goalie"}`;
+
+  document.getElementById("recapTo").value = "";
+  document.getElementById("recapSubject").value = draft.subject;
+  document.getElementById("recapBody").value = draft.body;
+
+  setRecapStatus("Looking up their email…");
+  setRecapButtonsBusy(false);
+
+  document.getElementById("recapEmailModalOverlay").classList.add("open");
+
+  try{
+
+    const { ok, data } = await recapApi({ action: "lookup", gameId: game.id });
+
+    if(!ok){
+      setRecapStatus(data.error || "Could not look up their email.", true);
+      return;
+    }
+
+    document.getElementById("recapTo").value = data.email || "";
+    recapModalPrior = data.prior || [];
+
+    const notes = [];
+
+    if(!data.email){ notes.push("No email found for this account. Type one in."); }
+
+    if(recapModalPrior.length){
+      const when = new Date(recapModalPrior[0].created_at).toLocaleDateString([], { month:"short", day:"numeric" });
+      notes.push(`Already emailed ${when} to ${recapModalPrior[0].sent_to}. Sending again will send a second copy.`);
+    }
+
+    if(!data.emailConfigured){
+      notes.push("Email sending isn't set up yet (see setup steps), so Send will fail until it is.");
+    }
+
+    if(goalie && goalie.birth_year && (new Date().getFullYear() - Number(goalie.birth_year)) < 18){
+      notes.push("This goalie is under 18. Check the address is a parent's.");
+    }
+
+    setRecapStatus(notes.join(" "), !data.emailConfigured);
+
+  }
+  catch(error){
+
+    console.error(error);
+    setRecapStatus("Could not look up their email.", true);
+
+  }
+
+}
+
+function closeRecapEmailModal(){
+
+  document.getElementById("recapEmailModalOverlay").classList.remove("open");
+  recapModalGameId = null;
+
+}
+
+async function sendRecapEmail(isTest){
+
+  if(!recapModalGameId){ return; }
+
+  const to = document.getElementById("recapTo").value.trim();
+  const subject = document.getElementById("recapSubject").value.trim();
+  const body = document.getElementById("recapBody").value.trim();
+
+  if(!subject || !body){
+    setRecapStatus("Add a subject and a message first.", true);
+    return;
+  }
+
+  if(!isTest){
+
+    if(!to){
+      setRecapStatus("Add the goalie's email address first.", true);
+      return;
+    }
+
+    if(!confirm(`Send this recap to ${to}?`)){ return; }
+
+  }
+
+  const resend = !isTest && recapModalPrior.length > 0;
+
+  if(resend && !confirm("This game was already emailed. Send another copy?")){
+    return;
+  }
+
+  setRecapButtonsBusy(true);
+  setRecapStatus(isTest ? "Sending a test to you…" : "Sending…");
+
+  try{
+
+    const { ok, data } =
+      await recapApi({
+        action: "send",
+        gameId: recapModalGameId,
+        to,
+        subject,
+        body,
+        test: !!isTest,
+        resend
+      });
+
+    if(!ok){
+      setRecapStatus(data.error || "Could not send the email.", true);
+      return;
+    }
+
+    if(isTest){
+
+      setRecapStatus(`Test sent to ${data.to}. Check it looks right, then press Send to goalie.`);
+
+    }
+    else{
+
+      showToast(`Recap sent to ${data.to}.`, "success");
+      closeRecapEmailModal();
+
+    }
+
+  }
+  catch(error){
+
+    console.error(error);
+    setRecapStatus("Something went wrong sending the email.", true);
+
+  }
+  finally{
+
+    setRecapButtonsBusy(false);
+
+  }
+
+}
+
+
 function openAdminGoalieGamesModal(goalieId){
 
   const goalie =
@@ -14821,7 +15408,10 @@ function openAdminGoalieGamesModal(goalieId){
             <td>${gameDate(g)}</td>
             <td>${gameOpponent(g)}</td>
             <td>${g.season || "—"}</td>
-            <td><button type="button" class="watch-btn" onclick="openShotLogModal(${g.id})">Shots</button></td>
+            <td style="white-space:nowrap">
+              <button type="button" class="watch-btn" onclick="openShotLogModal(${g.id})">Shots</button>
+              <button type="button" class="watch-btn" onclick="openRecapEmailModal(${g.id})">Email recap</button>
+            </td>
           </tr>
         `).join("")
       : `<tr><td colspan="4"><div class="empty-state">No games logged for this goalie yet.</div></td></tr>`;
