@@ -19826,7 +19826,7 @@ const REVIEW_SCAN_WIDTH = 640;
 const REVIEW_TAG_WIDTH = 960;
 // A detect flag at least this sure is kept as a "possible shot" for the
 // admin to confirm, even when the closer look doesn't confirm it.
-const REVIEW_KEEP_UNSURE = 0.55;
+const REVIEW_KEEP_UNSURE = 0.3;
 const REVIEW_DETECT_CONCURRENCY = 3;
 const REVIEW_MIN_GAP = 4;            // seconds: closer than this is the same shot
 
@@ -19837,6 +19837,7 @@ let reviewDraftCounts = {};
 const review = {
   video: null,
   drafts: [],
+  candidates: [],   // moments the AI flagged then ruled out (this session only)
   selectedId: null,
   scanning: false,
   scanStats: null,
@@ -19977,6 +19978,7 @@ async function openReview(videoId){
 
   review.video = { ...v, period_marks: v.period_marks || {} };
   review.drafts = [];
+  review.candidates = [];
   review.selectedId = null;
 
   document.getElementById("rv-queue-view").hidden = true;
@@ -20142,6 +20144,9 @@ function renderReviewTimeline(){
   ticks.innerHTML =
     ["2", "3", "OT"].filter(k => marks[k] !== undefined && marks[k] !== null).map(k =>
       `<span class="rv-pmark" style="left:${pct(marks[k])}%" title="${k === "OT" ? "OT" : k === "2" ? "2nd period" : "3rd period"} starts ${formatClock(marks[k])}">${k === "OT" ? "OT" : k}</span>`
+    ).join("") +
+    (review.candidates || []).filter(c => !review.drafts.some(dr => Math.abs(Number(dr.t_seconds) - c.t) < REVIEW_MIN_GAP)).map(c =>
+      `<button type="button" class="rv-tick is-candidate" style="left:${pct(c.t)}%" onclick="event.stopPropagation(); reviewJumpTo(${c.t})" title="${escapeHtml(formatClock(c.t))} · AI looked here and ruled it out. Press S to add it if it is a shot." aria-label="Ruled-out moment at ${escapeHtml(formatClock(c.t))}"></button>`
     ).join("") +
     review.drafts.map(dr => {
       const cls = ["rv-tick", dr.outcome === "goal" ? "is-goal" : "is-save", String(dr.id) === String(review.selectedId) ? "is-selected" : ""].join(" ");
@@ -20412,6 +20417,12 @@ function jumpToReviewShot(){
   video.play().catch(() => {});
 }
 
+function reviewJumpTo(t){
+  const video = document.getElementById("rv-video");
+  video.pause();
+  video.currentTime = Math.max(0, Number(t) - 2);
+}
+
 function reviewSeekBy(delta){
   const video = document.getElementById("rv-video");
   video.currentTime = Math.max(0, Math.min(reviewDuration() || 1e9, video.currentTime + delta));
@@ -20658,7 +20669,7 @@ function renderReviewPreview(frames){
   box.hidden = false;
   box.innerHTML =
     `<span class="small-note">What the AI is looking at:</span>` +
-    frames.map(f => `<figure><img src="data:image/jpeg;base64,${f.data}" alt="Frame at ${escapeHtml(formatClock(f.t))}"><figcaption>${escapeHtml(formatClock(f.t))}</figcaption></figure>`).join("");
+    frames.map(f => `<button type="button" class="rv-preview-frame" onclick="reviewJumpTo(${Number(f.t) + 2})" title="Jump the video to ${escapeHtml(formatClock(f.t))}"><img src="data:image/jpeg;base64,${f.data}" alt="Frame at ${escapeHtml(formatClock(f.t))}"><span>${escapeHtml(formatClock(f.t))}</span></button>`).join("");
 }
 
 function toggleReviewScan(){
@@ -20718,7 +20729,13 @@ async function runReviewScan(){
     if(!shot || !shot.shot_detected){
       // The close look didn't confirm it. Keep strong flags anyway as a
       // "possible shot", so a real one is never silently lost.
-      if(Number(ev.confidence) < REVIEW_KEEP_UNSURE){ st.rejected++; renderReviewScanBar(); return; }
+      if(Number(ev.confidence) < REVIEW_KEEP_UNSURE){
+        st.rejected++;
+        review.candidates.push({ t: ev.t, confidence: Number(ev.confidence) || 0 });
+        renderReviewTimeline();
+        renderReviewScanBar();
+        return;
+      }
       shot = { ...(shot || {}), shot_detected: true, outcome: ev.goal ? "goal" : "save",
         confidence: Math.min(Number(ev.confidence) || 0, 0.4),
         notes: "Possible shot: the scan flagged it but the closer look wasn't sure. Watch it, then keep, fix or delete." };

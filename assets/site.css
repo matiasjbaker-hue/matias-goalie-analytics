@@ -4597,22 +4597,44 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
 
 .rv-preview .small-note{ width:100%; margin:0 0 2px; }
 
-.rv-preview figure{
+.rv-preview-frame{
   margin:0;
+  padding:0;
   width:150px;
+  border:0;
+  background:none;
+  color:var(--muted-ink);
+  font:inherit;
+  text-align:left;
+  cursor:pointer;
 }
 
-.rv-preview img{
+.rv-preview-frame img{
   display:block;
   width:100%;
   aspect-ratio:16 / 9;
   object-fit:cover;
   border-radius:4px;
   background:#000;
+  outline:1.5px solid transparent;
+  outline-offset:2px;
+  transition:outline-color .15s;
 }
 
-.rv-preview figcaption{
+.rv-preview-frame:hover img,
+.rv-preview-frame:focus-visible img{ outline-color:var(--gold); }
+
+.rv-preview-frame span{
   font-size:11px;
-  color:var(--muted-ink);
   font-variant-numeric:tabular-nums;
 }
+
+.rv-tick.is-candidate{
+  top:14px;
+  bottom:14px;
+  width:4px;
+  margin-left:-2px;
+  background:var(--seam-strong);
+}
+
+.rv-tick.is-candidate:hover{ top:10px; bottom:10px; background:var(--muted-ink); }
