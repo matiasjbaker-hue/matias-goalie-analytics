@@ -20548,6 +20548,31 @@ async function uploadGameVideo(){
     return;
   }
 
+  // An admin uploads on a goalie's behalf: the film, its request row and
+  // (for a new game) the game itself all belong to that goalie, so it
+  // shows in their account and the review queue like any other upload.
+  let ownerId = null;
+  let ownerProfile = null;
+
+  if(currentRole === "admin"){
+
+    if(isNewGame){
+      ownerId = document.getElementById("video-new-game-goalie-select").value;
+    }
+    else{
+      const picked = document.getElementById("video-game-select").selectedOptions[0];
+      ownerId = picked ? picked.getAttribute("data-user-id") : null;
+    }
+
+    if(!ownerId){
+      showToast("Pick which goalie this film is for.", "error");
+      return;
+    }
+
+    ownerProfile = adminProfiles.find(p => p.id === ownerId) || null;
+
+  }
+
   let gameId = null;
   let requestedGame = null;
 
@@ -20567,7 +20592,7 @@ async function uploadGameVideo(){
       date: textOrNull(document.getElementById("video-new-game-date").value),
       opponent: opponent,
       home_away: document.getElementById("video-new-game-homeaway").value || null,
-      season: (currentProfile && currentProfile.season) || null
+      season: (ownerProfile && ownerProfile.season) || (currentProfile && currentProfile.season) || null
     };
 
   }
@@ -20591,20 +20616,24 @@ async function uploadGameVideo(){
 
   uploadBtn.disabled = true;
   statusEl.style.display = "block";
-  statusEl.textContent = "Uploading...";
+  const forName = ownerId
+    ? ((ownerProfile && ownerProfile.full_name) || "the goalie")
+    : null;
+
+  statusEl.textContent = forName ? `Uploading for ${forName}...` : "Uploading...";
 
   try{
 
     const userId =
-      currentSession.user.id;
+      ownerId || currentSession.user.id;
 
     let storagePath;
 
     try{
       storagePath = await uploadFileToR2(file, (uploaded, total) => {
         const pct = total ? Math.floor((uploaded / total) * 100) : 0;
-        statusEl.textContent = `Uploading... ${pct}%`;
-      });
+        statusEl.textContent = forName ? `Uploading for ${forName}... ${pct}%` : `Uploading... ${pct}%`;
+      }, ownerId || undefined);
     }
     catch(uploadErr){
       throw new Error(uploadErr.message || String(uploadErr));
@@ -20652,7 +20681,9 @@ async function uploadGameVideo(){
       throw new Error(insertError.message);
     }
 
-    statusEl.textContent = "Sent! We'll review your game and you'll see the stats here once they're approved.";
+    statusEl.textContent = forName
+      ? `Uploaded for ${forName}. It's in the video review queue now, and it shows in their account as a request.`
+      : "Sent! We'll review your game and you'll see the stats here once they're approved.";
     fileInput.value = "";
     document.getElementById("video-jersey-color").value = "";
     document.getElementById("video-new-game-toggle").checked = false;
