@@ -21341,7 +21341,15 @@ async function runReviewScan(){
       const ev = tagQueue.shift();
       try{ await tagOne(ev); }
       catch(error){
-        if(error.status === 403 || error.status === 503 || error.status === 404 || /CORS|blocked/.test(error.message)){ failure = error; review.scanning = false; tagQueue.length = 0; }
+        // The review tables missing (migration not run, or Supabase's
+        // schema cache not refreshed) means nothing can be saved: stop
+        // rather than spend AI calls on shots that would be lost.
+        if(/schema cache|does not exist|video_shot_drafts/i.test(error.message || "")){
+          failure = new Error("The AI found shots but couldn't save them: the review table isn't set up in Supabase yet. Run supabase/migrations/20261007_video_review.sql, then run: notify pgrst, 'reload schema'; and Re-run AI.");
+          review.scanning = false;
+          tagQueue.length = 0;
+        }
+        else if(error.status === 403 || error.status === 503 || error.status === 404 || /CORS|blocked/.test(error.message)){ failure = error; review.scanning = false; tagQueue.length = 0; }
         else{
           console.error("Tagging failed at", ev.t, error);
           review.scanStats.errors++;
