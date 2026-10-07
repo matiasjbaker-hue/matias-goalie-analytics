@@ -5134,3 +5134,25 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
   white-space:nowrap;
 }
 .rv-spend{ margin:8px 0 0; }
+
+/* Admin: add a video / submission save row */
+.rv-add-video{
+  margin-top:12px;
+  padding:14px;
+  background:var(--face);
+  border:1.5px solid var(--ink);
+  border-radius:var(--radius);
+}
+.rv-add-video h4{ margin:0 0 4px; font-size:15px; font-weight:800; }
+.rv-add-video > .small-note{ margin:0 0 10px; }
+.rv-add-video .field[hidden]{ display:none; }
+.rv-av-foot{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:12px;
+}
+.rv-av-foot .small-note{ margin:0 auto 0 0; }
+.rv-details .rv-av-foot{ padding:0 16px 14px; }

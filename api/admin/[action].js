@@ -17,6 +17,7 @@ const ROUTES = {
   "send-recap": () => import("../_lib/admin-send-recap.js"),
   "user-info": () => import("../_lib/admin-user-info.js"),
   "make-clip": () => import("../_lib/admin-make-clip.js"),
+  "create-request": () => import("../_lib/admin-create-request.js"),
 };
 
 export default async function handler(req, res) {

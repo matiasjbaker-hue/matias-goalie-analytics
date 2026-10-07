@@ -3298,8 +3298,28 @@
         <button type="button" data-filter="approved" onclick="setReviewFilter('approved')">Approved</button>
         <button type="button" data-filter="all" onclick="setReviewFilter('all')">All</button>
       </div>
+      <button type="button" class="btn-primary" onclick="openAddVideo()">Add a video</button>
       <button type="button" class="btn-secondary" onclick="clearFailedVideos(this)">Clear failed uploads</button>
     </div>
+
+    <section class="rv-add-video" id="rv-add-video" hidden aria-labelledby="rv-av-title">
+      <h4 id="rv-av-title">Add a video for a goalie</h4>
+      <p class="small-note">The video goes into the goalie's own account as a request, exactly as if they had sent it, and opens in Review.</p>
+      <div class="field-grid rv-details-grid">
+        <div class="field"><label for="rv-av-goalie">Goalie</label><select id="rv-av-goalie" onchange="onAddVideoGoalieChange()"></select></div>
+        <div class="field"><label for="rv-av-file">Video file</label><input type="file" id="rv-av-file" accept="video/*,.mov,.mp4,.m4v"></div>
+        <div class="field"><label for="rv-av-jersey">Goalie's team jersey colour</label><input type="text" id="rv-av-jersey" maxlength="40" placeholder="e.g. blue" autocomplete="off"></div>
+        <div class="field"><label for="rv-av-game">Game</label><select id="rv-av-game" onchange="onAddVideoGameChange()"></select></div>
+        <div class="field rv-av-new"><label for="rv-av-date">Date</label><input type="date" id="rv-av-date"></div>
+        <div class="field rv-av-new"><label for="rv-av-opponent">Opponent</label><input type="text" id="rv-av-opponent" maxlength="80" autocomplete="off"></div>
+        <div class="field rv-av-new"><label for="rv-av-homeaway">Home / Away</label><select id="rv-av-homeaway"><option value="">—</option><option>Home</option><option>Away</option></select></div>
+      </div>
+      <div class="rv-av-foot">
+        <span class="small-note" id="rv-av-status" aria-live="polite"></span>
+        <button type="button" class="btn-secondary" onclick="closeAddVideo()">Cancel</button>
+        <button type="button" class="btn-primary" id="rv-av-btn" onclick="submitAddVideo()">Upload &amp; create request</button>
+      </div>
+    </section>
 
     <p class="rv-spend small-note" id="rv-spend" hidden></p>
 
@@ -3353,8 +3373,10 @@
     <div class="rv-preview" id="rv-preview" hidden></div>
 
     <details class="rv-details" open>
-      <summary>Game details <span class="small-note">Saved with the game when you publish. Season decides which dashboard it shows on.</span></summary>
+      <summary>Submission <span class="small-note">What the goalie sent. Edit anything and press Save changes; it's also saved with the game when you publish. Season decides which dashboard it shows on.</span></summary>
       <div class="field-grid rv-details-grid">
+        <div class="field"><label for="rv-gd-jersey">Goalie's jersey colour</label><input type="text" id="rv-gd-jersey" maxlength="40" autocomplete="off"></div>
+        <div class="field rv-gd-game-field"><label for="rv-gd-game">Game</label><select id="rv-gd-game" onchange="onReviewGameLinkChange()"></select></div>
         <div class="field"><label for="rv-gd-date">Date</label><input type="date" id="rv-gd-date"></div>
         <div class="field"><label for="rv-gd-opponent">Opponent</label><input type="text" id="rv-gd-opponent" autocomplete="off"></div>
         <div class="field"><label for="rv-gd-season">Season</label><input type="text" id="rv-gd-season" placeholder="2026 preseason" autocomplete="off"></div>
@@ -3363,6 +3385,10 @@
         <div class="field"><label for="rv-gd-teamgoals">Team goals</label><input type="number" id="rv-gd-teamgoals" min="0"></div>
         <div class="field"><label for="rv-gd-oppgoals">Opponent goals</label><input type="number" id="rv-gd-oppgoals" min="0"></div>
         <div class="field"><label for="rv-gd-length">Minutes played</label><input type="number" id="rv-gd-length" min="0" step="1" placeholder="45"></div>
+      </div>
+      <div class="rv-av-foot">
+        <span class="small-note" id="rv-gd-status" aria-live="polite"></span>
+        <button type="button" class="btn-secondary" id="rv-gd-save" onclick="saveReviewSubmission()">Save changes</button>
       </div>
     </details>
 
@@ -22759,9 +22785,26 @@ function reviewDefaultSeason(v){
   return theirs.length ? computeCurrentSeason(theirs, true) : CURRENT_SEASON;
 }
 
+function goalieGameOptions(goalieId, selectedId, newLabel){
+  const games = allGames.filter(g => g.user_id === goalieId)
+    .sort((a, b) => String(gameDate(b) || "").localeCompare(String(gameDate(a) || "")));
+  return `<option value="">${escapeHtml(newLabel)}</option>` + games.map(g =>
+    `<option value="${escapeHtml(g.id)}"${String(g.id) === String(selectedId) ? " selected" : ""}>${escapeHtml(`${gameDate(g) || "No date"} vs ${gameOpponent(g)}${g.season ? ` · ${g.season}` : ""}`)}</option>`
+  ).join("");
+}
+
 function fillReviewGameDetails(){
   const v = review.video;
   if(!v){ return; }
+  const approved = reviewStatusOf(v) === "approved";
+  const gameSel = document.getElementById("rv-gd-game");
+  gameSel.innerHTML = goalieGameOptions(v.user_id, v.game_id, "New game (details below)");
+  gameSel.value = v.game_id ? String(v.game_id) : "";
+  // Published stats live in this game: moving them would split totals.
+  gameSel.disabled = approved;
+  gameSel.title = approved ? "Published: the game can't be changed. The details below can." : "";
+  document.getElementById("rv-gd-jersey").value = v.team_jersey_color || "";
+  document.getElementById("rv-gd-status").textContent = "";
   const g = v.game_id ? allGames.find(x => String(x.id) === String(v.game_id)) : null;
   const rg = v.requested_game || {};
   const val = (a, b) => (a !== null && a !== undefined && a !== "") ? a : (b ?? "");
@@ -22788,6 +22831,173 @@ function readReviewGameDetails(){
     minutes_played: minutes && minutes > 0 ? minutes : null,
     game_length: minutes && minutes > 0 ? minutes : null
   };
+}
+
+
+// Picking one of the goalie's games fills the details from it.
+function onReviewGameLinkChange(){
+  const v = review.video;
+  if(!v){ return; }
+  const id = document.getElementById("rv-gd-game").value;
+  const g = id ? allGames.find(x => String(x.id) === String(id)) : null;
+  if(!g){ return; }
+  document.getElementById("rv-gd-date").value = g.date || "";
+  document.getElementById("rv-gd-opponent").value = g.opponent || "";
+  document.getElementById("rv-gd-season").value = g.season || reviewDefaultSeason(v);
+  document.getElementById("rv-gd-homeaway").value = g.home_away || "";
+  document.getElementById("rv-gd-result").value = g.result || "";
+  document.getElementById("rv-gd-teamgoals").value = g.team_goals ?? "";
+  document.getElementById("rv-gd-oppgoals").value = g["opponent goals"] ?? "";
+  document.getElementById("rv-gd-length").value = g.minutes_played || g.game_length || "";
+}
+
+// Saves the submission as edited: jersey colour (the AI uses it), which
+// game it's for, and the game's details. A linked game that already
+// exists is updated too, so the goalie's game matches.
+async function saveReviewSubmission(){
+  const v = review.video;
+  if(!v){ return; }
+  const btn = document.getElementById("rv-gd-save");
+  const status = document.getElementById("rv-gd-status");
+  const jersey = textOrNull(document.getElementById("rv-gd-jersey").value);
+  if(!jersey){ showToast("Enter the goalie's jersey colour.", "error"); return; }
+
+  const approved = reviewStatusOf(v) === "approved";
+  const gameId = approved ? v.game_id : (document.getElementById("rv-gd-game").value || null);
+  const details = readReviewGameDetails();
+  const requested = {
+    ...(v.requested_game || {}),
+    date: details.date, opponent: details.opponent, home_away: details.home_away, season: details.season,
+    result: details.result, team_goals: details.team_goals, opponent_goals: details["opponent goals"], minutes: details.minutes_played
+  };
+
+  btn.disabled = true;
+  status.textContent = "Saving…";
+  try{
+    const { error } = await supabaseClient.from("game_videos").update({
+      team_jersey_color: jersey,
+      game_id: gameId ? Number(gameId) : null,
+      requested_game: requested
+    }).eq("id", v.id);
+    if(error){ throw error; }
+
+    if(gameId){
+      const { error: gErr } = await supabaseClient.from("Games").update(details).eq("id", gameId);
+      if(gErr){ throw gErr; }
+      const g = allGames.find(x => String(x.id) === String(gameId));
+      if(g){ Object.assign(g, details); }
+    }
+
+    Object.assign(v, { team_jersey_color: jersey, game_id: gameId ? Number(gameId) : null, requested_game: requested });
+    const cached = reviewQueueCache.find(x => String(x.id) === String(v.id));
+    if(cached){ Object.assign(cached, { team_jersey_color: jersey, game_id: v.game_id, requested_game: requested }); }
+    document.getElementById("rv-sub").textContent =
+      `${reviewGameLabel(v)} · jersey: ${v.team_jersey_color || "not given"} · file: ${String(v.storage_path || "").split("/").pop()}`;
+    status.textContent = `Saved ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`;
+  }
+  catch(error){
+    console.error(error);
+    status.textContent = "";
+    showToast(`Couldn't save the submission: ${error.message || error}`, "error");
+  }
+  finally{
+    btn.disabled = false;
+  }
+}
+
+
+/* ---------- admin: add a video for a goalie ---------- */
+
+function openAddVideo(){
+  const goalies = (adminProfiles || [])
+    .filter(p => p.role !== "admin" && p.role !== "coach")
+    .sort((a, b) => String(a.full_name || "").localeCompare(String(b.full_name || "")));
+  const sel = document.getElementById("rv-av-goalie");
+  sel.innerHTML = `<option value="">Choose a goalie…</option>` + goalies.map(p =>
+    `<option value="${escapeHtml(p.id)}">${escapeHtml(p.full_name || p.email || "Unnamed goalie")}</option>`
+  ).join("");
+  document.getElementById("rv-av-status").textContent = "";
+  onAddVideoGoalieChange();
+  const box = document.getElementById("rv-add-video");
+  box.hidden = false;
+  sel.focus();
+}
+
+function closeAddVideo(){
+  document.getElementById("rv-add-video").hidden = true;
+}
+
+function onAddVideoGoalieChange(){
+  const goalieId = document.getElementById("rv-av-goalie").value;
+  document.getElementById("rv-av-game").innerHTML = goalieGameOptions(goalieId, null, "New game");
+  onAddVideoGameChange();
+}
+
+function onAddVideoGameChange(){
+  const isNew = !document.getElementById("rv-av-game").value;
+  document.querySelectorAll("#rv-add-video .rv-av-new").forEach(el => { el.hidden = !isNew; });
+}
+
+async function submitAddVideo(){
+  const goalieId = document.getElementById("rv-av-goalie").value;
+  const file = document.getElementById("rv-av-file").files[0];
+  const jersey = textOrNull(document.getElementById("rv-av-jersey").value);
+  const gameId = document.getElementById("rv-av-game").value || null;
+  const opponent = textOrNull(document.getElementById("rv-av-opponent").value);
+
+  if(!goalieId){ showToast("Choose a goalie.", "error"); return; }
+  if(!file){ showToast("Choose a video file.", "error"); return; }
+  if(!jersey){ showToast("Enter the goalie's team jersey colour.", "error"); return; }
+  if(!gameId && !opponent){ showToast("Enter the opponent, or pick one of the goalie's games.", "error"); return; }
+
+  const btn = document.getElementById("rv-av-btn");
+  const status = document.getElementById("rv-av-status");
+  btn.disabled = true;
+
+  try{
+    status.textContent = "Uploading… 0%";
+    const storagePath = await uploadFileToR2(file, (done, total) => {
+      status.textContent = `Uploading… ${total ? Math.floor(done / total * 100) : 0}%`;
+    }, goalieId);
+
+    status.textContent = "Creating the request…";
+    const theirGames = allGames.filter(g => g.user_id === goalieId && g.season);
+    const res = await fetch("/api/admin/create-request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        accessToken: currentSession.access_token,
+        goalieId,
+        storagePath,
+        jerseyColor: jersey,
+        gameId,
+        requestedGame: gameId ? null : {
+          date: textOrNull(document.getElementById("rv-av-date").value),
+          opponent,
+          home_away: document.getElementById("rv-av-homeaway").value || null,
+          season: theirGames.length ? computeCurrentSeason(theirGames, true) : CURRENT_SEASON
+        }
+      })
+    });
+    let data = {};
+    try{ data = await res.json(); }catch(e){ data = {}; }
+    if(!res.ok){ throw new Error(data.detail || data.error || "Couldn't create the request."); }
+
+    status.textContent = "";
+    ["rv-av-file", "rv-av-jersey", "rv-av-opponent", "rv-av-date"].forEach(id => { document.getElementById(id).value = ""; });
+    closeAddVideo();
+    showToast("Video added. Opening it in Review.", "success");
+    await renderAdminVideoList();
+    await openReview(data.gameVideoId);
+  }
+  catch(error){
+    console.error(error);
+    status.textContent = "";
+    showToast(error.message || "The upload failed.", "error");
+  }
+  finally{
+    btn.disabled = false;
+  }
 }
 
 
