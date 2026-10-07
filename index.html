@@ -45,6 +45,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.min.js" integrity="sha384-WgXwGL6fUsYJWNaKJgVbrJKGRQwc1vieh2oy4kw9nXqpNDz3tdSsqEYUgeHD/NuF" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
 
+<script>try{var t=localStorage.getItem("giq-theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
+<script src="assets/theme.js" defer></script>
 <link rel="stylesheet" href="assets/site.css">
 <link rel="preload" href="assets/fonts/archivo-italic-var-latin.woff2" as="font" type="font/woff2" crossorigin>
 </head>
@@ -100,6 +102,7 @@
     <nav class="lp-bar-links" aria-label="Main">
       <a href="sample-game.html">Sample game</a>
       <a href="goalies-coaches.html">Goalies &amp; coaches</a>
+      <button type="button" class="theme-toggle" data-theme-toggle onclick="toggleTheme()" aria-label="Switch to dark mode"></button>
       <a href="#get-started" class="lp-signin" onclick="showAuthView('signin')">Sign in</a>
     </nav>
   </header>
@@ -463,6 +466,8 @@
 
       <span id="user-email-badge" class="user-badge"></span>
 
+      <button type="button" class="theme-toggle" data-theme-toggle onclick="toggleTheme()" aria-label="Switch to dark mode"></button>
+
       <button class="logout-btn" id="billing-btn" style="display:none" onclick="openBillingPortal(this)">
         Billing
       </button>
@@ -573,7 +578,7 @@
     </button>
 
     <button onclick="showTab('adminvideoreview',this)">
-      Video Review
+      Review
     </button>
 
     <button onclick="showTab('about',this)">
@@ -3271,16 +3276,205 @@
 <section id="adminvideoreview" class="tab">
 
   <div class="page-title">
-    <h2>Video Review</h2>
-    <p>Every uploaded game video across all customers -- download to clip shots from, or delete once you're done with it.</p>
+    <h2>Review</h2>
+    <p>Every game a goalie has sent in. Run the AI or tag shots yourself on the video, fix anything that's off, then approve to publish the stats to the goalie. Nothing is visible to them until you approve.</p>
   </div>
 
-  <button type="button" class="btn-secondary" style="margin-bottom:12px" onclick="clearFailedVideos(this)">Clear failed uploads</button>
+  <div id="rv-queue-view">
 
-  <div class="card">
-    <div id="admin-video-list-container">
-      <div class="empty-state">No videos uploaded yet.</div>
+    <div class="rv-queue-bar">
+      <div class="go-trend-controls" id="rv-filter" role="group" aria-label="Show">
+        <button type="button" class="active" data-filter="open" onclick="setReviewFilter('open')">To review</button>
+        <button type="button" data-filter="approved" onclick="setReviewFilter('approved')">Approved</button>
+        <button type="button" data-filter="all" onclick="setReviewFilter('all')">All</button>
+      </div>
+      <button type="button" class="btn-secondary" onclick="clearFailedVideos(this)">Clear failed uploads</button>
     </div>
+
+    <div id="admin-video-list-container" class="rv-queue">
+      <div class="empty-state">Loading requests…</div>
+    </div>
+
+  </div>
+
+  <div id="rv-workspace" hidden>
+
+    <button type="button" class="go-back-link" onclick="closeReview()">All requests</button>
+
+    <div class="rv-head">
+      <div class="rv-head-text">
+        <h3 id="rv-title">Request</h3>
+        <div id="rv-sub" class="rv-sub"></div>
+      </div>
+      <div class="rv-head-actions">
+        <span id="rv-status"></span>
+        <button type="button" class="btn-secondary" id="rv-scan-btn" onclick="toggleReviewScan()">Run AI</button>
+        <button type="button" class="btn-danger" onclick="flagReviewNeedsAttention()">Needs attention</button>
+        <button type="button" class="btn-primary" id="rv-approve-btn" onclick="approveReview()">Approve &amp; publish</button>
+      </div>
+    </div>
+
+    <div class="rv-scanbar" id="rv-scanbar" hidden>
+      <div class="rv-scanbar-track"><i id="rv-scanbar-fill"></i></div>
+      <span id="rv-scan-text" aria-live="polite"></span>
+    </div>
+
+    <div class="rv-grid">
+
+      <div class="rv-player-col">
+
+        <div class="rv-player">
+          <video id="rv-video" controls playsinline preload="metadata"></video>
+          <div class="rv-player-msg" id="rv-player-msg" hidden></div>
+        </div>
+
+        <div class="rv-timeline" id="rv-timeline" title="Click to jump; ticks are shots">
+          <div class="rv-scanned" id="rv-scanned"></div>
+          <div id="rv-ticks"></div>
+          <div class="rv-playhead" id="rv-playhead"></div>
+        </div>
+
+        <div class="rv-controls">
+          <button type="button" class="btn-secondary" onclick="reviewSeekBy(-5)" aria-label="Back 5 seconds">−5s</button>
+          <button type="button" class="btn-secondary" onclick="reviewTogglePlay()" id="rv-play-btn">Play</button>
+          <button type="button" class="btn-secondary" onclick="reviewSeekBy(5)" aria-label="Forward 5 seconds">+5s</button>
+          <span class="rv-time" id="rv-time">0:00 / 0:00</span>
+          <select id="rv-speed" onchange="document.getElementById('rv-video').playbackRate = Number(this.value)" aria-label="Playback speed">
+            <option value="0.5">0.5×</option>
+            <option value="1" selected>1×</option>
+            <option value="1.5">1.5×</option>
+            <option value="2">2×</option>
+          </select>
+          <button type="button" class="btn-primary rv-add" onclick="addReviewShotHere()">Add shot here</button>
+        </div>
+
+        <div class="rv-periods">
+          <span class="rv-periods-label">Mark where each period starts:</span>
+          <button type="button" class="btn-secondary" onclick="markReviewPeriod('2')">2nd starts here</button>
+          <button type="button" class="btn-secondary" onclick="markReviewPeriod('3')">3rd starts here</button>
+          <button type="button" class="btn-secondary" onclick="markReviewPeriod('OT')">OT starts here</button>
+          <span class="small-note" id="rv-period-note"></span>
+        </div>
+
+        <p class="small-note rv-keys">Keys: Space play/pause · ← → 5 seconds · S add a shot · N / P next or previous shot · G toggle goal</p>
+
+      </div>
+
+      <aside class="rv-side">
+
+        <div class="rv-side-head">
+          <h4>Shots <span id="rv-count"></span></h4>
+          <span class="small-note" id="rv-tally"></span>
+        </div>
+
+        <ol class="rv-shotlist" id="rv-shotlist"></ol>
+
+        <div class="rv-editor" id="rv-editor" hidden>
+
+          <div class="rv-editor-head">
+            <strong id="rv-ed-title">Shot</strong>
+            <span id="rv-ed-source"></span>
+          </div>
+
+          <p class="small-note" id="rv-ed-ai" hidden></p>
+
+          <div class="field-grid rv-ed-grid">
+            <div class="field">
+              <label for="rv-ed-outcome">Result</label>
+              <select id="rv-ed-outcome" onchange="updateReviewShot('outcome', this.value)">
+                <option value="save">Save</option>
+                <option value="goal">Goal</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="rv-ed-period">Period</label>
+              <select id="rv-ed-period" onchange="updateReviewShot('period', this.value || null)">
+                <option value="">From period marks</option>
+                <option value="1">1st</option>
+                <option value="2">2nd</option>
+                <option value="3">3rd</option>
+                <option value="OT">OT</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="rv-ed-strength">Strength</label>
+              <select id="rv-ed-strength" onchange="updateReviewShot('strength', this.value || null)">
+                <option value="">Not tagged</option>
+                <option>5v5</option><option>4v4</option><option>3v3</option>
+                <option>4v5</option><option>3v5</option><option>3v4</option><option>5v6</option>
+                <option>5v4</option><option>5v3</option><option>4v3</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="rv-ed-type">Shot type</label>
+              <select id="rv-ed-type" onchange="updateReviewShot('shot_type', this.value || null)">
+                <option value="">Unknown</option>
+                <option>Wrist</option><option>Slap</option><option>Snap</option>
+                <option>Backhand</option><option>Tip</option><option>One-Timer</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="rv-ed-release">Release</label>
+              <select id="rv-ed-release" onchange="updateReviewShot('release_type', this.value || null)">
+                <option value="">Unclear</option>
+                <option value="one_timer">One-Timer</option>
+                <option value="catch_and_release">Catch &amp; Release</option>
+                <option value="quick_release">Quick Release</option>
+                <option value="extended_possession">Extended Possession</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="rv-ed-rebound">Rebound control</label>
+              <select id="rv-ed-rebound" onchange="updateReviewShot('rebound_tag', this.value)">
+                <option value="skip">Not tagged</option>
+                <option value="glove_caught">Glove — Caught</option>
+                <option value="glove_rebound">Glove — Rebound</option>
+                <option value="glove_goal">Glove — Goal</option>
+                <option value="blocker_good">Blocker — Good</option>
+                <option value="blocker_bad">Blocker — Bad</option>
+                <option value="blocker_goal">Blocker — Goal</option>
+                <option value="midsection_good">Midsection — Good</option>
+                <option value="midsection_bad">Midsection — Bad</option>
+                <option value="midsection_goal">Midsection — Goal</option>
+                <option value="pad_stick_good">Pad/Stick — Good</option>
+                <option value="pad_stick_bad">Pad/Stick — Bad</option>
+                <option value="pad_stick_goal">Pad/Stick — Goal</option>
+              </select>
+            </div>
+          </div>
+
+          <fieldset class="shot-edit-flags">
+            <legend>Situation</legend>
+            <label><input type="checkbox" data-rv-flag="rush"> Rush</label>
+            <label><input type="checkbox" data-rv-flag="rebound"> Rebound</label>
+            <label><input type="checkbox" data-rv-flag="screened"> Screened</label>
+            <label><input type="checkbox" data-rv-flag="breakaway"> Breakaway</label>
+            <label><input type="checkbox" data-rv-flag="cross_ice"> Cross Ice</label>
+            <label><input type="checkbox" data-rv-flag="deflection"> Deflection</label>
+          </fieldset>
+
+          <div class="field">
+            <span class="field-label">Release point</span>
+            <div id="rv-ed-map" class="shotmap-wrap"></div>
+            <div id="rv-ed-readout" class="shotmap-readout"></div>
+          </div>
+
+          <div class="rv-editor-actions">
+            <button type="button" class="btn-secondary" onclick="jumpToReviewShot()">Watch this shot</button>
+            <button type="button" class="btn-secondary" id="rv-ed-ai-btn" onclick="aiFillReviewShot()">AI fill this shot</button>
+            <button type="button" class="btn-danger" onclick="deleteReviewShot()">Delete shot</button>
+          </div>
+
+        </div>
+
+      </aside>
+
+    </div>
+
+    <div class="rv-user" id="rv-user">
+      <div class="empty-state">Loading account…</div>
+    </div>
+
   </div>
 
 </section>
@@ -3869,12 +4063,32 @@ const supabaseClient =
   );
 
 
-// Charts speak the same type and ink as the rest of the page.
-if(window.Chart){
-  Chart.defaults.font.family = '"Archivo", system-ui, sans-serif';
-  Chart.defaults.color = "#3B413C";
-  Chart.defaults.borderColor = "rgba(18,20,18,.08)";
+// Theme colours for things drawn in script (charts). Read from the
+// stylesheet so light and dark mode stay in step.
+function themeColor(name){
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || "#596159";
 }
+
+// Charts speak the same type and ink as the rest of the page.
+function applyChartTheme(){
+  if(!window.Chart){ return; }
+  Chart.defaults.font.family = '"Archivo", system-ui, sans-serif';
+  Chart.defaults.color = themeColor("--ink-2");
+  Chart.defaults.borderColor = themeColor("--seam");
+}
+
+applyChartTheme();
+
+// Switching theme redraws whatever is on screen so charts pick up the
+// new colours.
+window.addEventListener("giq-themechange", () => {
+  applyChartTheme();
+  const shell = document.getElementById("app-shell");
+  if(shell && shell.style.display !== "none" && typeof applyActiveGoalieFilter === "function" && allGames.length){
+    try{ applyActiveGoalieFilter(); }catch(e){ console.error(e); }
+  }
+});
 
 
 /* ============================================================
@@ -4959,7 +5173,7 @@ function percentageScale(){
 
     ticks:{
 
-      color:"#596159",
+      color:themeColor("--muted-ink"),
 
       font:{
         size:10
@@ -4974,7 +5188,7 @@ function percentageScale(){
 
     grid:{
 
-      color:"rgba(18,20,18,.08)",
+      color:themeColor("--seam"),
 
       lineWidth:1
 
@@ -4999,7 +5213,7 @@ function distributionScale(){
 
     ticks:{
 
-      color:"#596159",
+      color:themeColor("--muted-ink"),
 
       precision:0,
 
@@ -5013,7 +5227,7 @@ function distributionScale(){
 
     grid:{
 
-      color:"rgba(18,20,18,.08)",
+      color:themeColor("--seam"),
 
       lineWidth:1
 
@@ -5082,7 +5296,7 @@ function chartOptions(){
         position:"top",
 
         labels:{
-          color:"#3B413C",
+          color:themeColor("--ink-2"),
 
           boxWidth:9,
 
@@ -5105,7 +5319,7 @@ function chartOptions(){
 
         backgroundColor:"rgba(18,20,18,.94)",
 
-        borderColor:"#121412",
+        borderColor:themeColor("--ink"),
 
         borderWidth:1,
 
@@ -5165,7 +5379,7 @@ function chartOptions(){
 
         ticks:{
 
-          color:"#596159",
+          color:themeColor("--muted-ink"),
 
           font:{
             size:10
@@ -5189,7 +5403,7 @@ function chartOptions(){
 
         ticks:{
 
-          color:"#596159",
+          color:themeColor("--muted-ink"),
 
           font:{
             size:10
@@ -5201,7 +5415,7 @@ function chartOptions(){
 
         grid:{
 
-          color:"rgba(18,20,18,.08)",
+          color:themeColor("--seam"),
 
           lineWidth:1
 
@@ -9395,8 +9609,8 @@ function renderRecentFormChart(sorted, recentGames, priorGames){
       const id = String(g.id ?? g.game_id);
 
       if(recentIds.has(id)){ return "#17704F"; }
-      if(priorIds.has(id)){ return "#8A938B"; }
-      return "rgba(18,20,18,.18)";
+      if(priorIds.has(id)){ return themeColor("--muted-ink"); }
+      return themeColor("--seam-strong");
 
     });
 
@@ -9798,7 +10012,7 @@ function renderIncremental(){
     else{
 
       svAboveExpectedValues.push(null);
-      svAboveExpectedColors.push("rgba(18,20,18,.14)");
+      svAboveExpectedColors.push(themeColor("--seam"));
 
     }
 
@@ -9867,11 +10081,11 @@ function renderIncremental(){
               type:"line",
               label:`Trend (${ROLL_WINDOW}-game rolling avg)`,
               data:rollingAvgValues,
-              borderColor:"#121412",
+              borderColor:themeColor("--ink"),
               borderWidth:2.5,
               tension:.3,
               pointRadius:3,
-              pointBackgroundColor:"#121412",
+              pointBackgroundColor:themeColor("--ink"),
               pointHoverRadius:5,
               spanGaps:true,
               order:1
@@ -9880,7 +10094,7 @@ function renderIncremental(){
               type:"line",
               label:"Zero",
               data:labels.map(() => 0),
-              borderColor:"rgba(18,20,18,.35)",
+              borderColor:themeColor("--seam-strong"),
               borderWidth:1,
               borderDash:[4,4],
               pointRadius:0,
@@ -15488,8 +15702,8 @@ function renderGameTrendCharts(windowGames, windowMetrics, selectedGame){
           {
             label:"Expected SV%",
             data:windowMetrics.map(m => m.expectedSV === null ? null : Number(m.expectedSV.toFixed(1))),
-            borderColor:"#8A938B",
-            backgroundColor:"#8A938B",
+            borderColor:themeColor("--muted-ink"),
+            backgroundColor:themeColor("--muted-ink"),
             borderDash:[5,4],
             pointRadius:2,
             tension:.25,
@@ -19250,16 +19464,49 @@ async function renderCustomerVideoList(){
     return;
   }
 
+  // Clip files attached to shots aren't requests the goalie sent.
+  const requests = videos.filter(v => v.status !== "clip");
+
+  if(!requests.length){
+    container.innerHTML = `<div class="empty-state">No videos uploaded yet.</div>`;
+    return;
+  }
+
   container.innerHTML =
-    videos
-      .map(v => `
-        <div class="card mygame-item">
-          <div class="mygame-item-info">
-            <span class="mygame-title">${escapeHtml(v.storage_path.split("/").pop())}</span>
-            <span class="mygame-sub">${friendlyStatus(v.status)}</span>
+    requests
+      .map(v => {
+
+        const st = v.review_status || "received";
+        const g = v.game_id ? games.find(x => String(x.id) === String(v.game_id)) : null;
+        const rg = v.requested_game || {};
+        const label = g
+          ? `${gameDate(g) || "No date"} vs ${gameOpponent(g)}`
+          : (rg.opponent ? `${rg.date || "No date"} vs ${rg.opponent}` : v.storage_path.split("/").pop());
+        const sent = v.created_at ? new Date(v.created_at).toLocaleDateString([], { month: "short", day: "numeric" }) : "";
+
+        const status =
+          v.status === "failed" ? "We hit a snag with this upload. We've been notified and will follow up." :
+          st === "approved" ? "Stats ready" :
+          st === "needs_attention" ? `Needs your attention${v.admin_note ? ": " + v.admin_note : "."}` :
+          st === "in_review" ? "In review. Your stats appear here once they're checked and approved." :
+          "Received. Waiting for review.";
+
+        const pill =
+          st === "approved" ? "result-win" :
+          st === "needs_attention" || v.status === "failed" ? "result-loss" :
+          st === "in_review" ? "result-otl" : "result-neutral";
+
+        return `
+          <div class="card mygame-item">
+            <div class="mygame-item-info">
+              <span class="mygame-title">${escapeHtml(label)}</span>
+              <span class="mygame-sub"><span class="result-pill ${pill}">${escapeHtml(REVIEW_STATUS_LABEL[st] === "New" ? "Received" : (REVIEW_STATUS_LABEL[st] || "Received"))}</span> ${escapeHtml(status)}${sent ? ` · sent ${escapeHtml(sent)}` : ""}</span>
+            </div>
+            ${st === "approved" && v.game_id ? `<div class="mygame-item-actions"><button type="button" class="btn-primary" onclick="openGameOverview(${jsArg(v.game_id)})">Open game</button></div>` : ""}
           </div>
-        </div>
-      `)
+        `;
+
+      })
       .join("");
 
 }
@@ -19430,12 +19677,12 @@ async function uploadGameVideo(){
   }
 
   let gameId = null;
+  let requestedGame = null;
 
   if(isNewGame){
 
-    const date =
-      textOrNull(document.getElementById("video-new-game-date").value);
-
+    // The game itself is only created when the admin approves the
+    // review, so the goalie never sees an empty game in the meantime.
     const opponent =
       textOrNull(document.getElementById("video-new-game-opponent").value);
 
@@ -19444,38 +19691,12 @@ async function uploadGameVideo(){
       return;
     }
 
-    const homeAway =
-      document.getElementById("video-new-game-homeaway").value;
-
-    try{
-
-      const { data: newGame, error: newGameError } =
-        await supabaseClient
-          .from("Games")
-          .insert({
-            user_id: currentSession.user.id,
-            created_at: new Date().toISOString().slice(0, 10),
-            date: date,
-            opponent: opponent,
-            home_away: homeAway
-          })
-          .select();
-
-      if(newGameError){
-        throw new Error(newGameError.message);
-      }
-
-      gameId = newGame[0].id;
-
-      // So the rest of the app (My Games, stats, etc.) picks this up
-      // without waiting for a full reload.
-      games.push(newGame[0]);
-
-    }
-    catch(error){
-      showToast(`Could not create the new game: ${error.message}`, "error");
-      return;
-    }
+    requestedGame = {
+      date: textOrNull(document.getElementById("video-new-game-date").value),
+      opponent: opponent,
+      home_away: document.getElementById("video-new-game-homeaway").value || null,
+      season: (currentProfile && currentProfile.season) || null
+    };
 
   }
   else{
@@ -19517,23 +19738,50 @@ async function uploadGameVideo(){
       throw new Error(uploadErr.message || String(uploadErr));
     }
 
-    const { data: inserted, error: insertError } =
+    let { error: insertError } =
       await supabaseClient
         .from("game_videos")
         .insert({
           user_id: userId,
           game_id: gameId,
+          requested_game: requestedGame,
           storage_path: storagePath,
           team_jersey_color: jerseyColor,
           status: "uploaded"
         })
         .select();
 
+    // Before the review migration has been run there's no
+    // requested_game column: fall back to creating the game now.
+    if(insertError && /requested_game/.test(insertError.message || "") && requestedGame){
+
+      const { data: newGame, error: newGameError } =
+        await supabaseClient.from("Games").insert({
+          user_id: userId,
+          created_at: new Date().toISOString().slice(0, 10),
+          date: requestedGame.date,
+          opponent: requestedGame.opponent,
+          home_away: requestedGame.home_away
+        }).select();
+
+      if(newGameError){ throw new Error(newGameError.message); }
+
+      ({ error: insertError } =
+        await supabaseClient.from("game_videos").insert({
+          user_id: userId,
+          game_id: newGame[0].id,
+          storage_path: storagePath,
+          team_jersey_color: jerseyColor,
+          status: "uploaded"
+        }).select());
+
+    }
+
     if(insertError){
       throw new Error(insertError.message);
     }
 
-    statusEl.textContent = "Uploaded! We'll take it from here.";
+    statusEl.textContent = "Sent! We'll review your game and you'll see the stats here once they're approved.";
     fileInput.value = "";
     document.getElementById("video-jersey-color").value = "";
     document.getElementById("video-new-game-toggle").checked = false;
@@ -19557,67 +19805,1303 @@ async function uploadGameVideo(){
 }
 
 
-/* --- admin-only tab ---------------------------------------------------- */
+/* ============================================================
+   ADMIN REVIEW
+   A goalie's upload is a request. The admin opens it, plays the game
+   right here (streamed from R2, never downloaded), and builds the shot
+   list as draft rows in video_shot_drafts, which only admins can see:
+     - Run AI scans the game in this browser: evenly spaced stills go
+       to /api/video/analyze-clip in "detect" mode, and every hit is
+       tagged from a short burst of frames around it ("tag" mode).
+     - Add shot here drops a shot at the playhead; AI fill tags it.
+   Every field stays editable. Approve & publish writes the shots into
+   the goalie's game (creating the game first if it was a new one),
+   updates the totals, and only then can the goalie see anything.
+============================================================ */
 
-async function loadAdminVideoReviewData(){
+const REVIEW_SCAN_STEP = 2.5;        // seconds between detection stills
+const REVIEW_SCAN_BATCH = 12;        // stills per detection request
+const REVIEW_SCAN_WIDTH = 448;
+const REVIEW_TAG_WIDTH = 640;
+const REVIEW_DETECT_CONCURRENCY = 3;
+const REVIEW_MIN_GAP = 4;            // seconds: closer than this is the same shot
 
-  await renderAdminVideoList();
+let reviewFilter = "open";
+let reviewQueueCache = [];
+let reviewDraftCounts = {};
 
+const review = {
+  video: null,
+  drafts: [],
+  selectedId: null,
+  scanning: false,
+  scanStats: null,
+  saveTimers: {}
+};
+
+function reviewStatusOf(v){
+  return v.review_status || "received";
 }
 
+const REVIEW_STATUS_LABEL = {
+  received: "New",
+  in_review: "In review",
+  needs_attention: "Needs attention",
+  approved: "Approved"
+};
+
+function reviewStatusPill(v){
+  const st = reviewStatusOf(v);
+  const cls =
+    st === "approved" ? "result-win" :
+    st === "needs_attention" ? "result-loss" :
+    st === "in_review" ? "result-otl" : "result-neutral";
+  return `<span class="result-pill ${cls}">${REVIEW_STATUS_LABEL[st] || st}</span>`;
+}
+
+function formatClock(seconds){
+  const t = Math.max(0, Math.floor(Number(seconds) || 0));
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const sec = String(t % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
+}
+
+function reviewGameLabel(v){
+  const g = v.game_id ? allGames.find(x => String(x.id) === String(v.game_id)) : null;
+  if(g){ return `${gameDate(g) || "No date"} vs ${gameOpponent(g)}`; }
+  const rg = v.requested_game || {};
+  if(rg.opponent || rg.date){ return `${rg.date || "No date"} vs ${rg.opponent || "opponent"} (new game)`; }
+  return "Game not chosen";
+}
+
+function reviewOwnerName(v){
+  const p = (adminProfiles || []).find(x => x.id === v.user_id);
+  return (p && p.full_name) || "Unknown goalie";
+}
+
+async function loadAdminVideoReviewData(){
+  if(!review.video){ await renderAdminVideoList(); }
+}
+
+function setReviewFilter(filter){
+  reviewFilter = filter;
+  document.querySelectorAll("#rv-filter button").forEach(b => b.classList.toggle("active", b.dataset.filter === filter));
+  renderReviewQueueRows();
+}
 
 async function renderAdminVideoList(){
 
-  const container =
-    document.getElementById("admin-video-list-container");
-
-  if(!container){
-    return;
-  }
-
-  let videos;
+  const container = document.getElementById("admin-video-list-container");
+  if(!container){ return; }
 
   try{
-    // is_admin() in RLS means this sees every customer's videos, not
-    // just the admin's own.
-    videos = await qFiltered("game_videos", "order=created_at.desc");
+    // is_admin() in RLS means this sees every customer's videos.
+    reviewQueueCache = await qFiltered("game_videos", "order=created_at.desc");
   }
   catch(error){
-    container.innerHTML = `<div class="empty-state">Could not load videos.</div>`;
+    container.innerHTML = `<div class="empty-state">Could not load requests.</div>`;
     return;
   }
 
-  if(!videos.length){
-    container.innerHTML = `<div class="empty-state">No videos uploaded yet.</div>`;
-    return;
+  reviewDraftCounts = {};
+  try{
+    const { data } = await supabaseClient.from("video_shot_drafts").select("game_video_id");
+    (data || []).forEach(r => { reviewDraftCounts[r.game_video_id] = (reviewDraftCounts[r.game_video_id] || 0) + 1; });
   }
+  catch(e){ /* drafts table not created yet: counts stay empty */ }
 
-  container.innerHTML =
-    videos
-      .map(v => {
-
-        return `
-          <div class="card mygame-item">
-            <div class="mygame-item-info">
-              <span class="mygame-title">${escapeHtml(v.storage_path.split("/").pop())}</span>
-              <span class="mygame-sub">${statusBadge(v.status)}</span>
-            </div>
-            <div class="mygame-item-actions">
-              ${
-                v.status === "failed"
-                  ? `<span class="empty-state" title="${v.error_message || ""}">Failed -- ${v.error_message || "unknown error"}</span>`
-                  : ""
-              }
-              <button type="button" class="btn-secondary" onclick="downloadGameVideo(${v.id}, this)">Download</button>
-              <button type="button" class="btn-danger" onclick="deleteGameVideo(${v.id}, this)">Delete</button>
-            </div>
-          </div>
-        `;
-
-      })
-      .join("");
+  renderReviewQueueRows();
 
 }
+
+function renderReviewQueueRows(){
+
+  const container = document.getElementById("admin-video-list-container");
+  if(!container){ return; }
+
+  // Per-shot clip files are attachments, not requests.
+  const requests = reviewQueueCache.filter(v => v.status !== "clip");
+
+  const shown = requests.filter(v => {
+    const st = reviewStatusOf(v);
+    if(reviewFilter === "open"){ return st !== "approved"; }
+    if(reviewFilter === "approved"){ return st === "approved"; }
+    return true;
+  });
+
+  if(!shown.length){
+    container.innerHTML = `<div class="empty-state">${reviewFilter === "open" ? "Nothing waiting for review." : "No requests here yet."}</div>`;
+    return;
+  }
+
+  container.innerHTML = shown.map(v => {
+
+    const uploaded = v.created_at ? new Date(v.created_at).toLocaleDateString([], { month: "short", day: "numeric" }) : "";
+    const count = reviewDraftCounts[v.id] || 0;
+    const progress = Number(v.scan_progress) > 0 && Number(v.scan_progress) < 1
+      ? ` · AI ${Math.round(Number(v.scan_progress) * 100)}% scanned` : "";
+
+    return `
+      <div class="rv-row">
+        <div class="rv-row-main">
+          <strong>${escapeHtml(reviewOwnerName(v))}</strong>
+          <span>${escapeHtml(reviewGameLabel(v))}</span>
+          <span class="small-note">Sent ${escapeHtml(uploaded)} · ${count} shot${count === 1 ? "" : "s"} drafted${progress}${v.status === "failed" ? " · upload failed" : ""}</span>
+        </div>
+        <div class="rv-row-side">
+          ${reviewStatusPill(v)}
+          <button type="button" class="btn-primary" onclick="openReview(${jsArg(v.id)})">Open</button>
+          <button type="button" class="btn-danger" onclick="deleteGameVideo(${jsArg(v.id)}, this)">Delete</button>
+        </div>
+      </div>
+    `;
+
+  }).join("");
+
+}
+
+
+/* ---------- workspace ---------- */
+
+async function openReview(videoId){
+
+  const v = reviewQueueCache.find(x => String(x.id) === String(videoId));
+  if(!v){ showToast("That request isn't loaded anymore.", "error"); return; }
+
+  if(review.scanning){ review.scanning = false; }
+
+  review.video = { ...v, period_marks: v.period_marks || {} };
+  review.drafts = [];
+  review.selectedId = null;
+
+  document.getElementById("rv-queue-view").hidden = true;
+  document.getElementById("rv-workspace").hidden = false;
+
+  document.getElementById("rv-title").textContent = reviewOwnerName(v);
+  document.getElementById("rv-sub").textContent =
+    `${reviewGameLabel(v)} · jersey: ${v.team_jersey_color || "not given"} · file: ${String(v.storage_path || "").split("/").pop()}`;
+
+  renderReviewHeader();
+  document.getElementById("rv-editor").hidden = true;
+  document.getElementById("rv-scanbar").hidden = true;
+
+  const { data, error } =
+    await supabaseClient.from("video_shot_drafts").select("*").eq("game_video_id", v.id).order("t_seconds");
+
+  if(error){
+    showReviewPlayerMessage("The review tables aren't set up yet. Run supabase/migrations/20261007_video_review.sql in Supabase, then reload.");
+    console.error(error);
+  }
+  else{
+    review.drafts = data || [];
+  }
+
+  renderReviewShots();
+  loadReviewVideo();
+  loadReviewUser(v.user_id);
+
+  window.scrollTo({ top: 0, behavior: "smooth" });
+
+}
+
+function closeReview(){
+
+  review.scanning = false;
+  review.video = null;
+  const video = document.getElementById("rv-video");
+  video.pause();
+  video.removeAttribute("src");
+  video.load();
+
+  document.getElementById("rv-workspace").hidden = true;
+  document.getElementById("rv-queue-view").hidden = false;
+
+  renderAdminVideoList();
+
+}
+
+function renderReviewHeader(){
+
+  const v = review.video;
+  if(!v){ return; }
+
+  document.getElementById("rv-status").innerHTML = reviewStatusPill(v);
+
+  const approved = reviewStatusOf(v) === "approved";
+  const approveBtn = document.getElementById("rv-approve-btn");
+  approveBtn.disabled = approved;
+  approveBtn.textContent = approved ? "Published" : "Approve & publish";
+
+  const scanBtn = document.getElementById("rv-scan-btn");
+  scanBtn.disabled = approved;
+  scanBtn.textContent =
+    review.scanning ? "Pause AI" :
+    Number(v.scan_progress) >= 1 ? "Re-run AI" :
+    Number(v.scan_progress) > 0 ? "Resume AI" : "Run AI";
+
+  const marks = v.period_marks || {};
+  const parts = ["2", "3", "OT"].filter(p => marks[p] !== undefined && marks[p] !== null)
+    .map(p => `${p === "OT" ? "OT" : p === "2" ? "2nd" : "3rd"} at ${formatClock(marks[p])}`);
+  document.getElementById("rv-period-note").textContent = parts.length ? parts.join(" · ") : "Until marked, every shot counts as 1st period.";
+
+}
+
+function showReviewPlayerMessage(text){
+  const el = document.getElementById("rv-player-msg");
+  el.textContent = text || "";
+  el.hidden = !text;
+}
+
+async function getSignedVideoUrl(videoId){
+
+  const res = await fetch("/api/video/get-watch-url", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accessToken: currentSession.access_token, gameVideoId: videoId })
+  });
+
+  let data = {};
+  try{ data = await res.json(); }catch(e){ data = {}; }
+
+  if(!res.ok || !data.url){ throw new Error(data.error || "Could not load the video."); }
+
+  return data.url;
+
+}
+
+async function loadReviewVideo(){
+
+  const v = review.video;
+  const video = document.getElementById("rv-video");
+
+  showReviewPlayerMessage("");
+
+  try{
+
+    const url = await getSignedVideoUrl(v.id);
+    if(!review.video || review.video.id !== v.id){ return; }
+
+    video.src = url;
+
+    video.onloadedmetadata = () => {
+      const d = video.duration;
+      if(Number.isFinite(d) && d > 0 && !review.video.duration_seconds){
+        review.video.duration_seconds = d;
+        supabaseClient.from("game_videos").update({ duration_seconds: d }).eq("id", v.id).then(() => {});
+      }
+      renderReviewTimeline();
+    };
+
+    video.onerror = () => showReviewPlayerMessage("This video couldn't be played in the browser. The file may be in a format browsers don't support (try MP4/H.264), or the link expired: reopen the request.");
+
+  }
+  catch(error){
+    showReviewPlayerMessage(error.message);
+  }
+
+}
+
+function reviewDuration(){
+  const video = document.getElementById("rv-video");
+  return (Number.isFinite(video.duration) && video.duration > 0)
+    ? video.duration
+    : (Number(review.video && review.video.duration_seconds) || 0);
+}
+
+function reviewPeriodAt(t){
+  const m = (review.video && review.video.period_marks) || {};
+  let p = "1";
+  ["2", "3", "OT"].forEach(k => {
+    if(m[k] !== undefined && m[k] !== null && t >= Number(m[k])){ p = k; }
+  });
+  return p;
+}
+
+function reviewEffectivePeriod(d){
+  return d.period || reviewPeriodAt(Number(d.t_seconds));
+}
+
+function renderReviewTimeline(){
+
+  const d = reviewDuration();
+  const ticks = document.getElementById("rv-ticks");
+  if(!ticks){ return; }
+
+  const v = review.video;
+  const pct = t => d ? Math.min(100, Math.max(0, Number(t) / d * 100)) : 0;
+
+  document.getElementById("rv-scanned").style.width = `${pct(v ? v.scan_cursor : 0)}%`;
+
+  const marks = (v && v.period_marks) || {};
+
+  ticks.innerHTML =
+    ["2", "3", "OT"].filter(k => marks[k] !== undefined && marks[k] !== null).map(k =>
+      `<span class="rv-pmark" style="left:${pct(marks[k])}%" title="${k === "OT" ? "OT" : k === "2" ? "2nd period" : "3rd period"} starts ${formatClock(marks[k])}">${k === "OT" ? "OT" : k}</span>`
+    ).join("") +
+    review.drafts.map(dr => {
+      const cls = ["rv-tick", dr.outcome === "goal" ? "is-goal" : "is-save", String(dr.id) === String(review.selectedId) ? "is-selected" : ""].join(" ");
+      return `<button type="button" class="${cls}" style="left:${pct(dr.t_seconds)}%" onclick="event.stopPropagation(); selectReviewShot(${jsArg(dr.id)}, true)" title="${escapeHtml(formatClock(dr.t_seconds))} · ${dr.outcome === "goal" ? "Goal" : "Save"}${dr.location ? " · " + escapeHtml(dr.location) : ""}" aria-label="Shot at ${escapeHtml(formatClock(dr.t_seconds))}"></button>`;
+    }).join("");
+
+  updateReviewPlayhead();
+
+}
+
+function updateReviewPlayhead(){
+  const video = document.getElementById("rv-video");
+  const d = reviewDuration();
+  const head = document.getElementById("rv-playhead");
+  if(head){ head.style.left = d ? `${Math.min(100, video.currentTime / d * 100)}%` : "0"; }
+  const time = document.getElementById("rv-time");
+  if(time){ time.textContent = `${formatClock(video.currentTime)} / ${formatClock(d)}`; }
+  const play = document.getElementById("rv-play-btn");
+  if(play){ play.textContent = video.paused ? "Play" : "Pause"; }
+}
+
+function renderReviewShots(){
+
+  const list = document.getElementById("rv-shotlist");
+  const drafts = review.drafts;
+
+  document.getElementById("rv-count").textContent = drafts.length ? `(${drafts.length})` : "";
+
+  const goals = drafts.filter(d => d.outcome === "goal").length;
+  document.getElementById("rv-tally").textContent =
+    drafts.length ? `${drafts.length - goals} saves · ${goals} goal${goals === 1 ? "" : "s"}` : "";
+
+  if(!drafts.length){
+    list.innerHTML = `<li class="rv-empty">No shots yet. Run AI, or play the video and press <strong>Add shot here</strong> (or S) at each shot.</li>`;
+  }
+  else{
+    list.innerHTML = drafts.map(d => {
+      const sel = String(d.id) === String(review.selectedId);
+      const who =
+        d.source === "admin" ? `<span class="rv-src">Added by you</span>` :
+        d.edited ? `<span class="rv-src">AI · edited</span>` :
+        `<span class="ai-badge">AI ${Math.round((Number(d.ai_confidence) || 0) * 100)}%</span>`;
+      return `
+        <li>
+          <button type="button" class="rv-shot ${sel ? "is-selected" : ""} ${d.outcome === "goal" ? "is-goal" : ""}" onclick="selectReviewShot(${jsArg(d.id)}, true)">
+            <span class="rv-shot-time">${escapeHtml(formatClock(d.t_seconds))}</span>
+            <span class="rv-shot-main"><strong>${d.outcome === "goal" ? "Goal" : "Save"}</strong> · P${escapeHtml(reviewEffectivePeriod(d))}${d.location ? " · " + escapeHtml(d.location) : ""}${d.shot_type ? " · " + escapeHtml(d.shot_type) : ""}</span>
+            ${who}
+          </button>
+        </li>`;
+    }).join("");
+  }
+
+  renderReviewTimeline();
+
+}
+
+function selectReviewShot(id, seek){
+
+  review.selectedId = id;
+  const d = review.drafts.find(x => String(x.id) === String(id));
+  if(!d){ return; }
+
+  if(seek){
+    const video = document.getElementById("rv-video");
+    video.currentTime = Math.max(0, Number(d.t_seconds) - 3);
+  }
+
+  renderReviewShots();
+  renderReviewEditor();
+
+  const row = document.querySelector("#rv-shotlist .rv-shot.is-selected");
+  if(row){ row.scrollIntoView({ block: "nearest" }); }
+
+}
+
+function renderReviewEditor(){
+
+  const d = review.drafts.find(x => String(x.id) === String(review.selectedId));
+  const ed = document.getElementById("rv-editor");
+
+  if(!d){ ed.hidden = true; return; }
+
+  ed.hidden = false;
+
+  document.getElementById("rv-ed-title").textContent = `Shot at ${formatClock(d.t_seconds)}`;
+  document.getElementById("rv-ed-source").innerHTML =
+    d.source === "admin" ? `<span class="rv-src">Added by you</span>` : `<span class="ai-badge">AI${d.edited ? " · edited" : ""}</span>`;
+
+  const ai = document.getElementById("rv-ed-ai");
+  if(d.ai_notes || d.ai_confidence !== null && d.ai_confidence !== undefined){
+    ai.textContent = `AI: ${Math.round((Number(d.ai_confidence) || 0) * 100)}% sure.${d.ai_notes ? " " + d.ai_notes : ""}`;
+    ai.hidden = false;
+  }
+  else{ ai.hidden = true; }
+
+  document.getElementById("rv-ed-outcome").value = d.outcome || "save";
+  document.getElementById("rv-ed-period").value = d.period || "";
+  document.getElementById("rv-ed-strength").value = d.strength || "";
+  document.getElementById("rv-ed-type").value = d.shot_type || "";
+  document.getElementById("rv-ed-release").value = d.release_type || "";
+  document.getElementById("rv-ed-rebound").value = d.rebound_tag || "skip";
+
+  document.querySelectorAll("#rv-editor [data-rv-flag]").forEach(box => {
+    box.checked = !!d[box.dataset.rvFlag];
+    box.onchange = () => updateReviewShot(box.dataset.rvFlag, box.checked);
+  });
+
+  const host = document.getElementById("rv-ed-map");
+  host.innerHTML = shotMapSvg("rvmap", `<g id="rvmap-pin"></g>`, true);
+  const svg = document.getElementById("rvmap-svg");
+  svg.addEventListener("click", e => {
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const local = pt.matrixTransform(svg.getScreenCTM().inverse());
+    const spot = shotMapFromSvgPoint(local.x, local.y);
+    updateReviewShot("loc", spot);
+  });
+
+  renderReviewEditorPin(d);
+
+}
+
+function renderReviewEditorPin(d){
+  const pin = document.getElementById("rvmap-pin");
+  const readout = document.getElementById("rv-ed-readout");
+  if(!pin){ return; }
+  if(shotMapHasPin(d)){
+    pin.innerHTML = shotMapPinMarkup(Number(d.loc_x), Number(d.loc_y));
+    readout.innerHTML = `<strong>${escapeHtml(d.location || classifyShotLocation(Number(d.loc_x), Number(d.loc_y)))}</strong> · ${shotMapDistanceFt(Number(d.loc_x), Number(d.loc_y))} ft from the net`;
+  }
+  else{
+    pin.innerHTML = "";
+    readout.textContent = "Tap the rink to set where the shot came from.";
+  }
+}
+
+// Field edits are applied at once and saved shortly after.
+function updateReviewShot(field, value){
+
+  const d = review.drafts.find(x => String(x.id) === String(review.selectedId));
+  if(!d){ return; }
+
+  const patch = {};
+
+  if(field === "loc"){
+    patch.loc_x = value.x;
+    patch.loc_y = value.y;
+    patch.location = classifyShotLocation(value.x, value.y);
+  }
+  else{
+    patch[field] = value;
+  }
+
+  patch.edited = true;
+  Object.assign(d, patch);
+
+  if(field === "loc"){ renderReviewEditorPin(d); }
+  renderReviewShots();
+
+  saveReviewDraftSoon(d, patch);
+
+}
+
+function saveReviewDraftSoon(d, patch){
+
+  const key = String(d.id);
+  review.saveTimers[key] = review.saveTimers[key] || { patch: {} };
+  Object.assign(review.saveTimers[key].patch, patch);
+  clearTimeout(review.saveTimers[key].timer);
+
+  review.saveTimers[key].timer = setTimeout(async () => {
+    const pending = review.saveTimers[key].patch;
+    delete review.saveTimers[key];
+    const { error } = await supabaseClient.from("video_shot_drafts")
+      .update({ ...pending, updated_at: new Date().toISOString() }).eq("id", d.id);
+    if(error){ console.error(error); showToast(`Could not save that change: ${error.message}`, "error"); }
+  }, 500);
+
+}
+
+async function flushReviewSaves(){
+  const keys = Object.keys(review.saveTimers);
+  await Promise.all(keys.map(async key => {
+    const entry = review.saveTimers[key];
+    clearTimeout(entry.timer);
+    delete review.saveTimers[key];
+    const { error } = await supabaseClient.from("video_shot_drafts")
+      .update({ ...entry.patch, updated_at: new Date().toISOString() }).eq("id", Number(key));
+    if(error){ throw error; }
+  }));
+}
+
+function draftRowFromAi(ai, t, model){
+  const hasPin = ai.loc_x !== null && ai.loc_y !== null;
+  return {
+    game_video_id: review.video.id,
+    t_seconds: Math.round(t * 10) / 10,
+    outcome: ai.outcome === "goal" ? "goal" : "save",
+    loc_x: hasPin ? ai.loc_x : null,
+    loc_y: hasPin ? ai.loc_y : null,
+    location: hasPin ? classifyShotLocation(ai.loc_x, ai.loc_y) : null,
+    shot_type: ai.shot_type || null,
+    release_type: ai.release_type || null,
+    rush: !!ai.rush,
+    rebound: !!ai.rebound,
+    screened: !!ai.screened,
+    breakaway: !!ai.breakaway,
+    cross_ice: !!ai.cross_ice,
+    deflection: !!ai.deflection,
+    rebound_tag: ai.reboundTag || "skip",
+    source: "ai",
+    ai_confidence: ai.confidence ?? null,
+    ai_notes: ai.notes || null,
+    ai_model: model || null
+  };
+}
+
+async function insertReviewDraft(row){
+  const { data, error } = await supabaseClient.from("video_shot_drafts").insert(row).select().single();
+  if(error){ throw error; }
+  review.drafts.push(data);
+  review.drafts.sort((a, b) => Number(a.t_seconds) - Number(b.t_seconds));
+  return data;
+}
+
+async function addReviewShotHere(){
+
+  if(!review.video){ return; }
+
+  const video = document.getElementById("rv-video");
+  video.pause();
+  const t = video.currentTime;
+
+  const near = review.drafts.find(d => Math.abs(Number(d.t_seconds) - t) < 1.5);
+  if(near){ selectReviewShot(near.id, false); showToast("There's already a shot here; it's selected."); return; }
+
+  try{
+    const row = await insertReviewDraft({ game_video_id: review.video.id, t_seconds: Math.round(t * 10) / 10, source: "admin", outcome: "save" });
+    renderReviewShots();
+    selectReviewShot(row.id, false);
+    markReviewInProgress();
+  }
+  catch(error){
+    console.error(error);
+    showToast(`Could not add the shot: ${error.message}`, "error");
+  }
+
+}
+
+async function deleteReviewShot(){
+  const d = review.drafts.find(x => String(x.id) === String(review.selectedId));
+  if(!d){ return; }
+  const { error } = await supabaseClient.from("video_shot_drafts").delete().eq("id", d.id);
+  if(error){ showToast(`Could not delete: ${error.message}`, "error"); return; }
+  review.drafts = review.drafts.filter(x => x !== d);
+  review.selectedId = null;
+  document.getElementById("rv-editor").hidden = true;
+  renderReviewShots();
+}
+
+function jumpToReviewShot(){
+  const d = review.drafts.find(x => String(x.id) === String(review.selectedId));
+  if(!d){ return; }
+  const video = document.getElementById("rv-video");
+  video.currentTime = Math.max(0, Number(d.t_seconds) - 3);
+  video.play().catch(() => {});
+}
+
+function reviewSeekBy(delta){
+  const video = document.getElementById("rv-video");
+  video.currentTime = Math.max(0, Math.min(reviewDuration() || 1e9, video.currentTime + delta));
+}
+
+function reviewTogglePlay(){
+  const video = document.getElementById("rv-video");
+  if(video.paused){ video.play().catch(() => {}); } else { video.pause(); }
+}
+
+async function markReviewPeriod(period){
+  const v = review.video;
+  if(!v){ return; }
+  const t = Math.round(document.getElementById("rv-video").currentTime * 10) / 10;
+  v.period_marks = { ...(v.period_marks || {}), [period]: t };
+  const { error } = await supabaseClient.from("game_videos").update({ period_marks: v.period_marks }).eq("id", v.id);
+  if(error){ showToast(`Could not save the period mark: ${error.message}`, "error"); return; }
+  renderReviewHeader();
+  renderReviewShots();
+}
+
+async function markReviewInProgress(){
+  const v = review.video;
+  if(!v || reviewStatusOf(v) !== "received"){ return; }
+  v.review_status = "in_review";
+  await supabaseClient.from("game_videos").update({ review_status: "in_review" }).eq("id", v.id);
+  renderReviewHeader();
+}
+
+async function flagReviewNeedsAttention(){
+  const v = review.video;
+  if(!v){ return; }
+  const note = prompt("What should the goalie know? (shown on their upload, e.g. \"Video cuts off in the 2nd period, please re-upload.\")", v.admin_note || "");
+  if(note === null){ return; }
+  const { error } = await supabaseClient.from("game_videos")
+    .update({ review_status: "needs_attention", admin_note: note.trim() || null, reviewed_by: currentSession.user.id }).eq("id", v.id);
+  if(error){ showToast(`Could not update: ${error.message}`, "error"); return; }
+  v.review_status = "needs_attention";
+  v.admin_note = note.trim() || null;
+  renderReviewHeader();
+  showToast("Marked as needing attention. The goalie will see your note.");
+}
+
+
+/* ---------- AI: frames from the streamed video ---------- */
+
+// A hidden <video> reading the same signed URL with CORS, so frames can
+// be drawn to a canvas. The R2 bucket must allow GET from this site.
+function createFrameGrabber(videoId){
+
+  const video = document.createElement("video");
+  video.crossOrigin = "anonymous";
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = "auto";
+
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  let loadedAt = 0;
+
+  async function ensureLoaded(){
+
+    if(video.src && Date.now() - loadedAt < 20 * 60 * 1000){ return; }
+
+    const url = await getSignedVideoUrl(videoId);
+
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("The video took too long to open for scanning.")), 30000);
+      video.onloadedmetadata = () => { clearTimeout(timer); resolve(); };
+      video.onerror = () => { clearTimeout(timer); reject(new Error("The video couldn't be opened for scanning. Check the R2 bucket's CORS rules allow GET from this site.")); };
+      video.src = url;
+    });
+
+    loadedAt = Date.now();
+
+  }
+
+  return {
+
+    async duration(){
+      await ensureLoaded();
+      return video.duration;
+    },
+
+    async grab(times, width){
+
+      await ensureLoaded();
+
+      const vw = video.videoWidth || 1280;
+      const vh = video.videoHeight || 720;
+      const scale = Math.min(1, width / vw);
+      canvas.width = Math.round(vw * scale);
+      canvas.height = Math.round(vh * scale);
+
+      const frames = [];
+
+      for(const t of times){
+        const target = Math.max(0, Math.min(t, video.duration - 0.05));
+        await seekVideo(video, target);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        let data;
+        try{
+          data = canvas.toDataURL("image/jpeg", 0.7).split(",")[1];
+        }
+        catch(e){
+          throw new Error("The browser blocked reading frames from this video. Add this site to the R2 bucket's CORS rules for GET (see setup steps).");
+        }
+        frames.push({ t: Math.round(target * 100) / 100, data });
+      }
+
+      return frames;
+
+    },
+
+    destroy(){
+      video.removeAttribute("src");
+      video.load();
+    }
+
+  };
+
+}
+
+async function callClipAi(payload){
+
+  const res = await fetch("/api/video/analyze-clip", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      accessToken: currentSession.access_token,
+      context: { goalieJersey: (review.video && review.video.team_jersey_color) || "" },
+      ...payload
+    })
+  });
+
+  let data = {};
+  try{ data = await res.json(); }catch(e){ data = {}; }
+
+  if(!res.ok){
+    const err = new Error(data.error || "The AI request failed.");
+    err.status = res.status;
+    throw err;
+  }
+
+  return data;
+
+}
+
+// Frames are pulled from the stored video by the server (ffmpeg over a
+// signed R2 URL), so this needs no CORS setup on the bucket. If the
+// server can't (501), fall back to reading frames in this browser.
+let reviewServerFrames = true;
+
+async function aiOnStoredVideo(mode, times, width, localGrabber){
+
+  if(reviewServerFrames){
+    try{
+      return await callClipAi({ mode, gameVideoId: review.video.id, times, width });
+    }
+    catch(error){
+      if(error.status !== 501){ throw error; }
+      reviewServerFrames = false;
+    }
+  }
+
+  const frames = await localGrabber.grab(times, width);
+  return await callClipAi({ mode, frames });
+
+}
+
+function burstTimes(t){
+  const out = [];
+  for(let i = 0; i < 8; i++){ out.push(Math.max(0, t - 3 + i * (5.5 / 7))); }
+  return out;
+}
+
+async function aiFillReviewShot(){
+
+  const d = review.drafts.find(x => String(x.id) === String(review.selectedId));
+  if(!d){ return; }
+
+  const btn = document.getElementById("rv-ed-ai-btn");
+  btn.disabled = true;
+  btn.textContent = "Reading frames…";
+
+  const grabber = createFrameGrabber(review.video.id);
+
+  try{
+    btn.textContent = "Tagging…";
+    const res = await aiOnStoredVideo("tag", burstTimes(Number(d.t_seconds)), REVIEW_TAG_WIDTH, grabber);
+    const ai = res.shot;
+    if(!ai.shot_detected){
+      showToast("The AI didn't see a shot here. Check the time, or tag it by hand.", "error");
+      return;
+    }
+    const row = draftRowFromAi(ai, Number(d.t_seconds), res.model);
+    delete row.game_video_id;
+    delete row.t_seconds;
+    delete row.source;
+    Object.assign(d, row, { edited: false });
+    const { error } = await supabaseClient.from("video_shot_drafts").update({ ...row, edited: false, updated_at: new Date().toISOString() }).eq("id", d.id);
+    if(error){ throw error; }
+    renderReviewShots();
+    renderReviewEditor();
+  }
+  catch(error){
+    console.error(error);
+    showToast(error.message || "The AI couldn't tag this shot.", "error");
+  }
+  finally{
+    grabber.destroy();
+    btn.disabled = false;
+    btn.textContent = "AI fill this shot";
+  }
+
+}
+
+function renderReviewScanBar(){
+  const bar = document.getElementById("rv-scanbar");
+  const v = review.video;
+  if(!v){ return; }
+  const d = reviewDuration() || Number(v.duration_seconds) || 0;
+  const cursor = Number(v.scan_cursor) || 0;
+  const show = review.scanning || (cursor > 0 && Number(v.scan_progress) < 1);
+  bar.hidden = !show;
+  if(!show){ return; }
+  const pct = d ? Math.min(100, cursor / d * 100) : 0;
+  document.getElementById("rv-scanbar-fill").style.width = `${pct}%`;
+  const st = review.scanStats || { found: 0 };
+  document.getElementById("rv-scan-text").textContent = review.scanning
+    ? `AI scanning: ${formatClock(cursor)} of ${formatClock(d)} · ${st.found} shot${st.found === 1 ? "" : "s"} found so far. Keep this tab open.`
+    : `AI paused at ${formatClock(cursor)} of ${formatClock(d)}. Press Resume AI to continue.`;
+}
+
+function toggleReviewScan(){
+  if(review.scanning){
+    review.scanning = false;
+    renderReviewHeader();
+    return;
+  }
+  runReviewScan();
+}
+
+async function runReviewScan(){
+
+  const v = review.video;
+  if(!v || review.scanning){ return; }
+
+  if(Number(v.scan_progress) >= 1){
+    if(!confirm("The AI already scanned this whole game. Scan it again? Shots already on the list are kept; new ones are added only where there isn't one within a few seconds.")){ return; }
+    v.scan_cursor = 0;
+    v.scan_progress = 0;
+  }
+
+  review.scanning = true;
+  review.scanStats = { found: 0 };
+  renderReviewHeader();
+  renderReviewScanBar();
+  markReviewInProgress();
+
+  const sampler = createFrameGrabber(v.id);
+  const tagger = createFrameGrabber(v.id);
+  const inflight = new Set();
+  const completed = new Map();
+  const tagQueue = [];
+  let tagWorker = null;
+  let lastSave = 0;
+  let failure = null;
+
+  const isCurrent = () => review.video && review.video.id === v.id;
+
+  const persistCursor = async (force) => {
+    if(!force && Date.now() - lastSave < 15000){ return; }
+    lastSave = Date.now();
+    const duration = Number(v.duration_seconds) || 1;
+    await supabaseClient.from("game_videos").update({
+      scan_cursor: v.scan_cursor,
+      scan_progress: Math.min(1, v.scan_cursor / duration)
+    }).eq("id", v.id);
+  };
+
+  const tagOne = async (ev) => {
+    if(review.drafts.some(d => d.game_video_id === v.id && Math.abs(Number(d.t_seconds) - ev.t) < REVIEW_MIN_GAP)){ return; }
+    const res = await aiOnStoredVideo("tag", burstTimes(ev.t), REVIEW_TAG_WIDTH, tagger);
+    if(!res.shot || !res.shot.shot_detected){ return; }
+    if(ev.goal && res.shot.outcome !== "goal"){ res.shot.notes = (res.shot.notes ? res.shot.notes + " " : "") + "The scan thought this might be a goal; check."; }
+    if(!isCurrent()){ return; }
+    await insertReviewDraft(draftRowFromAi(res.shot, ev.t, res.model));
+    review.scanStats.found++;
+    renderReviewShots();
+    renderReviewScanBar();
+  };
+
+  const runTagWorker = async () => {
+    while(tagQueue.length){
+      const ev = tagQueue.shift();
+      try{ await tagOne(ev); }
+      catch(error){
+        if(error.status === 403 || error.status === 503 || error.status === 404 || /CORS|blocked/.test(error.message)){ failure = error; review.scanning = false; tagQueue.length = 0; }
+        else{ console.error("Tagging failed at", ev.t, error); }
+      }
+    }
+    tagWorker = null;
+  };
+
+  try{
+
+    // The visible player already knows the length; only ask the hidden
+    // reader if it doesn't.
+    const duration = reviewDuration() || await sampler.duration();
+    if(!Number.isFinite(duration) || duration <= 0){ throw new Error("Couldn't read how long this video is."); }
+    v.duration_seconds = duration;
+
+    let t = Number(v.scan_cursor) || 0;
+    v.scan_cursor = t;
+
+    while(t < duration && review.scanning && isCurrent()){
+
+      const times = [];
+      while(times.length < REVIEW_SCAN_BATCH && t < duration){ times.push(t); t += REVIEW_SCAN_STEP; }
+
+      const batchStart = times[0];
+      const batchEnd = t;
+
+      while(inflight.size >= REVIEW_DETECT_CONCURRENCY){ await Promise.race(inflight); }
+      if(!review.scanning){ break; }
+
+      const job = aiOnStoredVideo("detect", times, REVIEW_SCAN_WIDTH, sampler)
+        .then(res => {
+          (res.events || []).forEach(ev => tagQueue.push(ev));
+          if(tagQueue.length && !tagWorker){ tagWorker = runTagWorker(); }
+          completed.set(batchStart, batchEnd);
+          while(completed.has(v.scan_cursor)){
+            const end = completed.get(v.scan_cursor);
+            completed.delete(v.scan_cursor);
+            v.scan_cursor = end;
+          }
+          renderReviewTimeline();
+          renderReviewScanBar();
+          return persistCursor(false);
+        })
+        .catch(error => { failure = error; review.scanning = false; })
+        .finally(() => inflight.delete(job));
+
+      inflight.add(job);
+
+    }
+
+    await Promise.all(inflight);
+    while(tagWorker){ await tagWorker; }
+
+    if(!failure && isCurrent() && v.scan_cursor >= duration - REVIEW_SCAN_STEP){
+      v.scan_cursor = duration;
+    }
+
+  }
+  catch(error){
+    failure = error;
+  }
+  finally{
+
+    sampler.destroy();
+    tagger.destroy();
+    review.scanning = false;
+
+    if(isCurrent()){
+      try{ await persistCursor(true); }catch(e){ console.error(e); }
+      v.scan_progress = Math.min(1, (Number(v.scan_cursor) || 0) / (Number(v.duration_seconds) || 1));
+      renderReviewHeader();
+      renderReviewScanBar();
+      renderReviewTimeline();
+    }
+
+    if(failure){
+      console.error(failure);
+      showToast(failure.message || "The AI scan stopped.", "error");
+    }
+    else if(isCurrent() && Number(v.scan_progress) >= 1){
+      showToast(`AI scan finished: ${review.scanStats.found} new shot${review.scanStats.found === 1 ? "" : "s"}. Check each one, then approve.`, "success");
+    }
+
+  }
+
+}
+
+
+/* ---------- approve & publish ---------- */
+
+// Adds shots to a game's saved totals: Games, Period Stats and the
+// rebound tally, exactly as Live Tag does when it appends to a game.
+async function applyShotsToGameTotals(gameId, ownerId, shots){
+
+  const { data: game, error: gErr } = await supabaseClient.from("Games").select("*").eq("id", gameId).single();
+  if(gErr || !game){ throw gErr || new Error("Could not load that game."); }
+
+  const goals = shots.filter(s => s.outcome === "goal").length;
+  const sa = num(game.shots_against) + shots.length;
+  const ga = num(game.goals_against) + goals;
+
+  const { error: upErr } = await supabaseClient.from("Games").update({
+    shots_against: sa,
+    saves: sa - ga,
+    goals_against: ga,
+    shutout: sa > 0 && ga === 0
+  }).eq("id", gameId);
+  if(upErr){ throw upErr; }
+
+  const { data: periodRows, error: pErr } = await supabaseClient.from("Period Stats").select("*").eq("game_id", gameId);
+  if(pErr){ throw pErr; }
+
+  for(const p of ["1", "2", "3", "OT"]){
+    const ps = shots.filter(s => String(s.period) === p);
+    if(!ps.length){ continue; }
+    const pg = ps.filter(s => s.outcome === "goal").length;
+    const row = (periodRows || []).find(r => String(r.period) === p);
+    if(row){
+      const psa = num(row.shots_against) + ps.length;
+      const pga = num(row.goals_against) + pg;
+      const { error } = await supabaseClient.from("Period Stats").update({ shots_against: psa, saves: psa - pga, goals_against: pga }).eq("id", row.id);
+      if(error){ throw error; }
+    }
+    else{
+      const { error } = await supabaseClient.from("Period Stats").insert({
+        game_id: gameId, user_id: ownerId, period: p, minutes_played: null,
+        shots_against: ps.length, saves: ps.length - pg, goals_against: pg, Notes: null
+      });
+      if(error){ throw error; }
+    }
+  }
+
+  const tally = {};
+  REBOUND_TALLY_KEYS.forEach(k => tally[k] = 0);
+  shots.forEach(s => { if(s.reboundTag && s.reboundTag !== "skip" && tally[s.reboundTag] !== undefined){ tally[s.reboundTag]++; } });
+
+  if(Object.values(tally).some(n => n > 0)){
+    const { data: existing, error: rErr } = await supabaseClient.from("goalierebound_control").select("*").eq("game_id", gameId).limit(1);
+    if(rErr){ throw rErr; }
+    if(existing && existing.length){
+      const merged = {};
+      Object.keys(tally).forEach(k => { merged[k] = num(existing[0][k]) + tally[k]; });
+      const { error } = await supabaseClient.from("goalierebound_control").update(merged).eq("id", existing[0].id);
+      if(error){ throw error; }
+    }
+    else{
+      const { error } = await supabaseClient.from("goalierebound_control").insert({ ...tally, game_id: gameId, user_id: ownerId });
+      if(error){ throw error; }
+    }
+  }
+
+}
+
+async function approveReview(){
+
+  const v = review.video;
+  if(!v || reviewStatusOf(v) === "approved"){ return; }
+
+  if(review.scanning){
+    showToast("Pause the AI scan first.", "error");
+    return;
+  }
+
+  const drafts = review.drafts.slice();
+  const goals = drafts.filter(d => d.outcome === "goal").length;
+
+  if(!drafts.length){
+    showToast("There are no shots to publish yet.", "error");
+    return;
+  }
+
+  if(!confirm(`Publish ${drafts.length} shots (${drafts.length - goals} saves, ${goals} goal${goals === 1 ? "" : "s"}) to ${reviewOwnerName(v)}? They'll see the stats right away.`)){
+    return;
+  }
+
+  const btn = document.getElementById("rv-approve-btn");
+  btn.disabled = true;
+  btn.textContent = "Publishing…";
+
+  try{
+
+    await flushReviewSaves();
+
+    let gameId = v.game_id;
+
+    if(!gameId){
+      const rg = v.requested_game || {};
+      const { data: newGame, error } = await supabaseClient.from("Games").insert({
+        user_id: v.user_id,
+        created_at: new Date().toISOString().slice(0, 10),
+        date: rg.date || null,
+        opponent: rg.opponent || "Unknown",
+        home_away: rg.home_away || null,
+        season: rg.season || null
+      }).select().single();
+      if(error){ throw error; }
+      gameId = newGame.id;
+      // Link it straight away so a retry can't create a second game.
+      const { error: linkErr } = await supabaseClient.from("game_videos").update({ game_id: gameId }).eq("id", v.id);
+      if(linkErr){ throw linkErr; }
+      v.game_id = gameId;
+    }
+
+    const now = new Date().toISOString();
+
+    const shots = drafts.map(d => ({
+      period: reviewEffectivePeriod(d),
+      outcome: d.outcome,
+      strength: d.strength || null,
+      location: d.location || null,
+      loc_x: d.loc_x,
+      loc_y: d.loc_y,
+      shot_type: d.shot_type || null,
+      release_type: d.release_type || null,
+      rush: !!d.rush,
+      rebound: !!d.rebound,
+      screened: !!d.screened,
+      breakaway: !!d.breakaway,
+      cross_ice: !!d.cross_ice,
+      deflection: !!d.deflection,
+      reboundTag: d.rebound_tag || "skip",
+      ai: d.source === "ai" ? { confidence: d.ai_confidence, model: d.ai_model, notes: d.ai_notes } : null,
+      t: Number(d.t_seconds)
+    }));
+
+    await insertLiveTagShots(shots.map(s => ({
+      ...liveTagShotPayload(s, gameId, v.user_id),
+      ...(s.ai ? { ai_reviewed_at: now } : {}),
+      game_video_id: v.id,
+      clip_start_seconds: Math.max(0, Math.round((s.t - 4) * 10) / 10),
+      clip_end_seconds: Math.round((s.t + 3) * 10) / 10
+    })));
+
+    await applyShotsToGameTotals(gameId, v.user_id, shots);
+
+    const { error: doneErr } = await supabaseClient.from("game_videos").update({
+      review_status: "approved",
+      approved_at: now,
+      reviewed_by: currentSession.user.id,
+      admin_note: null
+    }).eq("id", v.id);
+    if(doneErr){ throw doneErr; }
+
+    v.review_status = "approved";
+    renderReviewHeader();
+    showToast(`Published to ${reviewOwnerName(v)}.`, "success");
+
+    loadDashboard().catch(err => console.error(err));
+
+  }
+  catch(error){
+
+    console.error(error);
+    showToast(`Publishing stopped: ${error.message || error}. Nothing after that step was saved; check the game before trying again.`, "error");
+    renderReviewHeader();
+
+  }
+
+}
+
+
+/* ---------- the user behind the request ---------- */
+
+function formatMoney(cents, currency){
+  try{
+    return new Intl.NumberFormat([], { style: "currency", currency: String(currency || "cad").toUpperCase() }).format((Number(cents) || 0) / 100);
+  }
+  catch(e){
+    return `${((Number(cents) || 0) / 100).toFixed(2)} ${String(currency || "").toUpperCase()}`;
+  }
+}
+
+async function loadReviewUser(userId){
+
+  const box = document.getElementById("rv-user");
+  box.innerHTML = `<div class="empty-state">Loading account…</div>`;
+
+  try{
+
+    const res = await fetch("/api/admin/user-info", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessToken: currentSession.access_token, targetId: userId })
+    });
+
+    let data = {};
+    try{ data = await res.json(); }catch(e){ data = {}; }
+    if(!res.ok){ throw new Error(data.error || "Could not load this account."); }
+
+    if(!review.video || review.video.user_id !== userId){ return; }
+
+    const p = data.profile || {};
+    const a = data.access || {};
+    const login = data.login || {};
+    const date = s => s ? new Date(s).toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" }) : "—";
+
+    const planLabel =
+      a.plan === "goalie_plus" ? "Goalie Plus" :
+      a.plan === "pay_per_game" ? "Pay per game" :
+      a.plan === "goalie" ? "Goalie" : (a.plan || "None");
+
+    const totals = Object.entries(data.totals || {}).map(([cur, cents]) => formatMoney(cents, cur)).join(" + ") || formatMoney(0, "cad");
+
+    const payments = (data.payments || []).map(pay => `
+      <tr>
+        <td>${escapeHtml(date(pay.created))}</td>
+        <td>${escapeHtml(formatMoney(pay.amount, pay.currency))}${pay.amount_refunded ? ` <span class="small-note">(${escapeHtml(formatMoney(pay.amount_refunded, pay.currency))} refunded)</span>` : ""}</td>
+        <td>${escapeHtml(pay.status || "")}</td>
+        <td>${escapeHtml(pay.description || "")}</td>
+        <td>${pay.receipt_url && /^https:\/\//.test(pay.receipt_url) ? `<a href="${escapeHtml(pay.receipt_url)}" target="_blank" rel="noopener">Receipt</a>` : ""}</td>
+      </tr>`).join("");
+
+    box.innerHTML = `
+      <div class="rv-user-head">
+        <h4>${escapeHtml(p.full_name || "Unnamed account")}</h4>
+        <span class="small-note">${escapeHtml(p.role || "")}</span>
+      </div>
+      <div class="grid grid-4 rv-user-facts">
+        <div class="card metric-card"><div class="metric">${escapeHtml(totals)}</div><div class="metric-label">Paid in total</div></div>
+        <div class="card metric-card"><div class="metric">${escapeHtml(planLabel)}</div><div class="metric-label">Plan · ${escapeHtml(a.status || "no access row")}</div></div>
+        <div class="card metric-card"><div class="metric">${a.game_credits ?? "—"}</div><div class="metric-label">Games left</div></div>
+        <div class="card metric-card"><div class="metric">${Number(data.games) || 0}</div><div class="metric-label">Games on account</div></div>
+      </div>
+      <dl class="rv-user-list">
+        <div><dt>Email</dt><dd>${login.email ? `<a href="mailto:${escapeHtml(login.email)}">${escapeHtml(login.email)}</a>` : "—"}</dd></div>
+        <div><dt>Team</dt><dd>${escapeHtml(p.team || "—")}</dd></div>
+        <div><dt>Birth year</dt><dd>${escapeHtml(p.birth_year || "—")}</dd></div>
+        <div><dt>Season</dt><dd>${escapeHtml(p.season || "—")}</dd></div>
+        <div><dt>Joined</dt><dd>${escapeHtml(date(login.created_at))}</dd></div>
+        <div><dt>Last sign-in</dt><dd>${escapeHtml(date(login.last_sign_in_at))}</dd></div>
+        <div><dt>Access until</dt><dd>${escapeHtml(date(a.access_until))}</dd></div>
+        <div><dt>Subscription</dt><dd>${a.has_subscription ? "Yes" : "No"}</dd></div>
+      </dl>
+      <h4 class="rv-user-sub">Payments</h4>
+      ${data.paymentsError ? `<p class="small-note">${escapeHtml(data.paymentsError)}</p>` : ""}
+      ${payments
+        ? `<div class="table-wrap"><table><thead><tr><th>Date</th><th>Amount</th><th>Status</th><th>For</th><th></th></tr></thead><tbody>${payments}</tbody></table></div>`
+        : `<p class="small-note">No payments on record${a.has_stripe ? "" : " (no Stripe customer yet)"}.</p>`}
+    `;
+
+  }
+  catch(error){
+    box.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+  }
+
+}
+
+
+/* ---------- player wiring and keys ---------- */
+
+(function wireReviewPlayer(){
+
+  const video = document.getElementById("rv-video");
+  const timeline = document.getElementById("rv-timeline");
+  if(!video || !timeline){ return; }
+
+  ["timeupdate", "play", "pause", "seeked", "durationchange"].forEach(evt => video.addEventListener(evt, updateReviewPlayhead));
+
+  timeline.addEventListener("click", e => {
+    const rect = timeline.getBoundingClientRect();
+    const d = reviewDuration();
+    if(!d){ return; }
+    video.currentTime = Math.max(0, Math.min(d, (e.clientX - rect.left) / rect.width * d));
+  });
+
+  document.addEventListener("keydown", e => {
+
+    const ws = document.getElementById("rv-workspace");
+    if(!ws || ws.hidden || !review.video){ return; }
+    if(!document.getElementById("adminvideoreview").classList.contains("active")){ return; }
+    if(e.target && /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(e.target.tagName) && e.key !== "Escape"){ return; }
+    if(e.metaKey || e.ctrlKey || e.altKey){ return; }
+
+    const k = e.key.toLowerCase();
+
+    if(k === " "){ e.preventDefault(); reviewTogglePlay(); }
+    else if(e.key === "ArrowLeft"){ e.preventDefault(); reviewSeekBy(-5); }
+    else if(e.key === "ArrowRight"){ e.preventDefault(); reviewSeekBy(5); }
+    else if(k === "s"){ e.preventDefault(); addReviewShotHere(); }
+    else if(k === "n" || k === "p"){
+      e.preventDefault();
+      const now = video.currentTime + (k === "n" ? 3.5 : 2.5);
+      const list = review.drafts;
+      const target = k === "n"
+        ? list.find(d => Number(d.t_seconds) > now)
+        : [...list].reverse().find(d => Number(d.t_seconds) < now - 1);
+      if(target){ selectReviewShot(target.id, true); }
+    }
+    else if(k === "g"){
+      const d = review.drafts.find(x => String(x.id) === String(review.selectedId));
+      if(d){ e.preventDefault(); updateReviewShot("outcome", d.outcome === "goal" ? "save" : "goal"); renderReviewEditor(); }
+    }
+
+  });
+
+})();
 
 
 async function clearFailedVideos(button){

@@ -19,6 +19,8 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F4A35">
+<script>try{var t=localStorage.getItem("giq-theme");if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
+<script src="assets/theme.js" defer></script>
 <link rel="stylesheet" href="assets/site.css">
 <link rel="preload" href="assets/fonts/archivo-italic-var-latin.woff2" as="font" type="font/woff2" crossorigin>
 </head>
@@ -29,6 +31,7 @@
   <nav class="lp-bar-links" aria-label="Main">
     <a href="sample-game.html">Sample game</a>
     <a href="goalies-coaches.html" aria-current="page">Goalies &amp; coaches</a>
+    <button type="button" class="theme-toggle" data-theme-toggle onclick="toggleTheme()" aria-label="Switch to dark mode"></button>
     <a href="index.html#get-started" class="lp-signin">Sign in</a>
   </nav>
 </header>

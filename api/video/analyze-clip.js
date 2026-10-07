@@ -1,7 +1,19 @@
 // ============================================================
 // AI CLIP TAGGING — read one shot clip, return the shot
 // ============================================================
-// POST { accessToken, frames: [{ t, data }], context }
+// POST { accessToken, frames: [{ t, data }], context, mode? }
+//   or { accessToken, gameVideoId, times: [seconds], width?, context, mode? }
+//
+// With gameVideoId + times, the frames are pulled from the stored video
+// on the server (ffmpeg over a signed R2 URL), so the browser never has
+// to read video pixels and the bucket needs no CORS rules for it.
+//
+// mode "tag" (default): the frames are one shot; returns its fields.
+// mode "detect": the frames are evenly spaced stills from a full game
+// (a few seconds apart); returns the timestamps where a shot on the
+// tracked goalie's net appears to happen. The admin review screen
+// scans a game with "detect", then runs "tag" on a short burst of
+// frames around each hit.
 //
 // The browser pulls a handful of still frames out of one pre-trimmed
 // shot clip (it already has the file in hand while uploading it), so
@@ -16,12 +28,18 @@
 //   ANTHROPIC_API_KEY   the same key AI Coach uses
 //   CLIP_AI_MODEL       optional; defaults to claude-opus-5-5
 
-import { verifyUser, callerRole, sendServerError } from "../_lib/supabase.js";
+import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import {
+  verifyUser, callerRole, userSelect, r2Configured, r2Client,
+  storagePathIsTrusted, sendServerError,
+} from "../_lib/supabase.js";
 import { claude, claudeConfigured, textOf } from "../_lib/claude.js";
+import { ffmpegAvailable, grabFrames } from "../_lib/frames.js";
 
 const MODEL = (process.env.CLIP_AI_MODEL || "claude-opus-5-5").trim();
 
-const MAX_FRAMES = 12;
+const MAX_FRAMES = 16;
 // ~450 KB of JPEG per frame; the browser sends ~640px frames at ~60 KB.
 const MAX_FRAME_BASE64 = 600 * 1024;
 
@@ -73,6 +91,33 @@ Record what the frames show, the way a goalie coach logging the game would:
 
 Be conservative. A human reviews these later; a clear "unknown" is more useful than a confident guess. Keep confidence honest.`;
 
+const DETECT_SCHEMA = {
+  type: "object",
+  properties: {
+    events: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          frame: { type: "integer", description: "1-based number of the frame where the shot is released or the save/goal happens." },
+          goal: { type: "boolean", description: "True only if the puck clearly ends up in the tracked goalie's net." },
+          confidence: { type: "number", description: "0 to 1." },
+        },
+        required: ["frame", "goal", "confidence"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["events"],
+  additionalProperties: false,
+};
+
+const DETECT_PROMPT = `You scan hockey game film for shots on goal against ONE tracked goalie. You get evenly spaced still frames from the game, in time order, each with its timestamp.
+
+Report each moment where a shot on the tracked goalie's net is released, saved, or goes in: list the frame number closest to that moment. Signs: a shooter in the offensive zone facing that net with the stick loaded or following through, the puck travelling toward the net, the goalie in a save motion or covering the puck, a rebound scramble at the crease, a goal celebration or players skating back to centre ice after a goal.
+
+Ignore: play at the other end of the rink, line changes, faceoffs with no shot, warm-ups, stoppages, replays, and shots that clearly miss the net wide. One event per shot; if two frames show the same shot, report only one. If nothing happens in these frames, return an empty list. Be conservative: an admin reviews every event, and missed shots can be added by hand, but false events waste their time.`;
+
 function cleanFrames(frames) {
   if (!Array.isArray(frames) || !frames.length || frames.length > MAX_FRAMES) return null;
   const out = [];
@@ -83,6 +128,31 @@ function cleanFrames(frames) {
     out.push({ t: Number.isFinite(t) ? Math.max(0, Math.round(t * 100) / 100) : null, data });
   }
   return out;
+}
+
+function cleanTimes(times) {
+  if (!Array.isArray(times) || !times.length || times.length > MAX_FRAMES) return null;
+  const out = times.map(Number);
+  return out.every(t => Number.isFinite(t) && t >= 0 && t < 6 * 3600) ? out : null;
+}
+
+// Frames for a stored video: the row is read with the caller's own
+// token (RLS), its path must belong to its owner, then ffmpeg reads the
+// requested moments over a short-lived signed URL.
+async function framesFromStoredVideo(gameVideoId, times, width, accessToken) {
+  const rows = await userSelect("game_videos", `id=eq.${encodeURIComponent(gameVideoId)}&select=*`, accessToken);
+  const row = rows[0];
+  if (!row || !(await storagePathIsTrusted(row))) {
+    const err = new Error("Video not found.");
+    err.status = 404;
+    throw err;
+  }
+  const url = await getSignedUrl(
+    r2Client(),
+    new GetObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: row.storage_path }),
+    { expiresIn: 60 * 15 }
+  );
+  return grabFrames(url, times, width);
 }
 
 function clamp(n, lo, hi) {
@@ -124,11 +194,20 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { accessToken, frames, context } = req.body || {};
-  const cleanedFrames = cleanFrames(frames);
+  const { accessToken, frames, context, mode, gameVideoId, times, width } = req.body || {};
+  const detect = mode === "detect";
+  const fromVideo = gameVideoId !== undefined && gameVideoId !== null;
+  const cleanedTimes = fromVideo ? cleanTimes(times) : null;
+  let cleanedFrames = fromVideo ? null : cleanFrames(frames);
 
-  if (!accessToken || !cleanedFrames) {
-    res.status(400).json({ error: `Send between 1 and ${MAX_FRAMES} JPEG frames.` });
+  if (!accessToken || (fromVideo ? !cleanedTimes : !cleanedFrames)) {
+    res.status(400).json({ error: `Send between 1 and ${MAX_FRAMES} frames or timestamps.` });
+    return;
+  }
+
+  if (fromVideo && (!r2Configured() || !ffmpegAvailable())) {
+    // The browser falls back to reading frames itself on 501.
+    res.status(501).json({ error: "This server can't read video frames.", code: "frames_unavailable" });
     return;
   }
 
@@ -148,9 +227,80 @@ export default async function handler(req, res) {
       return;
     }
 
+    if (fromVideo) {
+      const w = Math.max(240, Math.min(960, Number(width) || 640));
+      try {
+        cleanedFrames = await framesFromStoredVideo(gameVideoId, cleanedTimes, w, accessToken);
+      } catch (error) {
+        if (error.status === 404) {
+          res.status(404).json({ error: "Video not found." });
+          return;
+        }
+        throw error;
+      }
+      if (!cleanedFrames.length) {
+        res.status(422).json({ error: "Couldn't read any frames at those times. The video may be shorter, or in a format the server can't decode." });
+        return;
+      }
+    }
+
     const jersey = context && typeof context.goalieJersey === "string"
       ? context.goalieJersey.replace(/[^\w #-]/g, "").slice(0, 40)
       : "";
+
+    if (detect) {
+      const content = [];
+      cleanedFrames.forEach((frame, i) => {
+        content.push({ type: "text", text: `Frame ${i + 1}${frame.t !== null ? ` at ${frame.t}s` : ""}:` });
+        content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: frame.data } });
+      });
+      content.push({
+        type: "text",
+        text: (jersey ? `The tracked goalie's team wears ${jersey}. ` : "") + "List the shot events in these frames.",
+      });
+
+      const message = await claude().beta.messages.create({
+        model: MODEL,
+        max_tokens: 6000,
+        betas: ["server-side-fallback-2026-07-01"],
+        fallbacks: "default",
+        output_config: {
+          effort: "low",
+          format: { type: "json_schema", schema: DETECT_SCHEMA },
+        },
+        system: DETECT_PROMPT,
+        messages: [{ role: "user", content }],
+      });
+
+      if (message.stop_reason === "refusal") {
+        res.status(200).json({ events: [] });
+        return;
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(textOf(message));
+      } catch (parseError) {
+        console.error("Unparseable detect result:", message.stop_reason, parseError);
+        res.status(502).json({ error: "The AI returned an unreadable answer for this stretch of video." });
+        return;
+      }
+
+      const seen = new Set();
+      const events = (Array.isArray(parsed.events) ? parsed.events : [])
+        .map(e => {
+          const i = Math.round(Number(e.frame)) - 1;
+          const f = cleanedFrames[i];
+          if (!f || f.t === null || seen.has(i)) return null;
+          seen.add(i);
+          return { t: f.t, goal: e.goal === true, confidence: clamp(e.confidence, 0, 1) ?? 0 };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.t - b.t);
+
+      res.status(200).json({ events, model: message.model || MODEL });
+      return;
+    }
 
     const content = [];
     cleanedFrames.forEach((frame, i) => {

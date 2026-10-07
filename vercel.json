@@ -1,7 +1,9 @@
 {
   "functions": {
     "api/video/analyze-clip.js": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "memory": 1024,
+      "includeFiles": "node_modules/ffmpeg-static/ffmpeg"
     },
     "api/coach.js": {
       "maxDuration": 60
