@@ -321,9 +321,10 @@
           <summary>What does it cost?</summary>
           <p>New goalie accounts get their first game free. After that you buy games in packs, and each tracked game uses one:</p>
           <ul class="lp-faq-prices">
-            <li><span>1 game</span><strong>$8</strong></li>
-            <li><span>5 games</span><strong>$35</strong></li>
-            <li><span>10 games</span><strong>$60</strong></li>
+            <li><span>1 game</span><strong>$12</strong></li>
+            <li><span>5 games</span><strong>$50</strong></li>
+            <li><span>10 games</span><strong>$90</strong></li>
+            <li><span>20 games</span><strong>$160</strong></li>
           </ul>
           <p>Goalie Plus adds AI Coach and an AI-written analysis in every game report, and covers up to 10 tracked games a month.</p>
         </details>
@@ -21000,13 +21001,6 @@ async function loadReviewAiCost(videoId){
   renderReviewAiCost();
 }
 
-// "This run cost $x" for the end-of-scan messages; empty when costs
-// aren't being recorded (the ai_usage table isn't set up).
-function reviewRunCostText(){
-  if(review.aiCost === null || review.aiCost === undefined || review.runCostStart === null || review.runCostStart === undefined){ return ""; }
-  return ` This run cost ${formatUsd(review.aiCost - review.runCostStart)} (this video so far: ${formatUsd(review.aiCost)}).`;
-}
-
 function addReviewAiCost(usd){
   const n = Number(usd);
   if(!Number.isFinite(n) || review.aiCost === null || review.aiCost === undefined){ return; }
@@ -21036,7 +21030,6 @@ async function openReview(videoId){
 
   review.video = { ...v, period_marks: v.period_marks || {} };
   review.scanStats = null;
-  review.runCostStart = null;
   review.batchCheckedAt = 0;
   review.cutStart = null;
   review.markIn = null;
@@ -22309,8 +22302,6 @@ async function collectReviewBatches(manual){
 
   review.collecting = true;
   if(!review.scanStats){ review.scanStats = newReviewScanStats(); }
-  // Reopened after the scan was sent: count what collecting costs.
-  if(review.runCostStart === null || review.runCostStart === undefined){ review.runCostStart = review.aiCost; }
   const st = review.scanStats;
   const isCurrent = () => review.video && review.video.id === v.id;
   const tagger = createFrameGrabber(v.id);
@@ -22387,7 +22378,7 @@ async function collectReviewBatches(manual){
       stopReviewBatchPolling();
       finished = true;
       showToast(
-        `AI results are in: ${st.found} new shot${st.found === 1 ? "" : "s"} added (${st.confirmed} confirmed, ${st.unsure} possible, ${st.duplicate} already on your list, ${st.rejected} ruled out${st.errors ? `, ${st.errors} errors: ${st.lastError}` : ""}).${reviewRunCostText()} Check each one, then approve.`,
+        `AI results are in: ${st.found} new shot${st.found === 1 ? "" : "s"} added (${st.confirmed} confirmed, ${st.unsure} possible, ${st.duplicate} already on your list, ${st.rejected} ruled out${st.errors ? `, ${st.errors} errors: ${st.lastError}` : ""}). Check each one, then approve.`,
         st.found ? "success" : "error"
       );
     }
@@ -22408,7 +22399,7 @@ async function collectReviewBatches(manual){
       renderReviewTimeline();
       if(finished){
         document.getElementById("rv-scanbar").hidden = false;
-        document.getElementById("rv-scan-text").textContent = `Last scan: ${st.found} shots added, ${st.flagged} moments flagged, ${st.duplicate} already on your list, ${st.rejected} ruled out.${reviewRunCostText()}`;
+        document.getElementById("rv-scan-text").textContent = `Last scan: ${st.found} shots added, ${st.flagged} moments flagged, ${st.duplicate} already on your list, ${st.rejected} ruled out.`;
       }
     }
     if(fatal){ stopReviewBatchPolling(); showToast(fatal.message, "error"); }
@@ -22457,7 +22448,6 @@ async function runReviewScan(){
 
   review.scanning = true;
   review.scanStats = newReviewScanStats();
-  review.runCostStart = review.aiCost;
   renderReviewPreview(null);
   renderReviewHeader();
   renderReviewScanBar();
@@ -22626,7 +22616,7 @@ async function runReviewScan(){
     }
     else if(!failure && isCurrent() && Number(v.scan_progress) >= 1){
       const st = review.scanStats;
-      const summary = `${st.batches} stretches checked${st.skipped ? ` (${st.skipped} dead-time stills skipped)` : ""}, ${st.flagged} moments flagged, ${st.confirmed} confirmed, ${st.unsure} kept as possible, ${st.duplicate} already on your list, ${st.rejected} ruled out${st.errors ? `, ${st.errors} errors (${st.lastError})` : ""}.${reviewRunCostText()}`;
+      const summary = `${st.batches} stretches checked${st.skipped ? ` (${st.skipped} dead-time stills skipped)` : ""}, ${st.flagged} moments flagged, ${st.confirmed} confirmed, ${st.unsure} kept as possible, ${st.duplicate} already on your list, ${st.rejected} ruled out${st.errors ? `, ${st.errors} errors (${st.lastError})` : ""}.`;
       const allKnown = !st.found && st.flagged > 0 && st.duplicate > 0 && !st.errors;
       showToast(
         st.found
