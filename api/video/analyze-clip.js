@@ -107,8 +107,13 @@ const DETECT_SCHEMA = {
         additionalProperties: false,
       },
     },
+    zone_frames: {
+      type: "array",
+      items: { type: "integer" },
+      description: "Every frame number where play is in the tracked goalie's defensive zone: attackers in that zone with the puck, the puck near that net, or a stoppage at that net.",
+    },
   },
-  required: ["events"],
+  required: ["events", "zone_frames"],
   additionalProperties: false,
 };
 
@@ -119,6 +124,8 @@ You get still frames about one to two seconds apart, in time order, with timesta
 Which net: the tracked goalie is identified by their team's jersey colour (given below when known). Watch the net that goalie defends. Teams switch ends between periods, so if the goalie in that colour is now at the other end, follow them there.
 
 Flag every frame where, at that net, any of these is happening or just happened: a shot or shot attempt (wrist, slap, snap, backhand, tip, deflection, one-timer, wraparound, rebound); a player winding up, releasing, or following through toward the net; the puck moving toward or bouncing off the goalie; the goalie moving into a save, down, stretched, covering the puck, or recovering; a scramble or crowd at the crease; attacking players with the puck in the slot or circles facing the net; a whistle with players gathered at the net; a goal celebration or players skating away after a goal. Shots happen fast and may fall between two stills: if the play is in that zone and the next frame shows the aftermath (goalie down, puck loose, players crashing the net), flag the frame before it.
+
+Separately, list in zone_frames EVERY frame where play is in the tracked goalie's defensive zone (between that goalie's blue line and end boards, attackers with the puck there, or the puck near that net), whether or not a shot happens. Be generous: these frames become the action stretches the admin watches, so leaving out zone time can hide a shot.
 
 Do not flag: play clearly at the other end of the rink with no pressure on the tracked net, centre-ice faceoffs, line changes, empty ice, intermissions, warm-ups, replays or overlays. Several frames of the same sequence: flag one per distinct attempt (a shot and its rebound shot are two). Confidence: 0.2 when you suspect action, 0.5 when an attempt is likely, 0.8+ when a shot is clearly visible.`;
 
@@ -302,8 +309,14 @@ export default async function handler(req, res) {
         .filter(Boolean)
         .sort((a, b) => a.t - b.t);
 
+      const zone = [...new Set((Array.isArray(parsed.zone_frames) ? parsed.zone_frames : [])
+        .map(n => cleanedFrames[Math.round(Number(n)) - 1])
+        .filter(f => f && f.t !== null)
+        .map(f => f.t))].sort((a, b) => a - b);
+
       res.status(200).json({
         events,
+        zone,
         model: message.model || MODEL,
         frameCount: cleanedFrames.length,
         // A few of the frames the AI looked at, so the admin can check

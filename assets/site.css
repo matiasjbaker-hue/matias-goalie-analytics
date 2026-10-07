@@ -4751,3 +4751,38 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
   font-size:13px;
   color:var(--ink);
 }
+
+/* Action stretches on the review timeline (Veo-style) */
+.rv-action{
+  position:absolute;
+  top:0;
+  bottom:0;
+  background:rgba(232,185,35,.38);
+  border-left:1.5px solid var(--gold);
+  border-right:1.5px solid var(--gold);
+  pointer-events:none;
+}
+
+.rv-action-bar{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px 12px;
+  margin-top:10px;
+  padding:10px 12px;
+  background:var(--face);
+  border:1.5px dashed var(--gold-deep);
+  border-radius:var(--radius);
+}
+
+.rv-action-bar .btn-secondary{ padding:6px 10px; font-size:13px; }
+.rv-action-bar .small-note{ margin:0; }
+
+.rv-check{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-size:14px;
+  font-weight:600;
+  cursor:pointer;
+}

@@ -3361,6 +3361,14 @@
           <button type="button" class="btn-primary rv-add" onclick="addReviewShotHere()">Add shot here</button>
         </div>
 
+        <div class="rv-action-bar">
+          <label class="rv-check"><input type="checkbox" id="rv-action-only" onchange="onReviewActionOnlyChange()"> <span>Play action only</span></label>
+          <button type="button" class="btn-secondary" onclick="jumpReviewAction(-1)">Previous action</button>
+          <button type="button" class="btn-secondary" onclick="jumpReviewAction(1)">Next action</button>
+          <label class="rv-check"><input type="checkbox" id="rv-auto-fill" checked> <span>AI fills in shots I add</span></label>
+          <span class="small-note" id="rv-action-note"></span>
+        </div>
+
         <div class="rv-periods">
           <span class="rv-periods-label">Mark where each period starts:</span>
           <button type="button" class="btn-secondary" onclick="markReviewPeriod('2')">2nd starts here</button>
@@ -3369,7 +3377,7 @@
           <span class="small-note" id="rv-period-note"></span>
         </div>
 
-        <p class="small-note rv-keys">Keys: Space play/pause · ← → 5 seconds · S add a shot · N / P next or previous shot · G toggle goal</p>
+        <p class="small-note rv-keys">Keys: Space play/pause · ← → 5 seconds · ] [ next or previous action · S add a shot · N / P next or previous shot · G toggle goal</p>
 
       </div>
 
@@ -20903,6 +20911,99 @@ function reviewPeriodAt(t){
   return p;
 }
 
+/* ---------- action stretches (Veo-style) ----------
+   Every scan request also reports which stills show play in the
+   tracked goalie's zone. Those times become padded stretches the admin
+   can watch back to back ("Play action only") instead of the whole
+   game; every tagged shot is inside one. Stored on the video row in
+   period_marks under "_action" (the other keys there are period marks). */
+
+const REVIEW_ACTION_PAD_BEFORE = 3;
+const REVIEW_ACTION_PAD_AFTER = 3;
+const REVIEW_ACTION_JOIN_GAP = 6;     // stretches closer than this merge
+
+function mergeActionStretches(list){
+  const sorted = list
+    .filter(r => Array.isArray(r) && Number.isFinite(r[0]) && Number.isFinite(r[1]) && r[1] > r[0])
+    .map(r => [Math.max(0, r[0]), r[1]])
+    .sort((a, b) => a[0] - b[0]);
+  const out = [];
+  for(const r of sorted){
+    const last = out[out.length - 1];
+    if(last && r[0] - last[1] <= REVIEW_ACTION_JOIN_GAP){ last[1] = Math.max(last[1], r[1]); }
+    else{ out.push([r[0], r[1]]); }
+  }
+  return out.map(r => [Math.round(r[0] * 10) / 10, Math.round(r[1] * 10) / 10]);
+}
+
+// Saved stretches plus a window around every shot on the list, so the
+// reel always covers each shot even on games scanned before this.
+function reviewActionStretches(){
+  const v = review.video;
+  if(!v){ return []; }
+  const saved = (v.period_marks && Array.isArray(v.period_marks._action)) ? v.period_marks._action : [];
+  const aroundShots = review.drafts.map(d => [Number(d.t_seconds) - 5, Number(d.t_seconds) + 4]);
+  return mergeActionStretches([...saved, ...aroundShots]);
+}
+
+function addActionTimes(times, step){
+  const v = review.video;
+  if(!v || !times || !times.length){ return; }
+  const add = times.map(t => [t - REVIEW_ACTION_PAD_BEFORE - step / 2, t + REVIEW_ACTION_PAD_AFTER + step / 2]);
+  const saved = (v.period_marks && Array.isArray(v.period_marks._action)) ? v.period_marks._action : [];
+  v.period_marks = { ...(v.period_marks || {}), _action: mergeActionStretches([...saved, ...add]) };
+}
+
+function renderReviewActionNote(){
+  const note = document.getElementById("rv-action-note");
+  if(!note){ return; }
+  const st = reviewActionStretches();
+  const d = reviewDuration();
+  const total = st.reduce((sum, r) => sum + (r[1] - r[0]), 0);
+  note.textContent = st.length
+    ? `${st.length} action stretch${st.length === 1 ? "" : "es"}, ${formatClock(total)} of ${formatClock(d)} to watch${d ? ` (${Math.round(total / d * 100)}%)` : ""}.`
+    : "Run AI to find the action stretches.";
+}
+
+function onReviewActionOnlyChange(){
+  const on = document.getElementById("rv-action-only").checked;
+  if(on){
+    const video = document.getElementById("rv-video");
+    const st = reviewActionStretches();
+    if(st.length && !st.some(r => video.currentTime >= r[0] && video.currentTime < r[1])){
+      const next = st.find(r => r[0] > video.currentTime) || st[0];
+      video.currentTime = next[0];
+    }
+  }
+}
+
+function jumpReviewAction(dir){
+  const video = document.getElementById("rv-video");
+  const st = reviewActionStretches();
+  if(!st.length){ showToast("No action stretches yet. Run AI first."); return; }
+  const now = video.currentTime;
+  const target = dir > 0
+    ? st.find(r => r[0] > now + 0.5)
+    : [...st].reverse().find(r => r[0] < now - 1.5);
+  if(target){ video.currentTime = target[0]; video.play().catch(() => {}); }
+  else{ showToast(dir > 0 ? "That was the last action stretch." : "That was the first action stretch."); }
+}
+
+// With "Play action only" on, playback skips the gaps between stretches.
+function enforceReviewActionOnly(){
+  const box = document.getElementById("rv-action-only");
+  if(!box || !box.checked){ return; }
+  const video = document.getElementById("rv-video");
+  if(video.paused || video.seeking){ return; }
+  const st = reviewActionStretches();
+  if(!st.length){ return; }
+  const now = video.currentTime;
+  if(st.some(r => now >= r[0] - 0.2 && now < r[1])){ return; }
+  const next = st.find(r => r[0] > now);
+  if(next){ video.currentTime = next[0]; }
+  else{ video.pause(); showToast("End of the action stretches."); }
+}
+
 function reviewEffectivePeriod(d){
   return d.period || reviewPeriodAt(Number(d.t_seconds));
 }
@@ -20916,11 +21017,18 @@ function renderReviewTimeline(){
   const v = review.video;
   const pct = t => d ? Math.min(100, Math.max(0, Number(t) / d * 100)) : 0;
 
-  document.getElementById("rv-scanned").style.width = `${pct(v ? v.scan_cursor : 0)}%`;
+  // The scanned shading only matters while a scan is unfinished.
+  document.getElementById("rv-scanned").style.width =
+    v && Number(v.scan_progress) < 1 ? `${pct(v.scan_cursor)}%` : "0";
+
+  const actionHtml = reviewActionStretches().map(r =>
+    `<span class="rv-action" style="left:${pct(r[0])}%;width:${Math.max(0.3, pct(r[1]) - pct(r[0]))}%"></span>`
+  ).join("");
 
   const marks = (v && v.period_marks) || {};
 
   ticks.innerHTML =
+    actionHtml +
     ["2", "3", "OT"].filter(k => marks[k] !== undefined && marks[k] !== null).map(k =>
       `<span class="rv-pmark" style="left:${pct(marks[k])}%" title="${k === "OT" ? "OT" : k === "2" ? "2nd period" : "3rd period"} starts ${formatClock(marks[k])}">${k === "OT" ? "OT" : k}</span>`
     ).join("") +
@@ -20933,6 +21041,7 @@ function renderReviewTimeline(){
     }).join("");
 
   updateReviewPlayhead();
+  renderReviewActionNote();
 
 }
 
@@ -21169,6 +21278,8 @@ async function addReviewShotHere(){
     renderReviewShots();
     selectReviewShot(row.id, false);
     markReviewInProgress();
+    const auto = document.getElementById("rv-auto-fill");
+    if(auto && auto.checked){ aiFillReviewShot(); }
   }
   catch(error){
     console.error(error);
@@ -21471,6 +21582,11 @@ async function runReviewScan(){
     v.scan_progress = 0;
   }
 
+  if(!v.scan_cursor && v.period_marks && v.period_marks._action){
+    const { _action, ...rest } = v.period_marks;
+    v.period_marks = rest;
+  }
+
   review.scanning = true;
   review.scanStats = { found: 0, batches: 0, flagged: 0, confirmed: 0, unsure: 0, rejected: 0, errors: 0, lastError: "" };
   renderReviewPreview(null);
@@ -21495,7 +21611,8 @@ async function runReviewScan(){
     const duration = Number(v.duration_seconds) || 1;
     await supabaseClient.from("game_videos").update({
       scan_cursor: v.scan_cursor,
-      scan_progress: Math.min(1, v.scan_cursor / duration)
+      scan_progress: Math.min(1, v.scan_cursor / duration),
+      period_marks: v.period_marks || {}
     }).eq("id", v.id);
   };
 
@@ -21589,6 +21706,7 @@ async function runReviewScan(){
         .then(res => {
           review.scanStats.batches++;
           review.scanStats.flagged += (res.events || []).length;
+          addActionTimes([...(res.zone || []), ...(res.events || []).map(e => e.t)], scanStep);
           if(res.preview){ renderReviewPreview(res.preview); }
           (res.events || []).forEach(ev => tagQueue.push(ev));
           if(tagQueue.length && !tagWorker){ tagWorker = runTagWorker(); }
@@ -22007,6 +22125,7 @@ async function loadReviewUser(userId){
   if(!video || !timeline){ return; }
 
   ["timeupdate", "play", "pause", "seeked", "durationchange"].forEach(evt => video.addEventListener(evt, updateReviewPlayhead));
+  video.addEventListener("timeupdate", enforceReviewActionOnly);
 
   timeline.addEventListener("click", e => {
     const rect = timeline.getBoundingClientRect();
@@ -22029,6 +22148,8 @@ async function loadReviewUser(userId){
     else if(e.key === "ArrowLeft"){ e.preventDefault(); reviewSeekBy(-5); }
     else if(e.key === "ArrowRight"){ e.preventDefault(); reviewSeekBy(5); }
     else if(k === "s"){ e.preventDefault(); addReviewShotHere(); }
+    else if(e.key === "]"){ e.preventDefault(); jumpReviewAction(1); }
+    else if(e.key === "["){ e.preventDefault(); jumpReviewAction(-1); }
     else if(k === "n" || k === "p"){
       e.preventDefault();
       const now = video.currentTime + (k === "n" ? 3.5 : 2.5);
