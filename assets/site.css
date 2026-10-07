@@ -4875,3 +4875,28 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
   .go-film-detail{ grid-template-columns:1fr; }
   .go-film-detail dl{ grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
+
+.lp-faq-prices{
+  list-style:none;
+  margin:0 0 16px;
+  padding:0 2px;
+  max-width:320px;
+}
+
+.lp-faq-prices li{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  padding:8px 0;
+  border-bottom:1px dashed var(--seam-strong);
+  font-size:16px;
+}
+
+.lp-faq-prices li:last-child{ border-bottom:0; }
+
+.lp-faq-prices strong{
+  font-size:20px;
+  font-weight:850;
+  font-stretch:78%;
+  font-variant-numeric:tabular-nums;
+}
