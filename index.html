@@ -15968,6 +15968,12 @@ let goFilmShots = [];
 
 function goFilmShotTime(shot, fullVideo, clipsById){
 
+  const published = fullVideo.period_marks && fullVideo.period_marks._published;
+  const known = published && published.times && published.times[String(shot.shot_id ?? shot.id)];
+  if(Number.isFinite(Number(known)) && known !== null){
+    return Number(known);
+  }
+
   if(String(shot.game_video_id) === String(fullVideo.id) &&
      shot.clip_start_seconds !== null && shot.clip_start_seconds !== undefined){
     return Number(shot.clip_start_seconds) + 4;
@@ -16007,9 +16013,9 @@ async function renderGameFilm(game){
 
   if(token !== goFilmToken){ return; }
 
-  const full = videos.find(v => v.status !== "clip" && (v.review_status || "approved") === "approved");
+  const fulls = videos.filter(v => v.status !== "clip" && (v.review_status || "approved") === "approved");
 
-  if(!full){
+  if(!fulls.length){
     box.hidden = true;
     box.innerHTML = "";
     return;
@@ -16018,11 +16024,21 @@ async function renderGameFilm(game){
   const clipsById = {};
   videos.filter(v => v.status === "clip").forEach(v => { clipsById[String(v.id)] = v; });
 
-  const shots = allShots
-    .filter(s => String(s.game_id) === String(game.id))
-    .map(s => ({ s, t: goFilmShotTime(s, full, clipsById) }))
+  const gameShots = allShots.filter(s => String(s.game_id) === String(game.id));
+
+  // A game can have more than one full video (a re-upload, an older
+  // copy): show the one its shots were tagged on.
+  const placed = video => gameShots
+    .map(s => ({ s, t: goFilmShotTime(s, video, clipsById) }))
     .filter(x => x.t !== null && Number.isFinite(x.t))
     .sort((a, b) => a.t - b.t);
+  let full = fulls[fulls.length - 1];
+  let shots = placed(full);
+  fulls.forEach(video => {
+    const list = placed(video);
+    if(list.length > shots.length){ full = video; shots = list; }
+  });
+  const unplaced = gameShots.length - shots.length;
 
   const goals = shots.filter(x => isGoal(x.s)).length;
   goFilmShots = shots;
@@ -16033,7 +16049,9 @@ async function renderGameFilm(game){
       <h3>Game film</h3>
       <p>${shots.length
         ? `${shots.length} tagged shot${shots.length === 1 ? "" : "s"} on the timeline (${shots.length - goals} saves, ${goals} goal${goals === 1 ? "" : "s"}). Click a tick or a shot to watch it.`
-        : "The full game. Tagged shots appear on the timeline once they're linked to this video."}</p>
+        : "The full game. Tagged shots appear on the timeline once they're linked to this video."}${unplaced > 0
+          ? ` ${unplaced} shot${unplaced === 1 ? " isn't" : "s aren't"} linked to the film${currentRole === "admin" ? ": republish the review to link them" : ""}.`
+          : ""}</p>
     </div>
     <div class="go-film-grid">
       <div class="go-film-player-col">
@@ -22782,6 +22800,9 @@ async function approveReview(){
       shotIds: insertedShots.map(r => r.shot_id ?? r.id),
       idColumn: insertedShots[0] ? shotIdColumn(insertedShots[0]) : "id",
       shots: shots.map(s => ({ period: s.period, outcome: s.outcome, reboundTag: s.reboundTag })),
+      // Where each published shot is in this video, by shot id: the game
+      // film reads this, so it never depends on the MP4 clips.
+      times: Object.fromEntries(insertedShots.map((r, i) => [String(r.shot_id ?? r.id), shots[i] ? shots[i].t : null]).filter(e => Number.isFinite(e[1]))),
       clipIds: [],
       at: now
     };
@@ -22804,6 +22825,7 @@ async function approveReview(){
     const clipIds = await makeShotClips(v, shots, insertedShots);
     snapshot.clipIds = clipIds;
     await saveReviewSnapshot(v, snapshot);
+    delete goFilmVideoCache[gameId];
 
     await loadDashboard().catch(err => console.error(err));
     renderReviewHeader();
