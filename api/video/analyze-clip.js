@@ -170,7 +170,7 @@ function cleanTimes(times, max = MAX_FRAMES) {
 // Frames for a stored video: the row is read with the caller's own
 // token (RLS), its path must belong to its owner, then ffmpeg reads the
 // requested moments over a short-lived signed URL.
-async function framesFromStoredVideo(gameVideoId, times, width, accessToken, thumbs = false) {
+async function framesFromStoredVideo(gameVideoId, times, width, accessToken, thumbs = false, deadline = Infinity) {
   const rows = await userSelect("game_videos", `id=eq.${encodeURIComponent(gameVideoId)}&select=*`, accessToken);
   const row = rows[0];
   if (!row || !(await storagePathIsTrusted(row))) {
@@ -183,7 +183,7 @@ async function framesFromStoredVideo(gameVideoId, times, width, accessToken, thu
     new GetObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: row.storage_path }),
     { expiresIn: 60 * 15 }
   );
-  return grabFrames(url, times, width, thumbs ? 6 : 4, thumbs);
+  return grabFrames(url, times, width, 4, thumbs, deadline);
 }
 
 // ---- detect: one request's content, and reading its answer ----
@@ -402,7 +402,12 @@ async function batchResults(req, res) {
   }
 }
 
+// Frame reading must leave room for the AI call (or batch submit) inside
+// the function's 60 s limit (vercel.json).
+const FRAME_BUDGET_MS = 32 * 1000;
+
 export default async function handler(req, res) {
+  const startedAt = Date.now();
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
     return;
@@ -451,7 +456,7 @@ export default async function handler(req, res) {
     if (fromVideo) {
       const w = Math.max(240, Math.min(960, Number(width) || 640));
       try {
-        cleanedFrames = await framesFromStoredVideo(gameVideoId, cleanedTimes, w, accessToken, detect);
+        cleanedFrames = await framesFromStoredVideo(gameVideoId, cleanedTimes, w, accessToken, detect, startedAt + FRAME_BUDGET_MS);
       } catch (error) {
         if (error.status === 404) {
           res.status(404).json({ error: "Video not found." });
@@ -459,12 +464,19 @@ export default async function handler(req, res) {
         }
         throw error;
       }
+      if (!cleanedFrames.length && cleanedFrames.unread && cleanedFrames.unread.length) {
+        res.status(200).json(asBatch
+          ? { batchId: null, requests: [], skipped: 0, sent: 0, unread: cleanedFrames.unread }
+          : { events: [], zone: [], frameCount: 0, skipped: 0, unread: cleanedFrames.unread });
+        return;
+      }
       if (!cleanedFrames.length) {
         res.status(422).json({ error: "Couldn't read any frames at those times. The video may be shorter, or in a format the server can't decode." });
         return;
       }
     }
 
+    const unread = (cleanedFrames && cleanedFrames.unread) || [];
     cleanedFrames = attachSides(cleanedFrames, fromVideo ? cleanedTimes : null, req.body.sides);
 
     const jersey = context && typeof context.goalieJersey === "string"
@@ -482,8 +494,8 @@ export default async function handler(req, res) {
 
       if (!live.length) {
         res.status(200).json(asBatch
-          ? { batchId: null, requests: [], skipped, sent: 0 }
-          : { events: [], zone: [], model: MODEL, frameCount: 0, skipped, preview });
+          ? { batchId: null, requests: [], skipped, sent: 0, unread }
+          : { events: [], zone: [], model: MODEL, frameCount: 0, skipped, preview, unread });
         return;
       }
 
@@ -502,6 +514,7 @@ export default async function handler(req, res) {
           skipped,
           sent: live.length,
           preview,
+          unread,
         });
         return;
       }
@@ -518,7 +531,7 @@ export default async function handler(req, res) {
       });
 
       if (message.stop_reason === "refusal") {
-        res.status(200).json({ events: [], zone: [], skipped, cost: { usd } });
+        res.status(200).json({ events: [], zone: [], skipped, cost: { usd }, unread });
         return;
       }
 
@@ -539,6 +552,7 @@ export default async function handler(req, res) {
         model: message.model || MODEL,
         frameCount: live.length,
         skipped,
+        unread,
         cost: { usd },
         // A few of the frames the AI looked at, so the admin can check
         // they're the right moments and clear enough to judge.

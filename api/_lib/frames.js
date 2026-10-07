@@ -31,6 +31,9 @@ export function grabFrame(url, t, width, timeoutMs = 25000, thumb = false) {
   return new Promise((resolve, reject) => {
     const args = [
       "-hide_banner", "-loglevel", "error", "-nostdin",
+      // Two decode threads per frame: several frames are read at once,
+      // and a 4K HEVC decoder with default threads can exhaust memory.
+      "-threads", "2",
       "-ss", String(Math.max(0, t)),
       "-i", url,
     ];
@@ -83,12 +86,20 @@ export function grabFrame(url, t, width, timeoutMs = 25000, thumb = false) {
 // Several frames, a few at a time. A frame past the end of the video
 // (or otherwise unreadable) is skipped rather than failing the batch.
 // With `thumb`, each result also carries its grey thumbnail.
-export async function grabFrames(url, times, width, concurrency = 4, thumb = false) {
+// With `deadline` (a Date.now() value), no new frame is started after
+// it; the times never started are listed on the result as `.unread`,
+// so the caller can ask for them again instead of the function timing out.
+export async function grabFrames(url, times, width, concurrency = 4, thumb = false, deadline = Infinity) {
   const results = new Array(times.length).fill(null);
+  const unread = [];
   let next = 0;
 
   async function worker() {
     while (next < times.length) {
+      if (Date.now() > deadline) {
+        while (next < times.length) unread.push(times[next++]);
+        break;
+      }
       const i = next++;
       try {
         const got = await grabFrame(url, times[i], width, 25000, thumb);
@@ -101,7 +112,9 @@ export async function grabFrames(url, times, width, concurrency = 4, thumb = fal
   }
 
   await Promise.all(Array.from({ length: Math.min(concurrency, times.length) }, worker));
-  return results.filter(Boolean);
+  const out = results.filter(Boolean);
+  out.unread = unread.sort((a, b) => a - b);
+  return out;
 }
 
 // ---- dead time ----
