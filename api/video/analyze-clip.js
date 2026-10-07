@@ -2,6 +2,11 @@
 // AI CLIP TAGGING — read one shot clip, return the shot
 // ============================================================
 // POST { accessToken, frames: [{ t, data }], context, mode? }
+//   or { accessToken, gameVideoId, times: [seconds], width?, context, mode? }
+//
+// With gameVideoId + times, the frames are pulled from the stored video
+// on the server (ffmpeg over a signed R2 URL), so the browser never has
+// to read video pixels and the bucket needs no CORS rules for it.
 //
 // mode "tag" (default): the frames are one shot; returns its fields.
 // mode "detect": the frames are evenly spaced stills from a full game
@@ -23,8 +28,14 @@
 //   ANTHROPIC_API_KEY   the same key AI Coach uses
 //   CLIP_AI_MODEL       optional; defaults to claude-opus-5-5
 
-import { verifyUser, callerRole, sendServerError } from "../_lib/supabase.js";
+import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import {
+  verifyUser, callerRole, userSelect, r2Configured, r2Client,
+  storagePathIsTrusted, sendServerError,
+} from "../_lib/supabase.js";
 import { claude, claudeConfigured, textOf } from "../_lib/claude.js";
+import { ffmpegAvailable, grabFrames } from "../_lib/frames.js";
 
 const MODEL = (process.env.CLIP_AI_MODEL || "claude-opus-5-5").trim();
 
@@ -119,6 +130,31 @@ function cleanFrames(frames) {
   return out;
 }
 
+function cleanTimes(times) {
+  if (!Array.isArray(times) || !times.length || times.length > MAX_FRAMES) return null;
+  const out = times.map(Number);
+  return out.every(t => Number.isFinite(t) && t >= 0 && t < 6 * 3600) ? out : null;
+}
+
+// Frames for a stored video: the row is read with the caller's own
+// token (RLS), its path must belong to its owner, then ffmpeg reads the
+// requested moments over a short-lived signed URL.
+async function framesFromStoredVideo(gameVideoId, times, width, accessToken) {
+  const rows = await userSelect("game_videos", `id=eq.${encodeURIComponent(gameVideoId)}&select=*`, accessToken);
+  const row = rows[0];
+  if (!row || !(await storagePathIsTrusted(row))) {
+    const err = new Error("Video not found.");
+    err.status = 404;
+    throw err;
+  }
+  const url = await getSignedUrl(
+    r2Client(),
+    new GetObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: row.storage_path }),
+    { expiresIn: 60 * 15 }
+  );
+  return grabFrames(url, times, width);
+}
+
 function clamp(n, lo, hi) {
   const v = Number(n);
   if (!Number.isFinite(v)) return null;
@@ -158,12 +194,20 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { accessToken, frames, context, mode } = req.body || {};
+  const { accessToken, frames, context, mode, gameVideoId, times, width } = req.body || {};
   const detect = mode === "detect";
-  const cleanedFrames = cleanFrames(frames);
+  const fromVideo = gameVideoId !== undefined && gameVideoId !== null;
+  const cleanedTimes = fromVideo ? cleanTimes(times) : null;
+  let cleanedFrames = fromVideo ? null : cleanFrames(frames);
 
-  if (!accessToken || !cleanedFrames) {
-    res.status(400).json({ error: `Send between 1 and ${MAX_FRAMES} JPEG frames.` });
+  if (!accessToken || (fromVideo ? !cleanedTimes : !cleanedFrames)) {
+    res.status(400).json({ error: `Send between 1 and ${MAX_FRAMES} frames or timestamps.` });
+    return;
+  }
+
+  if (fromVideo && (!r2Configured() || !ffmpegAvailable())) {
+    // The browser falls back to reading frames itself on 501.
+    res.status(501).json({ error: "This server can't read video frames.", code: "frames_unavailable" });
     return;
   }
 
@@ -181,6 +225,23 @@ export default async function handler(req, res) {
     if ((await callerRole(user.id, accessToken)) !== "admin") {
       res.status(403).json({ error: "AI clip tagging is available to admin accounts only." });
       return;
+    }
+
+    if (fromVideo) {
+      const w = Math.max(240, Math.min(960, Number(width) || 640));
+      try {
+        cleanedFrames = await framesFromStoredVideo(gameVideoId, cleanedTimes, w, accessToken);
+      } catch (error) {
+        if (error.status === 404) {
+          res.status(404).json({ error: "Video not found." });
+          return;
+        }
+        throw error;
+      }
+      if (!cleanedFrames.length) {
+        res.status(422).json({ error: "Couldn't read any frames at those times. The video may be shorter, or in a format the server can't decode." });
+        return;
+      }
     }
 
     const jersey = context && typeof context.goalieJersey === "string"

@@ -20556,6 +20556,28 @@ async function callClipAi(payload){
 
 }
 
+// Frames are pulled from the stored video by the server (ffmpeg over a
+// signed R2 URL), so this needs no CORS setup on the bucket. If the
+// server can't (501), fall back to reading frames in this browser.
+let reviewServerFrames = true;
+
+async function aiOnStoredVideo(mode, times, width, localGrabber){
+
+  if(reviewServerFrames){
+    try{
+      return await callClipAi({ mode, gameVideoId: review.video.id, times, width });
+    }
+    catch(error){
+      if(error.status !== 501){ throw error; }
+      reviewServerFrames = false;
+    }
+  }
+
+  const frames = await localGrabber.grab(times, width);
+  return await callClipAi({ mode, frames });
+
+}
+
 function burstTimes(t){
   const out = [];
   for(let i = 0; i < 8; i++){ out.push(Math.max(0, t - 3 + i * (5.5 / 7))); }
@@ -20574,9 +20596,8 @@ async function aiFillReviewShot(){
   const grabber = createFrameGrabber(review.video.id);
 
   try{
-    const frames = await grabber.grab(burstTimes(Number(d.t_seconds)), REVIEW_TAG_WIDTH);
     btn.textContent = "Tagging…";
-    const res = await callClipAi({ frames });
+    const res = await aiOnStoredVideo("tag", burstTimes(Number(d.t_seconds)), REVIEW_TAG_WIDTH, grabber);
     const ai = res.shot;
     if(!ai.shot_detected){
       showToast("The AI didn't see a shot here. Check the time, or tag it by hand.", "error");
@@ -20670,8 +20691,7 @@ async function runReviewScan(){
 
   const tagOne = async (ev) => {
     if(review.drafts.some(d => d.game_video_id === v.id && Math.abs(Number(d.t_seconds) - ev.t) < REVIEW_MIN_GAP)){ return; }
-    const frames = await tagger.grab(burstTimes(ev.t), REVIEW_TAG_WIDTH);
-    const res = await callClipAi({ frames });
+    const res = await aiOnStoredVideo("tag", burstTimes(ev.t), REVIEW_TAG_WIDTH, tagger);
     if(!res.shot || !res.shot.shot_detected){ return; }
     if(ev.goal && res.shot.outcome !== "goal"){ res.shot.notes = (res.shot.notes ? res.shot.notes + " " : "") + "The scan thought this might be a goal; check."; }
     if(!isCurrent()){ return; }
@@ -20686,7 +20706,7 @@ async function runReviewScan(){
       const ev = tagQueue.shift();
       try{ await tagOne(ev); }
       catch(error){
-        if(error.status === 403 || error.status === 503 || /CORS|blocked/.test(error.message)){ failure = error; review.scanning = false; tagQueue.length = 0; }
+        if(error.status === 403 || error.status === 503 || error.status === 404 || /CORS|blocked/.test(error.message)){ failure = error; review.scanning = false; tagQueue.length = 0; }
         else{ console.error("Tagging failed at", ev.t, error); }
       }
     }
@@ -20695,7 +20715,9 @@ async function runReviewScan(){
 
   try{
 
-    const duration = await sampler.duration();
+    // The visible player already knows the length; only ask the hidden
+    // reader if it doesn't.
+    const duration = reviewDuration() || await sampler.duration();
     if(!Number.isFinite(duration) || duration <= 0){ throw new Error("Couldn't read how long this video is."); }
     v.duration_seconds = duration;
 
@@ -20709,12 +20731,11 @@ async function runReviewScan(){
 
       const batchStart = times[0];
       const batchEnd = t;
-      const frames = await sampler.grab(times, REVIEW_SCAN_WIDTH);
 
       while(inflight.size >= REVIEW_DETECT_CONCURRENCY){ await Promise.race(inflight); }
       if(!review.scanning){ break; }
 
-      const job = callClipAi({ mode: "detect", frames })
+      const job = aiOnStoredVideo("detect", times, REVIEW_SCAN_WIDTH, sampler)
         .then(res => {
           (res.events || []).forEach(ev => tagQueue.push(ev));
           if(tagQueue.length && !tagWorker){ tagWorker = runTagWorker(); }
