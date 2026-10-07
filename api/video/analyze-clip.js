@@ -1,7 +1,14 @@
 // ============================================================
 // AI CLIP TAGGING — read one shot clip, return the shot
 // ============================================================
-// POST { accessToken, frames: [{ t, data }], context }
+// POST { accessToken, frames: [{ t, data }], context, mode? }
+//
+// mode "tag" (default): the frames are one shot; returns its fields.
+// mode "detect": the frames are evenly spaced stills from a full game
+// (a few seconds apart); returns the timestamps where a shot on the
+// tracked goalie's net appears to happen. The admin review screen
+// scans a game with "detect", then runs "tag" on a short burst of
+// frames around each hit.
 //
 // The browser pulls a handful of still frames out of one pre-trimmed
 // shot clip (it already has the file in hand while uploading it), so
@@ -21,7 +28,7 @@ import { claude, claudeConfigured, textOf } from "../_lib/claude.js";
 
 const MODEL = (process.env.CLIP_AI_MODEL || "claude-opus-5-5").trim();
 
-const MAX_FRAMES = 12;
+const MAX_FRAMES = 16;
 // ~450 KB of JPEG per frame; the browser sends ~640px frames at ~60 KB.
 const MAX_FRAME_BASE64 = 600 * 1024;
 
@@ -72,6 +79,33 @@ Record what the frames show, the way a goalie coach logging the game would:
 - shot_detected false if the frames show no shot on goal at all; the other fields are then ignored.
 
 Be conservative. A human reviews these later; a clear "unknown" is more useful than a confident guess. Keep confidence honest.`;
+
+const DETECT_SCHEMA = {
+  type: "object",
+  properties: {
+    events: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          frame: { type: "integer", description: "1-based number of the frame where the shot is released or the save/goal happens." },
+          goal: { type: "boolean", description: "True only if the puck clearly ends up in the tracked goalie's net." },
+          confidence: { type: "number", description: "0 to 1." },
+        },
+        required: ["frame", "goal", "confidence"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["events"],
+  additionalProperties: false,
+};
+
+const DETECT_PROMPT = `You scan hockey game film for shots on goal against ONE tracked goalie. You get evenly spaced still frames from the game, in time order, each with its timestamp.
+
+Report each moment where a shot on the tracked goalie's net is released, saved, or goes in: list the frame number closest to that moment. Signs: a shooter in the offensive zone facing that net with the stick loaded or following through, the puck travelling toward the net, the goalie in a save motion or covering the puck, a rebound scramble at the crease, a goal celebration or players skating back to centre ice after a goal.
+
+Ignore: play at the other end of the rink, line changes, faceoffs with no shot, warm-ups, stoppages, replays, and shots that clearly miss the net wide. One event per shot; if two frames show the same shot, report only one. If nothing happens in these frames, return an empty list. Be conservative: an admin reviews every event, and missed shots can be added by hand, but false events waste their time.`;
 
 function cleanFrames(frames) {
   if (!Array.isArray(frames) || !frames.length || frames.length > MAX_FRAMES) return null;
@@ -124,7 +158,8 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { accessToken, frames, context } = req.body || {};
+  const { accessToken, frames, context, mode } = req.body || {};
+  const detect = mode === "detect";
   const cleanedFrames = cleanFrames(frames);
 
   if (!accessToken || !cleanedFrames) {
@@ -151,6 +186,60 @@ export default async function handler(req, res) {
     const jersey = context && typeof context.goalieJersey === "string"
       ? context.goalieJersey.replace(/[^\w #-]/g, "").slice(0, 40)
       : "";
+
+    if (detect) {
+      const content = [];
+      cleanedFrames.forEach((frame, i) => {
+        content.push({ type: "text", text: `Frame ${i + 1}${frame.t !== null ? ` at ${frame.t}s` : ""}:` });
+        content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: frame.data } });
+      });
+      content.push({
+        type: "text",
+        text: (jersey ? `The tracked goalie's team wears ${jersey}. ` : "") + "List the shot events in these frames.",
+      });
+
+      const message = await claude().beta.messages.create({
+        model: MODEL,
+        max_tokens: 6000,
+        betas: ["server-side-fallback-2026-07-01"],
+        fallbacks: "default",
+        output_config: {
+          effort: "low",
+          format: { type: "json_schema", schema: DETECT_SCHEMA },
+        },
+        system: DETECT_PROMPT,
+        messages: [{ role: "user", content }],
+      });
+
+      if (message.stop_reason === "refusal") {
+        res.status(200).json({ events: [] });
+        return;
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(textOf(message));
+      } catch (parseError) {
+        console.error("Unparseable detect result:", message.stop_reason, parseError);
+        res.status(502).json({ error: "The AI returned an unreadable answer for this stretch of video." });
+        return;
+      }
+
+      const seen = new Set();
+      const events = (Array.isArray(parsed.events) ? parsed.events : [])
+        .map(e => {
+          const i = Math.round(Number(e.frame)) - 1;
+          const f = cleanedFrames[i];
+          if (!f || f.t === null || seen.has(i)) return null;
+          seen.add(i);
+          return { t: f.t, goal: e.goal === true, confidence: clamp(e.confidence, 0, 1) ?? 0 };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.t - b.t);
+
+      res.status(200).json({ events, model: message.model || MODEL });
+      return;
+    }
 
     const content = [];
     cleanedFrames.forEach((frame, i) => {
