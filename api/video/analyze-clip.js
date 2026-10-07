@@ -107,6 +107,8 @@ Record what the frames show, the way a goalie coach logging the game would:
 - rebound_control: the part of the goalie that touched the puck and the result (caught, rebound to a dangerous area = bad, controlled away = good, or a goal). "skip" when contact isn't visible.
 - shot_detected false if the frames show no shot on goal at all; the other fields are then ignored.
 
+Which net: when a frame's label says which side of the picture the tracked goalie's net is on, only a shot on THAT net counts. A shot at the other end means shot_detected false.
+
 Be conservative. A human reviews these later; a clear "unknown" is more useful than a confident guess. Keep confidence honest.`;
 
 const DETECT_SCHEMA = {
@@ -139,7 +141,7 @@ const DETECT_PROMPT = `You are the first pass of a system that cuts hockey game 
 
 You get still frames about one to two seconds apart, in time order, with timestamps. The camera is often a wide, high view of the whole rink and may pan to follow play, so players and the puck are small.
 
-Which net: the tracked goalie is identified by their team's jersey colour (given below when known). Watch the net that goalie defends. Teams switch ends between periods, so if the goalie in that colour is now at the other end, follow them there.
+Which net: when a frame's label says which side of the picture the tracked goalie's net is on, that is certain: watch only that net. Shots, scrambles and zone time at the other net never count, however exciting. Without that label, the tracked goalie is identified by their team's jersey colour (given below when known); teams switch ends between periods, so follow that goalie if they are now at the other end.
 
 Flag every frame where, at that net, any of these is happening or just happened: a shot or shot attempt (wrist, slap, snap, backhand, tip, deflection, one-timer, wraparound, rebound); a player winding up, releasing, or following through toward the net; the puck moving toward or bouncing off the goalie; the goalie moving into a save, down, stretched, covering the puck, or recovering; a scramble or crowd at the crease; attacking players with the puck in the slot or circles facing the net; a whistle with players gathered at the net; a goal celebration or players skating away after a goal. Shots happen fast and may fall between two stills: if the play is in that zone and the next frame shows the aftermath (goalie down, puck loose, players crashing the net), flag the frame before it.
 
@@ -186,10 +188,28 @@ async function framesFromStoredVideo(gameVideoId, times, width, accessToken, thu
 
 // ---- detect: one request's content, and reading its answer ----
 
+function frameLabel(frame, i) {
+  const side = frame.side ? ` (tracked goalie's net: ${frame.side.toUpperCase()} side of the picture)` : "";
+  return `Frame ${i + 1}${frame.t !== null ? ` at ${frame.t}s` : ""}${side}:`;
+}
+
+// sides: "left" / "right" / null per requested time (or frame), from the
+// admin's "goalie's net" setting and period marks. Matched to frames by
+// time, since unreadable frames are dropped.
+function attachSides(frames, times, sides) {
+  if (!Array.isArray(sides)) return frames;
+  const byTime = new Map();
+  (times || frames.map(f => f.t)).forEach((t, i) => {
+    const s = sides[i];
+    if ((s === "left" || s === "right") && t !== null && t !== undefined) byTime.set(Math.round(Number(t) * 100) / 100, s);
+  });
+  return frames.map(f => ({ ...f, side: f.t !== null ? byTime.get(Math.round(Number(f.t) * 100) / 100) || null : null }));
+}
+
 function detectContent(frames, jersey) {
   const content = [];
   frames.forEach((frame, i) => {
-    content.push({ type: "text", text: `Frame ${i + 1}${frame.t !== null ? ` at ${frame.t}s` : ""}:` });
+    content.push({ type: "text", text: frameLabel(frame, i) });
     content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: frame.data } });
   });
   content.push({
@@ -445,6 +465,8 @@ export default async function handler(req, res) {
       }
     }
 
+    cleanedFrames = attachSides(cleanedFrames, fromVideo ? cleanedTimes : null, req.body.sides);
+
     const jersey = context && typeof context.goalieJersey === "string"
       ? context.goalieJersey.replace(/[^\w #-]/g, "").slice(0, 40)
       : "";
@@ -454,7 +476,7 @@ export default async function handler(req, res) {
       // the thumbnails this needs; browser-sent frames all go through.
       const dead = deadFrames(cleanedFrames);
       const total = cleanedFrames.length;
-      const live = cleanedFrames.filter((f, i) => !dead[i]).map(({ t, data }) => ({ t, data }));
+      const live = cleanedFrames.filter((f, i) => !dead[i]).map(({ t, data, side }) => ({ t, data, side }));
       const skipped = total - live.length;
       const preview = req.body && req.body.debug ? live.slice(0, 6) : undefined;
 
@@ -527,7 +549,7 @@ export default async function handler(req, res) {
 
     const content = [];
     cleanedFrames.forEach((frame, i) => {
-      content.push({ type: "text", text: `Frame ${i + 1}${frame.t !== null ? ` at ${frame.t}s` : ""}:` });
+      content.push({ type: "text", text: frameLabel(frame, i) });
       content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: frame.data } });
     });
     content.push({
@@ -539,13 +561,15 @@ export default async function handler(req, res) {
 
     const message = await claude().beta.messages.create({
       model: MODEL,
-      max_tokens: 8000,
+      max_tokens: 4000,
       // Re-run a declined request on Anthropic's recommended fallback
       // model instead of failing the clip.
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
       output_config: {
-        effort: "medium",
+        // Low: most of a closer look's cost was the model thinking before
+        // it answered; the fields it fills don't need long reasoning.
+        effort: "low",
         format: { type: "json_schema", schema: SHOT_SCHEMA },
       },
       system: SYSTEM_PROMPT,

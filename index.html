@@ -1985,7 +1985,7 @@
 
   <div class="section-heading">
     <h3>Game Strength</h3>
-    <p>Every shot counts toward expected goals against. Strength is from your team's view (your skaters first). Shots on other strengths get a small xG adjustment &mdash; see Methodology.</p>
+    <p>Every shot counts toward expected goals against. Strength is from your team's view (your skaters first). Shots on other strengths get a small xG adjustment.</p>
   </div>
 
   <div class="card">
@@ -3408,6 +3408,14 @@
           <button type="button" class="btn-secondary" onclick="markReviewPeriod('2')">2nd starts here</button>
           <button type="button" class="btn-secondary" onclick="markReviewPeriod('3')">3rd starts here</button>
           <button type="button" class="btn-secondary" onclick="markReviewPeriod('OT')">OT starts here</button>
+          <label class="rv-density rv-net" title="Which side of the picture the tracked goalie's net is on in the 1st period. The AI flips it for the 2nd period and OT, when teams switch ends.">
+            <span>Goalie's net in the 1st</span>
+            <select id="rv-net-side" onchange="setReviewNetSide(this.value)">
+              <option value="">Not set</option>
+              <option value="left">Left side of the picture</option>
+              <option value="right">Right side of the picture</option>
+            </select>
+          </label>
           <span class="small-note" id="rv-period-note"></span>
         </div>
 
@@ -3707,135 +3715,6 @@
         <p>
           The goal is to turn game data into actionable training priorities:
           identify a weakness, train it, measure it and determine whether it improves.
-        </p>
-
-      </div>
-
-    </div>
-
-  </div>
-
-
-  <div class="section-heading">
-    <h3>xG &amp; GSAx Methodology</h3>
-    <p>How shot quality (xG), GSAx, and shot grades are actually calculated — and their current limitations.</p>
-  </div>
-
-  <div class="grid grid-2">
-
-    <div class="card">
-
-      <h3>How xG is calculated</h3>
-
-      <div class="about-list">
-
-        <p>
-          Every tagged shot is scored by a formula that lives in the
-          database, not in this page's code — it runs automatically
-          the moment a shot is saved, so it can't be quietly edited
-          per goalie without a visible, version-tracked change.
-        </p>
-
-        <p>
-          <strong>Base rate:</strong> starts from shot distance
-          (closer shots score more often). <strong>Adjustments:</strong>
-          multiplied up or down based on location (Crease, Slot, Circle,
-          Point, Perimeter), shot type (one-timer, backhand, slap shot),
-          and situation (rush, rebound, screened, breakaway, cross-ice,
-          deflection).
-        </p>
-
-        <p>
-          <strong>Measured distance and angle (v1.6)</strong> -- shots
-          pinned on the shot map are scored from where they actually
-          came from: distance to the net and angle off the center
-          line, the same two inputs public NHL models are built on.
-          Expected goals fall off smoothly with distance and are lower
-          from sharper angles, and a shot from directly behind the net
-          scores very low. For these shots the location tag no longer
-          adjusts the score, because the pin replaces it.
-        </p>
-
-        <p>
-          <strong>Game strength (v1.7)</strong> -- each shot is tagged
-          with the skaters on the ice, your team first (5v5, 4v5, ...).
-          Every shot counts toward xGA and GSAx, but a shot taken while
-          your team is outnumbered, or in more open 4v4 / 3v3 ice, is
-          scored a bit higher than the same shot at 5v5 -- for example
-          4v5 is &times;1.10, 3v5 is &times;1.35 and 3v3 is &times;1.20 --
-          because those shots go in more often. When your own team has
-          the advantage, no adjustment is applied: the shots against
-          are short-handed rushes whose danger is already captured by
-          the rush, breakaway and angle terms. These factors are informed
-          estimates, not fit to this platform's data. The Situational tab
-          breaks results out by strength so 5v5 can be read on its own.
-        </p>
-
-        <p>
-          <strong>Shots without a pin</strong> (anything tagged before
-          the shot map existed, or tagged without placing a pin) still
-          use the older method: location stands in for angle -- Slot
-          is roughly straight-on, Circle a medium angle, Perimeter the
-          worst. That's a coarse proxy, since one tag like "Circle"
-          spans a real range of angles.
-        </p>
-
-        <p>
-          <strong>GSAx</strong> = total xG faced minus goals actually
-          allowed. A positive number means the goalie stopped more
-          than an average goalie would be expected to, given the
-          shots faced.
-        </p>
-
-        <p>
-          <strong>League calibration (v1.5 and v1.6)</strong> -- all xG values
-          are scaled so that an average shot mix produces an expected
-          SV% equal to the GOHL league average (~.900–.905). Without
-          this, the model assumed shots went in less often than they
-          actually do in this league, which made average performances
-          read as below expected.
-        </p>
-
-        <p>
-          <strong>Missing distance (v1.5)</strong> -- shots without a
-          pin have no measured distance, so the model estimates one
-          from the shot's location using the average distance of shots
-          logged at that location.
-        </p>
-
-      </div>
-
-    </div>
-
-
-    <div class="card">
-
-      <h3>Current limitations — read this</h3>
-
-      <div class="about-list">
-
-        <p>
-          <strong>This is a heuristic, not a validated model.</strong>
-          The distance/situation factors above are informed by public
-          hockey and soccer xG research, but they have not yet been
-          statistically fit to this platform's own shot data.
-        </p>
-
-        <p>
-          A legitimate xG model is normally built by fitting a
-          statistical model (typically logistic regression) to
-          thousands of shots with known outcomes, then checking that
-          its predictions are calibrated — e.g. that shots it scores
-          at 20% actually go in about 20% of the time.
-        </p>
-
-        <p>
-          At current shot volume, that calibration isn't yet
-          statistically meaningful. As tagged shots accumulate, the
-          plan is: fit real coefficients from outcome data, validate
-          with held-out data, and publish the results here — same
-          standard used by public models like MoneyPuck and Evolving
-          Hockey.
         </p>
 
       </div>
@@ -20798,6 +20677,9 @@ const REVIEW_TAG_WIDTH = 768;
 // Every flagged moment goes on the list for the admin; only flags
 // below this are shown as faint "looked here" ticks instead.
 const REVIEW_KEEP_UNSURE = 0.15;
+// Flags below this aren't looked at closely (a paid call each): they go
+// on the timeline as grey ticks the admin can add with S.
+const REVIEW_TAG_MIN = 0.5;
 const REVIEW_DETECT_CONCURRENCY = 4;
 // Seconds: a flag closer than this to a shot already on the list is
 // treated as the same shot. Kept short because rebound shots can come
@@ -21005,13 +20887,17 @@ async function loadReviewAiCost(videoId){
 // aren't being recorded (the ai_usage table isn't set up).
 function reviewRunCostText(){
   if(review.aiCost === null || review.aiCost === undefined || review.runCostStart === null || review.runCostStart === undefined){ return ""; }
-  return ` This run cost ${formatUsd(review.aiCost - review.runCostStart)} (this video so far: ${formatUsd(review.aiCost)}).`;
+  const split = review.runSplit
+    ? `: scan ${formatUsd(review.runSplit.scan)}, closer looks ${formatUsd(review.runSplit.look)}`
+    : "";
+  return ` This run cost ${formatUsd(review.aiCost - review.runCostStart)}${split} (this video so far: ${formatUsd(review.aiCost)}).`;
 }
 
-function addReviewAiCost(usd){
+function addReviewAiCost(usd, kind){
   const n = Number(usd);
   if(!Number.isFinite(n) || review.aiCost === null || review.aiCost === undefined){ return; }
   review.aiCost += n;
+  if(review.runSplit && (kind === "scan" || kind === "look")){ review.runSplit[kind] += n; }
   if(review.video){ reviewSpend.byVideo[review.video.id] = review.aiCost; }
   renderReviewAiCost();
 }
@@ -21038,14 +20924,17 @@ async function openReview(videoId){
   review.video = { ...v, period_marks: v.period_marks || {} };
   review.scanStats = null;
   review.runCostStart = null;
+  review.runSplit = null;
   review.batchCheckedAt = 0;
   review.cutStart = null;
   review.markIn = null;
   review.markOut = null;
   review.cutHistory = [];
   review.drafts = [];
-  review.candidates = [];
+  review.candidates = ((v.period_marks && Array.isArray(v.period_marks._candidates)) ? v.period_marks._candidates : [])
+    .map(c => ({ t: Number(c.t), confidence: Number(c.c) || 0 })).filter(c => Number.isFinite(c.t));
   review.selectedId = null;
+  document.getElementById("rv-net-side").value = (v.period_marks && v.period_marks._net) || "";
 
   document.getElementById("rv-queue-view").hidden = true;
   document.getElementById("rv-workspace").hidden = false;
@@ -21335,7 +21224,7 @@ function renderReviewTimeline(){
       `<span class="rv-pmark" style="left:${pct(marks[k])}%" title="${k === "OT" ? "OT" : k === "2" ? "2nd period" : "3rd period"} starts ${formatClock(marks[k])}">${k === "OT" ? "OT" : k}</span>`
     ).join("") +
     (review.candidates || []).filter(c => !review.drafts.some(dr => Math.abs(Number(dr.t_seconds) - c.t) < REVIEW_MIN_GAP)).map(c =>
-      `<button type="button" class="rv-tick is-candidate" style="left:${pct(c.t)}%" onclick="event.stopPropagation(); reviewJumpTo(${c.t})" title="${escapeHtml(formatClock(c.t))} · AI looked here and ruled it out. Press S to add it if it is a shot." aria-label="Ruled-out moment at ${escapeHtml(formatClock(c.t))}"></button>`
+      `<button type="button" class="rv-tick is-candidate" style="left:${pct(c.t)}%" onclick="event.stopPropagation(); reviewJumpTo(${c.t})" title="${escapeHtml(formatClock(c.t))} · The AI flagged this but couldn't confirm a shot. Press S here to add it if it is one." aria-label="Unconfirmed moment at ${escapeHtml(formatClock(c.t))}"></button>`
     ).join("") +
     review.drafts.map(dr => {
       const cls = ["rv-tick", dr.outcome === "goal" ? "is-goal" : "is-save", String(dr.id) === String(review.selectedId) ? "is-selected" : ""].join(" ");
@@ -22070,8 +21959,9 @@ async function callClipAi(payload){
 
   // The server prices every answer; add it to the open review's total.
   if(review.video && String(payload.gameVideoId) === String(review.video.id)){
-    if(data.cost){ addReviewAiCost(data.cost.usd); }
-    if(Array.isArray(data.batches)){ data.batches.forEach(b => { if(b.cost){ addReviewAiCost(b.cost.usd); } }); }
+    const kind = payload.mode === "tag" ? "look" : "scan";
+    if(data.cost){ addReviewAiCost(data.cost.usd, kind); }
+    if(Array.isArray(data.batches)){ data.batches.forEach(b => { if(b.cost){ addReviewAiCost(b.cost.usd, "scan"); } }); }
   }
 
   if(!res.ok){
@@ -22091,9 +21981,11 @@ let reviewServerFrames = true;
 
 async function aiOnStoredVideo(mode, times, width, localGrabber, extra){
 
+  const sides = times.map(reviewNetSideAt);
+
   if(reviewServerFrames){
     try{
-      return await callClipAi({ mode, gameVideoId: review.video.id, times, width, ...(extra || {}) });
+      return await callClipAi({ mode, gameVideoId: review.video.id, times, sides, width, ...(extra || {}) });
     }
     catch(error){
       if(error.status !== 501){ throw error; }
@@ -22102,7 +21994,7 @@ async function aiOnStoredVideo(mode, times, width, localGrabber, extra){
   }
 
   const frames = await localGrabber.grab(times, width);
-  return await callClipAi({ mode, frames });
+  return await callClipAi({ mode, frames, sides: frames.map(f => reviewNetSideAt(Number(f.t))) });
 
 }
 
@@ -22178,7 +22070,7 @@ function renderReviewScanBar(){
   document.getElementById("rv-scanbar-fill").style.width = `${pct}%`;
   const st = review.scanStats || { found: 0 };
   const detail = st.batches !== undefined
-    ? ` (${st.batches} stretches checked${st.skipped ? ` · ${st.skipped} dead-time stills skipped` : ""} · ${st.flagged} moments flagged · ${st.confirmed} confirmed · ${st.unsure} possible · ${st.duplicate || 0} already on the list · ${st.rejected} ruled out${st.errors ? ` · ${st.errors} errors: ${st.lastError}` : ""})`
+    ? ` (${st.batches} stretches checked${st.skipped ? ` · ${st.skipped} dead-time stills skipped` : ""} · ${st.flagged} moments flagged · ${st.confirmed} shots added · ${(st.unsure || 0) + (st.rejected || 0)} left as grey ticks · ${st.duplicate || 0} already on the list${st.errors ? ` · ${st.errors} errors: ${st.lastError}` : ""})`
     : "";
   document.getElementById("rv-scan-text").textContent = review.scanning
     ? review.scanHalfPrice
@@ -22203,6 +22095,50 @@ function newReviewScanStats(){
   return { found: 0, batches: 0, sent: 0, skipped: 0, flagged: 0, confirmed: 0, unsure: 0, rejected: 0, duplicate: 0, errors: 0, lastError: "" };
 }
 
+/* ---------- which net is the goalie's ----------
+   The admin sets the side of the picture the goalie's net is on in the
+   1st period (period_marks._net). Teams switch ends for the 2nd, and
+   regular-season OT is played at the 2nd period's ends, so those flip.
+   Every still the AI sees is labelled with it, so action at the other
+   net is ignored. */
+
+function reviewNetSideAt(t){
+  const v = review.video;
+  const base = v && v.period_marks && v.period_marks._net;
+  if(base !== "left" && base !== "right"){ return null; }
+  const p = reviewPeriodAt(Number(t));
+  const flip = p === "2" || p === "OT";
+  return flip ? (base === "left" ? "right" : "left") : base;
+}
+
+async function setReviewNetSide(side){
+  const v = review.video;
+  if(!v){ return; }
+  const before = v.period_marks;
+  const { _net, ...rest } = v.period_marks || {};
+  v.period_marks = side === "left" || side === "right" ? { ...rest, _net: side } : rest;
+  try{ await saveReviewMarks(v); }
+  catch(error){
+    v.period_marks = before;
+    document.getElementById("rv-net-side").value = (before && before._net) || "";
+    showToast(`Could not save: ${error.message}`, "error");
+    return;
+  }
+  const marked = ["2", "3"].every(k => v.period_marks[k] !== undefined && v.period_marks[k] !== null);
+  if(side && !marked){
+    showToast("Saved. Mark where the 2nd and 3rd periods start too, so the AI follows the goalie when teams switch ends.");
+  }
+}
+
+// A flagged moment the AI couldn't confirm: a grey tick on the timeline,
+// saved with the video so it's still there after reopening.
+function addReviewCandidate(v, t, confidence){
+  const c = { t: Math.round(Number(t) * 100) / 100, confidence: Number(confidence) || 0 };
+  review.candidates.push(c);
+  const saved = (v.period_marks && Array.isArray(v.period_marks._candidates)) ? v.period_marks._candidates : [];
+  v.period_marks = { ...(v.period_marks || {}), _candidates: [...saved, { t: c.t, c: Math.round(c.confidence * 100) / 100 }].slice(-2000) };
+}
+
 // One flagged moment: skipped if a shot is already on the list there,
 // kept as a faint tick if the AI was barely suspicious, otherwise looked
 // at closely ("tag") and added to the list for the admin.
@@ -22214,29 +22150,29 @@ async function reviewTagEvent(v, ev, tagger){
     renderReviewScanBar();
     return;
   }
-  if(Number(ev.confidence) < REVIEW_KEEP_UNSURE){
+  if(Number(ev.confidence) < REVIEW_TAG_MIN){
     st.rejected++;
-    review.candidates.push({ t: ev.t, confidence: Number(ev.confidence) || 0 });
+    addReviewCandidate(v, ev.t, ev.confidence);
     renderReviewTimeline();
     renderReviewScanBar();
     return;
   }
-  // The closer look fills in the details. It never removes a moment:
-  // the admin decides what stays.
+  // The closer look confirms the shot and fills in the details. If it
+  // can't confirm one, the moment stays on the timeline as a grey tick
+  // for the admin instead of cluttering the shot list.
   let res = { shot: null, model: null };
   try{ res = await aiOnStoredVideo("tag", burstTimes(ev.t), REVIEW_TAG_WIDTH, tagger); }
   catch(error){ if(error.status === 403 || error.status === 503 || error.status === 404){ throw error; } }
   if(!isCurrent()){ return; }
   let shot = res.shot;
   if(!shot || !shot.shot_detected){
-    shot = { ...(shot || {}), shot_detected: true, outcome: ev.goal ? "goal" : "save",
-      confidence: Math.min(Number(ev.confidence) || 0, 0.4),
-      notes: "Possible shot: action spotted here but the closer look couldn't confirm a shot. Watch it, then keep, fix or delete." };
     st.unsure++;
+    addReviewCandidate(v, ev.t, Math.min(Number(ev.confidence) || 0, 0.4));
+    renderReviewTimeline();
+    renderReviewScanBar();
+    return;
   }
-  else{
-    st.confirmed++;
-  }
+  st.confirmed++;
   if(ev.goal && shot.outcome !== "goal"){ shot.notes = (shot.notes ? shot.notes + " " : "") + "The scan thought this might be a goal; check."; }
   await insertReviewDraft(draftRowFromAi(shot, ev.t, res.model));
   st.found++;
@@ -22311,7 +22247,7 @@ async function collectReviewBatches(manual){
   review.collecting = true;
   if(!review.scanStats){ review.scanStats = newReviewScanStats(); }
   // Reopened after the scan was sent: count what collecting costs.
-  if(review.runCostStart === null || review.runCostStart === undefined){ review.runCostStart = review.aiCost; }
+  if(review.runCostStart === null || review.runCostStart === undefined){ review.runCostStart = review.aiCost; review.runSplit = { scan: 0, look: 0 }; }
   const st = review.scanStats;
   const isCurrent = () => review.video && review.video.id === v.id;
   const tagger = createFrameGrabber(v.id);
@@ -22388,7 +22324,7 @@ async function collectReviewBatches(manual){
       stopReviewBatchPolling();
       finished = true;
       showToast(
-        `AI results are in: ${st.found} new shot${st.found === 1 ? "" : "s"} added (${st.confirmed} confirmed, ${st.unsure} possible, ${st.duplicate} already on your list, ${st.rejected} ruled out${st.errors ? `, ${st.errors} errors: ${st.lastError}` : ""}).${reviewRunCostText()} Check each one, then approve.`,
+        `AI results are in: ${st.found} new shot${st.found === 1 ? "" : "s"} added (${st.unsure + st.rejected} unconfirmed moments left as grey ticks on the timeline, ${st.duplicate} already on your list${st.errors ? `, ${st.errors} errors: ${st.lastError}` : ""}).${reviewRunCostText()} Check each one, then approve.`,
         st.found ? "success" : "error"
       );
     }
@@ -22428,6 +22364,9 @@ function toggleReviewScan(){
     collectReviewBatches(true);
     return;
   }
+  if(review.video && !(review.video.period_marks || {})._net && !review.scanning){
+    if(!confirm("Which net is the goalie's isn't set (next to the period marks), so the AI may flag action at the wrong end. Run the AI anyway?")){ return; }
+  }
   if(review.video && !reviewEditFinished(review.video)){
     const cuts = reviewCuts(review.video);
     const msg = cuts.length
@@ -22451,14 +22390,16 @@ async function runReviewScan(){
     v.scan_progress = 0;
   }
 
-  if(!v.scan_cursor && v.period_marks && v.period_marks._action){
-    const { _action, ...rest } = v.period_marks;
+  if(!v.scan_cursor && v.period_marks && (v.period_marks._action || v.period_marks._candidates)){
+    const { _action, _candidates, ...rest } = v.period_marks;
     v.period_marks = rest;
+    review.candidates = [];
   }
 
   review.scanning = true;
   review.scanStats = newReviewScanStats();
   review.runCostStart = review.aiCost;
+  review.runSplit = { scan: 0, look: 0 };
   renderReviewPreview(null);
   renderReviewHeader();
   renderReviewScanBar();
@@ -22547,7 +22488,7 @@ async function runReviewScan(){
 
       const wantPreview = review.scanStats.batches === 0 && inflight.size === 0;
       const request = halfPrice
-        ? callClipAi({ mode: "detect", batch: true, gameVideoId: v.id, times, width: REVIEW_SCAN_WIDTH, ...(wantPreview ? { debug: true } : {}) })
+        ? callClipAi({ mode: "detect", batch: true, gameVideoId: v.id, times, sides: times.map(reviewNetSideAt), width: REVIEW_SCAN_WIDTH, ...(wantPreview ? { debug: true } : {}) })
         : aiOnStoredVideo("detect", times, REVIEW_SCAN_WIDTH, sampler, wantPreview ? { debug: true } : null);
       const job = request
         .then(res => {
@@ -22627,7 +22568,7 @@ async function runReviewScan(){
     }
     else if(!failure && isCurrent() && Number(v.scan_progress) >= 1){
       const st = review.scanStats;
-      const summary = `${st.batches} stretches checked${st.skipped ? ` (${st.skipped} dead-time stills skipped)` : ""}, ${st.flagged} moments flagged, ${st.confirmed} confirmed, ${st.unsure} kept as possible, ${st.duplicate} already on your list, ${st.rejected} ruled out${st.errors ? `, ${st.errors} errors (${st.lastError})` : ""}.${reviewRunCostText()}`;
+      const summary = `${st.batches} stretches checked${st.skipped ? ` (${st.skipped} dead-time stills skipped)` : ""}, ${st.flagged} moments flagged, ${st.confirmed} confirmed as shots, ${st.unsure + st.rejected} left as grey ticks, ${st.duplicate} already on your list${st.errors ? `, ${st.errors} errors (${st.lastError})` : ""}.${reviewRunCostText()}`;
       const allKnown = !st.found && st.flagged > 0 && st.duplicate > 0 && !st.errors;
       showToast(
         st.found
