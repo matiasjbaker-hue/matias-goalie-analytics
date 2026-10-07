@@ -3327,6 +3327,9 @@
         </label>
         <button type="button" class="btn-secondary" id="rv-scan-btn" onclick="toggleReviewScan()">Run AI</button>
         <button type="button" class="btn-danger" onclick="flagReviewNeedsAttention()">Needs attention</button>
+        <label class="rv-check" title="Sends the goalie a recap with their PDF stat sheet from the company Gmail">
+          <input type="checkbox" id="rv-auto-email" checked> <span>Email stats + PDF</span>
+        </label>
         <button type="button" class="btn-primary" id="rv-approve-btn" onclick="approveReview()">Approve &amp; publish</button>
       </div>
     </div>
@@ -14456,6 +14459,20 @@ function getReportGoalieDisplayInfo(){
 
   }
 
+  // An admin making a report is always looking at a goalie's game.
+  if(currentRole === "admin" && activeGoalieId){
+
+    const profile =
+      (adminProfiles || []).find(p => p.id === activeGoalieId);
+
+    return {
+      name: (profile && profile.full_name) || "Goalie",
+      team: (profile && profile.team) || "",
+      season: (profile && profile.season) || CURRENT_SEASON
+    };
+
+  }
+
   return {
     name: (currentProfile && currentProfile.full_name) || "Goalie",
     team: (currentProfile && currentProfile.team) || "",
@@ -14865,7 +14882,9 @@ function pdfBulletList(doc, y, bullets){
 }
 
 
-async function generateGameReportPDF(gameId, buttonEl){
+// options.returnBlob: hand back { blob, fileName } instead of
+// downloading (used to attach the report to the published-stats email).
+async function generateGameReportPDF(gameId, buttonEl, options = {}){
 
   if(!window.jspdf){
     showToast("PDF library did not load. Check your connection and try again.", "error");
@@ -15132,6 +15151,11 @@ async function generateGameReportPDF(gameId, buttonEl){
 
   const fileName =
     `${(goalieInfo.name || "goalie").replace(/\s+/g,"_")}_${gameDate(game) || "game"}_vs_${gameOpponent(game).replace(/\s+/g,"_")}.pdf`;
+
+  if(options.returnBlob){
+    if(buttonEl){ buttonEl.disabled = false; buttonEl.textContent = originalButtonText; }
+    return { blob: doc.output("blob"), fileName };
+  }
 
   doc.save(fileName);
 
@@ -22141,12 +22165,116 @@ async function approveReview(){
     await loadDashboard().catch(err => console.error(err));
     renderReviewHeader();
 
+    const autoEmail = document.getElementById("rv-auto-email");
+    if(autoEmail && autoEmail.checked){
+      await emailPublishedStats(v, gameId, republish);
+    }
+
   }
   catch(error){
 
     console.error(error);
     showToast(`Publishing stopped: ${error.message || error}. Check the game before trying again.`, "error");
     renderReviewHeader();
+
+  }
+
+}
+
+// After publishing: email the goalie that their stats are live, with
+// the written recap (buildGameRecap) and the game's PDF stat sheet
+// attached, from the company Gmail via /api/admin/send-recap.
+function blobToBase64(blob){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+    reader.onerror = () => reject(reader.error || new Error("Couldn't read the PDF."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function emailPublishedStats(v, gameId, republish){
+
+  const status = document.getElementById("rv-scan-text");
+  const bar = document.getElementById("rv-scanbar");
+  const say = text => { if(bar && status && review.video && review.video.id === v.id){ bar.hidden = false; status.textContent = text; } };
+
+  try{
+
+    say("Emailing the goalie their stats: looking up their email…");
+
+    const look = await recapApi({ action: "lookup", gameId });
+    if(!look.ok){ throw new Error(recapErrorText(look)); }
+    if(!look.data.emailConfigured){
+      showToast("Published, but email isn't set up yet, so no email went out. Use Check setup in the recap window.", "error");
+      return;
+    }
+    if(!look.data.email){
+      showToast("Published, but this account has no email address, so no email went out.", "error");
+      return;
+    }
+
+    const game = allGames.find(g => String(g.id) === String(gameId));
+    if(!game){ throw new Error("Couldn't find the published game."); }
+
+    // The PDF report reads the active goalie's data: point the admin's
+    // view at this goalie (as Live Tag does after saving a game).
+    activeGoalieId = v.user_id;
+    applyActiveGoalieFilter();
+
+    const goalie = (adminProfiles || []).find(p => p.id === v.user_id);
+    const access = (adminAccess || []).find(a => a.user_id === v.user_id);
+    const others = allGames
+      .filter(g => g.user_id === v.user_id && String(g.id) !== String(game.id))
+      .map(g => ({ game: g, shots: allShots.filter(s => String(s.game_id) === String(g.id)) }));
+
+    const draft = buildGameRecap({
+      game,
+      shots: allShots.filter(s => String(s.game_id) === String(game.id)),
+      rebound: (allReboundControls || []).filter(r => String(r.game_id) === String(game.id)),
+      goalieName: goalie && goalie.full_name,
+      creditsLeft: access && access.plan === "pay_per_game" ? access.game_credits : null,
+      others
+    });
+    if(!draft){ throw new Error("There was nothing to put in the recap."); }
+
+    const lead = republish
+      ? "Your game stats have been updated and the corrected version is now live in your GoalieIQ dashboard. The updated stat sheet is attached as a PDF."
+      : "Your game has been reviewed and your stats are now live in your GoalieIQ dashboard, with the game film and every shot marked. Your full stat sheet is attached as a PDF.";
+    const body = draft.body.replace(/^(.*?\n\n)/, `$1${lead}\n\n`);
+    const subject = republish ? `Updated stats: ${draft.subject}` : draft.subject;
+
+    say("Emailing the goalie their stats: building the PDF stat sheet…");
+
+    const pdf = await generateGameReportPDF(gameId, null, { returnBlob: true });
+    if(!pdf || !pdf.blob){ throw new Error("Couldn't build the PDF."); }
+    const contentBase64 = await blobToBase64(pdf.blob);
+
+    say(`Emailing the goalie their stats: sending to ${look.data.email}…`);
+
+    const sent = await recapApi({
+      action: "send",
+      gameId,
+      to: look.data.email,
+      subject,
+      body,
+      resend: true,
+      attachment: { filename: pdf.fileName, contentBase64 }
+    });
+    if(!sent.ok){ throw new Error(recapErrorText(sent)); }
+
+    showToast(`Stats email with the PDF sent to ${sent.data.to}${sent.data.dryRun ? " (dry run: nothing actually sent)" : ""}.`, "success");
+
+  }
+  catch(error){
+
+    console.error(error);
+    showToast(`Published, but the stats email didn't send: ${error.message || error}`, "error");
+
+  }
+  finally{
+
+    if(bar && review.video && review.video.id === v.id){ bar.hidden = true; }
 
   }
 
