@@ -2722,7 +2722,7 @@
     <div class="field-grid">
       <div class="field">
         <label for="lt-ai-files">Shot clips</label>
-        <input type="file" id="lt-ai-files" accept="video/*" multiple onchange="onAiTagFilesPicked(this)">
+        <input type="file" id="lt-ai-files" accept="video/*,.mov,.mp4,.m4v" multiple onchange="onAiTagFilesPicked(this)">
       </div>
       <div class="field">
         <label for="lt-ai-jersey">Goalie's team jersey <span class="field-optional">optional</span></label>
@@ -2982,7 +2982,7 @@
 
       <div class="field">
         <label for="video-file-input">Video file</label>
-        <input type="file" id="video-file-input" accept="video/*">
+        <input type="file" id="video-file-input" accept="video/*,.mov,.mp4,.m4v">
       </div>
 
     </div>
@@ -20929,7 +20929,7 @@ async function approveReview(){
       t: Number(d.t_seconds)
     }));
 
-    await insertLiveTagShots(shots.map(s => ({
+    const insertedShots = await insertLiveTagShots(shots.map(s => ({
       ...liveTagShotPayload(s, gameId, v.user_id),
       ...(s.ai ? { ai_reviewed_at: now } : {}),
       game_video_id: v.id,
@@ -20949,7 +20949,9 @@ async function approveReview(){
 
     v.review_status = "approved";
     renderReviewHeader();
-    showToast(`Published to ${reviewOwnerName(v)}.`, "success");
+    showToast(`Published to ${reviewOwnerName(v)}. Making MP4 clips for each shot…`, "success");
+
+    await makeShotClips(v, shots, insertedShots);
 
     loadDashboard().catch(err => console.error(err));
 
@@ -20960,6 +20962,86 @@ async function approveReview(){
     showToast(`Publishing stopped: ${error.message || error}. Nothing after that step was saved; check the game before trying again.`, "error");
     renderReviewHeader();
 
+  }
+
+}
+
+
+// After publishing: each shot gets its own short H.264 MP4 cut from
+// the game on the server, so Watch plays in every browser even when the
+// upload was an iPhone .mov (HEVC). A shot whose clip fails keeps its
+// link into the full game, which still plays where the browser can.
+async function makeShotClips(v, shots, insertedRows){
+
+  const jobs = shots
+    .map((s, i) => ({ s, row: insertedRows[i] }))
+    .filter(j => j.row);
+
+  if(!jobs.length){ return; }
+
+  const status = document.getElementById("rv-scan-text");
+  const bar = document.getElementById("rv-scanbar");
+  const fill = document.getElementById("rv-scanbar-fill");
+
+  let done = 0;
+  let failed = 0;
+  let next = 0;
+  let unavailable = false;
+
+  const show = () => {
+    if(!bar || !review.video || review.video.id !== v.id){ return; }
+    bar.hidden = false;
+    fill.style.width = `${Math.round((done + failed) / jobs.length * 100)}%`;
+    status.textContent = `Making MP4 clips: ${done + failed} of ${jobs.length}${failed ? ` (${failed} failed)` : ""}. Keep this tab open.`;
+  };
+
+  show();
+
+  async function worker(){
+    while(next < jobs.length && !unavailable){
+      const { s, row } = jobs[next++];
+      try{
+        const res = await fetch("/api/admin/make-clip", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            accessToken: currentSession.access_token,
+            gameVideoId: v.id,
+            start: Math.max(0, Math.round((s.t - 4) * 10) / 10),
+            end: Math.round((s.t + 3) * 10) / 10
+          })
+        });
+        let data = {};
+        try{ data = await res.json(); }catch(e){ data = {}; }
+        if(res.status === 501){ unavailable = true; break; }
+        if(!res.ok){ throw new Error(data.error || "Clip failed."); }
+
+        const { error } = await supabaseClient.from("Shots")
+          .update({ game_video_id: data.gameVideoId, clip_start_seconds: 0, clip_end_seconds: null })
+          .eq(shotIdColumn(row), row.shot_id ?? row.id);
+        if(error){ throw error; }
+        done++;
+      }
+      catch(error){
+        console.error("Shot clip failed", error);
+        failed++;
+      }
+      show();
+    }
+  }
+
+  await Promise.all([worker(), worker(), worker()]);
+
+  if(bar && review.video && review.video.id === v.id){ bar.hidden = true; }
+
+  if(unavailable){
+    showToast("Published. MP4 clips couldn't be made on this server, so shots link into the full game video.", "error");
+  }
+  else if(failed){
+    showToast(`Published. ${done} clips made, ${failed} failed; those shots link into the full game video.`, "error");
+  }
+  else{
+    showToast(`Done: ${done} MP4 clips made. Every shot plays in any browser.`, "success");
   }
 
 }

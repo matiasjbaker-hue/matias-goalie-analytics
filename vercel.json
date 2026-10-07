@@ -10,6 +10,11 @@
     },
     "api/game-report.js": {
       "maxDuration": 60
+    },
+    "api/admin/*.js": {
+      "maxDuration": 60,
+      "memory": 1024,
+      "includeFiles": "node_modules/ffmpeg-static/ffmpeg"
     }
   },
   "headers": [
