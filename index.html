@@ -3332,6 +3332,20 @@
 
     <div class="rv-preview" id="rv-preview" hidden></div>
 
+    <details class="rv-details" open>
+      <summary>Game details <span class="small-note">Saved with the game when you publish. Season decides which dashboard it shows on.</span></summary>
+      <div class="field-grid rv-details-grid">
+        <div class="field"><label for="rv-gd-date">Date</label><input type="date" id="rv-gd-date"></div>
+        <div class="field"><label for="rv-gd-opponent">Opponent</label><input type="text" id="rv-gd-opponent" autocomplete="off"></div>
+        <div class="field"><label for="rv-gd-season">Season</label><input type="text" id="rv-gd-season" placeholder="2026 preseason" autocomplete="off"></div>
+        <div class="field"><label for="rv-gd-homeaway">Home / Away</label><select id="rv-gd-homeaway"><option value="">—</option><option>Home</option><option>Away</option></select></div>
+        <div class="field"><label for="rv-gd-result">Result</label><select id="rv-gd-result"><option value="">—</option><option value="W">Win</option><option value="L">Loss</option><option value="OTL">OT loss</option><option value="T">Tie</option></select></div>
+        <div class="field"><label for="rv-gd-teamgoals">Team goals</label><input type="number" id="rv-gd-teamgoals" min="0"></div>
+        <div class="field"><label for="rv-gd-oppgoals">Opponent goals</label><input type="number" id="rv-gd-oppgoals" min="0"></div>
+        <div class="field"><label for="rv-gd-length">Minutes played</label><input type="number" id="rv-gd-length" min="0" step="1" placeholder="45"></div>
+      </div>
+    </details>
+
     <div class="rv-grid">
 
       <div class="rv-player-col">
@@ -15878,6 +15892,7 @@ function renderGameOverview(){
 
 let goFilmToken = 0;
 const goFilmVideoCache = {};
+let goFilmShots = [];
 
 function goFilmShotTime(shot, fullVideo, clipsById){
 
@@ -15938,6 +15953,7 @@ async function renderGameFilm(game){
     .sort((a, b) => a.t - b.t);
 
   const goals = shots.filter(x => isGoal(x.s)).length;
+  goFilmShots = shots;
 
   box.hidden = false;
   box.innerHTML = `
@@ -15966,7 +15982,7 @@ async function renderGameFilm(game){
           try{ grade = shotGrade(s) || ""; }catch(e){ grade = ""; }
           return `
             <li>
-              <button type="button" class="go-film-shot ${goal ? "is-goal" : ""}" data-t="${t}" onclick="goFilmJump(${t})">
+              <button type="button" class="go-film-shot ${goal ? "is-goal" : ""}" data-t="${t}" onclick="goFilmSelect(${t})">
                 <span class="rv-shot-time">${escapeHtml(formatClock(t))}</span>
                 <span class="go-film-shot-main"><strong>${goal ? "Goal" : "Save"}</strong> · P${escapeHtml(s.period ?? "?")}${s.location ? " · " + escapeHtml(s.location) : ""}${grade ? ` · <span class="go-film-grade">${escapeHtml(grade)}</span>` : ""}</span>
               </button>
@@ -15975,6 +15991,7 @@ async function renderGameFilm(game){
         }).join("") : `<li class="rv-empty">No shots linked to the film yet.</li>`}
       </ol>
     </div>
+    <div class="go-film-detail" id="goFilmDetail" hidden></div>
   `;
 
   const video = document.getElementById("goFilmVideo");
@@ -15987,7 +16004,7 @@ async function renderGameFilm(game){
     const ticks = document.getElementById("goFilmTicks");
     if(!ticks || !d){ return; }
     ticks.innerHTML = shots.map(({ s, t }) =>
-      `<button type="button" class="rv-tick ${isGoal(s) ? "is-goal" : "is-save"}" style="left:${Math.min(100, t / d * 100)}%" onclick="event.stopPropagation(); goFilmJump(${t})" title="${escapeHtml(formatClock(t))} · ${isGoal(s) ? "Goal" : "Save"}${s.location ? " · " + escapeHtml(s.location) : ""}" aria-label="Shot at ${escapeHtml(formatClock(t))}"></button>`
+      `<button type="button" class="rv-tick ${isGoal(s) ? "is-goal" : "is-save"}" style="left:${Math.min(100, t / d * 100)}%" onclick="event.stopPropagation(); goFilmSelect(${t})" title="${escapeHtml(formatClock(t))} · ${isGoal(s) ? "Goal" : "Save"}${s.location ? " · " + escapeHtml(s.location) : ""}" aria-label="Shot at ${escapeHtml(formatClock(t))}"></button>`
     ).join("");
   };
 
@@ -16037,6 +16054,59 @@ async function renderGameFilm(game){
     const msg = document.getElementById("goFilmMsg");
     if(msg){ msg.hidden = false; msg.textContent = error.message; }
   }
+
+}
+
+// Read-only view of everything tagged on one shot, the same fields the
+// admin reviewed, shown when a goalie or coach picks a shot.
+const GO_RELEASE_LABEL = {
+  one_timer: "One-timer",
+  catch_and_release: "Catch and release",
+  quick_release: "Quick release",
+  extended_possession: "Extended possession (over 2 s)"
+};
+
+function goFilmSelect(t){
+
+  goFilmJump(t);
+
+  const hit = goFilmShots.find(x => Math.abs(x.t - Number(t)) < 0.01);
+  const box = document.getElementById("goFilmDetail");
+  if(!hit || !box){ return; }
+
+  const s = hit.s;
+  const goal = isGoal(s);
+  let grade = "";
+  try{ grade = shotGrade(s) || ""; }catch(e){ grade = ""; }
+  const xg = Number(s.xg);
+  const flags = [
+    ["rush", "Rush"], ["rebound", "Rebound"], ["screened", "Screened"],
+    ["breakaway", "Breakaway"], ["cross_ice", "Cross ice"], ["deflection", "Deflection"]
+  ].filter(([k]) => shotBoolean(s[k])).map(([, label]) => label);
+
+  const facts = [
+    ["Result", goal ? "Goal" : "Save"],
+    ["Time in film", formatClock(hit.t)],
+    ["Period", s.period ? (String(s.period).toUpperCase() === "OT" ? "OT" : `P${s.period}`) : "—"],
+    ["Strength", s.strength || "—"],
+    ["Location", s.location || "—"],
+    ["Shot type", s.shot_type || "—"],
+    ["Release", GO_RELEASE_LABEL[s.release_type] || "—"],
+    ["Shot quality", grade ? `${grade}${Number.isFinite(xg) ? ` (xG ${xg.toFixed(2)})` : ""}` : "—"],
+    ["Situation", flags.length ? flags.join(", ") : "—"]
+  ];
+
+  box.hidden = false;
+  box.innerHTML = `
+    <div class="go-film-detail-facts">
+      <h4>Shot at ${escapeHtml(formatClock(hit.t))}</h4>
+      <dl>${facts.map(([k, v]) => `<div><dt>${escapeHtml(k)}</dt><dd class="${k === "Result" ? (goal ? "bad" : "good") : ""}">${escapeHtml(v)}</dd></div>`).join("")}</dl>
+    </div>
+    <div class="go-film-detail-map">
+      ${shotMapSvg("gofilmmap", shotMapHasPin(s) ? shotMapDotsMarkup([s]) : "", false)}
+      <p class="small-note">${shotMapHasPin(s) ? `Released ${shotMapDistanceFt(Number(s.loc_x), Number(s.loc_y))} ft from the net.` : "No release point tagged for this shot."}</p>
+    </div>
+  `;
 
 }
 
@@ -20779,6 +20849,7 @@ async function openReview(videoId){
     `${reviewGameLabel(v)} · jersey: ${v.team_jersey_color || "not given"} · file: ${String(v.storage_path || "").split("/").pop()}`;
 
   renderReviewHeader();
+  fillReviewGameDetails();
   document.getElementById("rv-editor").hidden = true;
   document.getElementById("rv-scanbar").hidden = true;
 
@@ -20826,11 +20897,11 @@ function renderReviewHeader(){
 
   const approved = reviewStatusOf(v) === "approved";
   const approveBtn = document.getElementById("rv-approve-btn");
-  approveBtn.disabled = approved;
-  approveBtn.textContent = approved ? "Published" : "Approve & publish";
+  approveBtn.disabled = false;
+  approveBtn.textContent = approved ? "Republish changes" : "Approve & publish";
 
   const scanBtn = document.getElementById("rv-scan-btn");
-  scanBtn.disabled = approved;
+  scanBtn.disabled = false;
   scanBtn.textContent =
     review.scanning ? "Pause AI" :
     Number(v.scan_progress) >= 1 ? "Re-run AI" :
@@ -21786,16 +21857,19 @@ async function runReviewScan(){
 
 /* ---------- approve & publish ---------- */
 
-// Adds shots to a game's saved totals: Games, Period Stats and the
-// rebound tally, exactly as Live Tag does when it appends to a game.
-async function applyShotsToGameTotals(gameId, ownerId, shots){
+// Adds (sign = 1) or removes (sign = -1) shots from a game's saved
+// totals: Games, Period Stats and the rebound tally. Live Tag's append
+// logic, plus the reverse so a review can be republished cleanly.
+async function applyShotsToGameTotals(gameId, ownerId, shots, sign = 1){
+
+  if(!shots.length){ return; }
 
   const { data: game, error: gErr } = await supabaseClient.from("Games").select("*").eq("id", gameId).single();
   if(gErr || !game){ throw gErr || new Error("Could not load that game."); }
 
   const goals = shots.filter(s => s.outcome === "goal").length;
-  const sa = num(game.shots_against) + shots.length;
-  const ga = num(game.goals_against) + goals;
+  const sa = Math.max(0, num(game.shots_against) + sign * shots.length);
+  const ga = Math.max(0, Math.min(sa, num(game.goals_against) + sign * goals));
 
   const { error: upErr } = await supabaseClient.from("Games").update({
     shots_against: sa,
@@ -21814,12 +21888,12 @@ async function applyShotsToGameTotals(gameId, ownerId, shots){
     const pg = ps.filter(s => s.outcome === "goal").length;
     const row = (periodRows || []).find(r => String(r.period) === p);
     if(row){
-      const psa = num(row.shots_against) + ps.length;
-      const pga = num(row.goals_against) + pg;
+      const psa = Math.max(0, num(row.shots_against) + sign * ps.length);
+      const pga = Math.max(0, Math.min(psa, num(row.goals_against) + sign * pg));
       const { error } = await supabaseClient.from("Period Stats").update({ shots_against: psa, saves: psa - pga, goals_against: pga }).eq("id", row.id);
       if(error){ throw error; }
     }
-    else{
+    else if(sign > 0){
       const { error } = await supabaseClient.from("Period Stats").insert({
         game_id: gameId, user_id: ownerId, period: p, minutes_played: null,
         shots_against: ps.length, saves: ps.length - pg, goals_against: pg, Notes: null
@@ -21837,11 +21911,11 @@ async function applyShotsToGameTotals(gameId, ownerId, shots){
     if(rErr){ throw rErr; }
     if(existing && existing.length){
       const merged = {};
-      Object.keys(tally).forEach(k => { merged[k] = num(existing[0][k]) + tally[k]; });
+      Object.keys(tally).forEach(k => { merged[k] = Math.max(0, num(existing[0][k]) + sign * tally[k]); });
       const { error } = await supabaseClient.from("goalierebound_control").update(merged).eq("id", existing[0].id);
       if(error){ throw error; }
     }
-    else{
+    else if(sign > 0){
       const { error } = await supabaseClient.from("goalierebound_control").insert({ ...tally, game_id: gameId, user_id: ownerId });
       if(error){ throw error; }
     }
@@ -21849,10 +21923,97 @@ async function applyShotsToGameTotals(gameId, ownerId, shots){
 
 }
 
+
+/* ---------- game details (filled in before publishing) ---------- */
+
+function reviewDefaultSeason(v){
+  const rg = v.requested_game || {};
+  if(rg.season){ return rg.season; }
+  const g = v.game_id ? allGames.find(x => String(x.id) === String(v.game_id)) : null;
+  if(g && g.season){ return g.season; }
+  const theirs = allGames.filter(x => x.user_id === v.user_id && x.season);
+  return theirs.length ? computeCurrentSeason(theirs, true) : CURRENT_SEASON;
+}
+
+function fillReviewGameDetails(){
+  const v = review.video;
+  if(!v){ return; }
+  const g = v.game_id ? allGames.find(x => String(x.id) === String(v.game_id)) : null;
+  const rg = v.requested_game || {};
+  const val = (a, b) => (a !== null && a !== undefined && a !== "") ? a : (b ?? "");
+  document.getElementById("rv-gd-date").value = val(g && g.date, rg.date);
+  document.getElementById("rv-gd-opponent").value = val(g && g.opponent, rg.opponent);
+  document.getElementById("rv-gd-season").value = val(g && g.season, reviewDefaultSeason(v));
+  document.getElementById("rv-gd-homeaway").value = val(g && g.home_away, rg.home_away);
+  document.getElementById("rv-gd-result").value = val(g && g.result, rg.result);
+  document.getElementById("rv-gd-teamgoals").value = val(g && g.team_goals, rg.team_goals);
+  document.getElementById("rv-gd-oppgoals").value = val(g && g["opponent goals"], rg.opponent_goals);
+  document.getElementById("rv-gd-length").value = val(g && (g.minutes_played || g.game_length), rg.minutes);
+}
+
+function readReviewGameDetails(){
+  const minutes = numOrNull(document.getElementById("rv-gd-length").value);
+  return {
+    date: textOrNull(document.getElementById("rv-gd-date").value),
+    opponent: textOrNull(document.getElementById("rv-gd-opponent").value) || "Unknown",
+    season: textOrNull(document.getElementById("rv-gd-season").value) || CURRENT_SEASON,
+    home_away: textOrNull(document.getElementById("rv-gd-homeaway").value),
+    result: textOrNull(document.getElementById("rv-gd-result").value),
+    team_goals: numOrNull(document.getElementById("rv-gd-teamgoals").value),
+    "opponent goals": numOrNull(document.getElementById("rv-gd-oppgoals").value),
+    minutes_played: minutes && minutes > 0 ? minutes : null,
+    game_length: minutes && minutes > 0 ? minutes : null
+  };
+}
+
+
+/* ---------- approve / republish ---------- */
+
+// What a publish put into the goalie's game, kept on the video row so a
+// republish can take exactly that back out before adding the new list.
+function reviewPublishedSnapshot(v){
+  const snap = v.period_marks && v.period_marks._published;
+  if(snap && Array.isArray(snap.shotIds)){ return snap; }
+  // Published before snapshots existed: find this video's shots in the
+  // game (linked to the video or to one of its MP4 clips).
+  const clipRe = new RegExp(`_${v.id}_\\d+(?:\\.\\d+)?s\\.mp4$`);
+  const clipIds = reviewQueueCache.filter(x => x.status === "clip" && clipRe.test(x.storage_path || "")).map(x => x.id);
+  const ids = new Set([String(v.id), ...clipIds.map(String)]);
+  const rows = allShots.filter(s => String(s.game_id) === String(v.game_id) && ids.has(String(s.game_video_id)));
+  return {
+    shotIds: rows.map(s => s.shot_id ?? s.id),
+    idColumn: rows[0] ? shotIdColumn(rows[0]) : "id",
+    shots: rows.map(s => ({ period: String(s.period), outcome: isGoal(s) ? "goal" : "save", reboundTag: "skip" })),
+    clipIds,
+    legacy: true
+  };
+}
+
+async function deleteReviewClipFiles(clipIds){
+  for(const id of clipIds || []){
+    try{
+      await fetch("/api/video/delete-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accessToken: currentSession.access_token, gameVideoId: id })
+      });
+    }
+    catch(e){ console.error("Couldn't remove old clip", id, e); }
+  }
+}
+
+async function saveReviewSnapshot(v, snapshot){
+  v.period_marks = { ...(v.period_marks || {}), _published: snapshot };
+  const { error } = await supabaseClient.from("game_videos").update({ period_marks: v.period_marks }).eq("id", v.id);
+  if(error){ console.error("Couldn't save the publish record", error); }
+}
+
 async function approveReview(){
 
   const v = review.video;
-  if(!v || reviewStatusOf(v) === "approved"){ return; }
+  if(!v){ return; }
+
+  const republish = reviewStatusOf(v) === "approved";
 
   if(review.scanning){
     showToast("Pause the AI scan first.", "error");
@@ -21867,13 +22028,17 @@ async function approveReview(){
     return;
   }
 
-  if(!confirm(`Publish ${drafts.length} shots (${drafts.length - goals} saves, ${goals} goal${goals === 1 ? "" : "s"}) to ${reviewOwnerName(v)}? They'll see the stats right away.`)){
+  const details = readReviewGameDetails();
+
+  if(!confirm(republish
+    ? `Republish ${drafts.length} shots (${drafts.length - goals} saves, ${goals} goal${goals === 1 ? "" : "s"}) to ${reviewOwnerName(v)}? This replaces what was published before with the list as it is now.`
+    : `Publish ${drafts.length} shots (${drafts.length - goals} saves, ${goals} goal${goals === 1 ? "" : "s"}) to ${reviewOwnerName(v)}? They'll see the stats right away.`)){
     return;
   }
 
   const btn = document.getElementById("rv-approve-btn");
   btn.disabled = true;
-  btn.textContent = "Publishing…";
+  btn.textContent = republish ? "Republishing…" : "Publishing…";
 
   try{
 
@@ -21882,20 +22047,30 @@ async function approveReview(){
     let gameId = v.game_id;
 
     if(!gameId){
-      const rg = v.requested_game || {};
-      const { data: newGame, error } = await supabaseClient.from("Games").insert({
-        user_id: v.user_id,
-        date: rg.date || null,
-        opponent: rg.opponent || "Unknown",
-        home_away: rg.home_away || null,
-        season: rg.season || null
-      }).select().single();
+      const { data: newGame, error } = await supabaseClient.from("Games").insert({ user_id: v.user_id, ...details }).select().single();
       if(error){ throw error; }
       gameId = newGame.id;
       // Link it straight away so a retry can't create a second game.
       const { error: linkErr } = await supabaseClient.from("game_videos").update({ game_id: gameId }).eq("id", v.id);
       if(linkErr){ throw linkErr; }
       v.game_id = gameId;
+    }
+    else{
+      // Game details always come from the panel, so the season, score
+      // and length are right on every dashboard.
+      const { error } = await supabaseClient.from("Games").update(details).eq("id", gameId);
+      if(error){ throw error; }
+    }
+
+    // Republish: take out exactly what the last publish put in.
+    if(republish){
+      const old = reviewPublishedSnapshot(v);
+      if(old.shotIds.length){
+        const { error } = await supabaseClient.from("Shots").delete().in(old.idColumn || "id", old.shotIds);
+        if(error){ throw error; }
+        await applyShotsToGameTotals(gameId, v.user_id, old.shots, -1);
+      }
+      await deleteReviewClipFiles(old.clipIds);
     }
 
     const now = new Date().toISOString();
@@ -21928,48 +22103,62 @@ async function approveReview(){
       clip_end_seconds: Math.round((s.t + 3) * 10) / 10
     })));
 
-    await applyShotsToGameTotals(gameId, v.user_id, shots);
+    await applyShotsToGameTotals(gameId, v.user_id, shots, 1);
+
+    const snapshot = {
+      shotIds: insertedShots.map(r => r.shot_id ?? r.id),
+      idColumn: insertedShots[0] ? shotIdColumn(insertedShots[0]) : "id",
+      shots: shots.map(s => ({ period: s.period, outcome: s.outcome, reboundTag: s.reboundTag })),
+      clipIds: [],
+      at: now
+    };
+    await saveReviewSnapshot(v, snapshot);
 
     const { error: doneErr } = await supabaseClient.from("game_videos").update({
       review_status: "approved",
       approved_at: now,
       reviewed_by: currentSession.user.id,
-      admin_note: null
+      admin_note: null,
+      requested_game: { ...(v.requested_game || {}), ...details, opponent_goals: details["opponent goals"], minutes: details.minutes_played }
     }).eq("id", v.id);
     if(doneErr){ throw doneErr; }
 
     v.review_status = "approved";
     delete goFilmVideoCache[gameId];
     renderReviewHeader();
-    showToast(`Published to ${reviewOwnerName(v)}. Making MP4 clips for each shot…`, "success");
+    showToast(`${republish ? "Republished" : "Published"} to ${reviewOwnerName(v)}. Making MP4 clips for each shot…`, "success");
 
-    await makeShotClips(v, shots, insertedShots);
+    const clipIds = await makeShotClips(v, shots, insertedShots);
+    snapshot.clipIds = clipIds;
+    await saveReviewSnapshot(v, snapshot);
 
-    loadDashboard().catch(err => console.error(err));
+    await loadDashboard().catch(err => console.error(err));
+    renderReviewHeader();
 
   }
   catch(error){
 
     console.error(error);
-    showToast(`Publishing stopped: ${error.message || error}. Nothing after that step was saved; check the game before trying again.`, "error");
+    showToast(`Publishing stopped: ${error.message || error}. Check the game before trying again.`, "error");
     renderReviewHeader();
 
   }
 
 }
 
-
 // After publishing: each shot gets its own short H.264 MP4 cut from
 // the game on the server, so Watch plays in every browser even when the
 // upload was an iPhone .mov (HEVC). A shot whose clip fails keeps its
 // link into the full game, which still plays where the browser can.
+// Returns the ids of the clip rows made.
 async function makeShotClips(v, shots, insertedRows){
 
   const jobs = shots
     .map((s, i) => ({ s, row: insertedRows[i] }))
     .filter(j => j.row);
 
-  if(!jobs.length){ return; }
+  const made = [];
+  if(!jobs.length){ return made; }
 
   const status = document.getElementById("rv-scan-text");
   const bar = document.getElementById("rv-scanbar");
@@ -21979,12 +22168,13 @@ async function makeShotClips(v, shots, insertedRows){
   let failed = 0;
   let next = 0;
   let unavailable = false;
+  let firstError = "";
 
   const show = () => {
     if(!bar || !review.video || review.video.id !== v.id){ return; }
     bar.hidden = false;
     fill.style.width = `${Math.round((done + failed) / jobs.length * 100)}%`;
-    status.textContent = `Making MP4 clips: ${done + failed} of ${jobs.length}${failed ? ` (${failed} failed)` : ""}. Keep this tab open.`;
+    status.textContent = `Making MP4 clips: ${done + failed} of ${jobs.length}${failed ? ` (${failed} failed${firstError ? ": " + firstError : ""})` : ""}. Keep this tab open.`;
   };
 
   show();
@@ -22006,16 +22196,18 @@ async function makeShotClips(v, shots, insertedRows){
         let data = {};
         try{ data = await res.json(); }catch(e){ data = {}; }
         if(res.status === 501){ unavailable = true; break; }
-        if(!res.ok){ throw new Error(data.error || "Clip failed."); }
+        if(!res.ok){ throw new Error(data.detail || data.error || `Clip failed (${res.status}).`); }
 
         const { error } = await supabaseClient.from("Shots")
           .update({ game_video_id: data.gameVideoId, clip_start_seconds: 0, clip_end_seconds: null })
           .eq(shotIdColumn(row), row.shot_id ?? row.id);
         if(error){ throw error; }
+        made.push(data.gameVideoId);
         done++;
       }
       catch(error){
         console.error("Shot clip failed", error);
+        if(!firstError){ firstError = error.message || String(error); }
         failed++;
       }
       show();
@@ -22030,11 +22222,13 @@ async function makeShotClips(v, shots, insertedRows){
     showToast("Published. MP4 clips couldn't be made on this server, so shots link into the full game video.", "error");
   }
   else if(failed){
-    showToast(`Published. ${done} clips made, ${failed} failed; those shots link into the full game video.`, "error");
+    showToast(`Published. ${done} clips made, ${failed} failed (${firstError}). Those shots still play from the full game video.`, "error");
   }
   else{
     showToast(`Done: ${done} MP4 clips made. Every shot plays in any browser.`, "success");
   }
+
+  return made;
 
 }
 

@@ -139,7 +139,8 @@ export default async function handler(req, res) {
     res.status(200).json({ gameVideoId: clip.id });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Couldn't make this clip." });
+    // Admin-only endpoint: the reason helps fix setup problems.
+    res.status(500).json({ error: "Couldn't make this clip.", detail: String(error && error.message || error).slice(0, 300) });
   } finally {
     if (outFile) { try { fs.unlinkSync(outFile); } catch (e) { /* already gone */ } }
   }
