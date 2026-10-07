@@ -4732,3 +4732,22 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
   .go-film-grid{ grid-template-columns:1fr; }
   .go-film-list{ max-height:none; }
 }
+
+.rv-density{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-size:13px;
+  font-weight:600;
+  color:var(--ink-2);
+}
+
+.rv-density select{
+  background:var(--field);
+  border:1.5px solid var(--seam-strong);
+  border-radius:var(--radius);
+  padding:8px;
+  font:inherit;
+  font-size:13px;
+  color:var(--ink);
+}

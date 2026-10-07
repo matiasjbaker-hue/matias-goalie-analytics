@@ -3311,6 +3311,14 @@
       </div>
       <div class="rv-head-actions">
         <span id="rv-status"></span>
+        <label class="rv-density" title="How closely the AI looks: more stills catch more action and cost more">
+          <span>AI detail</span>
+          <select id="rv-scan-density">
+            <option value="thorough">Thorough (1 s)</option>
+            <option value="normal" selected>Normal (1.5 s)</option>
+            <option value="fast">Fast (2.5 s)</option>
+          </select>
+        </label>
         <button type="button" class="btn-secondary" id="rv-scan-btn" onclick="toggleReviewScan()">Run AI</button>
         <button type="button" class="btn-danger" onclick="flagReviewNeedsAttention()">Needs attention</button>
         <button type="button" class="btn-primary" id="rv-approve-btn" onclick="approveReview()">Approve &amp; publish</button>
@@ -20590,14 +20598,15 @@ async function uploadGameVideo(){
    updates the totals, and only then can the goalie see anything.
 ============================================================ */
 
-const REVIEW_SCAN_STEP = 2.5;        // seconds between detection stills
-const REVIEW_SCAN_BATCH = 12;        // stills per detection request
+// Seconds between detection stills; the admin can pick Thorough (1 s).
+const REVIEW_SCAN_STEPS = { thorough: 1, normal: 1.5, fast: 2.5 };
+const REVIEW_SCAN_BATCH = 16;        // stills per detection request
 const REVIEW_SCAN_WIDTH = 640;
-const REVIEW_TAG_WIDTH = 960;
-// A detect flag at least this sure is kept as a "possible shot" for the
-// admin to confirm, even when the closer look doesn't confirm it.
-const REVIEW_KEEP_UNSURE = 0.3;
-const REVIEW_DETECT_CONCURRENCY = 3;
+const REVIEW_TAG_WIDTH = 768;
+// Every flagged moment goes on the list for the admin; only flags
+// below this are shown as faint "looked here" ticks instead.
+const REVIEW_KEEP_UNSURE = 0.15;
+const REVIEW_DETECT_CONCURRENCY = 4;
 const REVIEW_MIN_GAP = 4;            // seconds: closer than this is the same shot
 
 let reviewFilter = "open";
@@ -21493,22 +21502,24 @@ async function runReviewScan(){
   const tagOne = async (ev) => {
     const st = review.scanStats;
     if(review.drafts.some(d => d.game_video_id === v.id && Math.abs(Number(d.t_seconds) - ev.t) < REVIEW_MIN_GAP)){ return; }
-    const res = await aiOnStoredVideo("tag", burstTimes(ev.t), REVIEW_TAG_WIDTH, tagger);
+    if(Number(ev.confidence) < REVIEW_KEEP_UNSURE){
+      st.rejected++;
+      review.candidates.push({ t: ev.t, confidence: Number(ev.confidence) || 0 });
+      renderReviewTimeline();
+      renderReviewScanBar();
+      return;
+    }
+    // The closer look fills in the details. It never removes a moment:
+    // the admin decides what stays.
+    let res = { shot: null, model: null };
+    try{ res = await aiOnStoredVideo("tag", burstTimes(ev.t), REVIEW_TAG_WIDTH, tagger); }
+    catch(error){ if(error.status === 403 || error.status === 503 || error.status === 404){ throw error; } }
     if(!isCurrent()){ return; }
     let shot = res.shot;
     if(!shot || !shot.shot_detected){
-      // The close look didn't confirm it. Keep strong flags anyway as a
-      // "possible shot", so a real one is never silently lost.
-      if(Number(ev.confidence) < REVIEW_KEEP_UNSURE){
-        st.rejected++;
-        review.candidates.push({ t: ev.t, confidence: Number(ev.confidence) || 0 });
-        renderReviewTimeline();
-        renderReviewScanBar();
-        return;
-      }
       shot = { ...(shot || {}), shot_detected: true, outcome: ev.goal ? "goal" : "save",
         confidence: Math.min(Number(ev.confidence) || 0, 0.4),
-        notes: "Possible shot: the scan flagged it but the closer look wasn't sure. Watch it, then keep, fix or delete." };
+        notes: "Possible shot: action spotted here but the closer look couldn't confirm a shot. Watch it, then keep, fix or delete." };
       st.unsure++;
     }
     else{
@@ -21554,16 +21565,21 @@ async function runReviewScan(){
     if(!Number.isFinite(duration) || duration <= 0){ throw new Error("Couldn't read how long this video is."); }
     v.duration_seconds = duration;
 
+    const scanStep = REVIEW_SCAN_STEPS[(document.getElementById("rv-scan-density") || {}).value] || REVIEW_SCAN_STEPS.normal;
     let t = Number(v.scan_cursor) || 0;
     v.scan_cursor = t;
+    // Each stretch is keyed by exactly where the previous one ended, so
+    // finished stretches chain together into the saved scan position.
+    v.scan_cursor_next = t;
 
     while(t < duration && review.scanning && isCurrent()){
 
       const times = [];
-      while(times.length < REVIEW_SCAN_BATCH && t < duration){ times.push(t); t += REVIEW_SCAN_STEP; }
+      while(times.length < REVIEW_SCAN_BATCH && t < duration){ times.push(Math.round(t * 100) / 100); t += scanStep; }
 
-      const batchStart = times[0];
+      const batchStart = v.scan_cursor_next;
       const batchEnd = t;
+      v.scan_cursor_next = batchEnd;
 
       while(inflight.size >= REVIEW_DETECT_CONCURRENCY){ await Promise.race(inflight); }
       if(!review.scanning){ break; }
@@ -21596,7 +21612,7 @@ async function runReviewScan(){
     await Promise.all(inflight);
     while(tagWorker){ await tagWorker; }
 
-    if(!failure && isCurrent() && v.scan_cursor >= duration - REVIEW_SCAN_STEP){
+    if(!failure && isCurrent() && v.scan_cursor >= duration - scanStep){
       v.scan_cursor = duration;
     }
 

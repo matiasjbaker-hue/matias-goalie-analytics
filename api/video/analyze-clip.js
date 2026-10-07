@@ -112,13 +112,15 @@ const DETECT_SCHEMA = {
   additionalProperties: false,
 };
 
-const DETECT_PROMPT = `You are the first pass of a two-stage system that finds shots on goal against ONE tracked goalie in hockey game film. You get still frames taken every few seconds, in time order, each with its timestamp. The camera is often a wide, high view of the whole rink, so players and the puck can be small.
+const DETECT_PROMPT = `You are the first pass of a system that cuts hockey game film into shot moments for ONE tracked goalie. An admin watches every moment you flag and edits or deletes it, so your job is to catch ALL the action: a missed shot is a real failure, an extra flag costs the admin one click.
 
-Your job is RECALL. Flag every frame where a shot on the tracked goalie's net may be happening or may have just happened. A second, closer pass checks each flag and throws out the wrong ones, so a missed shot costs far more than a false flag.
+You get still frames about one to two seconds apart, in time order, with timestamps. The camera is often a wide, high view of the whole rink and may pan to follow play, so players and the puck are small.
 
-Flag when you see any of: attacking players in the zone of the tracked goalie's net with the puck near the slot or circles; a player winding up, shooting, or following through toward that net; the goalie down, stretched, in a save position, or covering the puck; players crowding the crease; a scramble in front; a whistle-stop with players gathered at that net; a celebration or players skating away from that net after a goal.
+Which net: the tracked goalie is identified by their team's jersey colour (given below when known). Watch the net that goalie defends. Teams switch ends between periods, so if the goalie in that colour is now at the other end, follow them there.
 
-Do not flag: frames where the play is clearly at the other end of the rink, faceoffs at centre ice, line changes, empty ice, intermissions, replays or overlays. If two neighbouring frames show the same moment, flag only the clearest one. Use confidence honestly: 0.3 for a maybe, 0.8+ when a shot is clearly visible.`;
+Flag every frame where, at that net, any of these is happening or just happened: a shot or shot attempt (wrist, slap, snap, backhand, tip, deflection, one-timer, wraparound, rebound); a player winding up, releasing, or following through toward the net; the puck moving toward or bouncing off the goalie; the goalie moving into a save, down, stretched, covering the puck, or recovering; a scramble or crowd at the crease; attacking players with the puck in the slot or circles facing the net; a whistle with players gathered at the net; a goal celebration or players skating away after a goal. Shots happen fast and may fall between two stills: if the play is in that zone and the next frame shows the aftermath (goalie down, puck loose, players crashing the net), flag the frame before it.
+
+Do not flag: play clearly at the other end of the rink with no pressure on the tracked net, centre-ice faceoffs, line changes, empty ice, intermissions, warm-ups, replays or overlays. Several frames of the same sequence: flag one per distinct attempt (a shot and its rebound shot are two). Confidence: 0.2 when you suspect action, 0.5 when an attempt is likely, 0.8+ when a shot is clearly visible.`;
 
 function cleanFrames(frames) {
   if (!Array.isArray(frames) || !frames.length || frames.length > MAX_FRAMES) return null;
