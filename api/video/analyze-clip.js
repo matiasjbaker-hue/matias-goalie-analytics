@@ -36,7 +36,7 @@
 //
 // Vercel environment variables:
 //   ANTHROPIC_API_KEY   the same key AI Coach uses
-//   CLIP_AI_MODEL       optional; defaults to claude-opus-5-5
+//   CLIP_AI_MODEL       optional; defaults to claude-sonnet-5-5
 //   SCAN_STILL_THRESHOLD  optional; share of a still that must change for
 //                       it to count as live play (default 0.004; 0 = off)
 
@@ -49,7 +49,7 @@ import {
 import { claude, claudeConfigured, textOf } from "../_lib/claude.js";
 import { ffmpegAvailable, grabFrames, deadFrames } from "../_lib/frames.js";
 
-const MODEL = (process.env.CLIP_AI_MODEL || "claude-opus-5-5").trim();
+const MODEL = (process.env.CLIP_AI_MODEL || "claude-sonnet-5-5").trim();
 
 const MAX_FRAMES = 16;
 // A half-price scan sends a longer stretch per call (as several requests
