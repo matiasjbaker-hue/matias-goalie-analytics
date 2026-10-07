@@ -5,12 +5,12 @@
 // APP PASSWORD (not the real account password). Required env vars:
 //   RECAP_GMAIL_USER          e.g. goalieiqanalytics@gmail.com
 //   RECAP_GMAIL_APP_PASSWORD  16-character Google app password
+//                             (the spaces Google shows are ignored)
 // Optional:
 //   RECAP_FROM_NAME           display name (default "GoalieIQ Analytics")
 //   RECAP_MAILING_ADDRESS     added to the footer if you want it there
 //   RECAP_DRY_RUN=1           builds the email but sends nothing (testing)
 
-import nodemailer from "nodemailer";
 import { SUPABASE_URL } from "./billing.js";
 
 const SITE = "https://www.goalieiqanalytics.com";
@@ -20,12 +20,52 @@ function serviceHeaders(extra = {}) {
   return { apikey: key, Authorization: `Bearer ${key}`, ...extra };
 }
 
-export function emailConfigured() {
-  return (
-    process.env.RECAP_DRY_RUN === "1" ||
-    !!(process.env.RECAP_GMAIL_USER && process.env.RECAP_GMAIL_APP_PASSWORD)
-  );
+// ---- settings (read at call time so a redeploy with new values just works) ----
+
+export function gmailUser() {
+  return String(process.env.RECAP_GMAIL_USER || "").trim();
 }
+
+// Google displays app passwords as "abcd efgh ijkl mnop"; pasting with the
+// spaces is the most common slip, so strip all whitespace.
+export function gmailPassword() {
+  return String(process.env.RECAP_GMAIL_APP_PASSWORD || "").replace(/\s+/g, "");
+}
+
+export function dryRun() {
+  return process.env.RECAP_DRY_RUN === "1";
+}
+
+export function emailConfigured() {
+  return dryRun() || !!(gmailUser() && gmailPassword());
+}
+
+// ---- nodemailer is loaded lazily so a missing package gives a clear
+// message here instead of crashing the whole endpoint at startup ----
+
+export async function loadNodemailer() {
+  try {
+    const mod = await import("nodemailer");
+    return mod.default || mod;
+  } catch (err) {
+    const e = new Error(
+      "The email library (nodemailer) isn't installed on the server. Make sure package.json includes the nodemailer line, then redeploy."
+    );
+    e.code = "NO_NODEMAILER";
+    throw e;
+  }
+}
+
+export async function nodemailerAvailable() {
+  try {
+    await loadNodemailer();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+// ---- Supabase helpers ----
 
 // The login email for a user id (only the server can read this).
 export async function getAuthUserEmail(userId) {
@@ -52,6 +92,8 @@ export async function logRecap(row) {
   }
 }
 
+// ---- building the message ----
+
 export function escapeHtml(s) {
   return String(s)
     .replace(/&/g, "&amp;")
@@ -69,29 +111,44 @@ function autolink(escaped) {
   );
 }
 
+// An ALL-CAPS line on its own (e.g. "THE HEADLINE") becomes a section heading.
+const HEADING = /^[A-Z][A-Z0-9 &'\/\-]{2,48}$/;
+const BULLET = /^\s*[•\-\*]\s+/;
+
+function headingHtml(text) {
+  return `<p style="margin:26px 0 8px;font-size:12px;font-weight:bold;letter-spacing:1.6px;color:#0a8f5a">${escapeHtml(text)}</p>`;
+}
+
 // Plain text from the admin's textarea -> simple, safe HTML.
-// Blank line = new paragraph; a block of "• " lines = a bullet list.
+// Blank line = new paragraph; "• " lines = a bullet list; an ALL-CAPS
+// first line = a section heading.
 export function textToHtml(body) {
   return String(body)
     .replace(/\r\n/g, "\n")
     .split(/\n{2,}/)
     .map((block) => {
-      const lines = block.split("\n").filter((l) => l.trim() !== "");
+      let lines = block.split("\n").filter((l) => l.trim() !== "");
       if (!lines.length) return "";
 
-      const bullet = /^\s*[•\-\*]\s+/;
+      let out = "";
 
-      if (lines.every((l) => bullet.test(l))) {
+      if (HEADING.test(lines[0].trim())) {
+        out += headingHtml(lines[0].trim());
+        lines = lines.slice(1);
+        if (!lines.length) return out;
+      }
+
+      if (lines.every((l) => BULLET.test(l))) {
         const items = lines
           .map(
             (l) =>
-              `<li style="margin:0 0 12px;padding-left:2px">${autolink(escapeHtml(l.replace(bullet, "")))}</li>`
+              `<li style="margin:0 0 10px;padding-left:2px">${autolink(escapeHtml(l.replace(BULLET, "")))}</li>`
           )
           .join("");
-        return `<ul style="margin:0 0 18px;padding-left:22px">${items}</ul>`;
+        return out + `<ul style="margin:0 0 16px;padding-left:22px">${items}</ul>`;
       }
 
-      return `<p style="margin:0 0 18px">${lines.map((l) => autolink(escapeHtml(l))).join("<br>")}</p>`;
+      return out + `<p style="margin:0 0 16px">${lines.map((l) => autolink(escapeHtml(l))).join("<br>")}</p>`;
     })
     .join("");
 }
@@ -127,18 +184,20 @@ export function buildEmail({ subject, body }) {
   return { subject: cleanSubject, text, html };
 }
 
-export function makeTransport() {
-  if (process.env.RECAP_DRY_RUN === "1") {
+// ---- sending ----
+
+export async function makeTransport() {
+  const nodemailer = await loadNodemailer();
+
+  if (dryRun()) {
     return nodemailer.createTransport({ jsonTransport: true });
   }
+
   return nodemailer.createTransport({
     host: "smtp.gmail.com",
     port: 465,
     secure: true,
-    auth: {
-      user: process.env.RECAP_GMAIL_USER,
-      pass: process.env.RECAP_GMAIL_APP_PASSWORD,
-    },
+    auth: { user: gmailUser(), pass: gmailPassword() },
     // nodemailer's defaults wait up to 2 minutes. Keep every step under
     // ~10 seconds so a problem comes back as a clear error, not a hang
     // (serverless functions get cut off around then anyway).
@@ -150,6 +209,5 @@ export function makeTransport() {
 
 export function fromAddress() {
   const name = process.env.RECAP_FROM_NAME || "GoalieIQ Analytics";
-  const addr = process.env.RECAP_GMAIL_USER || "recap@example.invalid";
-  return { name, address: addr };
+  return { name, address: gmailUser() || "recap@example.invalid" };
 }
