@@ -20615,7 +20615,10 @@ const REVIEW_TAG_WIDTH = 768;
 // below this are shown as faint "looked here" ticks instead.
 const REVIEW_KEEP_UNSURE = 0.15;
 const REVIEW_DETECT_CONCURRENCY = 4;
-const REVIEW_MIN_GAP = 4;            // seconds: closer than this is the same shot
+// Seconds: a flag closer than this to a shot already on the list is
+// treated as the same shot. Kept short because rebound shots can come
+// two or three seconds after the first one.
+const REVIEW_MIN_GAP = 2.5;
 
 let reviewFilter = "open";
 let reviewQueueCache = [];
@@ -21543,7 +21546,7 @@ function renderReviewScanBar(){
   document.getElementById("rv-scanbar-fill").style.width = `${pct}%`;
   const st = review.scanStats || { found: 0 };
   const detail = st.batches !== undefined
-    ? ` (${st.batches} stretches checked · ${st.flagged} moments flagged · ${st.confirmed} confirmed · ${st.unsure} possible · ${st.rejected} ruled out${st.errors ? ` · ${st.errors} errors: ${st.lastError}` : ""})`
+    ? ` (${st.batches} stretches checked · ${st.flagged} moments flagged · ${st.confirmed} confirmed · ${st.unsure} possible · ${st.duplicate || 0} already on the list · ${st.rejected} ruled out${st.errors ? ` · ${st.errors} errors: ${st.lastError}` : ""})`
     : "";
   document.getElementById("rv-scan-text").textContent = review.scanning
     ? `AI scanning: ${formatClock(cursor)} of ${formatClock(d)} · ${st.found} shot${st.found === 1 ? "" : "s"} added${detail}. Keep this tab open.`
@@ -21588,7 +21591,7 @@ async function runReviewScan(){
   }
 
   review.scanning = true;
-  review.scanStats = { found: 0, batches: 0, flagged: 0, confirmed: 0, unsure: 0, rejected: 0, errors: 0, lastError: "" };
+  review.scanStats = { found: 0, batches: 0, flagged: 0, confirmed: 0, unsure: 0, rejected: 0, duplicate: 0, errors: 0, lastError: "" };
   renderReviewPreview(null);
   renderReviewHeader();
   renderReviewScanBar();
@@ -21618,7 +21621,11 @@ async function runReviewScan(){
 
   const tagOne = async (ev) => {
     const st = review.scanStats;
-    if(review.drafts.some(d => d.game_video_id === v.id && Math.abs(Number(d.t_seconds) - ev.t) < REVIEW_MIN_GAP)){ return; }
+    if(review.drafts.some(d => d.game_video_id === v.id && Math.abs(Number(d.t_seconds) - ev.t) < REVIEW_MIN_GAP)){
+      st.duplicate++;
+      renderReviewScanBar();
+      return;
+    }
     if(Number(ev.confidence) < REVIEW_KEEP_UNSURE){
       st.rejected++;
       review.candidates.push({ t: ev.t, confidence: Number(ev.confidence) || 0 });
@@ -21758,12 +21765,15 @@ async function runReviewScan(){
     }
     else if(isCurrent() && Number(v.scan_progress) >= 1){
       const st = review.scanStats;
-      const summary = `${st.batches} stretches checked, ${st.flagged} moments flagged, ${st.confirmed} confirmed, ${st.unsure} kept as possible, ${st.rejected} ruled out${st.errors ? `, ${st.errors} errors (${st.lastError})` : ""}.`;
+      const summary = `${st.batches} stretches checked, ${st.flagged} moments flagged, ${st.confirmed} confirmed, ${st.unsure} kept as possible, ${st.duplicate} already on your list, ${st.rejected} ruled out${st.errors ? `, ${st.errors} errors (${st.lastError})` : ""}.`;
+      const allKnown = !st.found && st.flagged > 0 && st.duplicate > 0 && !st.errors;
       showToast(
         st.found
-          ? `AI scan finished: ${st.found} shot${st.found === 1 ? "" : "s"} added. ${summary} Check each one, then approve.`
-          : `AI scan finished but added no shots. ${summary} Check the frames under the progress bar look like the game, and add shots by hand with S.`,
-        st.found ? "success" : "error"
+          ? `AI scan finished: ${st.found} new shot${st.found === 1 ? "" : "s"} added. ${summary} Check each one, then approve.`
+          : allKnown
+            ? `AI scan finished: everything it found is already on your shot list. ${summary} Use Play action only to check for anything missed.`
+            : `AI scan finished but added no shots. ${summary} Check the frames under the progress bar look like the game, and add shots by hand with S.`,
+        st.found || allKnown ? "success" : "error"
       );
       document.getElementById("rv-scanbar").hidden = false;
       document.getElementById("rv-scan-text").textContent = `Last scan: ${summary}`;
