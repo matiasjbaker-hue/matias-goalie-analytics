@@ -3325,6 +3325,13 @@
             <option value="fast">Fast (2.5 s)</option>
           </select>
         </label>
+        <label class="rv-density" title="Half price: the AI answers within about an hour, usually sooner, and the results are collected while this request is open. Instant: answers while it scans, at full price.">
+          <span>AI cost</span>
+          <select id="rv-scan-mode">
+            <option value="batch" selected>Half price (results within ~1 hr)</option>
+            <option value="instant">Instant (full price)</option>
+          </select>
+        </label>
         <button type="button" class="btn-secondary" id="rv-scan-btn" onclick="toggleReviewScan()">Run AI</button>
         <button type="button" class="btn-danger" onclick="flagReviewNeedsAttention()">Needs attention</button>
         <label class="rv-check" title="Sends the goalie a recap with their PDF stat sheet from the company Gmail">
@@ -20709,6 +20716,10 @@ async function uploadGameVideo(){
 // Seconds between detection stills; the admin can pick Thorough (1 s).
 const REVIEW_SCAN_STEPS = { thorough: 1, normal: 1.5, fast: 2.5 };
 const REVIEW_SCAN_BATCH = 16;        // stills per detection request
+// Half-price scans send longer stretches per call; the server splits
+// them into requests of 16 and queues them as one Anthropic batch.
+const REVIEW_BATCH_TIMES = 48;
+const REVIEW_BATCH_POLL_MS = 60 * 1000;
 const REVIEW_SCAN_WIDTH = 640;
 const REVIEW_TAG_WIDTH = 768;
 // Every flagged moment goes on the list for the admin; only flags
@@ -20865,8 +20876,11 @@ async function openReview(videoId){
   if(!v){ showToast("That request isn't loaded anymore.", "error"); return; }
 
   if(review.scanning){ review.scanning = false; }
+  stopReviewBatchPolling();
 
   review.video = { ...v, period_marks: v.period_marks || {} };
+  review.scanStats = null;
+  review.batchCheckedAt = 0;
   review.drafts = [];
   review.candidates = [];
   review.selectedId = null;
@@ -20897,6 +20911,7 @@ async function openReview(videoId){
   renderReviewShots();
   loadReviewVideo();
   loadReviewUser(v.user_id);
+  startReviewBatchPolling();
 
   window.scrollTo({ top: 0, behavior: "smooth" });
 
@@ -20905,6 +20920,7 @@ async function openReview(videoId){
 function closeReview(){
 
   review.scanning = false;
+  stopReviewBatchPolling();
   review.video = null;
   const video = document.getElementById("rv-video");
   video.pause();
@@ -20934,6 +20950,8 @@ function renderReviewHeader(){
   scanBtn.disabled = false;
   scanBtn.textContent =
     review.scanning ? "Pause AI" :
+    review.collecting ? "Collecting…" :
+    (reviewPendingBatches(v).length || reviewUntagged(v).length) ? "Check AI results" :
     Number(v.scan_progress) >= 1 ? "Re-run AI" :
     Number(v.scan_progress) > 0 ? "Resume AI" : "Run AI";
 
@@ -21640,17 +21658,31 @@ function renderReviewScanBar(){
   if(!v){ return; }
   const d = reviewDuration() || Number(v.duration_seconds) || 0;
   const cursor = Number(v.scan_cursor) || 0;
-  const show = review.scanning || (cursor > 0 && Number(v.scan_progress) < 1);
+  const waiting = !review.scanning && (reviewPendingBatches(v).length || reviewUntagged(v).length);
+  const show = review.scanning || waiting || (cursor > 0 && Number(v.scan_progress) < 1);
   bar.hidden = !show;
   if(!show){ return; }
+  if(waiting){
+    const n = reviewPendingBatches(v).length;
+    const left = reviewUntagged(v).length;
+    document.getElementById("rv-scanbar-fill").style.width = "100%";
+    document.getElementById("rv-scan-text").textContent = review.collecting
+      ? `Collecting AI results${left ? `: taking a closer look at ${left} moment${left === 1 ? "" : "s"}` : ""}… ${(review.scanStats || {}).found || 0} shots added so far. Keep this tab open.`
+      : n
+        ? `Waiting for the AI (half price): ${n} part${n === 1 ? "" : "s"} of the game still out. Results usually arrive within an hour and are collected every minute while this request is open. You can close it and come back.${review.batchCheckedAt ? ` Last checked ${new Date(review.batchCheckedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.` : ""}`
+        : `${left} flagged moment${left === 1 ? "" : "s"} still need a closer look. Press Check AI results to finish.`;
+    return;
+  }
   const pct = d ? Math.min(100, cursor / d * 100) : 0;
   document.getElementById("rv-scanbar-fill").style.width = `${pct}%`;
   const st = review.scanStats || { found: 0 };
   const detail = st.batches !== undefined
-    ? ` (${st.batches} stretches checked · ${st.flagged} moments flagged · ${st.confirmed} confirmed · ${st.unsure} possible · ${st.duplicate || 0} already on the list · ${st.rejected} ruled out${st.errors ? ` · ${st.errors} errors: ${st.lastError}` : ""})`
+    ? ` (${st.batches} stretches checked${st.skipped ? ` · ${st.skipped} dead-time stills skipped` : ""} · ${st.flagged} moments flagged · ${st.confirmed} confirmed · ${st.unsure} possible · ${st.duplicate || 0} already on the list · ${st.rejected} ruled out${st.errors ? ` · ${st.errors} errors: ${st.lastError}` : ""})`
     : "";
   document.getElementById("rv-scan-text").textContent = review.scanning
-    ? `AI scanning: ${formatClock(cursor)} of ${formatClock(d)} · ${st.found} shot${st.found === 1 ? "" : "s"} added${detail}. Keep this tab open.`
+    ? review.scanHalfPrice
+      ? `Sending the game to the AI at half price: ${formatClock(cursor)} of ${formatClock(d)} · ${st.sent || 0} stills sent${st.skipped ? ` · ${st.skipped} dead-time stills skipped` : ""}. Keep this tab open until sending finishes.`
+      : `AI scanning: ${formatClock(cursor)} of ${formatClock(d)} · ${st.found} shot${st.found === 1 ? "" : "s"} added${detail}. Keep this tab open.`
     : `AI paused at ${formatClock(cursor)} of ${formatClock(d)}${detail}. Press Resume AI to continue.`;
 }
 
@@ -21666,10 +21698,231 @@ function renderReviewPreview(frames){
     frames.map(f => `<button type="button" class="rv-preview-frame" onclick="reviewJumpTo(${Number(f.t) + 2})" title="Jump the video to ${escapeHtml(formatClock(f.t))}"><img src="data:image/jpeg;base64,${f.data}" alt="Frame at ${escapeHtml(formatClock(f.t))}"><span>${escapeHtml(formatClock(f.t))}</span></button>`).join("");
 }
 
+function newReviewScanStats(){
+  return { found: 0, batches: 0, sent: 0, skipped: 0, flagged: 0, confirmed: 0, unsure: 0, rejected: 0, duplicate: 0, errors: 0, lastError: "" };
+}
+
+// One flagged moment: skipped if a shot is already on the list there,
+// kept as a faint tick if the AI was barely suspicious, otherwise looked
+// at closely ("tag") and added to the list for the admin.
+async function reviewTagEvent(v, ev, tagger){
+  const st = review.scanStats || (review.scanStats = newReviewScanStats());
+  const isCurrent = () => review.video && review.video.id === v.id;
+  if(review.drafts.some(d => d.game_video_id === v.id && Math.abs(Number(d.t_seconds) - ev.t) < REVIEW_MIN_GAP)){
+    st.duplicate++;
+    renderReviewScanBar();
+    return;
+  }
+  if(Number(ev.confidence) < REVIEW_KEEP_UNSURE){
+    st.rejected++;
+    review.candidates.push({ t: ev.t, confidence: Number(ev.confidence) || 0 });
+    renderReviewTimeline();
+    renderReviewScanBar();
+    return;
+  }
+  // The closer look fills in the details. It never removes a moment:
+  // the admin decides what stays.
+  let res = { shot: null, model: null };
+  try{ res = await aiOnStoredVideo("tag", burstTimes(ev.t), REVIEW_TAG_WIDTH, tagger); }
+  catch(error){ if(error.status === 403 || error.status === 503 || error.status === 404){ throw error; } }
+  if(!isCurrent()){ return; }
+  let shot = res.shot;
+  if(!shot || !shot.shot_detected){
+    shot = { ...(shot || {}), shot_detected: true, outcome: ev.goal ? "goal" : "save",
+      confidence: Math.min(Number(ev.confidence) || 0, 0.4),
+      notes: "Possible shot: action spotted here but the closer look couldn't confirm a shot. Watch it, then keep, fix or delete." };
+    st.unsure++;
+  }
+  else{
+    st.confirmed++;
+  }
+  if(ev.goal && shot.outcome !== "goal"){ shot.notes = (shot.notes ? shot.notes + " " : "") + "The scan thought this might be a goal; check."; }
+  await insertReviewDraft(draftRowFromAi(shot, ev.t, res.model));
+  st.found++;
+  renderReviewShots();
+  renderReviewScanBar();
+}
+
+// Errors that mean no further moment can be saved, so stop spending AI
+// calls. The review tables missing (migration not run, or Supabase's
+// schema cache not refreshed) is the common one.
+function reviewTagFatal(error){
+  if(/schema cache|does not exist|video_shot_drafts/i.test(error.message || "")){
+    return new Error("The AI found shots but couldn't save them: the review table isn't set up in Supabase yet. Run supabase/migrations/20261007_video_review.sql, then run: notify pgrst, 'reload schema'; and Re-run AI.");
+  }
+  if(error.status === 403 || error.status === 503 || error.status === 404 || /CORS|blocked/.test(error.message)){ return error; }
+  return null;
+}
+
+/* ---------- half-price scans (Anthropic Message Batches) ----------
+   The scan sends the game in stretches; each comes back as a batch id
+   saved in period_marks._batches. While the request is open, finished
+   batches are collected every minute: their flagged moments are saved
+   to period_marks._untagged first (so closing the tab loses nothing),
+   then each gets the usual closer look and lands on the shot list. */
+
+let reviewBatchTimer = null;
+
+function reviewPendingBatches(v){
+  return (v && v.period_marks && Array.isArray(v.period_marks._batches)) ? v.period_marks._batches : [];
+}
+
+function reviewUntagged(v){
+  return (v && v.period_marks && Array.isArray(v.period_marks._untagged)) ? v.period_marks._untagged : [];
+}
+
+function queueReviewBatch(v, res, step){
+  const requests = {};
+  (res.requests || []).forEach(r => { requests[r.id] = r.times; });
+  v.period_marks = {
+    ...(v.period_marks || {}),
+    _batches: [...reviewPendingBatches(v), { id: res.batchId, requests, step, sent_at: new Date().toISOString() }]
+  };
+}
+
+async function saveReviewMarks(v){
+  const { error } = await supabaseClient.from("game_videos").update({ period_marks: v.period_marks }).eq("id", v.id);
+  if(error){ throw error; }
+  const cached = reviewQueueCache.find(x => String(x.id) === String(v.id));
+  if(cached){ cached.period_marks = v.period_marks; }
+}
+
+function startReviewBatchPolling(){
+  stopReviewBatchPolling();
+  const v = review.video;
+  if(!v || !(reviewPendingBatches(v).length || reviewUntagged(v).length)){ return; }
+  renderReviewScanBar();
+  renderReviewHeader();
+  collectReviewBatches(false);
+  reviewBatchTimer = setInterval(() => collectReviewBatches(false), REVIEW_BATCH_POLL_MS);
+}
+
+function stopReviewBatchPolling(){
+  if(reviewBatchTimer){ clearInterval(reviewBatchTimer); reviewBatchTimer = null; }
+}
+
+async function collectReviewBatches(manual){
+
+  const v = review.video;
+  if(!v || review.scanning || review.collecting){ return; }
+  if(!reviewPendingBatches(v).length && !reviewUntagged(v).length){ stopReviewBatchPolling(); return; }
+
+  review.collecting = true;
+  if(!review.scanStats){ review.scanStats = newReviewScanStats(); }
+  const st = review.scanStats;
+  const isCurrent = () => review.video && review.video.id === v.id;
+  const tagger = createFrameGrabber(v.id);
+  let fatal = null;
+  let finished = false;
+  renderReviewHeader();
+
+  try{
+
+    const pending = reviewPendingBatches(v);
+    if(pending.length){
+      const res = await callClipAi({ mode: "batch-results", batches: pending.map(b => ({ id: b.id, requests: b.requests })) });
+      review.batchCheckedAt = Date.now();
+      if(!isCurrent()){ return; }
+      const done = (res.batches || []).filter(b => b.status === "done");
+      const found = [];
+
+      for(const b of done){
+        const entry = pending.find(p => p.id === b.id) || {};
+        const step = Number(entry.step) || REVIEW_SCAN_STEPS.normal;
+        addActionTimes([...(b.zone || []), ...(b.events || []).map(e => e.t)], step);
+        found.push(...(b.events || []));
+        // Stretches the batch couldn't answer are re-run now, at full price.
+        for(const times of (b.failed || [])){
+          try{
+            const r = await aiOnStoredVideo("detect", times, REVIEW_SCAN_WIDTH, tagger);
+            addActionTimes([...(r.zone || []), ...(r.events || []).map(e => e.t)], step);
+            found.push(...(r.events || []));
+          }
+          catch(error){
+            st.errors++;
+            st.lastError = error.message || String(error);
+          }
+        }
+      }
+
+      if(done.length){
+        const doneIds = new Set(done.map(b => b.id));
+        st.flagged += found.length;
+        v.period_marks = {
+          ...v.period_marks,
+          _batches: reviewPendingBatches(v).filter(b => !doneIds.has(b.id)),
+          _untagged: [...reviewUntagged(v), ...found].sort((a, b) => a.t - b.t)
+        };
+        await saveReviewMarks(v);
+        renderReviewTimeline();
+      }
+      else if(manual){
+        showToast("The AI is still working on this game. Results usually arrive within an hour.", "success");
+      }
+    }
+
+    // Closer look at each flagged moment; saved progress every few.
+    let sinceSave = 0;
+    while(isCurrent() && reviewUntagged(v).length){
+      renderReviewScanBar();
+      const [ev, ...rest] = reviewUntagged(v);
+      try{ await reviewTagEvent(v, ev, tagger); }
+      catch(error){
+        fatal = reviewTagFatal(error);
+        if(fatal){ break; }
+        console.error("Tagging failed at", ev.t, error);
+        st.errors++;
+        st.lastError = error.message || String(error);
+      }
+      v.period_marks = { ...v.period_marks, _untagged: rest };
+      if(++sinceSave >= 5 || !rest.length){ sinceSave = 0; await saveReviewMarks(v); }
+    }
+
+    if(isCurrent() && !fatal && !reviewPendingBatches(v).length && !reviewUntagged(v).length){
+      const { _batches, _untagged, ...rest } = v.period_marks;
+      v.period_marks = rest;
+      await saveReviewMarks(v);
+      stopReviewBatchPolling();
+      finished = true;
+      showToast(
+        `AI results are in: ${st.found} new shot${st.found === 1 ? "" : "s"} added (${st.confirmed} confirmed, ${st.unsure} possible, ${st.duplicate} already on your list, ${st.rejected} ruled out${st.errors ? `, ${st.errors} errors: ${st.lastError}` : ""}). Check each one, then approve.`,
+        st.found ? "success" : "error"
+      );
+    }
+
+  }
+  catch(error){
+    console.error(error);
+    if(manual || error.status === 401 || error.status === 403){
+      showToast(error.message || "Couldn't check the AI results.", "error");
+    }
+  }
+  finally{
+    tagger.destroy();
+    review.collecting = false;
+    if(isCurrent()){
+      renderReviewHeader();
+      renderReviewScanBar();
+      renderReviewTimeline();
+      if(finished){
+        document.getElementById("rv-scanbar").hidden = false;
+        document.getElementById("rv-scan-text").textContent = `Last scan: ${st.found} shots added, ${st.flagged} moments flagged, ${st.duplicate} already on your list, ${st.rejected} ruled out.`;
+      }
+    }
+    if(fatal){ stopReviewBatchPolling(); showToast(fatal.message, "error"); }
+  }
+
+}
+
 function toggleReviewScan(){
   if(review.scanning){
     review.scanning = false;
     renderReviewHeader();
+    return;
+  }
+  if(review.collecting){ return; }
+  if(review.video && (reviewPendingBatches(review.video).length || reviewUntagged(review.video).length)){
+    collectReviewBatches(true);
     return;
   }
   runReviewScan();
@@ -21678,7 +21931,7 @@ function toggleReviewScan(){
 async function runReviewScan(){
 
   const v = review.video;
-  if(!v || review.scanning){ return; }
+  if(!v || review.scanning || review.collecting){ return; }
 
   if(Number(v.scan_progress) >= 1){
     if(!confirm("The AI already scanned this whole game. Scan it again? Shots already on the list are kept; new ones are added only where there isn't one within a few seconds.")){ return; }
@@ -21692,7 +21945,7 @@ async function runReviewScan(){
   }
 
   review.scanning = true;
-  review.scanStats = { found: 0, batches: 0, flagged: 0, confirmed: 0, unsure: 0, rejected: 0, duplicate: 0, errors: 0, lastError: "" };
+  review.scanStats = newReviewScanStats();
   renderReviewPreview(null);
   renderReviewHeader();
   renderReviewScanBar();
@@ -21706,6 +21959,7 @@ async function runReviewScan(){
   let tagWorker = null;
   let lastSave = 0;
   let failure = null;
+  let halfPrice = false;
 
   const isCurrent = () => review.video && review.video.id === v.id;
 
@@ -21720,57 +21974,13 @@ async function runReviewScan(){
     }).eq("id", v.id);
   };
 
-  const tagOne = async (ev) => {
-    const st = review.scanStats;
-    if(review.drafts.some(d => d.game_video_id === v.id && Math.abs(Number(d.t_seconds) - ev.t) < REVIEW_MIN_GAP)){
-      st.duplicate++;
-      renderReviewScanBar();
-      return;
-    }
-    if(Number(ev.confidence) < REVIEW_KEEP_UNSURE){
-      st.rejected++;
-      review.candidates.push({ t: ev.t, confidence: Number(ev.confidence) || 0 });
-      renderReviewTimeline();
-      renderReviewScanBar();
-      return;
-    }
-    // The closer look fills in the details. It never removes a moment:
-    // the admin decides what stays.
-    let res = { shot: null, model: null };
-    try{ res = await aiOnStoredVideo("tag", burstTimes(ev.t), REVIEW_TAG_WIDTH, tagger); }
-    catch(error){ if(error.status === 403 || error.status === 503 || error.status === 404){ throw error; } }
-    if(!isCurrent()){ return; }
-    let shot = res.shot;
-    if(!shot || !shot.shot_detected){
-      shot = { ...(shot || {}), shot_detected: true, outcome: ev.goal ? "goal" : "save",
-        confidence: Math.min(Number(ev.confidence) || 0, 0.4),
-        notes: "Possible shot: action spotted here but the closer look couldn't confirm a shot. Watch it, then keep, fix or delete." };
-      st.unsure++;
-    }
-    else{
-      st.confirmed++;
-    }
-    if(ev.goal && shot.outcome !== "goal"){ shot.notes = (shot.notes ? shot.notes + " " : "") + "The scan thought this might be a goal; check."; }
-    await insertReviewDraft(draftRowFromAi(shot, ev.t, res.model));
-    st.found++;
-    renderReviewShots();
-    renderReviewScanBar();
-  };
-
   const runTagWorker = async () => {
     while(tagQueue.length){
       const ev = tagQueue.shift();
-      try{ await tagOne(ev); }
+      try{ await reviewTagEvent(v, ev, tagger); }
       catch(error){
-        // The review tables missing (migration not run, or Supabase's
-        // schema cache not refreshed) means nothing can be saved: stop
-        // rather than spend AI calls on shots that would be lost.
-        if(/schema cache|does not exist|video_shot_drafts/i.test(error.message || "")){
-          failure = new Error("The AI found shots but couldn't save them: the review table isn't set up in Supabase yet. Run supabase/migrations/20261007_video_review.sql, then run: notify pgrst, 'reload schema'; and Re-run AI.");
-          review.scanning = false;
-          tagQueue.length = 0;
-        }
-        else if(error.status === 403 || error.status === 503 || error.status === 404 || /CORS|blocked/.test(error.message)){ failure = error; review.scanning = false; tagQueue.length = 0; }
+        const fatal = reviewTagFatal(error);
+        if(fatal){ failure = fatal; review.scanning = false; tagQueue.length = 0; }
         else{
           console.error("Tagging failed at", ev.t, error);
           review.scanStats.errors++;
@@ -21791,6 +22001,9 @@ async function runReviewScan(){
     v.duration_seconds = duration;
 
     const scanStep = REVIEW_SCAN_STEPS[(document.getElementById("rv-scan-density") || {}).value] || REVIEW_SCAN_STEPS.normal;
+    halfPrice = reviewServerFrames && (document.getElementById("rv-scan-mode") || {}).value !== "instant";
+    review.scanHalfPrice = halfPrice;
+    const perCall = halfPrice ? REVIEW_BATCH_TIMES : REVIEW_SCAN_BATCH;
     let t = Number(v.scan_cursor) || 0;
     v.scan_cursor = t;
     // Each stretch is keyed by exactly where the previous one ended, so
@@ -21800,7 +22013,7 @@ async function runReviewScan(){
     while(t < duration && review.scanning && isCurrent()){
 
       const times = [];
-      while(times.length < REVIEW_SCAN_BATCH && t < duration){ times.push(Math.round(t * 100) / 100); t += scanStep; }
+      while(times.length < perCall && t < duration){ times.push(Math.round(t * 100) / 100); t += scanStep; }
 
       const batchStart = v.scan_cursor_next;
       const batchEnd = t;
@@ -21810,14 +22023,26 @@ async function runReviewScan(){
       if(!review.scanning){ break; }
 
       const wantPreview = review.scanStats.batches === 0 && inflight.size === 0;
-      const job = aiOnStoredVideo("detect", times, REVIEW_SCAN_WIDTH, sampler, wantPreview ? { debug: true } : null)
+      const request = halfPrice
+        ? callClipAi({ mode: "detect", batch: true, gameVideoId: v.id, times, width: REVIEW_SCAN_WIDTH, ...(wantPreview ? { debug: true } : {}) })
+        : aiOnStoredVideo("detect", times, REVIEW_SCAN_WIDTH, sampler, wantPreview ? { debug: true } : null);
+      const job = request
         .then(res => {
           review.scanStats.batches++;
-          review.scanStats.flagged += (res.events || []).length;
-          addActionTimes([...(res.zone || []), ...(res.events || []).map(e => e.t)], scanStep);
+          review.scanStats.skipped += Number(res.skipped) || 0;
           if(res.preview){ renderReviewPreview(res.preview); }
-          (res.events || []).forEach(ev => tagQueue.push(ev));
-          if(tagQueue.length && !tagWorker){ tagWorker = runTagWorker(); }
+          if(halfPrice){
+            // Answers come later: keep the batch so they can be collected.
+            if(res.batchId){ queueReviewBatch(v, res, scanStep); }
+            review.scanStats.sent += Number(res.sent) || 0;
+          }
+          else{
+            review.scanStats.sent += Number(res.frameCount) || 0;
+            review.scanStats.flagged += (res.events || []).length;
+            addActionTimes([...(res.zone || []), ...(res.events || []).map(e => e.t)], scanStep);
+            (res.events || []).forEach(ev => tagQueue.push(ev));
+            if(tagQueue.length && !tagWorker){ tagWorker = runTagWorker(); }
+          }
           completed.set(batchStart, batchEnd);
           while(completed.has(v.scan_cursor)){
             const end = completed.get(v.scan_cursor);
@@ -21826,9 +22051,15 @@ async function runReviewScan(){
           }
           renderReviewTimeline();
           renderReviewScanBar();
-          return persistCursor(false);
+          // A queued batch is paid for: save it straight away.
+          return persistCursor(halfPrice);
         })
-        .catch(error => { failure = error; review.scanning = false; })
+        .catch(error => {
+          failure = halfPrice && error.status === 501
+            ? new Error("Half-price scans need the server to read the video, and it can't right now. Set AI cost to Instant and run the AI again.")
+            : error;
+          review.scanning = false;
+        })
         .finally(() => inflight.delete(job));
 
       inflight.add(job);
@@ -21864,9 +22095,16 @@ async function runReviewScan(){
       console.error(failure);
       showToast(failure.message || "The AI scan stopped.", "error");
     }
-    else if(isCurrent() && Number(v.scan_progress) >= 1){
+    if(halfPrice && isCurrent()){
+      if(!failure && Number(v.scan_progress) >= 1){
+        const st = review.scanStats;
+        showToast(`Game sent to the AI at half price: ${st.sent} stills${st.skipped ? `, ${st.skipped} dead-time stills skipped` : ""}. Results usually come back within an hour. They're collected while this request is open, so you can close it and come back.`, "success");
+      }
+      startReviewBatchPolling();
+    }
+    else if(!failure && isCurrent() && Number(v.scan_progress) >= 1){
       const st = review.scanStats;
-      const summary = `${st.batches} stretches checked, ${st.flagged} moments flagged, ${st.confirmed} confirmed, ${st.unsure} kept as possible, ${st.duplicate} already on your list, ${st.rejected} ruled out${st.errors ? `, ${st.errors} errors (${st.lastError})` : ""}.`;
+      const summary = `${st.batches} stretches checked${st.skipped ? ` (${st.skipped} dead-time stills skipped)` : ""}, ${st.flagged} moments flagged, ${st.confirmed} confirmed, ${st.unsure} kept as possible, ${st.duplicate} already on your list, ${st.rejected} ruled out${st.errors ? `, ${st.errors} errors (${st.lastError})` : ""}.`;
       const allKnown = !st.found && st.flagged > 0 && st.duplicate > 0 && !st.errors;
       showToast(
         st.found

@@ -14,6 +14,16 @@
 // tracked goalie's net appears to happen. The admin review screen
 // scans a game with "detect", then runs "tag" on a short burst of
 // frames around each hit.
+//   Stills where nothing moves (intermissions, an empty rink, a black
+//   or frozen feed) are dropped before the AI sees them; `skipped` in
+//   the reply says how many.
+//   batch: true (stored videos only, up to 48 times): instead of
+//   answering now, the stills go to Anthropic's Message Batches API at
+//   half the price. Replies { batchId, requests: [{ id, times }] }.
+// mode "batch-results": { batches: [{ id, requests: { [id]: times } }] }
+//   collects finished batches: per batch { id, status: "pending" } or
+//   { id, status: "done", events, zone, failed: [times] }. `failed`
+//   stretches can be re-run with a normal "detect" call.
 //
 // The browser pulls a handful of still frames out of one pre-trimmed
 // shot clip (it already has the file in hand while uploading it), so
@@ -27,6 +37,8 @@
 // Vercel environment variables:
 //   ANTHROPIC_API_KEY   the same key AI Coach uses
 //   CLIP_AI_MODEL       optional; defaults to claude-opus-5-5
+//   SCAN_STILL_THRESHOLD  optional; share of a still that must change for
+//                       it to count as live play (default 0.004; 0 = off)
 
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -35,11 +47,16 @@ import {
   storagePathIsTrusted, sendServerError,
 } from "../_lib/supabase.js";
 import { claude, claudeConfigured, textOf } from "../_lib/claude.js";
-import { ffmpegAvailable, grabFrames } from "../_lib/frames.js";
+import { ffmpegAvailable, grabFrames, deadFrames } from "../_lib/frames.js";
 
 const MODEL = (process.env.CLIP_AI_MODEL || "claude-opus-5-5").trim();
 
 const MAX_FRAMES = 16;
+// A half-price scan sends a longer stretch per call (as several requests
+// of up to MAX_FRAMES each) so a game needs fewer batches.
+const MAX_BATCH_TIMES = 48;
+const MAX_POLL_BATCHES = 200;
+const BATCH_ID_RE = /^msgbatch_[A-Za-z0-9]{1,100}$/;
 // ~450 KB of JPEG per frame; the browser sends ~640px frames at ~60 KB.
 const MAX_FRAME_BASE64 = 600 * 1024;
 
@@ -141,8 +158,8 @@ function cleanFrames(frames) {
   return out;
 }
 
-function cleanTimes(times) {
-  if (!Array.isArray(times) || !times.length || times.length > MAX_FRAMES) return null;
+function cleanTimes(times, max = MAX_FRAMES) {
+  if (!Array.isArray(times) || !times.length || times.length > max) return null;
   const out = times.map(Number);
   return out.every(t => Number.isFinite(t) && t >= 0 && t < 6 * 3600) ? out : null;
 }
@@ -150,7 +167,7 @@ function cleanTimes(times) {
 // Frames for a stored video: the row is read with the caller's own
 // token (RLS), its path must belong to its owner, then ffmpeg reads the
 // requested moments over a short-lived signed URL.
-async function framesFromStoredVideo(gameVideoId, times, width, accessToken) {
+async function framesFromStoredVideo(gameVideoId, times, width, accessToken, thumbs = false) {
   const rows = await userSelect("game_videos", `id=eq.${encodeURIComponent(gameVideoId)}&select=*`, accessToken);
   const row = rows[0];
   if (!row || !(await storagePathIsTrusted(row))) {
@@ -163,7 +180,107 @@ async function framesFromStoredVideo(gameVideoId, times, width, accessToken) {
     new GetObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: row.storage_path }),
     { expiresIn: 60 * 15 }
   );
-  return grabFrames(url, times, width);
+  return grabFrames(url, times, width, thumbs ? 6 : 4, thumbs);
+}
+
+// ---- detect: one request's content, and reading its answer ----
+
+function detectContent(frames, jersey) {
+  const content = [];
+  frames.forEach((frame, i) => {
+    content.push({ type: "text", text: `Frame ${i + 1}${frame.t !== null ? ` at ${frame.t}s` : ""}:` });
+    content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: frame.data } });
+  });
+  content.push({
+    type: "text",
+    text: (jersey ? `The tracked goalie's team wears ${jersey}. ` : "") + "List the shot events in these frames.",
+  });
+  return content;
+}
+
+function detectParams(frames, jersey) {
+  return {
+    model: MODEL,
+    max_tokens: 6000,
+    output_config: {
+      effort: "low",
+      format: { type: "json_schema", schema: DETECT_SCHEMA },
+    },
+    system: DETECT_PROMPT,
+    messages: [{ role: "user", content: detectContent(frames, jersey) }],
+  };
+}
+
+// Frame numbers in the answer -> timestamps. `frames` only needs `t`.
+function readDetect(parsed, frames) {
+  const seen = new Set();
+  const events = (Array.isArray(parsed.events) ? parsed.events : [])
+    .map(e => {
+      const i = Math.round(Number(e.frame)) - 1;
+      const f = frames[i];
+      if (!f || f.t === null || seen.has(i)) return null;
+      seen.add(i);
+      return { t: f.t, goal: e.goal === true, confidence: clamp(e.confidence, 0, 1) ?? 0 };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.t - b.t);
+
+  const zone = [...new Set((Array.isArray(parsed.zone_frames) ? parsed.zone_frames : [])
+    .map(n => frames[Math.round(Number(n)) - 1])
+    .filter(f => f && f.t !== null)
+    .map(f => f.t))].sort((a, b) => a - b);
+
+  return { events, zone };
+}
+
+// ---- batch-results ----
+
+async function collectBatch(entry) {
+  const id = String(entry && entry.id || "");
+  const requests = entry && entry.requests && typeof entry.requests === "object" ? entry.requests : null;
+  if (!BATCH_ID_RE.test(id) || !requests) return { id, status: "invalid" };
+
+  const timesById = {};
+  for (const [rid, times] of Object.entries(requests)) {
+    const clean = cleanTimes(times);
+    if (clean && /^r\d{1,3}$/.test(rid)) timesById[rid] = clean;
+  }
+
+  const batch = await claude().messages.batches.retrieve(id);
+  if (batch.processing_status !== "ended") {
+    return { id, status: "pending", counts: batch.request_counts };
+  }
+
+  const events = [];
+  const zone = [];
+  const failed = [];
+  const answered = new Set();
+
+  for await (const item of await claude().messages.batches.results(id)) {
+    const times = timesById[item.custom_id];
+    if (!times) continue;
+    answered.add(item.custom_id);
+    const frames = times.map(t => ({ t: Math.round(t * 100) / 100 }));
+    if (item.result.type !== "succeeded") {
+      failed.push(times);
+      continue;
+    }
+    const message = item.result.message;
+    if (message.stop_reason === "refusal") continue;
+    try {
+      const got = readDetect(JSON.parse(textOf(message)), frames);
+      events.push(...got.events);
+      zone.push(...got.zone);
+    } catch (parseError) {
+      console.error("Unparseable batch detect result:", id, item.custom_id, parseError);
+      failed.push(times);
+    }
+  }
+
+  // Anything the batch has no answer for gets re-run.
+  Object.keys(timesById).forEach(rid => { if (!answered.has(rid)) failed.push(timesById[rid]); });
+
+  return { id, status: "done", events, zone, failed };
 }
 
 function clamp(n, lo, hi) {
@@ -199,6 +316,62 @@ function cleanShot(raw) {
   };
 }
 
+async function batchResults(req, res) {
+  const { accessToken, batches } = req.body || {};
+  if (!accessToken || !Array.isArray(batches) || !batches.length || batches.length > MAX_POLL_BATCHES) {
+    res.status(400).json({ error: `Send between 1 and ${MAX_POLL_BATCHES} batches.` });
+    return;
+  }
+  if (!claudeConfigured()) {
+    res.status(503).json({ error: "AI clip tagging isn't set up yet (ANTHROPIC_API_KEY is missing)." });
+    return;
+  }
+  try {
+    const user = await verifyUser(accessToken);
+    if (!user) {
+      res.status(401).json({ error: "Invalid or expired session." });
+      return;
+    }
+    if ((await callerRole(user.id, accessToken)) !== "admin") {
+      res.status(403).json({ error: "AI clip tagging is available to admin accounts only." });
+      return;
+    }
+
+    // Status checks are quick; reading results is not, so at most a
+    // few finished batches are read per call and the rest wait for the
+    // next check.
+    const out = [];
+    let reads = 0;
+    const statuses = await Promise.all(batches.map(async b => {
+      const id = String(b && b.id || "");
+      if (!BATCH_ID_RE.test(id)) return "invalid";
+      try {
+        return (await claude().messages.batches.retrieve(id)).processing_status;
+      } catch (error) {
+        console.error("Batch status failed:", id, error);
+        return error && error.status === 404 ? "missing" : "unknown";
+      }
+    }));
+
+    for (let i = 0; i < batches.length; i++) {
+      const id = String(batches[i] && batches[i].id || "");
+      if (statuses[i] === "ended" && reads < 8) {
+        reads++;
+        out.push(await collectBatch(batches[i]));
+      } else if (statuses[i] === "missing" || statuses[i] === "invalid") {
+        // Gone or never valid: hand its stretches back for a re-run.
+        out.push({ id, status: "done", events: [], zone: [], failed: Object.values((batches[i] && batches[i].requests) || {}).map(t => cleanTimes(t)).filter(Boolean) });
+      } else {
+        out.push({ id, status: "pending" });
+      }
+    }
+
+    res.status(200).json({ batches: out });
+  } catch (error) {
+    sendServerError(res, error, "Couldn't check the AI results.");
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
@@ -206,13 +379,20 @@ export default async function handler(req, res) {
   }
 
   const { accessToken, frames, context, mode, gameVideoId, times, width } = req.body || {};
+
+  if (mode === "batch-results") {
+    await batchResults(req, res);
+    return;
+  }
+
   const detect = mode === "detect";
   const fromVideo = gameVideoId !== undefined && gameVideoId !== null;
-  const cleanedTimes = fromVideo ? cleanTimes(times) : null;
+  const asBatch = detect && fromVideo && req.body.batch === true;
+  const cleanedTimes = fromVideo ? cleanTimes(times, asBatch ? MAX_BATCH_TIMES : MAX_FRAMES) : null;
   let cleanedFrames = fromVideo ? null : cleanFrames(frames);
 
   if (!accessToken || (fromVideo ? !cleanedTimes : !cleanedFrames)) {
-    res.status(400).json({ error: `Send between 1 and ${MAX_FRAMES} frames or timestamps.` });
+    res.status(400).json({ error: `Send between 1 and ${asBatch ? MAX_BATCH_TIMES : MAX_FRAMES} frames or timestamps.` });
     return;
   }
 
@@ -241,7 +421,7 @@ export default async function handler(req, res) {
     if (fromVideo) {
       const w = Math.max(240, Math.min(960, Number(width) || 640));
       try {
-        cleanedFrames = await framesFromStoredVideo(gameVideoId, cleanedTimes, w, accessToken);
+        cleanedFrames = await framesFromStoredVideo(gameVideoId, cleanedTimes, w, accessToken, detect);
       } catch (error) {
         if (error.status === 404) {
           res.status(404).json({ error: "Video not found." });
@@ -260,31 +440,48 @@ export default async function handler(req, res) {
       : "";
 
     if (detect) {
-      const content = [];
-      cleanedFrames.forEach((frame, i) => {
-        content.push({ type: "text", text: `Frame ${i + 1}${frame.t !== null ? ` at ${frame.t}s` : ""}:` });
-        content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: frame.data } });
-      });
-      content.push({
-        type: "text",
-        text: (jersey ? `The tracked goalie's team wears ${jersey}. ` : "") + "List the shot events in these frames.",
-      });
+      // Dead time never reaches the AI. Only stored-video stills carry
+      // the thumbnails this needs; browser-sent frames all go through.
+      const dead = deadFrames(cleanedFrames);
+      const total = cleanedFrames.length;
+      const live = cleanedFrames.filter((f, i) => !dead[i]).map(({ t, data }) => ({ t, data }));
+      const skipped = total - live.length;
+      const preview = req.body && req.body.debug ? live.slice(0, 6) : undefined;
+
+      if (!live.length) {
+        res.status(200).json(asBatch
+          ? { batchId: null, requests: [], skipped, sent: 0 }
+          : { events: [], zone: [], model: MODEL, frameCount: 0, skipped, preview });
+        return;
+      }
+
+      if (asBatch) {
+        const requests = [];
+        for (let i = 0; i < live.length; i += MAX_FRAMES) {
+          const chunk = live.slice(i, i + MAX_FRAMES);
+          requests.push({ custom_id: `r${requests.length}`, params: detectParams(chunk, jersey), times: chunk.map(f => f.t) });
+        }
+        const batch = await claude().messages.batches.create({
+          requests: requests.map(({ custom_id, params }) => ({ custom_id, params })),
+        });
+        res.status(200).json({
+          batchId: batch.id,
+          requests: requests.map(r => ({ id: r.custom_id, times: r.times })),
+          skipped,
+          sent: live.length,
+          preview,
+        });
+        return;
+      }
 
       const message = await claude().beta.messages.create({
-        model: MODEL,
-        max_tokens: 6000,
+        ...detectParams(live, jersey),
         betas: ["server-side-fallback-2026-07-01"],
         fallbacks: "default",
-        output_config: {
-          effort: "low",
-          format: { type: "json_schema", schema: DETECT_SCHEMA },
-        },
-        system: DETECT_PROMPT,
-        messages: [{ role: "user", content }],
       });
 
       if (message.stop_reason === "refusal") {
-        res.status(200).json({ events: [] });
+        res.status(200).json({ events: [], zone: [], skipped });
         return;
       }
 
@@ -297,31 +494,17 @@ export default async function handler(req, res) {
         return;
       }
 
-      const seen = new Set();
-      const events = (Array.isArray(parsed.events) ? parsed.events : [])
-        .map(e => {
-          const i = Math.round(Number(e.frame)) - 1;
-          const f = cleanedFrames[i];
-          if (!f || f.t === null || seen.has(i)) return null;
-          seen.add(i);
-          return { t: f.t, goal: e.goal === true, confidence: clamp(e.confidence, 0, 1) ?? 0 };
-        })
-        .filter(Boolean)
-        .sort((a, b) => a.t - b.t);
-
-      const zone = [...new Set((Array.isArray(parsed.zone_frames) ? parsed.zone_frames : [])
-        .map(n => cleanedFrames[Math.round(Number(n)) - 1])
-        .filter(f => f && f.t !== null)
-        .map(f => f.t))].sort((a, b) => a - b);
+      const { events, zone } = readDetect(parsed, live);
 
       res.status(200).json({
         events,
         zone,
         model: message.model || MODEL,
-        frameCount: cleanedFrames.length,
+        frameCount: live.length,
+        skipped,
         // A few of the frames the AI looked at, so the admin can check
         // they're the right moments and clear enough to judge.
-        preview: req.body && req.body.debug ? cleanedFrames.slice(0, 6).map(f => ({ t: f.t, data: f.data })) : undefined,
+        preview,
       });
       return;
     }
