@@ -3407,7 +3407,16 @@
           <span class="small-note" id="rv-period-note"></span>
         </div>
 
-        <p class="small-note rv-keys">Keys: Space play/pause · ← → 5 seconds · ] [ next or previous action · S add a shot · N / P next or previous shot · G toggle goal</p>
+        <div class="rv-periods rv-cuts">
+          <span class="rv-periods-label">Cut from AI (warm-up, intermissions, after the game):</span>
+          <button type="button" class="btn-secondary" onclick="cutReviewGameEdge('start')">Game starts here</button>
+          <button type="button" class="btn-secondary" id="rv-cut-btn" onclick="toggleReviewCut()">Cut starts here</button>
+          <button type="button" class="btn-secondary" onclick="cutReviewGameEdge('end')">Game ends here</button>
+          <span class="small-note" id="rv-cut-note"></span>
+          <div class="rv-cut-list" id="rv-cut-list"></div>
+        </div>
+
+        <p class="small-note rv-keys">Keys: Space play/pause · ← → 5 seconds · ] [ next or previous action · S add a shot · N / P next or previous shot · G toggle goal · X start or end a cut</p>
 
       </div>
 
@@ -20881,6 +20890,7 @@ async function openReview(videoId){
   review.video = { ...v, period_marks: v.period_marks || {} };
   review.scanStats = null;
   review.batchCheckedAt = 0;
+  review.cutStart = null;
   review.drafts = [];
   review.candidates = [];
   review.selectedId = null;
@@ -21149,7 +21159,14 @@ function renderReviewTimeline(){
 
   const marks = (v && v.period_marks) || {};
 
+  const cutHtml = reviewCuts(v).map(r =>
+    `<span class="rv-cut" style="left:${pct(r[0])}%;width:${Math.max(0.3, pct(r[1]) - pct(r[0]))}%" title="Cut from AI: ${escapeHtml(formatClock(r[0]))} to ${escapeHtml(formatClock(r[1]))}"></span>`
+  ).join("") + (review.cutStart !== null && review.cutStart !== undefined
+    ? `<span class="rv-cut is-open" style="left:${pct(review.cutStart)}%;width:${Math.max(0.3, pct(document.getElementById("rv-video").currentTime) - pct(review.cutStart))}%"></span>`
+    : "");
+
   ticks.innerHTML =
+    cutHtml +
     actionHtml +
     ["2", "3", "OT"].filter(k => marks[k] !== undefined && marks[k] !== null).map(k =>
       `<span class="rv-pmark" style="left:${pct(marks[k])}%" title="${k === "OT" ? "OT" : k === "2" ? "2nd period" : "3rd period"} starts ${formatClock(marks[k])}">${k === "OT" ? "OT" : k}</span>`
@@ -21164,6 +21181,7 @@ function renderReviewTimeline(){
 
   updateReviewPlayhead();
   renderReviewActionNote();
+  renderReviewCuts();
 
 }
 
@@ -21172,6 +21190,12 @@ function updateReviewPlayhead(){
   const d = reviewDuration();
   const head = document.getElementById("rv-playhead");
   if(head){ head.style.left = d ? `${Math.min(100, video.currentTime / d * 100)}%` : "0"; }
+  const openCut = document.querySelector("#rv-ticks .rv-cut.is-open");
+  if(openCut && d && review.cutStart !== null && review.cutStart !== undefined){
+    const a = Math.min(review.cutStart, video.currentTime), b = Math.max(review.cutStart, video.currentTime);
+    openCut.style.left = `${a / d * 100}%`;
+    openCut.style.width = `${Math.max(0.3, (b - a) / d * 100)}%`;
+  }
   const time = document.getElementById("rv-time");
   if(time){ time.textContent = `${formatClock(video.currentTime)} / ${formatClock(d)}`; }
   const play = document.getElementById("rv-play-btn");
@@ -21454,6 +21478,99 @@ async function markReviewPeriod(period){
   if(error){ showToast(`Could not save the period mark: ${error.message}`, "error"); return; }
   renderReviewHeader();
   renderReviewShots();
+}
+
+/* ---------- cuts: stretches the AI never scans ----------
+   Saved in period_marks._cuts as [start, end] pairs (seconds). The
+   video itself isn't changed; the scan just jumps over them. */
+
+function reviewCuts(v){
+  const raw = (v && v.period_marks && Array.isArray(v.period_marks._cuts)) ? v.period_marks._cuts : [];
+  return raw.filter(r => Array.isArray(r) && Number.isFinite(Number(r[0])) && Number(r[1]) > Number(r[0]))
+    .map(r => [Number(r[0]), Number(r[1])]).sort((a, b) => a[0] - b[0]);
+}
+
+function mergeReviewCuts(list){
+  const out = [];
+  list.map(r => [Math.max(0, r[0]), r[1]]).filter(r => r[1] > r[0]).sort((a, b) => a[0] - b[0]).forEach(r => {
+    const last = out[out.length - 1];
+    if(last && r[0] <= last[1] + 0.5){ last[1] = Math.max(last[1], r[1]); }
+    else{ out.push([r[0], r[1]]); }
+  });
+  return out.map(r => [Math.round(r[0] * 10) / 10, Math.round(r[1] * 10) / 10]);
+}
+
+async function saveReviewCuts(list){
+  const v = review.video;
+  if(!v){ return; }
+  const before = v.period_marks;
+  v.period_marks = { ...(v.period_marks || {}), _cuts: mergeReviewCuts(list) };
+  try{ await saveReviewMarks(v); }
+  catch(error){
+    v.period_marks = before;
+    showToast(`Could not save the cut: ${error.message}`, "error");
+  }
+  renderReviewTimeline();
+}
+
+function toggleReviewCut(){
+  const v = review.video;
+  if(!v){ return; }
+  const now = Math.round(document.getElementById("rv-video").currentTime * 10) / 10;
+  if(review.cutStart === null || review.cutStart === undefined){
+    review.cutStart = now;
+    renderReviewTimeline();
+    return;
+  }
+  const a = Math.min(review.cutStart, now);
+  const b = Math.max(review.cutStart, now);
+  review.cutStart = null;
+  if(b - a < 1){
+    showToast("Play or skip to where the cut ends first, then press Cut ends here.", "error");
+    renderReviewTimeline();
+    return;
+  }
+  saveReviewCuts([...reviewCuts(v), [a, b]]);
+}
+
+function cutReviewGameEdge(edge){
+  const v = review.video;
+  const d = reviewDuration();
+  if(!v || !d){ return; }
+  const now = Math.round(document.getElementById("rv-video").currentTime * 10) / 10;
+  if(edge === "start" && now < 1){ showToast("Move the video to where the game starts first.", "error"); return; }
+  if(edge === "end" && now > d - 1){ showToast("Move the video to where the game ends first.", "error"); return; }
+  // Replaces any earlier "starts" / "ends" cut rather than stacking them.
+  const keep = reviewCuts(v).filter(r => edge === "start" ? r[0] > 0.5 : r[1] < d - 0.5);
+  saveReviewCuts([...keep, edge === "start" ? [0, now] : [now, Math.ceil(d)]]);
+}
+
+function removeReviewCut(i){
+  const list = reviewCuts(review.video);
+  list.splice(i, 1);
+  saveReviewCuts(list);
+}
+
+function renderReviewCuts(){
+  const v = review.video;
+  const box = document.getElementById("rv-cut-list");
+  const note = document.getElementById("rv-cut-note");
+  const btn = document.getElementById("rv-cut-btn");
+  if(!v || !box){ return; }
+  const open = review.cutStart !== null && review.cutStart !== undefined;
+  btn.textContent = open ? "Cut ends here" : "Cut starts here";
+  btn.classList.toggle("is-on", open);
+  const cuts = reviewCuts(v);
+  const d = reviewDuration();
+  const cutSeconds = cuts.reduce((sum, r) => sum + Math.max(0, Math.min(r[1], d || r[1]) - r[0]), 0);
+  note.textContent = open
+    ? `Cutting from ${formatClock(review.cutStart)}. Go to where play resumes and press Cut ends here (or X).`
+    : cuts.length
+      ? `The AI skips ${formatClock(cutSeconds)}${d ? ` of ${formatClock(d)} (${Math.round(cutSeconds / d * 100)}% less to pay for)` : ""}.`
+      : "Nothing cut yet: the AI scans the whole video.";
+  box.innerHTML = cuts.map((r, i) =>
+    `<span class="rv-cut-chip"><button type="button" class="rv-cut-jump" onclick="reviewJumpTo(${r[0] + 2})" title="Jump to this cut">${escapeHtml(formatClock(r[0]))}–${escapeHtml(formatClock(r[1]))}</button><button type="button" class="rv-cut-x" onclick="removeReviewCut(${i})" aria-label="Remove the cut from ${escapeHtml(formatClock(r[0]))} to ${escapeHtml(formatClock(r[1]))}">×</button></span>`
+  ).join("");
 }
 
 async function markReviewInProgress(){
@@ -22004,6 +22121,9 @@ async function runReviewScan(){
     halfPrice = reviewServerFrames && (document.getElementById("rv-scan-mode") || {}).value !== "instant";
     review.scanHalfPrice = halfPrice;
     const perCall = halfPrice ? REVIEW_BATCH_TIMES : REVIEW_SCAN_BATCH;
+    const cuts = reviewCuts(v);
+    // Parts the admin cut (warm-up, intermissions…) are jumped over.
+    const pastCuts = x => { const c = cuts.find(r => x >= r[0] && x < r[1]); return c ? c[1] : x; };
     let t = Number(v.scan_cursor) || 0;
     v.scan_cursor = t;
     // Each stretch is keyed by exactly where the previous one ended, so
@@ -22013,7 +22133,14 @@ async function runReviewScan(){
     while(t < duration && review.scanning && isCurrent()){
 
       const times = [];
-      while(times.length < perCall && t < duration){ times.push(Math.round(t * 100) / 100); t += scanStep; }
+      while(times.length < perCall && t < duration){
+        t = pastCuts(t);
+        if(t >= duration){ break; }
+        times.push(Math.round(t * 100) / 100);
+        t += scanStep;
+      }
+      t = pastCuts(t);
+      if(!times.length){ break; }
 
       const batchStart = v.scan_cursor_next;
       const batchEnd = t;
@@ -22724,6 +22851,7 @@ async function loadReviewUser(userId){
     else if(e.key === "ArrowLeft"){ e.preventDefault(); reviewSeekBy(-5); }
     else if(e.key === "ArrowRight"){ e.preventDefault(); reviewSeekBy(5); }
     else if(k === "s"){ e.preventDefault(); addReviewShotHere(); }
+    else if(k === "x"){ e.preventDefault(); toggleReviewCut(); }
     else if(e.key === "]"){ e.preventDefault(); jumpReviewAction(1); }
     else if(e.key === "["){ e.preventDefault(); jumpReviewAction(-1); }
     else if(k === "n" || k === "p"){
