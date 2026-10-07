@@ -19758,7 +19758,6 @@ async function uploadGameVideo(){
       const { data: newGame, error: newGameError } =
         await supabaseClient.from("Games").insert({
           user_id: userId,
-          created_at: new Date().toISOString().slice(0, 10),
           date: requestedGame.date,
           opponent: requestedGame.opponent,
           home_away: requestedGame.home_away
@@ -20895,7 +20894,6 @@ async function approveReview(){
       const rg = v.requested_game || {};
       const { data: newGame, error } = await supabaseClient.from("Games").insert({
         user_id: v.user_id,
-        created_at: new Date().toISOString().slice(0, 10),
         date: rg.date || null,
         opponent: rg.opponent || "Unknown",
         home_away: rg.home_away || null,
