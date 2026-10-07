@@ -4586,3 +4586,33 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
 }
 
 .lp-bar.is-page .lp-wordmark span{ color:var(--pine-bright); }
+
+.rv-preview{
+  display:flex;
+  align-items:flex-end;
+  gap:8px;
+  flex-wrap:wrap;
+  margin:-6px 0 16px;
+}
+
+.rv-preview .small-note{ width:100%; margin:0 0 2px; }
+
+.rv-preview figure{
+  margin:0;
+  width:150px;
+}
+
+.rv-preview img{
+  display:block;
+  width:100%;
+  aspect-ratio:16 / 9;
+  object-fit:cover;
+  border-radius:4px;
+  background:#000;
+}
+
+.rv-preview figcaption{
+  font-size:11px;
+  color:var(--muted-ink);
+  font-variant-numeric:tabular-nums;
+}

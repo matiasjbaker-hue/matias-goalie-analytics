@@ -3319,6 +3319,8 @@
       <span id="rv-scan-text" aria-live="polite"></span>
     </div>
 
+    <div class="rv-preview" id="rv-preview" hidden></div>
+
     <div class="rv-grid">
 
       <div class="rv-player-col">
@@ -19820,8 +19822,11 @@ async function uploadGameVideo(){
 
 const REVIEW_SCAN_STEP = 2.5;        // seconds between detection stills
 const REVIEW_SCAN_BATCH = 12;        // stills per detection request
-const REVIEW_SCAN_WIDTH = 448;
-const REVIEW_TAG_WIDTH = 640;
+const REVIEW_SCAN_WIDTH = 640;
+const REVIEW_TAG_WIDTH = 960;
+// A detect flag at least this sure is kept as a "possible shot" for the
+// admin to confirm, even when the closer look doesn't confirm it.
+const REVIEW_KEEP_UNSURE = 0.55;
 const REVIEW_DETECT_CONCURRENCY = 3;
 const REVIEW_MIN_GAP = 4;            // seconds: closer than this is the same shot
 
@@ -20560,11 +20565,11 @@ async function callClipAi(payload){
 // server can't (501), fall back to reading frames in this browser.
 let reviewServerFrames = true;
 
-async function aiOnStoredVideo(mode, times, width, localGrabber){
+async function aiOnStoredVideo(mode, times, width, localGrabber, extra){
 
   if(reviewServerFrames){
     try{
-      return await callClipAi({ mode, gameVideoId: review.video.id, times, width });
+      return await callClipAi({ mode, gameVideoId: review.video.id, times, width, ...(extra || {}) });
     }
     catch(error){
       if(error.status !== 501){ throw error; }
@@ -20636,9 +20641,24 @@ function renderReviewScanBar(){
   const pct = d ? Math.min(100, cursor / d * 100) : 0;
   document.getElementById("rv-scanbar-fill").style.width = `${pct}%`;
   const st = review.scanStats || { found: 0 };
+  const detail = st.batches !== undefined
+    ? ` (${st.batches} stretches checked · ${st.flagged} moments flagged · ${st.confirmed} confirmed · ${st.unsure} possible · ${st.rejected} ruled out${st.errors ? ` · ${st.errors} errors: ${st.lastError}` : ""})`
+    : "";
   document.getElementById("rv-scan-text").textContent = review.scanning
-    ? `AI scanning: ${formatClock(cursor)} of ${formatClock(d)} · ${st.found} shot${st.found === 1 ? "" : "s"} found so far. Keep this tab open.`
-    : `AI paused at ${formatClock(cursor)} of ${formatClock(d)}. Press Resume AI to continue.`;
+    ? `AI scanning: ${formatClock(cursor)} of ${formatClock(d)} · ${st.found} shot${st.found === 1 ? "" : "s"} added${detail}. Keep this tab open.`
+    : `AI paused at ${formatClock(cursor)} of ${formatClock(d)}${detail}. Press Resume AI to continue.`;
+}
+
+// The first stills the AI looked at in this scan, so the admin can
+// see whether they're the right moments and clear enough to judge.
+function renderReviewPreview(frames){
+  const box = document.getElementById("rv-preview");
+  if(!box){ return; }
+  if(!frames || !frames.length){ box.hidden = true; box.innerHTML = ""; return; }
+  box.hidden = false;
+  box.innerHTML =
+    `<span class="small-note">What the AI is looking at:</span>` +
+    frames.map(f => `<figure><img src="data:image/jpeg;base64,${f.data}" alt="Frame at ${escapeHtml(formatClock(f.t))}"><figcaption>${escapeHtml(formatClock(f.t))}</figcaption></figure>`).join("");
 }
 
 function toggleReviewScan(){
@@ -20662,7 +20682,8 @@ async function runReviewScan(){
   }
 
   review.scanning = true;
-  review.scanStats = { found: 0 };
+  review.scanStats = { found: 0, batches: 0, flagged: 0, confirmed: 0, unsure: 0, rejected: 0, errors: 0, lastError: "" };
+  renderReviewPreview(null);
   renderReviewHeader();
   renderReviewScanBar();
   markReviewInProgress();
@@ -20689,13 +20710,26 @@ async function runReviewScan(){
   };
 
   const tagOne = async (ev) => {
+    const st = review.scanStats;
     if(review.drafts.some(d => d.game_video_id === v.id && Math.abs(Number(d.t_seconds) - ev.t) < REVIEW_MIN_GAP)){ return; }
     const res = await aiOnStoredVideo("tag", burstTimes(ev.t), REVIEW_TAG_WIDTH, tagger);
-    if(!res.shot || !res.shot.shot_detected){ return; }
-    if(ev.goal && res.shot.outcome !== "goal"){ res.shot.notes = (res.shot.notes ? res.shot.notes + " " : "") + "The scan thought this might be a goal; check."; }
     if(!isCurrent()){ return; }
-    await insertReviewDraft(draftRowFromAi(res.shot, ev.t, res.model));
-    review.scanStats.found++;
+    let shot = res.shot;
+    if(!shot || !shot.shot_detected){
+      // The close look didn't confirm it. Keep strong flags anyway as a
+      // "possible shot", so a real one is never silently lost.
+      if(Number(ev.confidence) < REVIEW_KEEP_UNSURE){ st.rejected++; renderReviewScanBar(); return; }
+      shot = { ...(shot || {}), shot_detected: true, outcome: ev.goal ? "goal" : "save",
+        confidence: Math.min(Number(ev.confidence) || 0, 0.4),
+        notes: "Possible shot: the scan flagged it but the closer look wasn't sure. Watch it, then keep, fix or delete." };
+      st.unsure++;
+    }
+    else{
+      st.confirmed++;
+    }
+    if(ev.goal && shot.outcome !== "goal"){ shot.notes = (shot.notes ? shot.notes + " " : "") + "The scan thought this might be a goal; check."; }
+    await insertReviewDraft(draftRowFromAi(shot, ev.t, res.model));
+    st.found++;
     renderReviewShots();
     renderReviewScanBar();
   };
@@ -20706,7 +20740,12 @@ async function runReviewScan(){
       try{ await tagOne(ev); }
       catch(error){
         if(error.status === 403 || error.status === 503 || error.status === 404 || /CORS|blocked/.test(error.message)){ failure = error; review.scanning = false; tagQueue.length = 0; }
-        else{ console.error("Tagging failed at", ev.t, error); }
+        else{
+          console.error("Tagging failed at", ev.t, error);
+          review.scanStats.errors++;
+          review.scanStats.lastError = error.message || String(error);
+          renderReviewScanBar();
+        }
       }
     }
     tagWorker = null;
@@ -20734,8 +20773,12 @@ async function runReviewScan(){
       while(inflight.size >= REVIEW_DETECT_CONCURRENCY){ await Promise.race(inflight); }
       if(!review.scanning){ break; }
 
-      const job = aiOnStoredVideo("detect", times, REVIEW_SCAN_WIDTH, sampler)
+      const wantPreview = review.scanStats.batches === 0 && inflight.size === 0;
+      const job = aiOnStoredVideo("detect", times, REVIEW_SCAN_WIDTH, sampler, wantPreview ? { debug: true } : null)
         .then(res => {
+          review.scanStats.batches++;
+          review.scanStats.flagged += (res.events || []).length;
+          if(res.preview){ renderReviewPreview(res.preview); }
           (res.events || []).forEach(ev => tagQueue.push(ev));
           if(tagQueue.length && !tagWorker){ tagWorker = runTagWorker(); }
           completed.set(batchStart, batchEnd);
@@ -20785,7 +20828,16 @@ async function runReviewScan(){
       showToast(failure.message || "The AI scan stopped.", "error");
     }
     else if(isCurrent() && Number(v.scan_progress) >= 1){
-      showToast(`AI scan finished: ${review.scanStats.found} new shot${review.scanStats.found === 1 ? "" : "s"}. Check each one, then approve.`, "success");
+      const st = review.scanStats;
+      const summary = `${st.batches} stretches checked, ${st.flagged} moments flagged, ${st.confirmed} confirmed, ${st.unsure} kept as possible, ${st.rejected} ruled out${st.errors ? `, ${st.errors} errors (${st.lastError})` : ""}.`;
+      showToast(
+        st.found
+          ? `AI scan finished: ${st.found} shot${st.found === 1 ? "" : "s"} added. ${summary} Check each one, then approve.`
+          : `AI scan finished but added no shots. ${summary} Check the frames under the progress bar look like the game, and add shots by hand with S.`,
+        st.found ? "success" : "error"
+      );
+      document.getElementById("rv-scanbar").hidden = false;
+      document.getElementById("rv-scan-text").textContent = `Last scan: ${summary}`;
     }
 
   }

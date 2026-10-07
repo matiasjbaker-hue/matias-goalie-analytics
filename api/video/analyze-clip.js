@@ -112,11 +112,13 @@ const DETECT_SCHEMA = {
   additionalProperties: false,
 };
 
-const DETECT_PROMPT = `You scan hockey game film for shots on goal against ONE tracked goalie. You get evenly spaced still frames from the game, in time order, each with its timestamp.
+const DETECT_PROMPT = `You are the first pass of a two-stage system that finds shots on goal against ONE tracked goalie in hockey game film. You get still frames taken every few seconds, in time order, each with its timestamp. The camera is often a wide, high view of the whole rink, so players and the puck can be small.
 
-Report each moment where a shot on the tracked goalie's net is released, saved, or goes in: list the frame number closest to that moment. Signs: a shooter in the offensive zone facing that net with the stick loaded or following through, the puck travelling toward the net, the goalie in a save motion or covering the puck, a rebound scramble at the crease, a goal celebration or players skating back to centre ice after a goal.
+Your job is RECALL. Flag every frame where a shot on the tracked goalie's net may be happening or may have just happened. A second, closer pass checks each flag and throws out the wrong ones, so a missed shot costs far more than a false flag.
 
-Ignore: play at the other end of the rink, line changes, faceoffs with no shot, warm-ups, stoppages, replays, and shots that clearly miss the net wide. One event per shot; if two frames show the same shot, report only one. If nothing happens in these frames, return an empty list. Be conservative: an admin reviews every event, and missed shots can be added by hand, but false events waste their time.`;
+Flag when you see any of: attacking players in the zone of the tracked goalie's net with the puck near the slot or circles; a player winding up, shooting, or following through toward that net; the goalie down, stretched, in a save position, or covering the puck; players crowding the crease; a scramble in front; a whistle-stop with players gathered at that net; a celebration or players skating away from that net after a goal.
+
+Do not flag: frames where the play is clearly at the other end of the rink, faceoffs at centre ice, line changes, empty ice, intermissions, replays or overlays. If two neighbouring frames show the same moment, flag only the clearest one. Use confidence honestly: 0.3 for a maybe, 0.8+ when a shot is clearly visible.`;
 
 function cleanFrames(frames) {
   if (!Array.isArray(frames) || !frames.length || frames.length > MAX_FRAMES) return null;
@@ -298,7 +300,14 @@ export default async function handler(req, res) {
         .filter(Boolean)
         .sort((a, b) => a.t - b.t);
 
-      res.status(200).json({ events, model: message.model || MODEL });
+      res.status(200).json({
+        events,
+        model: message.model || MODEL,
+        frameCount: cleanedFrames.length,
+        // A few of the frames the AI looked at, so the admin can check
+        // they're the right moments and clear enough to judge.
+        preview: req.body && req.body.debug ? cleanedFrames.slice(0, 6).map(f => ({ t: f.t, data: f.data })) : undefined,
+      });
       return;
     }
 
