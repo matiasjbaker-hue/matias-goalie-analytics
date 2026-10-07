@@ -1495,6 +1495,8 @@
 
     <div class="card go-hero" id="goHero"></div>
 
+    <div class="go-film section-space" id="goFilm" hidden></div>
+
     <div class="grid grid-4 section-space" id="goKpis"></div>
 
     <div class="grid grid-2 section-space" id="goBreakdownA"></div>
@@ -15841,10 +15843,193 @@ function renderGameOverview(){
 
   renderGameOverviewSelector(list, idx);
   renderGameOverviewHero(game, m);
+  renderGameFilm(game);
   renderGameOverviewKpis(m, prev, prior, prevGame, priorGames.length);
   renderGameOverviewBreakdowns(game, m);
   renderGameOverviewTrend(list, idx, metricsById);
 
+}
+
+/* ------------------------------------------------------------
+   GAME FILM (game page)
+   Once a game's review is approved, the goalie (and their coach) can
+   play the whole game here with every tagged shot marked on the
+   timeline, and jump to any shot from the list beside it. Shot times
+   come from how each shot is linked: straight into the game video
+   (clip_start_seconds + 4), or through its MP4 clip, whose file name
+   records the source video and start second. No extra data needed.
+------------------------------------------------------------ */
+
+let goFilmToken = 0;
+const goFilmVideoCache = {};
+
+function goFilmShotTime(shot, fullVideo, clipsById){
+
+  if(String(shot.game_video_id) === String(fullVideo.id) &&
+     shot.clip_start_seconds !== null && shot.clip_start_seconds !== undefined){
+    return Number(shot.clip_start_seconds) + 4;
+  }
+
+  const clip = clipsById[String(shot.game_video_id)];
+  const m = clip && /_(\d+)_(\d+(?:\.\d+)?)s\.mp4$/.exec(clip.storage_path || "");
+
+  if(m && m[1] === String(fullVideo.id)){
+    return Number(m[2]) + 4;
+  }
+
+  return null;
+
+}
+
+async function renderGameFilm(game){
+
+  const box = document.getElementById("goFilm");
+  if(!box){ return; }
+
+  const token = ++goFilmToken;
+
+  let videos = goFilmVideoCache[game.id];
+
+  if(!videos){
+    try{
+      // RLS returns only videos this viewer may see (their own, their
+      // goalie's for a coach, everything for admin).
+      videos = await qFiltered("game_videos", `game_id=eq.${encodeURIComponent(game.id)}&order=created_at.asc`);
+      goFilmVideoCache[game.id] = videos;
+    }
+    catch(e){
+      videos = [];
+    }
+  }
+
+  if(token !== goFilmToken){ return; }
+
+  const full = videos.find(v => v.status !== "clip" && (v.review_status || "approved") === "approved");
+
+  if(!full){
+    box.hidden = true;
+    box.innerHTML = "";
+    return;
+  }
+
+  const clipsById = {};
+  videos.filter(v => v.status === "clip").forEach(v => { clipsById[String(v.id)] = v; });
+
+  const shots = allShots
+    .filter(s => String(s.game_id) === String(game.id))
+    .map(s => ({ s, t: goFilmShotTime(s, full, clipsById) }))
+    .filter(x => x.t !== null && Number.isFinite(x.t))
+    .sort((a, b) => a.t - b.t);
+
+  const goals = shots.filter(x => isGoal(x.s)).length;
+
+  box.hidden = false;
+  box.innerHTML = `
+    <div class="go-film-head">
+      <h3>Game film</h3>
+      <p>${shots.length
+        ? `${shots.length} tagged shot${shots.length === 1 ? "" : "s"} on the timeline (${shots.length - goals} saves, ${goals} goal${goals === 1 ? "" : "s"}). Click a tick or a shot to watch it.`
+        : "The full game. Tagged shots appear on the timeline once they're linked to this video."}</p>
+    </div>
+    <div class="go-film-grid">
+      <div class="go-film-player-col">
+        <div class="rv-player">
+          <video id="goFilmVideo" controls playsinline preload="metadata"></video>
+          <div class="rv-player-msg" id="goFilmMsg" hidden></div>
+        </div>
+        <div class="rv-timeline" id="goFilmTimeline" title="Click to jump; ticks are shots">
+          <div id="goFilmTicks"></div>
+          <div class="rv-playhead" id="goFilmPlayhead"></div>
+        </div>
+      </div>
+      <ol class="go-film-list" id="goFilmList">
+        ${shots.length ? shots.map(({ s, t }) => {
+          const id = s.shot_id ?? s.id;
+          const goal = isGoal(s);
+          let grade = "";
+          try{ grade = shotGrade(s) || ""; }catch(e){ grade = ""; }
+          return `
+            <li>
+              <button type="button" class="go-film-shot ${goal ? "is-goal" : ""}" data-t="${t}" onclick="goFilmJump(${t})">
+                <span class="rv-shot-time">${escapeHtml(formatClock(t))}</span>
+                <span class="go-film-shot-main"><strong>${goal ? "Goal" : "Save"}</strong> · P${escapeHtml(s.period ?? "?")}${s.location ? " · " + escapeHtml(s.location) : ""}${grade ? ` · <span class="go-film-grade">${escapeHtml(grade)}</span>` : ""}</span>
+              </button>
+              ${s.game_video_id ? `<button type="button" class="watch-btn" onclick="watchShotClip(${jsArg(id)})">Watch clip</button>` : ""}
+            </li>`;
+        }).join("") : `<li class="rv-empty">No shots linked to the film yet.</li>`}
+      </ol>
+    </div>
+  `;
+
+  const video = document.getElementById("goFilmVideo");
+  const timeline = document.getElementById("goFilmTimeline");
+
+  const duration = () => (Number.isFinite(video.duration) && video.duration > 0 ? video.duration : Number(full.duration_seconds) || 0);
+
+  const drawTicks = () => {
+    const d = duration();
+    const ticks = document.getElementById("goFilmTicks");
+    if(!ticks || !d){ return; }
+    ticks.innerHTML = shots.map(({ s, t }) =>
+      `<button type="button" class="rv-tick ${isGoal(s) ? "is-goal" : "is-save"}" style="left:${Math.min(100, t / d * 100)}%" onclick="event.stopPropagation(); goFilmJump(${t})" title="${escapeHtml(formatClock(t))} · ${isGoal(s) ? "Goal" : "Save"}${s.location ? " · " + escapeHtml(s.location) : ""}" aria-label="Shot at ${escapeHtml(formatClock(t))}"></button>`
+    ).join("");
+  };
+
+  const drawHead = () => {
+    const d = duration();
+    const head = document.getElementById("goFilmPlayhead");
+    if(head && d){ head.style.left = `${Math.min(100, video.currentTime / d * 100)}%`; }
+    // Highlight the shot being watched.
+    let current = null;
+    shots.forEach(x => { if(video.currentTime >= x.t - 4 && video.currentTime <= x.t + 3){ current = x.t; } });
+    document.querySelectorAll("#goFilmList .go-film-shot").forEach(b => b.classList.toggle("is-current", Number(b.dataset.t) === current));
+  };
+
+  ["timeupdate", "seeked"].forEach(evt => video.addEventListener(evt, drawHead));
+  video.addEventListener("loadedmetadata", () => { drawTicks(); drawHead(); });
+  video.addEventListener("error", () => {
+    const msg = document.getElementById("goFilmMsg");
+    if(msg){
+      msg.hidden = false;
+      msg.textContent = "This browser can't play the full game file (often an iPhone .mov). Use Watch clip next to each shot; those always play.";
+    }
+  });
+
+  timeline.addEventListener("click", e => {
+    const d = duration();
+    if(!d){ return; }
+    const rect = timeline.getBoundingClientRect();
+    video.currentTime = Math.max(0, Math.min(d, (e.clientX - rect.left) / rect.width * d));
+  });
+
+  drawTicks();
+
+  try{
+    const res = await fetch("/api/video/get-watch-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessToken: currentSession && currentSession.access_token, gameVideoId: full.id })
+    });
+    let data = {};
+    try{ data = await res.json(); }catch(e){ data = {}; }
+    if(token !== goFilmToken){ return; }
+    if(res.status === 401 || res.status === 400){ throw new Error("Sign in again to watch the game film."); }
+    if(!res.ok || !data.url){ throw new Error(data.error || "Couldn't load the game film."); }
+    video.src = data.url;
+  }
+  catch(error){
+    const msg = document.getElementById("goFilmMsg");
+    if(msg){ msg.hidden = false; msg.textContent = error.message; }
+  }
+
+}
+
+function goFilmJump(t){
+  const video = document.getElementById("goFilmVideo");
+  if(!video){ return; }
+  video.currentTime = Math.max(0, Number(t) - 4);
+  video.play().catch(() => {});
+  video.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 function renderGameOverviewSelector(list, idx){
@@ -21610,6 +21795,7 @@ async function approveReview(){
     if(doneErr){ throw doneErr; }
 
     v.review_status = "approved";
+    delete goFilmVideoCache[gameId];
     renderReviewHeader();
     showToast(`Published to ${reviewOwnerName(v)}. Making MP4 clips for each shot…`, "success");
 
