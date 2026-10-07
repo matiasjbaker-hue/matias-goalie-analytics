@@ -8,24 +8,32 @@
 //   POST /api/admin/user-info        -> api/_lib/admin-user-info.js
 //   POST /api/admin/make-clip        -> api/_lib/admin-make-clip.js
 // Each handler still does its own auth and role checks.
-
-import deleteAccount from "../_lib/admin-delete-account.js";
-import sendRecap from "../_lib/admin-send-recap.js";
-import userInfo from "../_lib/admin-user-info.js";
-import makeClip from "../_lib/admin-make-clip.js";
+//
+// Handlers load only when their action is called, so one missing or
+// broken handler (e.g. the email recap) can't take the others down.
 
 const ROUTES = {
-  "delete-account": deleteAccount,
-  "send-recap": sendRecap,
-  "user-info": userInfo,
-  "make-clip": makeClip,
+  "delete-account": () => import("../_lib/admin-delete-account.js"),
+  "send-recap": () => import("../_lib/admin-send-recap.js"),
+  "user-info": () => import("../_lib/admin-user-info.js"),
+  "make-clip": () => import("../_lib/admin-make-clip.js"),
 };
 
-export default function handler(req, res) {
-  const route = ROUTES[req.query && req.query.action];
-  if (!route) {
+export default async function handler(req, res) {
+  const load = ROUTES[req.query && req.query.action];
+  if (!load) {
     res.status(404).json({ error: "Not found." });
     return;
   }
-  return route(req, res);
+
+  let mod;
+  try {
+    mod = await load();
+  } catch (error) {
+    console.error(`Admin action "${req.query.action}" couldn't load:`, error);
+    res.status(503).json({ error: "This feature isn't available on the server right now." });
+    return;
+  }
+
+  return mod.default(req, res);
 }
