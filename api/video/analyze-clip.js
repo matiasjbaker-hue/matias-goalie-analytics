@@ -48,6 +48,7 @@ import {
 } from "../_lib/supabase.js";
 import { claude, claudeConfigured, textOf } from "../_lib/claude.js";
 import { ffmpegAvailable, grabFrames, deadFrames } from "../_lib/frames.js";
+import { logAiUsage, tokensOf, addTokens, NO_TOKENS } from "../_lib/ai-cost.js";
 
 const MODEL = (process.env.CLIP_AI_MODEL || "claude-sonnet-5-5").trim();
 
@@ -235,7 +236,7 @@ function readDetect(parsed, frames) {
 
 // ---- batch-results ----
 
-async function collectBatch(entry) {
+async function collectBatch(entry, ctx = {}) {
   const id = String(entry && entry.id || "");
   const requests = entry && entry.requests && typeof entry.requests === "object" ? entry.requests : null;
   if (!BATCH_ID_RE.test(id) || !requests) return { id, status: "invalid" };
@@ -255,6 +256,8 @@ async function collectBatch(entry) {
   const zone = [];
   const failed = [];
   const answered = new Set();
+  let tokens = NO_TOKENS;
+  let model = null;
 
   for await (const item of await claude().messages.batches.results(id)) {
     const times = timesById[item.custom_id];
@@ -266,6 +269,8 @@ async function collectBatch(entry) {
       continue;
     }
     const message = item.result.message;
+    tokens = addTokens(tokens, tokensOf(message.usage));
+    model = model || message.model;
     if (message.stop_reason === "refusal") continue;
     try {
       const got = readDetect(JSON.parse(textOf(message)), frames);
@@ -280,7 +285,12 @@ async function collectBatch(entry) {
   // Anything the batch has no answer for gets re-run.
   Object.keys(timesById).forEach(rid => { if (!answered.has(rid)) failed.push(timesById[rid]); });
 
-  return { id, status: "done", events, zone, failed };
+  const usd = await logAiUsage({
+    gameVideoId: ctx.gameVideoId, requestedBy: ctx.userId, kind: "detect-batch",
+    model: model || MODEL, batch: true, batchId: id, tokens,
+  });
+
+  return { id, status: "done", events, zone, failed, cost: { usd } };
 }
 
 function clamp(n, lo, hi) {
@@ -317,7 +327,7 @@ function cleanShot(raw) {
 }
 
 async function batchResults(req, res) {
-  const { accessToken, batches } = req.body || {};
+  const { accessToken, batches, gameVideoId } = req.body || {};
   if (!accessToken || !Array.isArray(batches) || !batches.length || batches.length > MAX_POLL_BATCHES) {
     res.status(400).json({ error: `Send between 1 and ${MAX_POLL_BATCHES} batches.` });
     return;
@@ -357,7 +367,7 @@ async function batchResults(req, res) {
       const id = String(batches[i] && batches[i].id || "");
       if (statuses[i] === "ended" && reads < 8) {
         reads++;
-        out.push(await collectBatch(batches[i]));
+        out.push(await collectBatch(batches[i], { gameVideoId, userId: user.id }));
       } else if (statuses[i] === "missing" || statuses[i] === "invalid") {
         // Gone or never valid: hand its stretches back for a re-run.
         out.push({ id, status: "done", events: [], zone: [], failed: Object.values((batches[i] && batches[i].requests) || {}).map(t => cleanTimes(t)).filter(Boolean) });
@@ -480,8 +490,13 @@ export default async function handler(req, res) {
         fallbacks: "default",
       });
 
+      const usd = await logAiUsage({
+        gameVideoId: fromVideo ? gameVideoId : null, requestedBy: user.id, kind: "detect",
+        model: message.model || MODEL, tokens: tokensOf(message.usage),
+      });
+
       if (message.stop_reason === "refusal") {
-        res.status(200).json({ events: [], zone: [], skipped });
+        res.status(200).json({ events: [], zone: [], skipped, cost: { usd } });
         return;
       }
 
@@ -502,6 +517,7 @@ export default async function handler(req, res) {
         model: message.model || MODEL,
         frameCount: live.length,
         skipped,
+        cost: { usd },
         // A few of the frames the AI looked at, so the admin can check
         // they're the right moments and clear enough to judge.
         preview,
@@ -536,8 +552,13 @@ export default async function handler(req, res) {
       messages: [{ role: "user", content }],
     });
 
+    const usd = await logAiUsage({
+      gameVideoId: fromVideo ? gameVideoId : null, requestedBy: user.id, kind: "tag",
+      model: message.model || MODEL, tokens: tokensOf(message.usage),
+    });
+
     if (message.stop_reason === "refusal") {
-      res.status(422).json({ error: "The AI couldn't read this clip. Tag it by hand." });
+      res.status(422).json({ error: "The AI couldn't read this clip. Tag it by hand.", cost: { usd } });
       return;
     }
 
@@ -550,7 +571,7 @@ export default async function handler(req, res) {
       return;
     }
 
-    res.status(200).json({ shot: cleanShot(parsed), model: message.model || MODEL });
+    res.status(200).json({ shot: cleanShot(parsed), model: message.model || MODEL, cost: { usd } });
   } catch (error) {
     sendServerError(res, error, "The AI couldn't analyze this clip right now.");
   }

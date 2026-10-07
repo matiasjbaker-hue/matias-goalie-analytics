@@ -5120,3 +5120,17 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
   .rv-edit-head .rv-check{ margin-left:0; }
   .rv-cut-len{ margin-left:0; }
 }
+
+/* AI cost (admin review) */
+.rv-cost{
+  font-size:13px;
+  font-weight:700;
+  font-variant-numeric:tabular-nums;
+  color:var(--ink);
+  padding:4px 9px;
+  border:1.5px solid var(--seam-strong);
+  border-radius:var(--radius);
+  background:var(--field);
+  white-space:nowrap;
+}
+.rv-spend{ margin:8px 0 0; }

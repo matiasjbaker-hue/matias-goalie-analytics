@@ -3300,6 +3300,8 @@
       <button type="button" class="btn-secondary" onclick="clearFailedVideos(this)">Clear failed uploads</button>
     </div>
 
+    <p class="rv-spend small-note" id="rv-spend" hidden></p>
+
     <div id="admin-video-list-container" class="rv-queue">
       <div class="empty-state">Loading requests…</div>
     </div>
@@ -3317,6 +3319,7 @@
       </div>
       <div class="rv-head-actions">
         <span id="rv-status"></span>
+        <span class="rv-cost" id="rv-ai-cost" hidden title="What the AI work on this video has cost, priced from the token counts Anthropic returns with each answer"></span>
         <label class="rv-density" title="How closely the AI looks: more stills catch more action and cost more">
           <span>AI detail</span>
           <select id="rv-scan-density">
@@ -20886,6 +20889,8 @@ async function renderAdminVideoList(){
   }
   catch(e){ /* drafts table not created yet: counts stay empty */ }
 
+  await loadReviewSpend();
+
   renderReviewQueueRows();
 
 }
@@ -20916,13 +20921,14 @@ function renderReviewQueueRows(){
     const count = reviewDraftCounts[v.id] || 0;
     const progress = Number(v.scan_progress) > 0 && Number(v.scan_progress) < 1
       ? ` · AI ${Math.round(Number(v.scan_progress) * 100)}% scanned` : "";
+    const spent = reviewSpend.byVideo[v.id] ? ` · AI cost ${formatUsd(reviewSpend.byVideo[v.id])}` : "";
 
     return `
       <div class="rv-row">
         <div class="rv-row-main">
           <strong>${escapeHtml(reviewOwnerName(v))}</strong>
           <span>${escapeHtml(reviewGameLabel(v))}</span>
-          <span class="small-note">Sent ${escapeHtml(uploaded)} · ${count} shot${count === 1 ? "" : "s"} drafted${progress}${v.status === "failed" ? " · upload failed" : ""}</span>
+          <span class="small-note">Sent ${escapeHtml(uploaded)} · ${count} shot${count === 1 ? "" : "s"} drafted${progress}${spent}${v.status === "failed" ? " · upload failed" : ""}</span>
         </div>
         <div class="rv-row-side">
           ${reviewStatusPill(v)}
@@ -20936,6 +20942,80 @@ function renderReviewQueueRows(){
 
 }
 
+
+/* ---------- AI cost ----------
+   The server prices every AI answer from its token counts and writes it
+   to public.ai_usage (admin-only; supabase/migrations/20261008_ai_costs.sql),
+   so a video's cost shows the moment its AI work finishes. Anthropic's
+   console only totals costs per day. */
+
+let reviewSpend = { byVideo: {}, today: 0, month: 0, available: false };
+
+function formatUsd(n){
+  const v = Number(n) || 0;
+  return v > 0 && v < 0.01 ? "<$0.01" : `$${v.toFixed(2)}`;
+}
+
+async function loadReviewSpend(){
+  reviewSpend = { byVideo: {}, today: 0, month: 0, available: false };
+  const box = document.getElementById("rv-spend");
+  try{
+    const { data, error } = await supabaseClient.from("ai_usage").select("game_video_id, usd, created_at").limit(20000);
+    if(error){ throw error; }
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    const monthStart = new Date(dayStart);
+    monthStart.setDate(1);
+    (data || []).forEach(r => {
+      const usd = Number(r.usd) || 0;
+      if(r.game_video_id !== null){ reviewSpend.byVideo[r.game_video_id] = (reviewSpend.byVideo[r.game_video_id] || 0) + usd; }
+      const at = new Date(r.created_at);
+      if(at >= dayStart){ reviewSpend.today += usd; }
+      if(at >= monthStart){ reviewSpend.month += usd; }
+    });
+    reviewSpend.available = true;
+    if(box){
+      box.hidden = false;
+      box.textContent = `AI spend: ${formatUsd(reviewSpend.today)} today · ${formatUsd(reviewSpend.month)} this month. Half-price scans are counted when their results come back.`;
+    }
+  }
+  catch(e){
+    // Cost table not set up yet: run supabase/migrations/20261008_ai_costs.sql.
+    if(box){ box.hidden = true; }
+  }
+}
+
+async function loadReviewAiCost(videoId){
+  review.aiCost = null;
+  renderReviewAiCost();
+  try{
+    const { data, error } = await supabaseClient.from("ai_usage").select("usd").eq("game_video_id", videoId);
+    if(error){ throw error; }
+    if(!review.video || String(review.video.id) !== String(videoId)){ return; }
+    review.aiCost = (data || []).reduce((sum, r) => sum + (Number(r.usd) || 0), 0);
+  }
+  catch(e){
+    review.aiCost = null;
+  }
+  renderReviewAiCost();
+}
+
+function addReviewAiCost(usd){
+  const n = Number(usd);
+  if(!Number.isFinite(n) || review.aiCost === null || review.aiCost === undefined){ return; }
+  review.aiCost += n;
+  if(review.video){ reviewSpend.byVideo[review.video.id] = review.aiCost; }
+  renderReviewAiCost();
+}
+
+function renderReviewAiCost(){
+  const el = document.getElementById("rv-ai-cost");
+  if(!el){ return; }
+  if(review.aiCost === null || review.aiCost === undefined){ el.hidden = true; return; }
+  el.hidden = false;
+  const waiting = review.video && reviewPendingBatches(review.video).length;
+  el.textContent = `AI cost ${formatUsd(review.aiCost)}${waiting ? " + results pending" : ""}`;
+}
 
 /* ---------- workspace ---------- */
 
@@ -20984,6 +21064,7 @@ async function openReview(videoId){
   renderReviewShots();
   loadReviewVideo();
   loadReviewUser(v.user_id);
+  loadReviewAiCost(v.id);
   startReviewBatchPolling();
 
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -21013,6 +21094,7 @@ function renderReviewHeader(){
   if(!v){ return; }
 
   document.getElementById("rv-status").innerHTML = reviewStatusPill(v);
+  renderReviewAiCost();
 
   const approved = reviewStatusOf(v) === "approved";
   const approveBtn = document.getElementById("rv-approve-btn");
@@ -21977,6 +22059,12 @@ async function callClipAi(payload){
   let data = {};
   try{ data = await res.json(); }catch(e){ data = {}; }
 
+  // The server prices every answer; add it to the open review's total.
+  if(review.video && String(payload.gameVideoId) === String(review.video.id)){
+    if(data.cost){ addReviewAiCost(data.cost.usd); }
+    if(Array.isArray(data.batches)){ data.batches.forEach(b => { if(b.cost){ addReviewAiCost(b.cost.usd); } }); }
+  }
+
   if(!res.ok){
     const err = new Error(data.error || "The AI request failed.");
     err.status = res.status;
@@ -22224,7 +22312,7 @@ async function collectReviewBatches(manual){
 
     const pending = reviewPendingBatches(v);
     if(pending.length){
-      const res = await callClipAi({ mode: "batch-results", batches: pending.map(b => ({ id: b.id, requests: b.requests })) });
+      const res = await callClipAi({ mode: "batch-results", gameVideoId: v.id, batches: pending.map(b => ({ id: b.id, requests: b.requests })) });
       review.batchCheckedAt = Date.now();
       if(!isCurrent()){ return; }
       const done = (res.batches || []).filter(b => b.status === "done");
