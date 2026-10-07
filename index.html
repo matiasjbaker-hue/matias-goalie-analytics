@@ -3408,12 +3408,37 @@
           <button type="button" class="btn-secondary" onclick="markReviewPeriod('2')">2nd starts here</button>
           <button type="button" class="btn-secondary" onclick="markReviewPeriod('3')">3rd starts here</button>
           <button type="button" class="btn-secondary" onclick="markReviewPeriod('OT')">OT starts here</button>
-          <label class="rv-density rv-net" title="Which side of the picture the tracked goalie's net is on in the 1st period. The AI flips it for the 2nd period and OT, when teams switch ends.">
-            <span>Goalie's net in the 1st</span>
-            <select id="rv-net-side" onchange="setReviewNetSide(this.value)">
+          <span class="rv-periods-label" title="Which side of the picture the tracked goalie's net is on in each period. Auto = the opposite end of the 1st for the 2nd and OT, the same end for the 3rd. Set a period yourself if your league does it differently.">Goalie's net, side of the picture:</span>
+          <label class="rv-density rv-net">
+            <span>1st</span>
+            <select id="rv-net-side" onchange="setReviewNetSide(this.value, '1')">
               <option value="">Not set</option>
-              <option value="left">Left side of the picture</option>
-              <option value="right">Right side of the picture</option>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+            </select>
+          </label>
+          <label class="rv-density rv-net">
+            <span>2nd</span>
+            <select id="rv-net-side-2" onchange="setReviewNetSide(this.value, '2')">
+              <option value="">Auto</option>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+            </select>
+          </label>
+          <label class="rv-density rv-net">
+            <span>3rd</span>
+            <select id="rv-net-side-3" onchange="setReviewNetSide(this.value, '3')">
+              <option value="">Auto</option>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+            </select>
+          </label>
+          <label class="rv-density rv-net">
+            <span>OT</span>
+            <select id="rv-net-side-ot" onchange="setReviewNetSide(this.value, 'OT')">
+              <option value="">Auto</option>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
             </select>
           </label>
           <span class="small-note" id="rv-period-note"></span>
@@ -20934,7 +20959,7 @@ async function openReview(videoId){
   review.candidates = ((v.period_marks && Array.isArray(v.period_marks._candidates)) ? v.period_marks._candidates : [])
     .map(c => ({ t: Number(c.t), confidence: Number(c.c) || 0 })).filter(c => Number.isFinite(c.t));
   review.selectedId = null;
-  document.getElementById("rv-net-side").value = (v.period_marks && v.period_marks._net) || "";
+  refreshReviewNetSelects();
 
   document.getElementById("rv-queue-view").hidden = true;
   document.getElementById("rv-workspace").hidden = false;
@@ -22097,35 +22122,71 @@ function newReviewScanStats(){
 
 /* ---------- which net is the goalie's ----------
    The admin sets the side of the picture the goalie's net is on in the
-   1st period (period_marks._net). Teams switch ends for the 2nd, and
-   regular-season OT is played at the 2nd period's ends, so those flip.
+   1st period (period_marks._net) and can set any other period too
+   (period_marks._sides["2" | "3" | "OT"]), because leagues differ in how
+   ends switch. A period left on Auto follows the usual pattern: the 2nd
+   and OT at the opposite end of the 1st, the 3rd at the same end.
    Every still the AI sees is labelled with it, so action at the other
    net is ignored. */
 
-function reviewNetSideAt(t){
-  const v = review.video;
-  const base = v && v.period_marks && v.period_marks._net;
-  if(base !== "left" && base !== "right"){ return null; }
-  const p = reviewPeriodAt(Number(t));
-  const flip = p === "2" || p === "OT";
-  return flip ? (base === "left" ? "right" : "left") : base;
+function reviewNetSideFor(p){
+  const m = (review.video && review.video.period_marks) || {};
+  const ok = x => x === "left" || x === "right";
+  if(p !== "1" && m._sides && ok(m._sides[p])){ return m._sides[p]; }
+  if(!ok(m._net)){ return null; }
+  if(p === "2" || p === "OT"){ return m._net === "left" ? "right" : "left"; }
+  return m._net;
 }
 
-async function setReviewNetSide(side){
+function reviewNetSideAt(t){
+  return reviewNetSideFor(reviewPeriodAt(Number(t)));
+}
+
+// Selector values, and what "Auto" means right now.
+function refreshReviewNetSelects(){
+  const m = (review.video && review.video.period_marks) || {};
+  const ok = x => x === "left" || x === "right";
+  const first = document.getElementById("rv-net-side");
+  if(first){ first.value = ok(m._net) ? m._net : ""; }
+  [["2", "rv-net-side-2"], ["3", "rv-net-side-3"], ["OT", "rv-net-side-ot"]].forEach(([p, id]) => {
+    const sel = document.getElementById(id);
+    if(!sel){ return; }
+    const own = m._sides && ok(m._sides[p]) ? m._sides[p] : "";
+    const auto = ok(m._net) ? ((p === "3") ? m._net : (m._net === "left" ? "right" : "left")) : null;
+    const opt = sel.querySelector('option[value=""]');
+    if(opt){ opt.textContent = auto ? `Auto (${auto})` : "Auto"; }
+    sel.value = own;
+  });
+}
+
+async function setReviewNetSide(side, period){
   const v = review.video;
   if(!v){ return; }
+  const p = period || "1";
+  const ok = x => x === "left" || x === "right";
   const before = v.period_marks;
-  const { _net, ...rest } = v.period_marks || {};
-  v.period_marks = side === "left" || side === "right" ? { ...rest, _net: side } : rest;
+  const marks = { ...(v.period_marks || {}) };
+  if(p === "1"){
+    delete marks._net;
+    if(ok(side)){ marks._net = side; }
+  }
+  else{
+    const sides = { ...(marks._sides || {}) };
+    delete sides[p];
+    if(ok(side)){ sides[p] = side; }
+    if(Object.keys(sides).length){ marks._sides = sides; } else{ delete marks._sides; }
+  }
+  v.period_marks = marks;
   try{ await saveReviewMarks(v); }
   catch(error){
     v.period_marks = before;
-    document.getElementById("rv-net-side").value = (before && before._net) || "";
+    refreshReviewNetSelects();
     showToast(`Could not save: ${error.message}`, "error");
     return;
   }
+  refreshReviewNetSelects();
   const marked = ["2", "3"].every(k => v.period_marks[k] !== undefined && v.period_marks[k] !== null);
-  if(side && !marked){
+  if(p === "1" && side && !marked){
     showToast("Saved. Mark where the 2nd and 3rd periods start too, so the AI follows the goalie when teams switch ends.");
   }
 }
