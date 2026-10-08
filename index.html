@@ -2701,6 +2701,42 @@
 
   </div>
 
+  <div class="grid grid-2 section-space">
+
+    <div class="card">
+
+      <h3>Rims by Side and Height</h3>
+      <p class="chart-caption">Rims off the forecheck against.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Rim</th><th>Faced</th><th>Stopped</th><th>Stop %</th></tr>
+          </thead>
+          <tbody id="puckRimBreakdownBody"></tbody>
+        </table>
+      </div>
+
+    </div>
+
+    <div class="card">
+
+      <h3>Passes by Type</h3>
+      <p class="chart-caption">Converted % = completed passes divided by attempts.</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Pass</th><th>Attempts</th><th>Completed</th><th>Converted %</th></tr>
+          </thead>
+          <tbody id="puckPassBreakdownBody"></tbody>
+        </table>
+      </div>
+
+    </div>
+
+  </div>
+
   <div class="card section-space">
 
     <h3>How to Read This</h3>
@@ -3036,38 +3072,12 @@
   </div>
 
   <div class="card">
-    <div class="counter-row">
-      <span class="counter-name">Rims Faced</span>
-      <div class="counter-controls">
-        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','rims_faced',-1)">–</button>
-        <span class="counter-value" id="lt-count-rims_faced">0</span>
-        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','rims_faced',1)">+</button>
-      </div>
-    </div>
-    <div class="counter-row">
-      <span class="counter-name">Rims Stopped</span>
-      <div class="counter-controls">
-        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','rims_stopped',-1)">–</button>
-        <span class="counter-value" id="lt-count-rims_stopped">0</span>
-        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','rims_stopped',1)">+</button>
-      </div>
-    </div>
-    <div class="counter-row">
-      <span class="counter-name">Pass Attempts</span>
-      <div class="counter-controls">
-        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','pass_attempts',-1)">–</button>
-        <span class="counter-value" id="lt-count-pass_attempts">0</span>
-        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','pass_attempts',1)">+</button>
-      </div>
-    </div>
-    <div class="counter-row">
-      <span class="counter-name">Passes Completed</span>
-      <div class="counter-controls">
-        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','passes_completed',-1)">–</button>
-        <span class="counter-value" id="lt-count-passes_completed">0</span>
-        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','passes_completed',1)">+</button>
-      </div>
-    </div>
+    <p class="small-note" style="margin:0 0 6px">Rims are the ones off the forecheck against.</p>
+    <div id="lt-puck-host"></div>
+    <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:13px">
+      <input type="checkbox" id="lt-puck-high-toggle" onchange="syncPuckHighVisibility()">
+      Track rims up high too
+    </label>
   </div>
 
 
@@ -3414,29 +3424,12 @@
     </div>
 
     <div class="card">
-      <div class="field-grid">
-
-        <div class="field">
-          <label for="pp-rims-faced">Rims Faced</label>
-          <input type="number" id="pp-rims-faced" min="0">
-        </div>
-
-        <div class="field">
-          <label for="pp-rims-stopped">Rims Stopped</label>
-          <input type="number" id="pp-rims-stopped" min="0">
-        </div>
-
-        <div class="field">
-          <label for="pp-pass-attempts">Pass Attempts</label>
-          <input type="number" id="pp-pass-attempts" min="0">
-        </div>
-
-        <div class="field">
-          <label for="pp-passes-completed">Passes Completed</label>
-          <input type="number" id="pp-passes-completed" min="0">
-        </div>
-
-      </div>
+      <p class="small-note" style="margin:0 0 8px">Rims are the ones off the forecheck against. Totals are added up for you.</p>
+      <div id="pp-fields"></div>
+      <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:13px">
+        <input type="checkbox" id="pp-high-toggle" onchange="syncPuckFormHigh()">
+        Track rims up high too
+      </label>
     </div>
 
 
@@ -11106,9 +11099,171 @@ function renderIncremental(){
 
 /* ============================================================
    PUCK PLAYING
+   Rims are the ones off the forecheck against, tracked by side
+   (forehand / backhand) and height (on the ice / up high). Passes are
+   tracked by type (forehand / backhand / stretch). The four original
+   columns (rims_faced, rims_stopped, pass_attempts, passes_completed)
+   stay as the totals.
 ============================================================ */
 
+const PUCK_RIM_KINDS = [
+  { key: "forehand_ice",  label: "Forehand, on the ice", high: false },
+  { key: "backhand_ice",  label: "Backhand, on the ice", high: false },
+  { key: "forehand_high", label: "Forehand, up high",    high: true  },
+  { key: "backhand_high", label: "Backhand, up high",    high: true  }
+];
+
+const PUCK_PASS_KINDS = [
+  { key: "forehand", label: "Forehand" },
+  { key: "backhand", label: "Backhand" },
+  { key: "stretch",  label: "Stretch pass" }
+];
+
+const PUCK_RIM_FACED_KEYS   = PUCK_RIM_KINDS.map(k => "rims_faced_" + k.key);
+const PUCK_RIM_STOPPED_KEYS = PUCK_RIM_KINDS.map(k => "rims_stopped_" + k.key);
+const PUCK_PASS_ATT_KEYS    = PUCK_PASS_KINDS.map(k => "pass_attempts_" + k.key);
+const PUCK_PASS_COMP_KEYS   = PUCK_PASS_KINDS.map(k => "passes_completed_" + k.key);
+
+const PUCK_FINE_KEYS = [].concat(PUCK_RIM_FACED_KEYS, PUCK_RIM_STOPPED_KEYS, PUCK_PASS_ATT_KEYS, PUCK_PASS_COMP_KEYS);
+
+function puckEmptyTally(){
+  const t = {};
+  PUCK_FINE_KEYS.forEach(k => { t[k] = 0; });
+  return t;
+}
+
+// A live-tag tally (fine keys only) plus the four totals the rest of
+// the app reads.
+function puckTallyForSave(tally){
+
+  const sum = keys => keys.reduce((a, k) => a + num(tally[k]), 0);
+
+  return Object.assign({}, tally, {
+    rims_faced: sum(PUCK_RIM_FACED_KEYS),
+    rims_stopped: sum(PUCK_RIM_STOPPED_KEYS),
+    pass_attempts: sum(PUCK_PASS_ATT_KEYS),
+    passes_completed: sum(PUCK_PASS_COMP_KEYS)
+  });
+
+}
+
+function puckPctText(part, whole){
+  return whole ? (part / whole * 100).toFixed(1) + "%" : "—";
+}
+
+// Sums puck_playing rows into the per-kind breakdown used by the
+// Puck Playing tab and the game report.
+function puckBreakdown(rows){
+
+  const sum = key => rows.reduce((a, r) => a + num(r[key]), 0);
+
+  const rims = PUCK_RIM_KINDS.map(k => {
+    const faced = sum("rims_faced_" + k.key);
+    const stopped = sum("rims_stopped_" + k.key);
+    return { key: k.key, label: k.label, high: k.high, faced, stopped, pct: faced ? stopped / faced * 100 : null };
+  });
+
+  const rimsFaced = sum("rims_faced");
+  const rimsStopped = sum("rims_stopped");
+
+  const typedFaced = rims.reduce((a, r) => a + r.faced, 0);
+  const typedStopped = rims.reduce((a, r) => a + r.stopped, 0);
+
+  const passes = PUCK_PASS_KINDS.map(k => {
+    const attempts = sum("pass_attempts_" + k.key);
+    const completed = sum("passes_completed_" + k.key);
+    return { key: k.key, label: k.label, attempts, completed, pct: attempts ? completed / attempts * 100 : null };
+  });
+
+  const passAttempts = sum("pass_attempts");
+  const passesCompleted = sum("passes_completed");
+
+  const typedAttempts = passes.reduce((a, r) => a + r.attempts, 0);
+  const typedCompleted = passes.reduce((a, r) => a + r.completed, 0);
+
+  const untypedAttempts = Math.max(0, passAttempts - typedAttempts);
+  const untypedCompleted = Math.max(0, passesCompleted - typedCompleted);
+
+  return {
+    rims,
+    rimsTotal: { faced: rimsFaced, stopped: rimsStopped, pct: rimsFaced ? rimsStopped / rimsFaced * 100 : null },
+    untypedRims: { faced: Math.max(0, rimsFaced - typedFaced), stopped: Math.max(0, rimsStopped - typedStopped) },
+    passes,
+    passesTotal: { attempts: passAttempts, completed: passesCompleted, pct: passAttempts ? passesCompleted / passAttempts * 100 : null },
+    untypedPasses: { attempts: untypedAttempts, completed: untypedCompleted }
+  };
+
+}
+
+// Rows worth showing: the on-the-ice rims always, up-high only once
+// they have data, and a "not broken down" row for older entries.
+function puckRimDisplayRows(b){
+
+  const rows = b.rims
+    .filter(r => !r.high || r.faced || r.stopped)
+    .map(r => ({ label: r.label, faced: r.faced, stopped: r.stopped, pct: r.pct }));
+
+  if(b.untypedRims.faced || b.untypedRims.stopped){
+    rows.push({
+      label: "Not broken down (older entries)",
+      faced: b.untypedRims.faced,
+      stopped: b.untypedRims.stopped,
+      pct: b.untypedRims.faced ? b.untypedRims.stopped / b.untypedRims.faced * 100 : null
+    });
+  }
+
+  return rows;
+
+}
+
+function puckPassDisplayRows(b){
+
+  const rows = b.passes
+    .filter(r => r.attempts || r.completed)
+    .map(r => ({ label: r.label, attempts: r.attempts, completed: r.completed, pct: r.pct }));
+
+  if(b.untypedPasses.attempts || b.untypedPasses.completed){
+    rows.push({
+      label: "Type not recorded",
+      attempts: b.untypedPasses.attempts,
+      completed: b.untypedPasses.completed,
+      pct: b.untypedPasses.attempts ? b.untypedPasses.completed / b.untypedPasses.attempts * 100 : null
+    });
+  }
+
+  return rows;
+
+}
+
+function renderPuckBreakdownCards(){
+
+  const rimBody = document.getElementById("puckRimBreakdownBody");
+  const passBody = document.getElementById("puckPassBreakdownBody");
+
+  if(!rimBody || !passBody){ return; }
+
+  const b = puckBreakdown(seasonPuckPlaying);
+  const empty = cols => `<tr><td colspan="${cols}"><div class="empty">No data yet.</div></td></tr>`;
+
+  const rimRows = puckRimDisplayRows(b);
+
+  rimBody.innerHTML = rimRows.length && b.rimsTotal.faced
+    ? rimRows.map(r => `<tr><td>${escapeHtml(r.label)}</td><td>${r.faced}</td><td>${r.stopped}</td><td>${puckPctText(r.stopped, r.faced)}</td></tr>`).join("") +
+      `<tr style="font-weight:700"><td>All rims</td><td>${b.rimsTotal.faced}</td><td>${b.rimsTotal.stopped}</td><td>${puckPctText(b.rimsTotal.stopped, b.rimsTotal.faced)}</td></tr>`
+    : empty(4);
+
+  const passRows = puckPassDisplayRows(b);
+
+  passBody.innerHTML = passRows.length
+    ? passRows.map(r => `<tr><td>${escapeHtml(r.label)}</td><td>${r.attempts}</td><td>${r.completed}</td><td>${puckPctText(r.completed, r.attempts)}</td></tr>`).join("") +
+      `<tr style="font-weight:700"><td>All passes</td><td>${b.passesTotal.attempts}</td><td>${b.passesTotal.completed}</td><td>${puckPctText(b.passesTotal.completed, b.passesTotal.attempts)}</td></tr>`
+    : empty(4);
+
+}
+
 function renderPuckPlaying(){
+
+  renderPuckBreakdownCards();
 
   const totalRimsFaced =
     seasonPuckPlaying.reduce(
@@ -15359,11 +15514,15 @@ function computeGameReportData(gameId){
 
   if(gamePuck.length){
 
+    const pb = puckBreakdown(gamePuck);
+
     puckSummary = {
       rimsFaced: gamePuck.reduce((s,r) => s + num(r.rims_faced), 0),
       rimsStopped: gamePuck.reduce((s,r) => s + num(r.rims_stopped), 0),
       passAttempts: gamePuck.reduce((s,r) => s + num(r.pass_attempts), 0),
-      passesCompleted: gamePuck.reduce((s,r) => s + num(r.passes_completed), 0)
+      passesCompleted: gamePuck.reduce((s,r) => s + num(r.passes_completed), 0),
+      rimRows: puckRimDisplayRows(pb),
+      passRows: puckPassDisplayRows(pb)
     };
 
   }
@@ -15644,6 +15803,14 @@ function buildGameNarrativeInputText(data, goalieInfo){
       `Puck playing -- Rims faced/stopped: ${p.rimsFaced}/${p.rimsStopped}; ` +
       `Pass attempts/completed: ${p.passAttempts}/${p.passesCompleted}.`
     );
+
+    (p.rimRows || []).forEach(r => {
+      lines.push(`  Rims, ${r.label}: ${r.stopped} stopped of ${r.faced} (${puckPctText(r.stopped, r.faced)})`);
+    });
+
+    (p.passRows || []).forEach(r => {
+      lines.push(`  Passes, ${r.label}: ${r.completed} completed of ${r.attempts} (${puckPctText(r.completed, r.attempts)})`);
+    });
 
   }
 
@@ -16105,6 +16272,23 @@ async function generateGameReportPDF(gameId, buttonEl, options = {}){
     y = pdfSectionHeading(doc, y, "Puck Playing");
     y = pdfStatRow(doc, y, "Rims Faced / Stopped", `${p.rimsFaced} / ${p.rimsStopped} (${formatPdfPct(rimsPct)})`);
     y = pdfStatRow(doc, y, "Pass Attempts / Completed", `${p.passAttempts} / ${p.passesCompleted} (${formatPdfPct(passPct)})`);
+
+    if(p.rimRows && p.rimRows.length){
+      y += 4;
+      y = pdfTableRow(doc, y, ["Rims","Faced","Stopped","Stop %"], [190,70,70,80], true);
+      p.rimRows.forEach(r => {
+        y = pdfTableRow(doc, y, [r.label, r.faced, r.stopped, puckPctText(r.stopped, r.faced)], [190,70,70,80]);
+      });
+    }
+
+    if(p.passRows && p.passRows.length){
+      y += 4;
+      y = pdfTableRow(doc, y, ["Passes","Attempts","Completed","Converted %"], [190,70,70,80], true);
+      p.passRows.forEach(r => {
+        y = pdfTableRow(doc, y, [r.label, r.attempts, r.completed, puckPctText(r.completed, r.attempts)], [190,70,70,80]);
+      });
+    }
+
     y += 10;
 
   }
@@ -17507,6 +17691,14 @@ function renderGameOverviewBreakdowns(game, m){
         <div class="stat-row"><span class="stat-name">Rims stopped</span><span class="stat-value">${p.rimsStopped} / ${p.rimsFaced} · ${rimPct}</span></div>
         ${p.passAttempts ? `<div class="stat-row"><span class="stat-name">Passes completed</span><span class="stat-value">${p.passesCompleted} / ${p.passAttempts} · ${passPct}</span></div>` : ""}
       </div>
+      ${p.rimRows && p.rimRows.length ? goRowsTable(
+        ["Rims","Faced","Stopped","Stop %"],
+        p.rimRows.map(x => `<tr><td>${escapeHtml(x.label)}</td><td>${x.faced}</td><td>${x.stopped}</td><td>${puckPctText(x.stopped, x.faced)}</td></tr>`)
+      ) : ""}
+      ${p.passRows && p.passRows.length ? goRowsTable(
+        ["Passes","Attempts","Completed","Converted %"],
+        p.passRows.map(x => `<tr><td>${escapeHtml(x.label)}</td><td>${x.attempts}</td><td>${x.completed}</td><td>${puckPctText(x.completed, x.attempts)}</td></tr>`)
+      ) : ""}
     `);
 
   }
@@ -18180,6 +18372,133 @@ function showAddGameMessage(message){
 }
 
 
+/* ---------- puck playing inputs on the Add / Edit Game form ---------- */
+
+function renderPuckFormFields(){
+
+  const host = document.getElementById("pp-fields");
+
+  if(!host){ return; }
+
+  const field = (key, label, high) => `
+    <div class="field${high ? " pp-high" : ""}"${high ? ` style="display:none"` : ""}>
+      <label for="pp-${key}">${label}</label>
+      <input type="number" id="pp-${key}" min="0">
+    </div>`;
+
+  const group = (title, inner) => `
+    <h4 style="margin:14px 0 6px">${title}</h4>
+    <div class="field-grid">${inner}</div>`;
+
+  host.innerHTML =
+    group("Rims faced", PUCK_RIM_KINDS.map(k => field("rims_faced_" + k.key, k.label, k.high)).join("")) +
+    group("Rims stopped", PUCK_RIM_KINDS.map(k => field("rims_stopped_" + k.key, k.label, k.high)).join("")) +
+    group("Passes attempted",
+      PUCK_PASS_KINDS.map(k => field("pass_attempts_" + k.key, k.label, false)).join("") +
+      `<div class="field" id="pp-untyped-attempts-wrap" style="display:none">
+         <label for="pp-pass_attempts_untyped">Type not recorded</label>
+         <input type="number" id="pp-pass_attempts_untyped" min="0">
+       </div>`) +
+    group("Passes completed",
+      PUCK_PASS_KINDS.map(k => field("passes_completed_" + k.key, k.label, false)).join("") +
+      `<div class="field" id="pp-untyped-completed-wrap" style="display:none">
+         <label for="pp-passes_completed_untyped">Type not recorded</label>
+         <input type="number" id="pp-passes_completed_untyped" min="0">
+       </div>`);
+
+}
+
+function syncPuckFormHigh(){
+
+  const toggle = document.getElementById("pp-high-toggle");
+
+  if(!toggle){ return; }
+
+  document.querySelectorAll("#pp-fields .pp-high").forEach(el => {
+    el.style.display = toggle.checked ? "" : "none";
+  });
+
+}
+
+function fillPuckForm(puck){
+
+  PUCK_FINE_KEYS.forEach(key => {
+    const el = document.getElementById("pp-" + key);
+    if(el){ el.value = puck && num(puck[key]) ? puck[key] : ""; }
+  });
+
+  // Older games only have pass totals. Keep that remainder so saving
+  // the game doesn't wipe it.
+  const b = puckBreakdown(puck ? [puck] : []);
+  const showUntyped = (wrapId, inputId, value) => {
+    document.getElementById(wrapId).style.display = value ? "" : "none";
+    document.getElementById(inputId).value = value || "";
+  };
+
+  showUntyped("pp-untyped-attempts-wrap", "pp-pass_attempts_untyped", b.untypedPasses.attempts);
+  showUntyped("pp-untyped-completed-wrap", "pp-passes_completed_untyped", b.untypedPasses.completed);
+
+  const toggle = document.getElementById("pp-high-toggle");
+
+  if(toggle){
+    toggle.checked = !!puck && PUCK_RIM_KINDS.some(k => k.high && (num(puck["rims_faced_" + k.key]) || num(puck["rims_stopped_" + k.key])));
+    syncPuckFormHigh();
+  }
+
+}
+
+// Reads the puck inputs into a puck_playing row (fine columns plus the
+// four totals). All-null when nothing was entered. Throws if a stopped
+// or completed count is higher than its faced / attempted count.
+function readPuckForm(){
+
+  const val = id => numOrNull(document.getElementById(id).value);
+
+  const fine = {};
+  let any = false;
+
+  PUCK_FINE_KEYS.forEach(key => {
+    const v = val("pp-" + key);
+    if(v !== null){ any = true; }
+    fine[key] = v === null ? 0 : v;
+  });
+
+  const untypedAtt = val("pp-pass_attempts_untyped");
+  const untypedComp = val("pp-passes_completed_untyped");
+
+  if(untypedAtt !== null || untypedComp !== null){ any = true; }
+
+  if(!any){
+    return { rims_faced: null, rims_stopped: null, pass_attempts: null, passes_completed: null };
+  }
+
+  PUCK_RIM_KINDS.forEach(k => {
+    if(fine["rims_stopped_" + k.key] > fine["rims_faced_" + k.key]){
+      throw new Error(`Rims stopped can't be more than rims faced (${k.label}).`);
+    }
+  });
+
+  PUCK_PASS_KINDS.forEach(k => {
+    if(fine["passes_completed_" + k.key] > fine["pass_attempts_" + k.key]){
+      throw new Error(`Passes completed can't be more than attempts (${k.label}).`);
+    }
+  });
+
+  if((untypedComp || 0) > (untypedAtt || 0)){
+    throw new Error("Passes completed can't be more than attempts (type not recorded).");
+  }
+
+  const sum = keys => keys.reduce((a, k) => a + fine[k], 0);
+
+  return Object.assign({}, fine, {
+    rims_faced: sum(PUCK_RIM_FACED_KEYS),
+    rims_stopped: sum(PUCK_RIM_STOPPED_KEYS),
+    pass_attempts: sum(PUCK_PASS_ATT_KEYS) + (untypedAtt || 0),
+    passes_completed: sum(PUCK_PASS_COMP_KEYS) + (untypedComp || 0)
+  });
+
+}
+
 function numOrNull(value){
 
   if(value === "" || value === null || value === undefined){
@@ -18547,10 +18866,7 @@ function editGame(gameId){
   const puck =
     puckPlaying.find(p => String(p.game_id) === String(gameId));
 
-  document.getElementById("pp-rims-faced").value = puck?.rims_faced ?? "";
-  document.getElementById("pp-rims-stopped").value = puck?.rims_stopped ?? "";
-  document.getElementById("pp-pass-attempts").value = puck?.pass_attempts ?? "";
-  document.getElementById("pp-passes-completed").value = puck?.passes_completed ?? "";
+  fillPuckForm(puck);
 
   document.getElementById("addgame-form")
     .scrollIntoView({ behavior: "smooth" });
@@ -19672,6 +19988,8 @@ function restoreLiveTagDraft(draftId, snap){
 
   });
 
+  syncPuckHighVisibility();
+
   setLiveTagPeriod(liveTagState.currentPeriod);
   syncLiveTagStrengthButtons();
   resetLiveTagShotPicker();
@@ -19777,7 +20095,7 @@ function freshLiveTagState(){
     draftId: null,
     continueGameId: null,
     reboundTally,
-    puckTally: { rims_faced:0, rims_stopped:0, pass_attempts:0, passes_completed:0 }
+    puckTally: puckEmptyTally()
   };
 
 }
@@ -19946,6 +20264,64 @@ function removeLiveTagShot(index){
 }
 
 
+// The live-tag puck controls: rims faced / stopped by side (and height,
+// once "up high" is switched on) and passes by type.
+function renderLiveTagPuckControls(){
+
+  const host = document.getElementById("lt-puck-host");
+
+  if(!host){ return; }
+
+  const row = (key, label, high) => `
+    <div class="counter-row${high ? " lt-puck-high" : ""}"${high ? ` style="display:none"` : ""}>
+      <span class="counter-name">${label}</span>
+      <div class="counter-controls">
+        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','${key}',-1)">–</button>
+        <span class="counter-value" id="lt-count-${key}">0</span>
+        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','${key}',1)">+</button>
+      </div>
+    </div>`;
+
+  const heading = text => `<div class="tag-group-label" style="margin:12px 0 4px">${text}</div>`;
+
+  host.innerHTML =
+    heading("Rims faced") +
+    PUCK_RIM_KINDS.map(k => row("rims_faced_" + k.key, k.label, k.high)).join("") +
+    heading("Rims stopped") +
+    PUCK_RIM_KINDS.map(k => row("rims_stopped_" + k.key, k.label, k.high)).join("") +
+    heading("Passes attempted") +
+    PUCK_PASS_KINDS.map(k => row("pass_attempts_" + k.key, k.label, false)).join("") +
+    heading("Passes completed") +
+    PUCK_PASS_KINDS.map(k => row("passes_completed_" + k.key, k.label, false)).join("");
+
+  PUCK_FINE_KEYS.forEach(key => {
+    const el = document.getElementById("lt-count-" + key);
+    if(el && liveTagState && liveTagState.puckTally){ el.textContent = liveTagState.puckTally[key] || 0; }
+  });
+
+  syncPuckHighVisibility();
+
+}
+
+// Up-high rims stay hidden unless switched on, or already have counts.
+function syncPuckHighVisibility(){
+
+  const toggle = document.getElementById("lt-puck-high-toggle");
+
+  if(!toggle){ return; }
+
+  const hasHigh =
+    !!(liveTagState && liveTagState.puckTally) &&
+    PUCK_RIM_KINDS.some(k => k.high && (num(liveTagState.puckTally["rims_faced_" + k.key]) || num(liveTagState.puckTally["rims_stopped_" + k.key])));
+
+  if(hasHigh){ toggle.checked = true; }
+
+  document.querySelectorAll(".lt-puck-high").forEach(el => {
+    el.style.display = toggle.checked ? "" : "none";
+  });
+
+}
+
 function stepLiveTagCounter(kind, field, delta){
 
   const tally =
@@ -20069,9 +20445,12 @@ function resetLiveTagSession(){
   document.getElementById("lt-p3-minutes").value = "15";
   document.getElementById("lt-ot-minutes").value = "0";
 
-  ["rims_faced","rims_stopped","pass_attempts","passes_completed"].forEach(field => {
-    document.getElementById("lt-count-" + field).textContent = "0";
+  PUCK_FINE_KEYS.forEach(field => {
+    const el = document.getElementById("lt-count-" + field);
+    if(el){ el.textContent = "0"; }
   });
+
+  syncPuckHighVisibility();
 
   setLiveTagPeriod("1");
   syncLiveTagStrengthButtons();
@@ -20303,7 +20682,7 @@ async function appendLiveTagToGame(gameIdRaw, periodMinutes){
   }
 
   await addTally("goalierebound_control", liveTagState.reboundTally);
-  await addTally("puck_playing", liveTagState.puckTally);
+  await addTally("puck_playing", puckTallyForSave(liveTagState.puckTally));
 
   return userId;
 
@@ -20507,7 +20886,7 @@ async function finishLiveTagGame(){
         await supabaseClient
           .from("puck_playing")
           .insert({
-            ...liveTagState.puckTally,
+            ...puckTallyForSave(liveTagState.puckTally),
             game_id: gameId,
             user_id: userId
           });
@@ -21266,12 +21645,7 @@ document.getElementById("addgame-form")
       }
 
 
-      const puckFields = {
-        rims_faced: numOrNull(document.getElementById("pp-rims-faced").value),
-        rims_stopped: numOrNull(document.getElementById("pp-rims-stopped").value),
-        pass_attempts: numOrNull(document.getElementById("pp-pass-attempts").value),
-        passes_completed: numOrNull(document.getElementById("pp-passes-completed").value)
-      };
+      const puckFields = readPuckForm();
 
       if(!rowIsBlank(puckFields)){
 
@@ -25613,6 +25987,8 @@ async function deleteGameVideo(gameVideoId, button){
    START
 ============================================================ */
 
+renderLiveTagPuckControls();
+renderPuckFormFields();
 initLiveTagShotMap();
 
 initAuth();

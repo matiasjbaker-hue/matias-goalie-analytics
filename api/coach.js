@@ -212,6 +212,26 @@ function buildStatsSummary({ games, periodStats, shots, reboundControls, puckPla
     lines.push("Puck playing this season:");
     lines.push(`  - Rims faced: ${rimsFaced}, stopped: ${rimsStopped} (${pct(rimsStopped, rimsFaced) ?? "n/a"}%)`);
     lines.push(`  - Pass attempts: ${passAttempts}, completed: ${passesCompleted} (${pct(passesCompleted, passAttempts) ?? "n/a"}%)`);
+
+    // Breakdown by rim side/height and pass type (only the kinds with data)
+    const sumKey = key => seasonPuck.reduce((sum, p) => sum + num(p[key]), 0);
+
+    [["forehand_ice", "forehand, on the ice"], ["backhand_ice", "backhand, on the ice"],
+     ["forehand_high", "forehand, up high"], ["backhand_high", "backhand, up high"]].forEach(([k, label]) => {
+      const faced = sumKey("rims_faced_" + k);
+      const stopped = sumKey("rims_stopped_" + k);
+      if (faced > 0) {
+        lines.push(`  - Rims ${label}: ${stopped}/${faced} stopped (${pct(stopped, faced) ?? "n/a"}%)`);
+      }
+    });
+
+    [["forehand", "forehand"], ["backhand", "backhand"], ["stretch", "stretch"]].forEach(([k, label]) => {
+      const attempts = sumKey("pass_attempts_" + k);
+      const completed = sumKey("passes_completed_" + k);
+      if (attempts > 0) {
+        lines.push(`  - ${label[0].toUpperCase() + label.slice(1)} passes: ${completed}/${attempts} completed (${pct(completed, attempts) ?? "n/a"}%)`);
+      }
+    });
   }
 
   return lines.join("\n");
