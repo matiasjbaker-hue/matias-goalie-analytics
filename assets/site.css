@@ -4765,13 +4765,15 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
 }
 
 /* Action stretches on the review timeline (Veo-style) */
+/* Action stretches: a strip along the bottom of the timeline, kept
+   visually apart from the To check markers (amber) and shots. */
 .rv-action{
   position:absolute;
-  top:0;
   bottom:0;
-  background:rgba(232,185,35,.38);
-  border-left:1.5px solid var(--gold);
-  border-right:1.5px solid var(--gold);
+  height:7px;
+  background:var(--pine-bright);
+  opacity:.55;
+  border-radius:2px 2px 0 0;
   pointer-events:none;
 }
 
@@ -5269,3 +5271,25 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
 .rv-tests th{ font-weight:800; font-size:12px; }
 .rv-tests th span{ font-weight:600; color:var(--ink-2); }
 .rv-tests .small-note{ margin:8px 0 0; }
+
+
+/* Timeline key */
+.rv-legend{
+  display:flex;
+  flex-wrap:wrap;
+  gap:4px 14px;
+  margin-top:6px;
+  font-size:12px;
+  color:var(--ink-2);
+}
+.rv-legend span{ display:inline-flex; align-items:center; gap:6px; }
+.rv-legend i{ display:inline-block; flex:none; }
+.rv-legend .lg-save{ width:5px; height:13px; border-radius:2px; background:var(--save); }
+.rv-legend .lg-goal{ width:7px; height:13px; border-radius:2px; border:2px dashed var(--goal); }
+.rv-legend .lg-check{ width:6px; height:13px; border-radius:3px; border:2px solid var(--gold-deep); }
+.rv-legend .lg-action{ width:18px; height:6px; border-radius:2px; background:var(--pine-bright); opacity:.55; }
+.rv-legend .lg-cut{ width:18px; height:12px; border-radius:2px; background:repeating-linear-gradient(135deg, rgba(18,20,18,.34) 0 3px, rgba(18,20,18,.12) 3px 6px); }
+:root[data-theme="dark"] .rv-legend .lg-cut{ background:repeating-linear-gradient(135deg, rgba(244,245,241,.28) 0 3px, rgba(244,245,241,.08) 3px 6px); }
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .rv-legend .lg-cut{ background:repeating-linear-gradient(135deg, rgba(244,245,241,.28) 0 3px, rgba(244,245,241,.08) 3px 6px); }
+}

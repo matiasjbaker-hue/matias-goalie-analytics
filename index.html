@@ -3364,6 +3364,7 @@
           </select>
         </label>
         <button type="button" class="btn-secondary" id="rv-scan-btn" onclick="toggleReviewScan()">Run AI</button>
+        <button type="button" class="btn-secondary" id="rv-clear-ai-btn" onclick="clearReviewAiResults()" title="Removes the AI's shots you haven't touched, the To check list and the action stretches, so Run AI starts fresh. Your own shots, period marks and cuts are kept.">Clear AI results</button>
         <button type="button" class="btn-secondary" id="rv-test-btn" onclick="runReviewAccuracyTest()" title="Checks the AI against shots you've already marked and reports how many it found, how many extra it flagged, and the cost. Doesn't change the shot list.">Test accuracy</button>
         <button type="button" class="btn-danger" onclick="flagReviewNeedsAttention()">Needs attention</button>
         <label class="rv-check" title="Sends the goalie a recap with their PDF stat sheet from the company Gmail">
@@ -3415,6 +3416,13 @@
           <div class="rv-scanned" id="rv-scanned"></div>
           <div id="rv-ticks"></div>
           <div class="rv-playhead" id="rv-playhead"></div>
+        </div>
+        <div class="rv-legend" aria-hidden="true">
+          <span><i class="lg-save"></i>Save</span>
+          <span><i class="lg-goal"></i>Goal</span>
+          <span><i class="lg-check"></i>To check</span>
+          <span><i class="lg-action"></i>Action: play in the goalie's zone</span>
+          <span><i class="lg-cut"></i>Cut</span>
         </div>
 
         <div class="rv-controls">
@@ -21108,6 +21116,8 @@ function renderReviewHeader(){
 
   const scanBtn = document.getElementById("rv-scan-btn");
   scanBtn.disabled = !!review.testing;
+  const clearBtn = document.getElementById("rv-clear-ai-btn");
+  if(clearBtn){ clearBtn.disabled = !!(review.scanning || review.collecting || review.testing); }
   const testBtn = document.getElementById("rv-test-btn");
   if(testBtn){
     testBtn.disabled = !!(review.scanning || review.collecting);
@@ -21308,7 +21318,10 @@ function renderReviewTimeline(){
   document.getElementById("rv-scanned").style.width =
     v && Number(v.scan_progress) < 1 ? `${pct(v.scan_cursor)}%` : "0";
 
-  const actionHtml = reviewActionStretches().map(r =>
+  // Only what the AI saw; "Play action only" also covers a few seconds
+  // around every shot, but those are already marked by the shot ticks.
+  const savedAction = (v && v.period_marks && Array.isArray(v.period_marks._action)) ? v.period_marks._action : [];
+  const actionHtml = mergeActionStretches(savedAction).map(r =>
     `<span class="rv-action" style="left:${pct(r[0])}%;width:${Math.max(0.3, pct(r[1]) - pct(r[0]))}%"></span>`
   ).join("");
 
@@ -22479,6 +22492,77 @@ function dismissAllReviewChecks(){
   saveReviewCandidates();
   renderReviewChecklist();
   renderReviewTimeline();
+}
+
+
+/* ---------- clear AI results ----------
+   A clean slate before re-running the AI: removes the AI's shots the
+   admin hasn't edited, the To check list, the action stretches, any
+   half-price results still on the way, and the scan position. Shots the
+   admin added or edited, period marks, the goalie's net, cuts, the edit
+   and accuracy test results are kept. */
+
+async function clearReviewAiResults(){
+
+  const v = review.video;
+  if(!v || review.scanning || review.collecting || review.testing){ return; }
+
+  const marks = v.period_marks || {};
+  const aiShots = review.drafts.filter(d => d.source === "ai" && !d.edited);
+  const checks = (review.candidates || []).length;
+  const stretches = Array.isArray(marks._action) ? marks._action.length : 0;
+  const pending = reviewPendingBatches(v).length + reviewUntagged(v).length;
+
+  if(!aiShots.length && !checks && !stretches && !pending && !Number(v.scan_cursor)){
+    showToast("There are no AI results on this video to clear.");
+    return;
+  }
+
+  const lines = [
+    `${aiShots.length} AI shot${aiShots.length === 1 ? "" : "s"} you haven't edited`,
+    `${checks} moment${checks === 1 ? "" : "s"} in To check`,
+    "the action stretches (the coloured strip along the bottom of the timeline)",
+    ...(pending ? [`${pending} half-price result${pending === 1 ? "" : "s"} still on the way (already paid for)`] : [])
+  ];
+  if(!confirm(`Clear the AI's results on this video?\n\n• ${lines.join("\n• ")}\n\nShots you added or edited, period marks, the goalie's net, cuts and your edit are kept. Run AI then starts from the beginning.`)){ return; }
+
+  try{
+    if(aiShots.length){
+      const { error } = await supabaseClient.from("video_shot_drafts").delete().in("id", aiShots.map(d => d.id));
+      if(error){ throw error; }
+      const gone = new Set(aiShots.map(d => String(d.id)));
+      review.drafts = review.drafts.filter(d => !gone.has(String(d.id)));
+      if(review.selectedId && gone.has(String(review.selectedId))){
+        review.selectedId = null;
+        document.getElementById("rv-editor").hidden = true;
+      }
+    }
+
+    const { _action, _candidates, _batches, _untagged, ...rest } = marks;
+    const { error } = await supabaseClient.from("game_videos")
+      .update({ period_marks: rest, scan_cursor: 0, scan_progress: 0 }).eq("id", v.id);
+    if(error){ throw error; }
+
+    Object.assign(v, { period_marks: rest, scan_cursor: 0, scan_progress: 0 });
+    const cached = reviewQueueCache.find(x => String(x.id) === String(v.id));
+    if(cached){ Object.assign(cached, { period_marks: rest, scan_cursor: 0, scan_progress: 0 }); }
+    clearTimeout(review.candidateSaveTimer);
+    review.candidates = [];
+    review.checkT = null;
+    review.scanStats = null;
+    stopReviewBatchPolling();
+
+    renderReviewPreview(null);
+    renderReviewHeader();
+    renderReviewShots();
+    renderReviewScanBar();
+    showToast("AI results cleared. Run AI starts fresh from the beginning.", "success");
+  }
+  catch(error){
+    console.error(error);
+    showToast(`Couldn't clear the AI results: ${error.message || error}`, "error");
+  }
+
 }
 
 
