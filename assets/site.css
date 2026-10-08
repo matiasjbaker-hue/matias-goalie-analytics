@@ -4629,15 +4629,27 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
   font-variant-numeric:tabular-nums;
 }
 
+/* To check: moments the AI wasn't sure about. Amber, with a wide
+   invisible hit area so they're easy to click on a long game. */
 .rv-tick.is-candidate{
-  top:14px;
-  bottom:14px;
-  width:4px;
-  margin-left:-2px;
-  background:var(--seam-strong);
+  top:6px;
+  bottom:6px;
+  width:6px;
+  margin-left:-3px;
+  background:transparent;
+  border:2px solid var(--gold-deep);
+  border-radius:3px;
 }
-
-.rv-tick.is-candidate:hover{ top:10px; bottom:10px; background:var(--muted-ink); }
+.rv-tick.is-candidate::before{
+  content:"";
+  position:absolute;
+  top:-6px;
+  bottom:-6px;
+  left:-6px;
+  right:-6px;
+}
+.rv-tick.is-candidate:hover,
+.rv-tick.is-candidate.is-selected{ background:var(--gold); border-color:var(--gold-deep); }
 
 
 /* =========================================================
@@ -5156,3 +5168,104 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
 }
 .rv-av-foot .small-note{ margin:0 auto 0 0; }
 .rv-details .rv-av-foot{ padding:0 16px 14px; }
+
+
+/* To check list (review side panel) */
+.rv-check-head{ margin-top:16px; }
+.rv-check-note{ margin:4px 0 8px; }
+.rv-linkbtn{
+  font:inherit;
+  font-size:13px;
+  font-weight:700;
+  color:var(--ink-2);
+  background:none;
+  border:0;
+  padding:2px 0;
+  text-decoration:underline;
+  text-underline-offset:3px;
+  cursor:pointer;
+}
+.rv-linkbtn:hover{ color:var(--ink); }
+.rv-checklist{
+  list-style:none;
+  margin:0;
+  padding:0;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  max-height:280px;
+  overflow:auto;
+}
+.rv-checklist li{
+  display:flex;
+  align-items:stretch;
+  border:1.5px dashed var(--gold-deep);
+  border-radius:var(--radius);
+  background:var(--field);
+}
+.rv-checklist li.is-selected{ border-style:solid; background:rgba(232,185,35,.16); }
+.rv-checklist button{
+  font:inherit;
+  font-size:13px;
+  color:var(--ink);
+  background:none;
+  border:0;
+  cursor:pointer;
+}
+.rv-check-go{
+  flex:1;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:7px 8px;
+  text-align:left;
+  min-width:0;
+}
+.rv-check-conf{
+  margin-left:auto;
+  font-size:12px;
+  font-variant-numeric:tabular-nums;
+  color:var(--ink-2);
+}
+.rv-check-add{
+  padding:0 10px;
+  font-weight:800 !important;
+  border-left:1.5px solid var(--seam-strong) !important;
+}
+.rv-check-x{
+  padding:0 10px;
+  font-weight:800 !important;
+  font-size:16px !important;
+  border-left:1.5px solid var(--seam-strong) !important;
+}
+.rv-check-add:hover,
+.rv-check-x:hover,
+.rv-check-go:hover{ background:var(--face); }
+
+/* AI accuracy tests */
+.rv-tests{
+  margin-top:12px;
+  padding:12px 14px;
+  background:var(--face);
+  border:1.5px solid var(--ink);
+  border-radius:var(--radius);
+}
+.rv-tests h4{ margin:0 0 8px; font-size:15px; font-weight:800; }
+.rv-tests-scroll{ overflow-x:auto; }
+.rv-tests table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:13px;
+  font-variant-numeric:tabular-nums;
+}
+.rv-tests th,
+.rv-tests td{
+  text-align:left;
+  padding:6px 10px 6px 0;
+  border-bottom:1px solid var(--seam-strong);
+  vertical-align:top;
+  white-space:nowrap;
+}
+.rv-tests th{ font-weight:800; font-size:12px; }
+.rv-tests th span{ font-weight:600; color:var(--ink-2); }
+.rv-tests .small-note{ margin:8px 0 0; }

@@ -3356,7 +3356,15 @@
             <option value="instant">Instant (full price)</option>
           </select>
         </label>
+        <label class="rv-density" title="Opus 5.5 reads the video more sharply and costs about twice as much. Use Test accuracy to compare them on your own footage.">
+          <span>AI model</span>
+          <select id="rv-ai-model" onchange="onReviewModelChange(this.value)">
+            <option value="claude-sonnet-5-5">Sonnet 5.5 (cheaper)</option>
+            <option value="claude-opus-5-5">Opus 5.5 (sharper, ~2× cost)</option>
+          </select>
+        </label>
         <button type="button" class="btn-secondary" id="rv-scan-btn" onclick="toggleReviewScan()">Run AI</button>
+        <button type="button" class="btn-secondary" id="rv-test-btn" onclick="runReviewAccuracyTest()" title="Checks the AI against shots you've already marked and reports how many it found, how many extra it flagged, and the cost. Doesn't change the shot list.">Test accuracy</button>
         <button type="button" class="btn-danger" onclick="flagReviewNeedsAttention()">Needs attention</button>
         <label class="rv-check" title="Sends the goalie a recap with their PDF stat sheet from the company Gmail">
           <input type="checkbox" id="rv-auto-email" checked> <span>Email stats + PDF</span>
@@ -3371,6 +3379,8 @@
     </div>
 
     <div class="rv-preview" id="rv-preview" hidden></div>
+
+    <section class="rv-tests" id="rv-tests" hidden aria-label="AI accuracy tests"></section>
 
     <details class="rv-details" open>
       <summary>Submission <span class="small-note">What the goalie sent. Edit anything and press Save changes; it's also saved with the game when you publish. Season decides which dashboard it shows on.</span></summary>
@@ -3505,7 +3515,7 @@
           </div>
         </section>
 
-        <p class="small-note rv-keys">Keys: Space play/pause · ← → 5 seconds · ] [ next or previous action · S add a shot · N / P next or previous shot · G toggle goal · I / O mark in / out · Delete cut in → out · X start or end a cut · , . one frame · Shift + ← → 1 second · U undo</p>
+        <p class="small-note rv-keys">Keys: Space play/pause · ← → 5 seconds · ] [ next or previous action · S add a shot · N / P next or previous shot · G toggle goal · I / O mark in / out · Delete cut in → out · X start or end a cut · , . one frame · Shift + ← → 1 second · U undo · M next moment to check (Shift + M previous) · A add it as a shot · D dismiss it</p>
 
       </div>
 
@@ -3517,6 +3527,13 @@
         </div>
 
         <ol class="rv-shotlist" id="rv-shotlist"></ol>
+
+        <div class="rv-side-head rv-check-head" id="rv-check-head" hidden>
+          <h4>To check <span id="rv-check-count"></span></h4>
+          <button type="button" class="rv-linkbtn" onclick="dismissAllReviewChecks()">Dismiss all</button>
+        </div>
+        <p class="small-note rv-check-note" id="rv-check-note" hidden>Moments the AI wasn't sure about. M plays the next one; A adds it as a shot, D dismisses it.</p>
+        <ol class="rv-checklist" id="rv-checklist" hidden></ol>
 
         <div class="rv-editor" id="rv-editor" hidden>
 
@@ -20759,9 +20776,11 @@ const REVIEW_TAG_WIDTH = 768;
 // Every flagged moment goes on the list for the admin; only flags
 // below this are shown as faint "looked here" ticks instead.
 const REVIEW_KEEP_UNSURE = 0.15;
-// Flags below this aren't looked at closely (a paid call each): they go
-// on the timeline as grey ticks the admin can add with S.
-const REVIEW_TAG_MIN = 0.5;
+// Scan flags at or above REVIEW_AUTO_SHOT go straight onto the shot list
+// (a closer look fills them in); from REVIEW_TO_CHECK up they go to the
+// To check list, with no paid closer look unless the admin adds them.
+const REVIEW_AUTO_SHOT = 0.6;
+const REVIEW_TO_CHECK = 0.25;
 const REVIEW_DETECT_CONCURRENCY = 4;
 // Seconds: a flag closer than this to a shot already on the list is
 // treated as the same shot. Kept short because rebound shots can come
@@ -21014,8 +21033,13 @@ async function openReview(videoId){
   review.cutHistory = [];
   review.drafts = [];
   review.candidates = ((v.period_marks && Array.isArray(v.period_marks._candidates)) ? v.period_marks._candidates : [])
-    .map(c => ({ t: Number(c.t), confidence: Number(c.c) || 0 })).filter(c => Number.isFinite(c.t));
+    .map(c => ({ t: Number(c.t), confidence: Number(c.c) || 0, goal: !!c.g })).filter(c => Number.isFinite(c.t));
+  review.checkT = null;
   review.selectedId = null;
+  try{
+    const m = localStorage.getItem("giq-ai-model");
+    if(m && REVIEW_MODELS[m]){ document.getElementById("rv-ai-model").value = m; }
+  }catch(e){}
   refreshReviewNetSelects();
 
   document.getElementById("rv-queue-view").hidden = true;
@@ -21045,6 +21069,7 @@ async function openReview(videoId){
   loadReviewVideo();
   loadReviewUser(v.user_id);
   loadReviewAiCost(v.id);
+  renderReviewTests();
   startReviewBatchPolling();
 
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -21082,7 +21107,12 @@ function renderReviewHeader(){
   approveBtn.textContent = approved ? "Republish changes" : "Approve & publish";
 
   const scanBtn = document.getElementById("rv-scan-btn");
-  scanBtn.disabled = false;
+  scanBtn.disabled = !!review.testing;
+  const testBtn = document.getElementById("rv-test-btn");
+  if(testBtn){
+    testBtn.disabled = !!(review.scanning || review.collecting);
+    testBtn.textContent = review.testing ? "Stop test" : "Test accuracy";
+  }
   scanBtn.textContent =
     review.scanning ? "Pause AI" :
     review.collecting ? "Collecting…" :
@@ -21305,8 +21335,8 @@ function renderReviewTimeline(){
     ["2", "3", "OT"].filter(k => marks[k] !== undefined && marks[k] !== null).map(k =>
       `<span class="rv-pmark" style="left:${pct(marks[k])}%" title="${k === "OT" ? "OT" : k === "2" ? "2nd period" : "3rd period"} starts ${formatClock(marks[k])}">${k === "OT" ? "OT" : k}</span>`
     ).join("") +
-    (review.candidates || []).filter(c => !review.drafts.some(dr => Math.abs(Number(dr.t_seconds) - c.t) < REVIEW_MIN_GAP)).map(c =>
-      `<button type="button" class="rv-tick is-candidate" style="left:${pct(c.t)}%" onclick="event.stopPropagation(); reviewJumpTo(${c.t})" title="${escapeHtml(formatClock(c.t))} · The AI flagged this but couldn't confirm a shot. Press S here to add it if it is one." aria-label="Unconfirmed moment at ${escapeHtml(formatClock(c.t))}"></button>`
+    reviewChecks().map(c =>
+      `<button type="button" class="rv-tick is-candidate ${Number.isFinite(review.checkT) && Math.abs(review.checkT - c.t) < 0.01 ? "is-selected" : ""}" style="left:${pct(c.t)}%" onclick="event.stopPropagation(); selectReviewCheck(${c.t}, true)" title="${escapeHtml(formatClock(c.t))} · To check: ${c.goal ? "possible goal" : "possible shot"} (AI ${Math.round((Number(c.confidence) || 0) * 100)}% sure). Click to watch; A adds it, D dismisses it." aria-label="To check: ${escapeHtml(formatClock(c.t))}"></button>`
     ).join("") +
     review.drafts.map(dr => {
       const cls = ["rv-tick", dr.outcome === "goal" ? "is-goal" : "is-save", String(dr.id) === String(review.selectedId) ? "is-selected" : ""].join(" ");
@@ -21368,6 +21398,7 @@ function renderReviewShots(){
     }).join("");
   }
 
+  renderReviewChecklist();
   renderReviewTimeline();
 
 }
@@ -21548,13 +21579,19 @@ async function addReviewShotHere(){
 
   const video = document.getElementById("rv-video");
   video.pause();
-  const t = video.currentTime;
+  await addReviewShotAt(video.currentTime);
+
+}
+
+async function addReviewShotAt(t, outcome = "save"){
+
+  if(!review.video){ return; }
 
   const near = review.drafts.find(d => Math.abs(Number(d.t_seconds) - t) < 1.5);
   if(near){ selectReviewShot(near.id, false); showToast("There's already a shot here; it's selected."); return; }
 
   try{
-    const row = await insertReviewDraft({ game_video_id: review.video.id, t_seconds: Math.round(t * 10) / 10, source: "admin", outcome: "save" });
+    const row = await insertReviewDraft({ game_video_id: review.video.id, t_seconds: Math.round(t * 10) / 10, source: "admin", outcome });
     renderReviewShots();
     selectReviewShot(row.id, false);
     markReviewInProgress();
@@ -22032,6 +22069,7 @@ async function callClipAi(payload){
     body: JSON.stringify({
       accessToken: currentSession.access_token,
       context: { goalieJersey: (review.video && review.video.team_jersey_color) || "" },
+      ...(review.video ? { model: reviewAiModel() } : {}),
       ...payload
     })
   });
@@ -22158,7 +22196,7 @@ function renderReviewScanBar(){
   document.getElementById("rv-scanbar-fill").style.width = `${pct}%`;
   const st = review.scanStats || { found: 0 };
   const detail = st.batches !== undefined
-    ? ` (${st.batches} stretches checked${st.skipped ? ` · ${st.skipped} dead-time stills skipped` : ""} · ${st.flagged} moments flagged · ${st.confirmed} shots added · ${(st.unsure || 0) + (st.rejected || 0)} left as grey ticks · ${st.duplicate || 0} already on the list${st.errors ? ` · ${st.errors} errors: ${st.lastError}` : ""})`
+    ? ` (${st.batches} stretches checked${st.skipped ? ` · ${st.skipped} dead-time stills skipped` : ""} · ${st.flagged} moments flagged · ${st.found} shots added · ${st.toCheck || 0} to check · ${st.duplicate || 0} already on the list${st.errors ? ` · ${st.errors} errors: ${st.lastError}` : ""})`
     : "";
   document.getElementById("rv-scan-text").textContent = review.scanning
     ? review.scanHalfPrice
@@ -22180,7 +22218,7 @@ function renderReviewPreview(frames){
 }
 
 function newReviewScanStats(){
-  return { found: 0, batches: 0, sent: 0, skipped: 0, flagged: 0, confirmed: 0, unsure: 0, rejected: 0, duplicate: 0, errors: 0, lastError: "" };
+  return { found: 0, batches: 0, sent: 0, skipped: 0, flagged: 0, confirmed: 0, unsure: 0, toCheck: 0, rejected: 0, duplicate: 0, errors: 0, lastError: "" };
 }
 
 /* ---------- which net is the goalie's ----------
@@ -22254,55 +22292,397 @@ async function setReviewNetSide(side, period){
   }
 }
 
-// A flagged moment the AI couldn't confirm: a grey tick on the timeline,
+// A flagged moment the AI wasn't sure about: on the To check list,
 // saved with the video so it's still there after reopening.
-function addReviewCandidate(v, t, confidence){
-  const c = { t: Math.round(Number(t) * 100) / 100, confidence: Number(confidence) || 0 };
+function addReviewCandidate(v, t, confidence, goal){
+  const c = { t: Math.round(Number(t) * 100) / 100, confidence: Number(confidence) || 0, goal: !!goal };
   review.candidates.push(c);
   const saved = (v.period_marks && Array.isArray(v.period_marks._candidates)) ? v.period_marks._candidates : [];
-  v.period_marks = { ...(v.period_marks || {}), _candidates: [...saved, { t: c.t, c: Math.round(c.confidence * 100) / 100 }].slice(-2000) };
+  v.period_marks = { ...(v.period_marks || {}), _candidates: [...saved, { t: c.t, c: Math.round(c.confidence * 100) / 100, ...(c.goal ? { g: 1 } : {}) }].slice(-2000) };
 }
 
-// One flagged moment: skipped if a shot is already on the list there,
-// kept as a faint tick if the AI was barely suspicious, otherwise looked
-// at closely ("tag") and added to the list for the admin.
+// One flagged moment from the scan:
+//   - a shot already on the list within a couple of seconds: skipped;
+//   - REVIEW_AUTO_SHOT or more: onto the shot list, with a closer look
+//     filling in the details. The closer look never removes a shot: if
+//     it doesn't see the shot, or fails, the shot is kept and says so;
+//   - REVIEW_TO_CHECK up to REVIEW_AUTO_SHOT: onto the To check list,
+//     with no paid closer look unless the admin adds it;
+//   - below that: dropped (it still counts toward the action stretches).
 async function reviewTagEvent(v, ev, tagger){
   const st = review.scanStats || (review.scanStats = newReviewScanStats());
   const isCurrent = () => review.video && review.video.id === v.id;
+  const conf = Number(ev.confidence) || 0;
   if(review.drafts.some(d => d.game_video_id === v.id && Math.abs(Number(d.t_seconds) - ev.t) < REVIEW_MIN_GAP)){
     st.duplicate++;
     renderReviewScanBar();
     return;
   }
-  if(Number(ev.confidence) < REVIEW_TAG_MIN){
+  if(conf < REVIEW_TO_CHECK){
     st.rejected++;
-    addReviewCandidate(v, ev.t, ev.confidence);
+    renderReviewScanBar();
+    return;
+  }
+  if(conf < REVIEW_AUTO_SHOT){
+    st.toCheck++;
+    addReviewCandidate(v, ev.t, conf, ev.goal);
+    renderReviewChecklist();
     renderReviewTimeline();
     renderReviewScanBar();
     return;
   }
-  // The closer look confirms the shot and fills in the details. If it
-  // can't confirm one, the moment stays on the timeline as a grey tick
-  // for the admin instead of cluttering the shot list.
   let res = { shot: null, model: null };
+  let lookFailed = false;
   try{ res = await aiOnStoredVideo("tag", burstTimes(ev.t), REVIEW_TAG_WIDTH, tagger); }
-  catch(error){ if(error.status === 403 || error.status === 503 || error.status === 404){ throw error; } }
+  catch(error){
+    if(error.status === 403 || error.status === 503 || error.status === 404){ throw error; }
+    lookFailed = true;
+    st.errors++;
+    st.lastError = `closer look failed: ${error.message || error}`;
+  }
   if(!isCurrent()){ return; }
   let shot = res.shot;
-  if(!shot || !shot.shot_detected){
-    st.unsure++;
-    addReviewCandidate(v, ev.t, Math.min(Number(ev.confidence) || 0, 0.4));
-    renderReviewTimeline();
-    renderReviewScanBar();
-    return;
+  if(shot && shot.shot_detected){
+    st.confirmed++;
   }
-  st.confirmed++;
+  else{
+    st.unsure++;
+    shot = {
+      ...(shot || { loc_x: null, loc_y: null }),
+      shot_detected: true,
+      outcome: ev.goal ? "goal" : "save",
+      confidence: Math.min(conf, 0.5),
+      notes: lookFailed
+        ? "The scan flagged a shot here, but the closer look failed, so nothing else is filled in. Watch it, then fill it in or delete it."
+        : "The scan flagged a shot here, but the closer look didn't see the shot itself. Watch it, then keep, fix or delete."
+    };
+  }
   if(ev.goal && shot.outcome !== "goal"){ shot.notes = (shot.notes ? shot.notes + " " : "") + "The scan thought this might be a goal; check."; }
   await insertReviewDraft(draftRowFromAi(shot, ev.t, res.model));
   st.found++;
   renderReviewShots();
   renderReviewScanBar();
 }
+
+
+/* ---------- To check: moments the AI wasn't sure about ----------
+   Listed under the shots in the side panel (and as amber ticks on the
+   timeline). M plays the next one from a few seconds before; A adds it
+   as a shot (AI fills it in if "AI fills in shots I add" is on); D
+   dismisses it. Saved with the video in period_marks._candidates. */
+
+function reviewChecks(){
+  return (review.candidates || [])
+    .filter(c => !review.drafts.some(d => Math.abs(Number(d.t_seconds) - c.t) < REVIEW_MIN_GAP))
+    .sort((a, b) => a.t - b.t);
+}
+
+function saveReviewCandidates(){
+  const v = review.video;
+  if(!v){ return; }
+  const { _candidates, ...rest } = v.period_marks || {};
+  v.period_marks = review.candidates.length
+    ? { ...rest, _candidates: review.candidates.map(c => ({ t: c.t, c: Math.round((Number(c.confidence) || 0) * 100) / 100, ...(c.goal ? { g: 1 } : {}) })) }
+    : rest;
+  clearTimeout(review.candidateSaveTimer);
+  review.candidateSaveTimer = setTimeout(() => {
+    saveReviewMarks(v).catch(error => showToast(`Couldn't save the To check list: ${error.message}`, "error"));
+  }, 600);
+}
+
+function renderReviewChecklist(){
+  const list = document.getElementById("rv-checklist");
+  if(!list){ return; }
+  const checks = reviewChecks();
+  const has = checks.length > 0;
+  document.getElementById("rv-check-head").hidden = !has;
+  document.getElementById("rv-check-note").hidden = !has;
+  list.hidden = !has;
+  document.getElementById("rv-check-count").textContent = has ? `(${checks.length})` : "";
+  list.innerHTML = checks.map(c => {
+    const sel = Number.isFinite(review.checkT) && Math.abs(review.checkT - c.t) < 0.01;
+    const label = `${formatClock(c.t)}, ${c.goal ? "possible goal" : "possible shot"}`;
+    return `
+      <li class="${sel ? "is-selected" : ""}">
+        <button type="button" class="rv-check-go" onclick="selectReviewCheck(${c.t}, true)" aria-label="Watch ${escapeHtml(label)}">
+          <span class="rv-shot-time">${escapeHtml(formatClock(c.t))}</span>
+          <span>${c.goal ? "Possible goal" : "Possible shot"}</span>
+          <span class="rv-check-conf">${Math.round((Number(c.confidence) || 0) * 100)}%</span>
+        </button>
+        <button type="button" class="rv-check-add" onclick="acceptReviewCheck(${c.t})" title="It's a shot: add it (A)" aria-label="Add ${escapeHtml(label)} as a shot">Add</button>
+        <button type="button" class="rv-check-x" onclick="dismissReviewCheck(${c.t})" title="Not a shot: dismiss (D)" aria-label="Dismiss ${escapeHtml(label)}">×</button>
+      </li>`;
+  }).join("");
+}
+
+function selectReviewCheck(t, play){
+  review.checkT = Number(t);
+  const video = document.getElementById("rv-video");
+  video.currentTime = Math.max(0, review.checkT - 4);
+  if(play){ video.play().catch(() => {}); }
+  renderReviewChecklist();
+  renderReviewTimeline();
+  const row = document.querySelector("#rv-checklist li.is-selected");
+  if(row){ row.scrollIntoView({ block: "nearest" }); }
+}
+
+function nextReviewCheck(dir){
+  const checks = reviewChecks();
+  if(!checks.length){ showToast("Nothing left to check."); return; }
+  const now = Number.isFinite(review.checkT) ? review.checkT : document.getElementById("rv-video").currentTime;
+  const target = dir > 0
+    ? (checks.find(c => c.t > now + 0.01) || checks[0])
+    : ([...checks].reverse().find(c => c.t < now - 0.01) || checks[checks.length - 1]);
+  selectReviewCheck(target.t, true);
+}
+
+function reviewCheckTarget(t){
+  const target = Number.isFinite(Number(t)) && t !== null && t !== undefined ? Number(t) : review.checkT;
+  if(!Number.isFinite(target)){
+    showToast("Pick a moment from To check first (M plays the next one).", "error");
+    return null;
+  }
+  return target;
+}
+
+async function acceptReviewCheck(t){
+  const target = reviewCheckTarget(t);
+  if(target === null){ return; }
+  const c = (review.candidates || []).find(x => Math.abs(x.t - target) < 0.01);
+  const next = reviewChecks().find(x => x.t > target + 0.01);
+  review.candidates = (review.candidates || []).filter(x => Math.abs(x.t - target) >= 0.01);
+  saveReviewCandidates();
+  review.checkT = next ? next.t : null;
+  await addReviewShotAt(target, c && c.goal ? "goal" : "save");
+  renderReviewChecklist();
+}
+
+function dismissReviewCheck(t){
+  const target = reviewCheckTarget(t);
+  if(target === null){ return; }
+  const next = reviewChecks().find(x => x.t > target + 0.01);
+  review.candidates = (review.candidates || []).filter(x => Math.abs(x.t - target) >= 0.01);
+  saveReviewCandidates();
+  if(next){ selectReviewCheck(next.t, true); }
+  else{
+    review.checkT = null;
+    renderReviewChecklist();
+    renderReviewTimeline();
+  }
+}
+
+function dismissAllReviewChecks(){
+  const n = reviewChecks().length;
+  if(!n || !confirm(`Dismiss all ${n} moments in To check? The shot list isn't changed.`)){ return; }
+  review.candidates = [];
+  review.checkT = null;
+  saveReviewCandidates();
+  renderReviewChecklist();
+  renderReviewTimeline();
+}
+
+
+/* ---------- AI model ---------- */
+
+const REVIEW_MODELS = {
+  "claude-sonnet-5-5": "Sonnet 5.5",
+  "claude-opus-5-5": "Opus 5.5"
+};
+
+function reviewAiModel(){
+  const sel = document.getElementById("rv-ai-model");
+  return sel && REVIEW_MODELS[sel.value] ? sel.value : "claude-sonnet-5-5";
+}
+
+function onReviewModelChange(value){
+  try{ localStorage.setItem("giq-ai-model", value); }catch(e){}
+}
+
+
+/* ---------- accuracy test ----------
+   Measures the AI against shots the admin has already marked, so the
+   model and settings are chosen from evidence rather than guesswork. It
+   runs the scan only (Instant, no closer looks) over the In→Out range if
+   one is marked, otherwise the uncut video, and never touches the shot
+   list. Results are kept with the video (period_marks._ai_tests). */
+
+const REVIEW_TEST_MATCH = 3;   // seconds: a flag this close to a marked shot counts as finding it
+
+function reviewTestRange(){
+  const d = reviewDuration();
+  if(Number.isFinite(review.markIn) && Number.isFinite(review.markOut) && Math.abs(review.markOut - review.markIn) >= 10){
+    return [Math.min(review.markIn, review.markOut), Math.max(review.markIn, review.markOut)];
+  }
+  return [0, d];
+}
+
+function reviewInCut(t){
+  return reviewCuts(review.video).some(r => t >= r[0] && t < r[1]);
+}
+
+// Rough: ~330 tokens per 640 px still, ~1,200 of instructions per
+// request, ~700 tokens of answer per request.
+function estimateReviewScanCost(stills, model){
+  const p = model === "claude-opus-5-5" ? { input: 4, output: 20 } : { input: 2, output: 10 };
+  const requests = Math.ceil(stills / REVIEW_SCAN_BATCH);
+  return ((stills * 330 + requests * 1200) * p.input + requests * 700 * p.output) / 1e6;
+}
+
+async function runReviewAccuracyTest(){
+
+  const v = review.video;
+  if(!v || review.scanning || review.collecting){ return; }
+  if(review.testing){ review.testing = false; return; }
+
+  const d = reviewDuration();
+  if(!d){ showToast("Wait for the video to load first.", "error"); return; }
+
+  const [a, b] = reviewTestRange();
+  const truths = review.drafts.map(x => Number(x.t_seconds)).filter(t => t >= a && t <= b && !reviewInCut(t)).sort((x, y) => x - y);
+  if(!truths.length){
+    showToast("Mark the real shots first (S at each shot) in the stretch you want to test. The test checks the AI against them. To test part of the video, set In (I) and Out (O) around it.", "error");
+    return;
+  }
+
+  const detail = (document.getElementById("rv-scan-density") || {}).value || "normal";
+  const step = REVIEW_SCAN_STEPS[detail] || REVIEW_SCAN_STEPS.normal;
+  const model = reviewAiModel();
+  const times = [];
+  for(let t = a; t < b; t += step){ if(!reviewInCut(t)){ times.push(Math.round(t * 100) / 100); } }
+  if(!times.length){ showToast("That stretch is all cut.", "error"); return; }
+
+  const est = estimateReviewScanCost(times.length, model);
+  if(!confirm(
+    `Test ${REVIEW_MODELS[model]} at ${detail} detail on ${formatClock(b - a)} of video (${times.length} stills) against the ${truths.length} shot${truths.length === 1 ? "" : "s"} you've marked there?\n\n` +
+    `Costs about ${formatUsd(est)} (full price, no closer looks). Your shot list isn't changed.\n\n` +
+    `Only test a stretch where you've marked every real shot, or the results will look worse than they are.`
+  )){ return; }
+
+  review.testing = true;
+  renderReviewHeader();
+
+  const sampler = createFrameGrabber(v.id);
+  const events = [];
+  const zone = [];
+  let usd = 0;
+  let errors = 0;
+  let lastError = "";
+  const queue = [];
+  for(let i = 0; i < times.length; i += REVIEW_SCAN_BATCH){ queue.push(times.slice(i, i + REVIEW_SCAN_BATCH)); }
+  let done = 0;
+  let total = queue.length;
+
+  const show = () => {
+    document.getElementById("rv-scanbar").hidden = false;
+    document.getElementById("rv-scanbar-fill").style.width = `${Math.round(done / Math.max(1, total) * 100)}%`;
+    document.getElementById("rv-scan-text").textContent = `Testing ${REVIEW_MODELS[model]}: ${done} of ${total} stretches checked${errors ? ` · ${errors} errors: ${lastError}` : ""}. Keep this tab open.`;
+  };
+  show();
+
+  const worker = async () => {
+    while(queue.length && review.testing && review.video && review.video.id === v.id){
+      const chunk = queue.shift();
+      try{
+        const res = await aiOnStoredVideo("detect", chunk, REVIEW_SCAN_WIDTH, sampler, { model });
+        events.push(...(res.events || []));
+        zone.push(...(res.zone || []));
+        usd += Number(res.cost && res.cost.usd) || 0;
+        if(Array.isArray(res.unread) && res.unread.length){
+          for(let i = 0; i < res.unread.length; i += 8){ queue.push(res.unread.slice(i, i + 8)); total++; }
+        }
+      }
+      catch(error){
+        errors++;
+        lastError = error.message || String(error);
+        if(error.status === 403 || error.status === 503){ queue.length = 0; }
+      }
+      done++;
+      show();
+    }
+  };
+
+  const finished = await Promise.all(Array.from({ length: REVIEW_DETECT_CONCURRENCY }, worker))
+    .then(() => review.testing && review.video && review.video.id === v.id)
+    .finally(() => { sampler.destroy(); review.testing = false; renderReviewHeader(); });
+
+  if(!finished){ showToast("Test stopped."); renderReviewScanBar(); return; }
+
+  const near = (t, list) => list.some(x => Math.abs(x - t) <= REVIEW_TEST_MATCH);
+  const rows = [0.3, 0.6, 0.9].map(th => {
+    const flagged = events.filter(e => (Number(e.confidence) || 0) >= th).map(e => e.t);
+    return { th, flagged: flagged.length, found: truths.filter(t => near(t, flagged)).length, extra: flagged.filter(t => !near(t, truths)).length };
+  });
+  const stretches = mergeActionStretches([...zone, ...events.map(e => e.t)]
+    .map(t => [t - REVIEW_ACTION_PAD_BEFORE - step / 2, t + REVIEW_ACTION_PAD_AFTER + step / 2]));
+  const scanned = times.length * step;
+  const stretchSeconds = stretches.reduce((sum, r) => sum + Math.max(0, Math.min(r[1], b) - Math.max(r[0], a)), 0);
+
+  const result = {
+    at: new Date().toISOString(),
+    model, detail,
+    seconds: Math.round(scanned),
+    shots: truths.length,
+    rows,
+    inStretch: truths.filter(t => stretches.some(r => t >= r[0] - 1 && t <= r[1] + 1)).length,
+    stretchShare: scanned ? Math.min(1, stretchSeconds / scanned) : 0,
+    usd: Math.round(usd * 10000) / 10000,
+    errors
+  };
+
+  const tests = (v.period_marks && Array.isArray(v.period_marks._ai_tests)) ? v.period_marks._ai_tests : [];
+  v.period_marks = { ...(v.period_marks || {}), _ai_tests: [...tests, result].slice(-12) };
+  try{ await saveReviewMarks(v); }catch(error){ console.error(error); }
+
+  renderReviewTests();
+  renderReviewScanBar();
+  const sure = rows.find(r => r.th === 0.6);
+  showToast(`${REVIEW_MODELS[model]}: found ${sure.found} of ${truths.length} shots with ${sure.extra} extra flags (and ${rows[0].found} with anything it flagged). Cost ${formatUsd(usd)}. Results are under the video.`, "success");
+  document.getElementById("rv-tests").scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+}
+
+function renderReviewTests(){
+  const box = document.getElementById("rv-tests");
+  const v = review.video;
+  if(!box){ return; }
+  const tests = (v && v.period_marks && Array.isArray(v.period_marks._ai_tests)) ? v.period_marks._ai_tests : [];
+  box.hidden = !tests.length;
+  if(!tests.length){ box.innerHTML = ""; return; }
+  const pct = (n, of) => of ? `${Math.round(n / of * 100)}%` : "–";
+  box.innerHTML = `
+    <h4>AI accuracy tests</h4>
+    <div class="rv-tests-scroll">
+      <table>
+        <thead><tr>
+          <th scope="col">Model · detail</th>
+          <th scope="col">Video tested</th>
+          <th scope="col">Shots found<br><span>sure (60%+)</span></th>
+          <th scope="col">Extra flags<br><span>sure (60%+)</span></th>
+          <th scope="col">Shots found<br><span>any flag</span></th>
+          <th scope="col">Shots inside<br><span>action stretches</span></th>
+          <th scope="col">Cost</th>
+          <th scope="col">Per 2-hr game<br><span>scan, half price</span></th>
+        </tr></thead>
+        <tbody>${[...tests].reverse().map(t => {
+          const sure = t.rows.find(r => r.th === 0.6) || {};
+          const any = t.rows.find(r => r.th === 0.3) || {};
+          const per2h = t.seconds ? t.usd / t.seconds * 7200 / 2 : 0;
+          return `<tr>
+            <td>${escapeHtml(REVIEW_MODELS[t.model] || t.model)} · ${escapeHtml(t.detail)}</td>
+            <td>${escapeHtml(formatClock(t.seconds))}</td>
+            <td><strong>${sure.found} of ${t.shots}</strong> (${pct(sure.found, t.shots)})</td>
+            <td>${sure.extra}</td>
+            <td>${any.found} of ${t.shots} · ${any.extra} extra</td>
+            <td>${t.inStretch} of ${t.shots} · ${Math.round(t.stretchShare * 100)}% of the video</td>
+            <td>${escapeHtml(formatUsd(t.usd))}${t.errors ? ` · ${t.errors} errors` : ""}</td>
+            <td>${escapeHtml(formatUsd(per2h))}</td>
+          </tr>`;
+        }).join("")}</tbody>
+      </table>
+    </div>
+    <p class="small-note">Found: the AI flagged within 3 seconds of a shot you marked. Sure flags (60%+) go straight onto the shot list; the rest go to To check. Per 2-hour game is the scan alone at half price, before cuts and dead-time skipping; each shot's closer look adds about 1 to 2 cents.</p>`;
+}
+
 
 // Errors that mean no further moment can be saved, so stop spending AI
 // calls. The review tables missing (migration not run, or Supabase's
@@ -22448,7 +22828,7 @@ async function collectReviewBatches(manual){
       stopReviewBatchPolling();
       finished = true;
       showToast(
-        `AI results are in: ${st.found} new shot${st.found === 1 ? "" : "s"} added (${st.unsure + st.rejected} unconfirmed moments left as grey ticks on the timeline, ${st.duplicate} already on your list${st.errors ? `, ${st.errors} errors: ${st.lastError}` : ""}).${reviewRunCostText()} Check each one, then approve.`,
+        `AI results are in: ${st.found} new shot${st.found === 1 ? "" : "s"} added${st.unsure ? ` (${st.unsure} the closer look couldn't confirm; they say so)` : ""}, ${st.toCheck} moment${st.toCheck === 1 ? "" : "s"} in To check, ${st.duplicate} already on your list${st.errors ? `, ${st.errors} errors: ${st.lastError}` : ""}.${reviewRunCostText()} Check each one, then approve.`,
         st.found ? "success" : "error"
       );
     }
@@ -22469,7 +22849,7 @@ async function collectReviewBatches(manual){
       renderReviewTimeline();
       if(finished){
         document.getElementById("rv-scanbar").hidden = false;
-        document.getElementById("rv-scan-text").textContent = `Last scan: ${st.found} shots added, ${st.flagged} moments flagged, ${st.duplicate} already on your list, ${st.rejected} ruled out.${reviewRunCostText()}`;
+        document.getElementById("rv-scan-text").textContent = `Last scan: ${st.found} shots added, ${st.toCheck} to check, ${st.flagged} moments flagged, ${st.duplicate} already on your list${st.errors ? `, ${st.errors} errors (${st.lastError})` : ""}.${reviewRunCostText()}`;
       }
     }
     if(fatal){ stopReviewBatchPolling(); showToast(fatal.message, "error"); }
@@ -22716,7 +23096,7 @@ async function runReviewScan(){
     }
     else if(!failure && isCurrent() && Number(v.scan_progress) >= 1){
       const st = review.scanStats;
-      const summary = `${st.batches} stretches checked${st.skipped ? ` (${st.skipped} dead-time stills skipped)` : ""}, ${st.flagged} moments flagged, ${st.confirmed} confirmed as shots, ${st.unsure + st.rejected} left as grey ticks, ${st.duplicate} already on your list${st.errors ? `, ${st.errors} errors (${st.lastError})` : ""}.${reviewRunCostText()}`;
+      const summary = `${st.batches} stretches checked${st.skipped ? ` (${st.skipped} dead-time stills skipped)` : ""}, ${st.flagged} moments flagged, ${st.found} shots added${st.unsure ? ` (${st.unsure} the closer look couldn't confirm)` : ""}, ${st.toCheck} to check, ${st.duplicate} already on your list${st.errors ? `, ${st.errors} errors (${st.lastError})` : ""}.${reviewRunCostText()}`;
       const allKnown = !st.found && st.flagged > 0 && st.duplicate > 0 && !st.errors;
       showToast(
         st.found
@@ -23532,6 +23912,9 @@ async function loadReviewUser(userId){
     else if(e.key === "."){ e.preventDefault(); reviewStepFrame(1); }
     else if(k === "u"){ e.preventDefault(); undoReviewCut(); }
     else if(k === "s"){ e.preventDefault(); addReviewShotHere(); }
+    else if(k === "m"){ e.preventDefault(); nextReviewCheck(e.shiftKey ? -1 : 1); }
+    else if(k === "a"){ e.preventDefault(); acceptReviewCheck(); }
+    else if(k === "d"){ e.preventDefault(); dismissReviewCheck(); }
     else if(k === "x"){ e.preventDefault(); toggleReviewCut(); }
     else if(e.key === "]"){ e.preventDefault(); jumpReviewAction(1); }
     else if(e.key === "["){ e.preventDefault(); jumpReviewAction(-1); }

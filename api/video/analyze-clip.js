@@ -51,6 +51,9 @@ import { ffmpegAvailable, grabFrames, deadFrames } from "../_lib/frames.js";
 import { logAiUsage, tokensOf, addTokens, NO_TOKENS } from "../_lib/ai-cost.js";
 
 const MODEL = (process.env.CLIP_AI_MODEL || "claude-sonnet-5-5").trim();
+// Models the admin can pick per request (review screen "AI model").
+const MODELS = ["claude-sonnet-5-5", "claude-opus-5-5"];
+const pickModel = m => (MODELS.includes(m) ? m : MODEL);
 
 const MAX_FRAMES = 16;
 // A half-price scan sends a longer stretch per call (as several requests
@@ -121,7 +124,7 @@ const DETECT_SCHEMA = {
         properties: {
           frame: { type: "integer", description: "1-based number of the frame where the shot is released or the save/goal happens." },
           goal: { type: "boolean", description: "True only if the puck clearly ends up in the tracked goalie's net." },
-          confidence: { type: "number", description: "0 to 1." },
+          confidence: { type: "number", description: "0.9 shot or save clearly visible; 0.6 strong evidence but the puck isn't visible; 0.3 possible." },
         },
         required: ["frame", "goal", "confidence"],
         additionalProperties: false,
@@ -137,17 +140,22 @@ const DETECT_SCHEMA = {
   additionalProperties: false,
 };
 
-const DETECT_PROMPT = `You are the first pass of a system that cuts hockey game film into shot moments for ONE tracked goalie. An admin watches every moment you flag and edits or deletes it, so your job is to catch ALL the action: a missed shot is a real failure, an extra flag costs the admin one click.
+const DETECT_PROMPT = `You are the first pass of a system that turns hockey game film into the shots faced by ONE tracked goalie. You do two separate jobs on the same frames: a generous one (zone_frames) and a precise one (events).
 
-You get still frames about one to two seconds apart, in time order, with timestamps. The camera is often a wide, high view of the whole rink and may pan to follow play, so players and the puck are small.
+You get still frames about one to two seconds apart, in time order, with timestamps. The camera is often a wide, high view of the rink and may pan to follow play, so players and the puck are small.
 
-Which net: when a frame's label says which side of the picture the tracked goalie's net is on, that is certain: watch only that net. Shots, scrambles and zone time at the other net never count, however exciting. Without that label, the tracked goalie is identified by their team's jersey colour (given below when known); teams switch ends between periods, so follow that goalie if they are now at the other end.
+Which net: when a frame's label says which side of the picture the tracked goalie's net is on, that is certain, and both jobs are about that net only. Shots, scrambles and zone time at the other net never count, however exciting. Without that label, the tracked goalie is identified by their team's jersey colour (given below when known).
 
-Flag every frame where, at that net, any of these is happening or just happened: a shot or shot attempt (wrist, slap, snap, backhand, tip, deflection, one-timer, wraparound, rebound); a player winding up, releasing, or following through toward the net; the puck moving toward or bouncing off the goalie; the goalie moving into a save, down, stretched, covering the puck, or recovering; a scramble or crowd at the crease; attacking players with the puck in the slot or circles facing the net; a whistle with players gathered at the net; a goal celebration or players skating away after a goal. Shots happen fast and may fall between two stills: if the play is in that zone and the next frame shows the aftermath (goalie down, puck loose, players crashing the net), flag the frame before it.
+Job 1, zone_frames (be generous): every frame where play is in the tracked goalie's defensive zone: attackers with the puck between that goalie's blue line and the end boards, the puck near that net, or a stoppage at that net. These become the action stretches the admin watches, so include anything borderline. Leave out play at the other end, the neutral zone, faceoffs at centre, empty ice, intermissions and warm-ups.
 
-Separately, list in zone_frames EVERY frame where play is in the tracked goalie's defensive zone (between that goalie's blue line and end boards, attackers with the puck there, or the puck near that net), whether or not a shot happens. Be generous: these frames become the action stretches the admin watches, so leaving out zone time can hide a shot.
+Job 2, events (be precise): shot attempts on the tracked net, one per attempt, at the frame where the shot is released or the save or goal happens. An admin reviews every event and pays for each one to be examined, so a false event costs time and money; anything borderline belongs in zone_frames only. List an event only when the frames show the shot or its unmistakable result:
+- a player releasing or following through toward the net from shooting range, with the goalie set or reacting;
+- the goalie in a save motion, or down or stretched with the puck at, under or bouncing off them;
+- the puck in the net.
+A shot can fall between two stills: if one frame shows a shooter loading up toward the net and the next shows the goalie in a save motion or the puck loose in the crease, list the earlier frame.
+Not events: passes, carries, dump-ins, board battles, faceoffs, line changes, whistles or scrums without a shot, celebrations (list the shot that caused them instead), and anything at the other net. A shot and its rebound shot are two events.
 
-Do not flag: play clearly at the other end of the rink with no pressure on the tracked net, centre-ice faceoffs, line changes, empty ice, intermissions, warm-ups, replays or overlays. Several frames of the same sequence: flag one per distinct attempt (a shot and its rebound shot are two). Confidence: 0.2 when you suspect action, 0.5 when an attempt is likely, 0.8+ when a shot is clearly visible.`;
+Confidence for events: 0.9 when the shot or save is clearly visible; 0.6 when the evidence is strong but the puck itself isn't visible; 0.3 when a shot is possible but you are unsure.`;
 
 function cleanFrames(frames) {
   if (!Array.isArray(frames) || !frames.length || frames.length > MAX_FRAMES) return null;
@@ -219,9 +227,9 @@ function detectContent(frames, jersey) {
   return content;
 }
 
-function detectParams(frames, jersey) {
+function detectParams(frames, jersey, model = MODEL) {
   return {
-    model: MODEL,
+    model,
     max_tokens: 6000,
     output_config: {
       effort: "low",
@@ -479,6 +487,8 @@ export default async function handler(req, res) {
     const unread = (cleanedFrames && cleanedFrames.unread) || [];
     cleanedFrames = attachSides(cleanedFrames, fromVideo ? cleanedTimes : null, req.body.sides);
 
+    const model = pickModel(req.body.model);
+
     const jersey = context && typeof context.goalieJersey === "string"
       ? context.goalieJersey.replace(/[^\w #-]/g, "").slice(0, 40)
       : "";
@@ -495,7 +505,7 @@ export default async function handler(req, res) {
       if (!live.length) {
         res.status(200).json(asBatch
           ? { batchId: null, requests: [], skipped, sent: 0, unread }
-          : { events: [], zone: [], model: MODEL, frameCount: 0, skipped, preview, unread });
+          : { events: [], zone: [], model, frameCount: 0, skipped, preview, unread });
         return;
       }
 
@@ -503,7 +513,7 @@ export default async function handler(req, res) {
         const requests = [];
         for (let i = 0; i < live.length; i += MAX_FRAMES) {
           const chunk = live.slice(i, i + MAX_FRAMES);
-          requests.push({ custom_id: `r${requests.length}`, params: detectParams(chunk, jersey), times: chunk.map(f => f.t) });
+          requests.push({ custom_id: `r${requests.length}`, params: detectParams(chunk, jersey, model), times: chunk.map(f => f.t) });
         }
         const batch = await claude().messages.batches.create({
           requests: requests.map(({ custom_id, params }) => ({ custom_id, params })),
@@ -520,14 +530,14 @@ export default async function handler(req, res) {
       }
 
       const message = await claude().beta.messages.create({
-        ...detectParams(live, jersey),
+        ...detectParams(live, jersey, model),
         betas: ["server-side-fallback-2026-07-01"],
         fallbacks: "default",
       });
 
       const usd = await logAiUsage({
         gameVideoId: fromVideo ? gameVideoId : null, requestedBy: user.id, kind: "detect",
-        model: message.model || MODEL, tokens: tokensOf(message.usage),
+        model: message.model || model, tokens: tokensOf(message.usage),
       });
 
       if (message.stop_reason === "refusal") {
@@ -549,7 +559,7 @@ export default async function handler(req, res) {
       res.status(200).json({
         events,
         zone,
-        model: message.model || MODEL,
+        model: message.model || model,
         frameCount: live.length,
         skipped,
         unread,
@@ -574,7 +584,7 @@ export default async function handler(req, res) {
     });
 
     const message = await claude().beta.messages.create({
-      model: MODEL,
+      model,
       max_tokens: 4000,
       // Re-run a declined request on Anthropic's recommended fallback
       // model instead of failing the clip.
@@ -592,7 +602,7 @@ export default async function handler(req, res) {
 
     const usd = await logAiUsage({
       gameVideoId: fromVideo ? gameVideoId : null, requestedBy: user.id, kind: "tag",
-      model: message.model || MODEL, tokens: tokensOf(message.usage),
+      model: message.model || model, tokens: tokensOf(message.usage),
     });
 
     if (message.stop_reason === "refusal") {
@@ -609,7 +619,7 @@ export default async function handler(req, res) {
       return;
     }
 
-    res.status(200).json({ shot: cleanShot(parsed), model: message.model || MODEL, cost: { usd } });
+    res.status(200).json({ shot: cleanShot(parsed), model: message.model || model, cost: { usd } });
   } catch (error) {
     sendServerError(res, error, "The AI couldn't analyze this clip right now.");
   }
