@@ -2780,7 +2780,6 @@
         <button type="button" class="tag-btn" data-value="Snap" onclick="selectLiveTagChoice('shot_type','Snap',this)">Snap</button>
         <button type="button" class="tag-btn" data-value="Backhand" onclick="selectLiveTagChoice('shot_type','Backhand',this)">Backhand</button>
         <button type="button" class="tag-btn" data-value="Tip" onclick="selectLiveTagChoice('shot_type','Tip',this)">Tip</button>
-        <button type="button" class="tag-btn" data-value="One-Timer" onclick="selectLiveTagChoice('shot_type','One-Timer',this)">One-Timer</button>
       </div>
     </div>
 
@@ -3586,7 +3585,7 @@
               <select id="rv-ed-type" onchange="updateReviewShot('shot_type', this.value || null)">
                 <option value="">Unknown</option>
                 <option>Wrist</option><option>Slap</option><option>Snap</option>
-                <option>Backhand</option><option>Tip</option><option>One-Timer</option>
+                <option>Backhand</option><option>Tip</option>
               </select>
             </div>
             <div class="field">
@@ -3949,7 +3948,7 @@
           <select id="shotEditType">
             <option value="">Unknown</option>
             <option>Wrist</option><option>Slap</option><option>Snap</option>
-            <option>Backhand</option><option>Tip</option><option>One-Timer</option>
+            <option>Backhand</option><option>Tip</option>
           </select>
         </div>
         <div class="field" style="grid-column:1/-1">
@@ -4672,10 +4671,14 @@ function isScreened(shot){
 
 function isOneTimer(shot){
 
+  // One-timer is a release context (release_type), not a shot type.
+  // The shot_type check only catches shots saved before One-Timer was
+  // removed from the shot type options, so old tags still count.
   const type =
     shotType(shot);
 
   return (
+    shot.release_type === "one_timer" ||
     type === "one timer" ||
     type === "one-timer" ||
     shotBoolean(shot.one_timer)
@@ -6999,7 +7002,7 @@ function renderShotLogTable(){
         <tr>
           <td>${escapeHtml(s.period) || "—"}</td>
           <td>${escapeHtml(s.strength) || "—"}</td>
-          <td>${escapeHtml(s.location) || "—"}</td>
+          <td>${escapeHtml(shotZoneDisplay(s)) || "—"}</td>
           <td>${escapeHtml(s.shot_type) || "—"}</td>
           <td>${releaseLabel[releaseCategory(s)]}</td>
           <td>${s.rebound ? "Yes" : "—"}</td>
@@ -7108,7 +7111,7 @@ function renderShotEditPin(){
   if(shotMapHasPin({ loc_x: x, loc_y: y })){
     pin.innerHTML = shotMapPinMarkup(x, y);
     readout.innerHTML =
-      `<strong>${escapeHtml(classifyShotLocation(x, y))}</strong> · ${shotMapDistanceFt(x, y)} ft from the net · ${shotMapAngleLabel(x, y)} ` +
+      `<strong>${escapeHtml(shotZoneFromPin(x, y))}</strong> · ${shotMapDistanceFt(x, y)} ft from the net · ${shotMapAngleLabel(x, y)} ` +
       `<button type="button" class="shotmap-clear" onclick="clearShotEditPin()">Clear</button>`;
   }
   else{
@@ -8346,36 +8349,21 @@ function renderSituational(){
   renderShotMapDisplay();
   renderStrengthBreakdown();
 
+  // Sided zones (Left top of circle, Right point, ...). Pinned shots go
+  // to their side; unpinned shots are split evenly across the sides.
+  const zoneRows = groupShotsBySidedZone(seasonShots);
+
   const locationCounts = {};
   const locationGoals = {};
 
-
-  seasonShots.forEach(shot => {
-
-    const location =
-      shot.location ||
-      shot.shot_location ||
-      "Unknown";
-
-
-    locationCounts[location] =
-      (locationCounts[location] || 0) + 1;
-
-
-    if(isGoal(shot)){
-
-      locationGoals[location] =
-        (locationGoals[location] || 0) + 1;
-
-    }
-
+  zoneRows.forEach(z => {
+    locationCounts[z.label] = z.shots;
+    locationGoals[z.label] = z.goals;
   });
 
 
   const locations =
-    Object.keys(
-      locationCounts
-    );
+    zoneRows.map(z => z.label);
 
 
   destroyChart(
@@ -14572,19 +14560,12 @@ function computeGameReportData(gameId){
       .filter(Boolean);
 
   // Shot location breakdown
-  const locationGroups = {};
-
-  gameShotsList.forEach(shot => {
-    const loc = shotLocation(shot) || "unspecified";
-    if(!locationGroups[loc]){ locationGroups[loc] = {shots:0, goals:0}; }
-    locationGroups[loc].shots++;
-    if(isGoal(shot)){ locationGroups[loc].goals++; }
-  });
-
+  // Sided zones: pinned shots go to their side, unpinned shots are
+  // split evenly across the sides (so counts can be fractional).
   const locationRows =
-    Object.entries(locationGroups).map(([loc, g]) => {
+    groupShotsBySidedZone(gameShotsList).map(g => {
       const sv = g.shots ? ((g.shots - g.goals) / g.shots * 100) : null;
-      return { label: loc, shots: g.shots, goals: g.goals, svPct: sv };
+      return { label: g.label, shots: g.shots, goals: g.goals, svPct: sv };
     });
 
   // Rebound control totals
@@ -16035,7 +16016,7 @@ async function renderGameFilm(game){
             <li>
               <button type="button" class="go-film-shot ${goal ? "is-goal" : ""}" data-t="${t}" onclick="goFilmSelect(${t})">
                 <span class="rv-shot-time">${escapeHtml(formatClock(t))}</span>
-                <span class="go-film-shot-main"><strong>${goal ? "Goal" : "Save"}</strong> · P${escapeHtml(s.period ?? "?")}${s.location ? " · " + escapeHtml(s.location) : ""}${grade ? ` · <span class="go-film-grade">${escapeHtml(grade)}</span>` : ""}</span>
+                <span class="go-film-shot-main"><strong>${goal ? "Goal" : "Save"}</strong> · P${escapeHtml(s.period ?? "?")}${shotZoneDisplay(s) ? " · " + escapeHtml(shotZoneDisplay(s)) : ""}${grade ? ` · <span class="go-film-grade">${escapeHtml(grade)}</span>` : ""}</span>
               </button>
               ${s.game_video_id ? `<button type="button" class="watch-btn" onclick="watchShotClip(${jsArg(id)})">Watch clip</button>` : ""}
             </li>`;
@@ -16069,7 +16050,7 @@ async function renderGameFilm(game){
     ticks.innerHTML = cuts.map(r =>
       `<span class="rv-cut" style="left:${Math.min(100, r[0] / d * 100)}%;width:${Math.max(0.3, (Math.min(r[1], d) - r[0]) / d * 100)}%" title="Not part of the game"></span>`
     ).join("") + shots.map(({ s, t }) =>
-      `<button type="button" class="rv-tick ${isGoal(s) ? "is-goal" : "is-save"}" style="left:${Math.min(100, t / d * 100)}%" onclick="event.stopPropagation(); goFilmSelect(${t})" title="${escapeHtml(formatClock(t))} · ${isGoal(s) ? "Goal" : "Save"}${s.location ? " · " + escapeHtml(s.location) : ""}" aria-label="Shot at ${escapeHtml(formatClock(t))}"></button>`
+      `<button type="button" class="rv-tick ${isGoal(s) ? "is-goal" : "is-save"}" style="left:${Math.min(100, t / d * 100)}%" onclick="event.stopPropagation(); goFilmSelect(${t})" title="${escapeHtml(formatClock(t))} · ${isGoal(s) ? "Goal" : "Save"}${shotZoneDisplay(s) ? " · " + escapeHtml(shotZoneDisplay(s)) : ""}" aria-label="Shot at ${escapeHtml(formatClock(t))}"></button>`
     ).join("");
   };
 
@@ -16156,7 +16137,7 @@ function goFilmSelect(t){
     ["Time in film", formatClock(hit.t)],
     ["Period", s.period ? (String(s.period).toUpperCase() === "OT" ? "OT" : `P${s.period}`) : "—"],
     ["Strength", s.strength || "—"],
-    ["Location", s.location || "—"],
+    ["Location", shotZoneDisplay(s) || "—"],
     ["Shot type", s.shot_type || "—"],
     ["Release", GO_RELEASE_LABEL[s.release_type] || "—"],
     ["Shot quality", grade ? `${grade}${Number.isFinite(xg) ? ` (xG ${xg.toFixed(2)})` : ""}` : "—"],
@@ -17720,6 +17701,145 @@ function classifyShotLocation(x, y){
 
 }
 
+/* ------------------------------------------------------------
+   SIDED ZONES
+   The stored `location` stays the base label above (the xG model and
+   database pattern-match on it). The left / right / middle version is
+   derived for display and charts:
+     - shot has a map pin  -> sided by the pin's x (left = viewer's left
+       on the map, which is the goalie's left looking out)
+     - shot has no pin     -> its stats are split evenly across the
+       sides (halves for left/right zones, thirds for the point)
+------------------------------------------------------------ */
+
+// Point shots are split left / middle / right at +/- this many feet
+// from the center line (85 ft of width / 3 ≈ 14 ft each way).
+const SHOT_ZONE_POINT_SPLIT_FT = 14;
+
+const SHOT_ZONE_SIDED_BASES = [
+  "hashmark", "dot", "bottom of circle", "top of circle", "wall", "goal line"
+];
+
+// Chart / table ordering, net outward.
+const SHOT_ZONE_ORDER = [
+  "Crease", "Low slot", "High slot",
+  "Left goal line", "Right goal line",
+  "Left bottom of circle", "Right bottom of circle",
+  "Left dot", "Right dot",
+  "Left hashmark", "Right hashmark",
+  "Left top of circle", "Right top of circle",
+  "Left wall", "Right wall",
+  "Left point", "Middle point", "Right point"
+];
+
+function sidedShotZone(baseLabel, x){
+
+  const base = String(baseLabel || "").trim();
+  const key = base.toLowerCase();
+
+  if(key === "point"){
+    if(x < -SHOT_ZONE_POINT_SPLIT_FT){ return "Left point"; }
+    if(x > SHOT_ZONE_POINT_SPLIT_FT){ return "Right point"; }
+    return "Middle point";
+  }
+
+  if(SHOT_ZONE_SIDED_BASES.includes(key)){
+    return (x < 0 ? "Left " : "Right ") + key;
+  }
+
+  return base;
+
+}
+
+// Sided label for a pinned spot, e.g. "Left top of circle".
+function shotZoneFromPin(x, y){
+  return sidedShotZone(classifyShotLocation(x, y), x);
+}
+
+// Label to show for a saved shot: sided when it has a pin, otherwise
+// whatever label it was saved with.
+function shotZoneDisplay(shot){
+
+  if(shotMapHasPin(shot)){
+    return shotZoneFromPin(Number(shot.loc_x), Number(shot.loc_y));
+  }
+
+  return (shot && (shot.location || shot.shot_location)) || "";
+
+}
+
+// [{ label, weight }] for charts. Pinned shots count fully toward their
+// side; unpinned shots are split evenly across the possible sides.
+function shotZoneWeights(shot){
+
+  if(shotMapHasPin(shot)){
+    return [{ label: shotZoneFromPin(Number(shot.loc_x), Number(shot.loc_y)), weight: 1 }];
+  }
+
+  const raw = String(shot.location || shot.shot_location || "").trim();
+
+  if(!raw){
+    return [{ label: "Unknown", weight: 1 }];
+  }
+
+  const key = raw.toLowerCase();
+
+  if(key === "point"){
+    return [
+      { label: "Left point",   weight: 1 / 3 },
+      { label: "Middle point", weight: 1 / 3 },
+      { label: "Right point",  weight: 1 / 3 }
+    ];
+  }
+
+  if(SHOT_ZONE_SIDED_BASES.includes(key)){
+    return [
+      { label: "Left " + key,  weight: 0.5 },
+      { label: "Right " + key, weight: 0.5 }
+    ];
+  }
+
+  return [{ label: raw, weight: 1 }];
+
+}
+
+// Groups shots into sided zones: [{ label, shots, goals }] in
+// SHOT_ZONE_ORDER (unknown labels after). Counts can be fractional
+// because unpinned shots are split across sides.
+function groupShotsBySidedZone(shots){
+
+  const groups = {};
+
+  shots.forEach(shot => {
+
+    const goal = isGoal(shot);
+
+    shotZoneWeights(shot).forEach(({ label, weight }) => {
+
+      if(!groups[label]){ groups[label] = { label, shots: 0, goals: 0 }; }
+
+      groups[label].shots += weight;
+      if(goal){ groups[label].goals += weight; }
+
+    });
+
+  });
+
+  const rank = label => {
+    const i = SHOT_ZONE_ORDER.indexOf(label);
+    return i === -1 ? SHOT_ZONE_ORDER.length : i;
+  };
+
+  return Object.values(groups)
+    .map(g => ({
+      label: g.label,
+      shots: Math.round(g.shots * 10) / 10,
+      goals: Math.round(g.goals * 10) / 10
+    }))
+    .sort((a, b) => rank(a.label) - rank(b.label));
+
+}
+
 // Static rink markings + faint zone labels. `prefix` keeps the
 // clipPath id unique when more than one map is on the page.
 function shotMapBaseMarkup(prefix){
@@ -17775,7 +17895,9 @@ function shotMapBaseMarkup(prefix){
     label("BOTTOM OF CIRCLE", 22, 10.5, { size: 1.7 }),
     label("TOP OF CIRCLE", -22, 29.5, { size: 1.7 }),
     label("TOP OF CIRCLE", 22, 29.5, { size: 1.7 }),
-    label("POINT", 0, 52),
+    label("LEFT POINT", -28, 52, { size: 1.8 }),
+    label("MIDDLE POINT", 0, 52, { size: 1.8 }),
+    label("RIGHT POINT", 28, 52, { size: 1.8 }),
     label("WALL", -38.2, 22, { rotate: -90 }),
     label("WALL", 38.2, 22, { rotate: 90 }),
     label("GOAL LINE", -19, 2.4),
@@ -17935,7 +18057,7 @@ function renderLiveTagMapReadout(){
   if(shotMapHasPin({ loc_x: liveTagState.loc_x, loc_y: liveTagState.loc_y })){
 
     el.innerHTML =
-      `<strong>${escapeHtml(liveTagState.location)}</strong> · ` +
+      `<strong>${escapeHtml(shotZoneFromPin(liveTagState.loc_x, liveTagState.loc_y))}</strong> · ` +
       `${shotMapDistanceFt(liveTagState.loc_x, liveTagState.loc_y)} ft from the net · ` +
       `${shotMapAngleLabel(liveTagState.loc_x, liveTagState.loc_y)} ` +
       `<button type="button" class="shotmap-clear" onclick="clearLiveTagPin()">Clear</button>`;
@@ -18033,7 +18155,7 @@ function renderShotMapDisplay(){
 
     const bits = [
       isGoal(nearest) ? "Goal" : "Save",
-      nearest.location || classifyShotLocation(Number(nearest.loc_x), Number(nearest.loc_y)),
+      shotZoneDisplay(nearest),
       `${shotMapDistanceFt(Number(nearest.loc_x), Number(nearest.loc_y))} ft`,
       shotMapAngleLabel(Number(nearest.loc_x), Number(nearest.loc_y)),
       nearest.period ? `P${nearest.period}` : null,
@@ -21355,7 +21477,7 @@ function renderReviewTimeline(){
     ).join("") +
     review.drafts.map(dr => {
       const cls = ["rv-tick", dr.outcome === "goal" ? "is-goal" : "is-save", String(dr.id) === String(review.selectedId) ? "is-selected" : ""].join(" ");
-      return `<button type="button" class="${cls}" style="left:${pct(dr.t_seconds)}%" onclick="event.stopPropagation(); selectReviewShot(${jsArg(dr.id)}, true)" title="${escapeHtml(formatClock(dr.t_seconds))} · ${dr.outcome === "goal" ? "Goal" : "Save"}${dr.location ? " · " + escapeHtml(dr.location) : ""}" aria-label="Shot at ${escapeHtml(formatClock(dr.t_seconds))}"></button>`;
+      return `<button type="button" class="${cls}" style="left:${pct(dr.t_seconds)}%" onclick="event.stopPropagation(); selectReviewShot(${jsArg(dr.id)}, true)" title="${escapeHtml(formatClock(dr.t_seconds))} · ${dr.outcome === "goal" ? "Goal" : "Save"}${shotZoneDisplay(dr) ? " · " + escapeHtml(shotZoneDisplay(dr)) : ""}" aria-label="Shot at ${escapeHtml(formatClock(dr.t_seconds))}"></button>`;
     }).join("");
 
   updateReviewPlayhead();
@@ -21408,7 +21530,7 @@ function renderReviewShots(){
         <li class="rv-shot-row">
           <button type="button" class="rv-shot ${sel ? "is-selected" : ""} ${d.outcome === "goal" ? "is-goal" : ""}" onclick="selectReviewShot(${jsArg(d.id)}, true)">
             <span class="rv-shot-time">${escapeHtml(formatClock(d.t_seconds))}</span>
-            <span class="rv-shot-main"><strong>${d.outcome === "goal" ? "Goal" : "Save"}</strong> · P${escapeHtml(reviewEffectivePeriod(d))}${d.location ? " · " + escapeHtml(d.location) : ""}${d.shot_type ? " · " + escapeHtml(d.shot_type) : ""}</span>
+            <span class="rv-shot-main"><strong>${d.outcome === "goal" ? "Goal" : "Save"}</strong> · P${escapeHtml(reviewEffectivePeriod(d))}${shotZoneDisplay(d) ? " · " + escapeHtml(shotZoneDisplay(d)) : ""}${d.shot_type ? " · " + escapeHtml(d.shot_type) : ""}</span>
             ${who}
           </button>
           ${d.source === "ai" && !d.edited ? `<button type="button" class="rv-shot-x" onclick="quickDeleteReviewShot(${jsArg(d.id)})" title="Not a shot: delete it" aria-label="Delete the shot at ${escapeHtml(formatClock(d.t_seconds))}">×</button>` : ""}
@@ -21507,7 +21629,7 @@ function renderReviewEditorPin(d){
   if(!pin){ return; }
   if(shotMapHasPin(d)){
     pin.innerHTML = shotMapPinMarkup(Number(d.loc_x), Number(d.loc_y));
-    readout.innerHTML = `<strong>${escapeHtml(d.location || classifyShotLocation(Number(d.loc_x), Number(d.loc_y)))}</strong> · ${shotMapDistanceFt(Number(d.loc_x), Number(d.loc_y))} ft from the net`;
+    readout.innerHTML = `<strong>${escapeHtml(shotZoneDisplay(d))}</strong> · ${shotMapDistanceFt(Number(d.loc_x), Number(d.loc_y))} ft from the net`;
   }
   else{
     pin.innerHTML = "";
