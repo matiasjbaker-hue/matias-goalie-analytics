@@ -2385,6 +2385,31 @@
 
 
   <div class="section-heading">
+    <h3>Trend vs Season Baseline</h3>
+    <p>Every stat, compared with your full-season number, so you can see which parts of your game are actually improving.</p>
+  </div>
+
+  <div class="card section-space" id="baselineTrendCard">
+    <div id="baselineTrendSummary" class="callout" style="margin-bottom:14px">—</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Stat</th>
+            <th>Season</th>
+            <th id="baselineRecentHead">Recent</th>
+            <th>Change</th>
+            <th>Read</th>
+          </tr>
+        </thead>
+        <tbody id="baselineTrendBody"></tbody>
+      </table>
+    </div>
+    <div class="small-note" id="baselineTrendNote"></div>
+  </div>
+
+
+  <div class="section-heading">
     <h3>Stopping</h3>
     <p>Measure whether your actual stopping ability is improving beyond the quality of shots you face.</p>
   </div>
@@ -10468,6 +10493,223 @@ function renderRecentForm(){
 }
 
 
+/* ============================================================
+   TREND VS SEASON BASELINE
+   Every stat on this tab, recent games vs the whole season.
+   "Recent" is the same window Recent Form uses.
+============================================================ */
+
+function baselineStatDefs(){
+
+  const pct = v => `${v.toFixed(1)}%`;
+  const signed2 = v => `${v >= 0 ? "+" : ""}${v.toFixed(2)}`;
+  const signedPct = v => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
+
+  // SV% on a subset of shots. Value is a percent, sample is shot count.
+  const shotSV = (group, label, test, thr, minN) => ({
+    group, label, fmt: pct, unit: "pts", thr: thr || 5, minN: minN || 6, noun: "shots",
+    calc: ctx => {
+      const r = subsetStats(ctx.shots, test);
+      return { value: r.sv, n: r.shots };
+    }
+  });
+
+  const reboundZone = (label, good, bad) => ({
+    group: "Rebound control", label, fmt: pct, unit: "pts", thr: 8, minN: 5, noun: "rebounds",
+    calc: ctx => {
+      let g = 0, b = 0;
+      ctx.rebound.forEach(r => { g += good.reduce((a, k) => a + num(r[k]), 0); b += bad.reduce((a, k) => a + num(r[k]), 0); });
+      return { value: g + b ? g / (g + b) * 100 : null, n: g + b };
+    }
+  });
+
+  const puckPct = (label, pick, noun, thr, minN) => ({
+    group: "Puck playing", label, fmt: pct, unit: "pts", thr: thr || 10, minN: minN || 5, noun,
+    calc: ctx => {
+      const r = pick(puckBreakdown(ctx.puck));
+      return { value: r.den ? r.num / r.den * 100 : null, n: r.den };
+    }
+  });
+
+  const grade = g => s => shotGrade(s) === g;
+  const strength = c => s => strengthCategory(s.strength) === c;
+  const type = t => s => shotType(s) === t;
+
+  return [
+    { group: "Overall", label: "Save %", fmt: pct, unit: "pts", thr: 1, minN: 20, noun: "shots",
+      calc: ctx => ({ value: ctx.shotsAgainst ? ctx.saves / ctx.shotsAgainst * 100 : null, n: ctx.shotsAgainst }) },
+    { group: "Overall", label: "GAA", fmt: v => v.toFixed(2), unit: "", thr: 0.15, minN: 1, noun: "games", lowerIsBetter: true,
+      calc: ctx => ({ value: ctx.minutes ? ctx.goalsAgainst / ctx.minutes * 60 : null, n: ctx.games.length }) },
+    { group: "Overall", label: "SV% above expected", fmt: signedPct, unit: "pts", thr: 1, minN: 20, noun: "shots",
+      calc: ctx => { const a = calculateAdvancedForShots(ctx.shots); return { value: a.shots ? a.actualSV - a.expectedSV : null, n: a.shots }; } },
+    { group: "Overall", label: "GSAx per 60", fmt: signed2, unit: "", thr: 0.3, minN: 20, noun: "shots",
+      calc: ctx => { const a = calculateAdvancedForShots(ctx.shots); return { value: a.shots && ctx.minutes ? a.gsax / ctx.minutes * 60 : null, n: a.shots }; } },
+    { group: "Overall", label: "Quality start %", fmt: pct, unit: "pts", thr: 10, minN: 3, noun: "games",
+      calc: ctx => {
+        const svs = ctx.games.map(g => { const f = gameShots(g); return f ? gameSaves(g) / f * 100 : null; }).filter(v => v !== null);
+        return { value: svs.length ? svs.filter(v => v >= 91.5).length / svs.length * 100 : null, n: svs.length };
+      } },
+
+    shotSV("Shot danger", "High-danger SV%", isHighDanger, 4, 5),
+    shotSV("Shot danger", "A+ shots SV%", grade("A+"), 8, 4),
+    shotSV("Shot danger", "A shots SV%", grade("A"), 6, 5),
+    shotSV("Shot danger", "B shots SV%", grade("B"), 4, 6),
+    shotSV("Shot danger", "C shots SV%", grade("C"), 2, 10),
+
+    shotSV("Situations", "Rush SV%", isRushShot),
+    shotSV("Situations", "Rebound-shot SV%", shotIsRebound),
+    shotSV("Situations", "Screened SV%", isScreened),
+    shotSV("Situations", "Breakaway SV%", isBreakaway, 10, 3),
+    shotSV("Situations", "Cross-ice SV%", s => shotBoolean(s.cross_ice)),
+    shotSV("Situations", "Deflection SV%", s => shotBoolean(s.deflection)),
+
+    shotSV("Release", "One-timer SV%", isOneTimer),
+    shotSV("Release", "Quick-release SV%", isQuickRelease),
+    shotSV("Release", "Extended-possession SV%", isExtendedPossession),
+
+    shotSV("Shot type", "Wrist SV%", type("wrist")),
+    shotSV("Shot type", "Slap SV%", type("slap")),
+    shotSV("Shot type", "Snap SV%", type("snap")),
+    shotSV("Shot type", "Flick SV%", type("flick")),
+    shotSV("Shot type", "Backhand SV%", type("backhand")),
+
+    shotSV("Strength", "Even strength SV%", strength("even"), 3, 10),
+    shotSV("Strength", "Power play (against) SV%", strength("advantage"), 5, 5),
+    shotSV("Strength", "Penalty kill SV%", strength("outnumbered"), 5, 5),
+
+    { group: "Rebound control", label: "Good rebound %", fmt: pct, unit: "pts", thr: 5, minN: 8, noun: "rebounds",
+      calc: ctx => { const r = reboundGoodPctForRows(ctx.rebound); return { value: r.goodPct, n: r.total }; } },
+    reboundZone("Glove rebound control", ["glove_caught"], ["glove_rebound"]),
+    reboundZone("Blocker rebound control", ["blocker_good"], ["blocker_bad"]),
+    reboundZone("Midsection rebound control", ["midsection_good"], ["midsection_bad"]),
+    reboundZone("Pad / stick rebound control", ["pad_stick_good"], ["pad_stick_bad"]),
+
+    puckPct("Rim stop %", b => ({ num: b.rimsTotal.stopped, den: b.rimsTotal.faced }), "rims"),
+    puckPct("Forehand rim stop %", b => ({ num: b.rims.filter(r => /^forehand/.test(r.key)).reduce((a, r) => a + r.stopped, 0), den: b.rims.filter(r => /^forehand/.test(r.key)).reduce((a, r) => a + r.faced, 0) }), "rims"),
+    puckPct("Backhand rim stop %", b => ({ num: b.rims.filter(r => /^backhand/.test(r.key)).reduce((a, r) => a + r.stopped, 0), den: b.rims.filter(r => /^backhand/.test(r.key)).reduce((a, r) => a + r.faced, 0) }), "rims"),
+    puckPct("Pass completion %", b => ({ num: b.passesTotal.completed, den: b.passesTotal.attempts }), "passes"),
+    puckPct("Forehand pass %", b => { const p = b.passes.find(x => x.key === "forehand"); return { num: p.completed, den: p.attempts }; }, "passes"),
+    puckPct("Backhand pass %", b => { const p = b.passes.find(x => x.key === "backhand"); return { num: p.completed, den: p.attempts }; }, "passes"),
+    puckPct("Stretch pass %", b => { const p = b.passes.find(x => x.key === "stretch"); return { num: p.completed, den: p.attempts }; }, "passes", 15, 4)
+  ];
+
+}
+
+function baselineContext(gameList){
+
+  const ids = new Set(gameList.map(g => String(g.id ?? g.game_id)));
+
+  return {
+    games: gameList,
+    shots: shotsForGameList(gameList),
+    rebound: reboundControlsForGameList(gameList),
+    puck: seasonPuckPlaying.filter(r => ids.has(String(r.game_id))),
+    shotsAgainst: gameList.reduce((a, g) => a + gameShots(g), 0),
+    saves: gameList.reduce((a, g) => a + gameSaves(g), 0),
+    goalsAgainst: gameList.reduce((a, g) => a + gameGoals(g), 0),
+    minutes: gameList.reduce((a, g) => a + gameRateMinutes(g), 0)
+  };
+
+}
+
+function renderBaselineTrend(){
+
+  const body = document.getElementById("baselineTrendBody");
+
+  if(!body){ return; }
+
+  const summary = document.getElementById("baselineTrendSummary");
+  const note = document.getElementById("baselineTrendNote");
+  const head = document.getElementById("baselineRecentHead");
+
+  const sorted = sortGamesByDate(seasonGames);
+  const total = sorted.length;
+
+  if(total < 4){
+    body.innerHTML = "";
+    note.textContent = "";
+    summary.textContent = `Log at least 4 games this season to compare recent games with your season baseline (currently ${total} logged).`;
+    return;
+  }
+
+  const windowSize = total >= 10 ? 5 : Math.max(2, Math.floor(total / 2));
+  const recentCtx = baselineContext(sorted.slice(-windowSize));
+  const seasonCtx = baselineContext(sorted);
+
+  head.textContent = `Last ${windowSize} games`;
+
+  const improving = [];
+  const declining = [];
+  let lastGroup = null;
+  let html = "";
+
+  baselineStatDefs().forEach(def => {
+
+    const season = def.calc(seasonCtx);
+    const recent = def.calc(recentCtx);
+
+    if(season.value === null || !season.n){ return; }
+
+    if(def.group !== lastGroup){
+      html += `<tr><td colspan="5" style="font-weight:700;padding-top:14px">${escapeHtml(def.group)}</td></tr>`;
+      lastGroup = def.group;
+    }
+
+    const seasonTxt = `${def.fmt(season.value)} <span class="small-note">(${season.n} ${def.noun})</span>`;
+
+    if(recent.value === null || recent.n < def.minN){
+      html += `<tr><td>${escapeHtml(def.label)}</td><td>${seasonTxt}</td><td>${recent.n ? `${def.fmt(recent.value)} <span class="small-note">(${recent.n} ${def.noun})</span>` : "—"}</td><td>—</td><td class="small-note">Not enough recent ${def.noun} yet (need ${def.minN}).</td></tr>`;
+      return;
+    }
+
+    const delta = recent.value - season.value;
+    const dir = classifySignal(delta, def.thr, !!def.lowerIsBetter);
+    const better = def.lowerIsBetter ? -delta : delta;
+    const mag = Math.abs(delta).toFixed(def.unit ? 1 : 2);
+    const deltaTxt = `${delta >= 0 ? "+" : "−"}${mag}${def.unit ? " pts" : ""}`;
+
+    let read;
+    if(dir === "up"){
+      read = `Improving: ${mag}${def.unit ? " pts" : ""} ${def.lowerIsBetter ? "lower" : "better"} than your season`;
+      improving.push(def.label);
+    }
+    else if(dir === "down"){
+      read = `Declining: ${mag}${def.unit ? " pts" : ""} ${def.lowerIsBetter ? "higher" : "worse"} than your season`;
+      declining.push(def.label);
+    }
+    else{
+      read = "Steady: in line with your season";
+    }
+
+    if(recent.n < def.minN * 2 && dir !== "flat"){ read += " (small sample)"; }
+
+    const cls = dir === "up" ? "signal-values up" : dir === "down" ? "signal-values down" : "";
+    const arrow = dir === "up" ? "▲" : dir === "down" ? "▼" : "–";
+
+    html += `<tr>
+      <td>${escapeHtml(def.label)}</td>
+      <td>${seasonTxt}</td>
+      <td><strong>${def.fmt(recent.value)}</strong> <span class="small-note">(${recent.n} ${def.noun})</span></td>
+      <td class="${cls}">${arrow} ${deltaTxt}</td>
+      <td class="${cls}">${escapeHtml(read)}</td>
+    </tr>`;
+
+  });
+
+  body.innerHTML = html;
+
+  const parts = [];
+  if(improving.length){ parts.push(`Improving: ${improving.join(", ")}.`); }
+  if(declining.length){ parts.push(`Needs attention: ${declining.join(", ")}.`); }
+
+  summary.textContent = parts.length
+    ? `Over your last ${windowSize} games vs your full season. ${parts.join(" ")}`
+    : `Over your last ${windowSize} games, nothing has moved meaningfully away from your season baseline yet.`;
+
+  note.textContent = `Baseline is your whole season. A stat is only judged once the recent games have enough of that shot or play; small samples swing a lot, so treat flagged small-sample moves as hints.`;
+
+}
+
 function renderRecentFormChart(sorted, recentGames, priorGames){
 
   const windowGames =
@@ -10544,6 +10786,7 @@ function renderRecentFormChart(sorted, recentGames, priorGames){
 function renderIncremental(){
 
   renderRecentForm();
+  renderBaselineTrend();
 
   const advanced =
     calculateAdvancedForShots(
