@@ -62,9 +62,11 @@ export function costOf(model, tokens, batch = false) {
 
 // Writes one ledger row. Never throws: a missing table or a hiccup must
 // not fail the AI call it describes.
-export async function logAiUsage({ gameVideoId, requestedBy, kind, model, batch = false, batchId = null, tokens }) {
+// `usd` overrides the token pricing, for services billed another way
+// (Twelve Labs bills per minute of video).
+export async function logAiUsage({ gameVideoId, requestedBy, kind, model, batch = false, batchId = null, tokens, usd: fixedUsd }) {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const usd = costOf(model, tokens, batch);
+  const usd = Number.isFinite(fixedUsd) ? fixedUsd : costOf(model, tokens, batch);
   if (!key) return usd;
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/ai_usage${batchId ? "?on_conflict=batch_id" : ""}`, {

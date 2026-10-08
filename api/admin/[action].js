@@ -18,6 +18,7 @@ const ROUTES = {
   "user-info": () => import("../_lib/admin-user-info.js"),
   "make-clip": () => import("../_lib/admin-make-clip.js"),
   "create-request": () => import("../_lib/admin-create-request.js"),
+  twelvelabs: () => import("../_lib/admin-twelvelabs.js"),
 };
 
 export default async function handler(req, res) {

@@ -3631,6 +3631,7 @@
           <select id="rv-ai-model" onchange="onReviewModelChange(this.value)">
             <option value="claude-opus-5-5" selected>Opus 5.5 (sharper)</option>
             <option value="claude-sonnet-5-5">Sonnet 5.5 (about half the cost)</option>
+            <option value="twelvelabs">Twelve Labs (watches the video)</option>
           </select>
         </label>
         <button type="button" class="btn-secondary" id="rv-scan-btn" onclick="toggleReviewScan()">Run AI</button>
@@ -23516,6 +23517,7 @@ async function openReview(videoId){
 
   if(review.scanning){ review.scanning = false; }
   stopReviewBatchPolling();
+  stopReviewTlPolling();
 
   review.video = { ...v, period_marks: v.period_marks || {} };
   review.scanStats = null;
@@ -23528,7 +23530,8 @@ async function openReview(videoId){
   review.cutHistory = [];
   review.drafts = [];
   review.candidates = ((v.period_marks && Array.isArray(v.period_marks._candidates)) ? v.period_marks._candidates : [])
-    .map(c => ({ t: Number(c.t), confidence: Number(c.c) || 0, goal: !!c.g })).filter(c => Number.isFinite(c.t));
+    .map(c => ({ t: Number(c.t), confidence: Number(c.c) || 0, goal: !!c.g, ...(Number.isFinite(Number(c.s)) && Number.isFinite(Number(c.e)) ? { s: Number(c.s), e: Number(c.e) } : {}) }))
+    .filter(c => Number.isFinite(c.t));
   review.checkT = null;
   review.selectedId = null;
   try{
@@ -23566,6 +23569,7 @@ async function openReview(videoId){
   loadReviewAiCost(v.id);
   renderReviewTests();
   startReviewBatchPolling();
+  startReviewTlPolling();
 
   window.scrollTo({ top: 0, behavior: "smooth" });
 
@@ -23575,6 +23579,7 @@ function closeReview(){
 
   review.scanning = false;
   stopReviewBatchPolling();
+  stopReviewTlPolling();
   review.video = null;
   const video = document.getElementById("rv-video");
   video.pause();
@@ -23613,7 +23618,7 @@ function renderReviewHeader(){
   scanBtn.textContent =
     review.scanning ? "Pause AI" :
     review.collecting ? "Collecting…" :
-    (reviewPendingBatches(v).length || reviewUntagged(v).length) ? "Check AI results" :
+    (reviewPendingBatches(v).length || reviewUntagged(v).length || reviewTlTasks(v).length) ? "Check AI results" :
     Number(v.scan_progress) >= 1 ? "Re-run AI" :
     Number(v.scan_progress) > 0 ? "Resume AI" : "Run AI";
 
@@ -24585,7 +24590,7 @@ async function callClipAi(payload){
     body: JSON.stringify({
       accessToken: currentSession.access_token,
       context: { goalieJersey: (review.video && review.video.team_jersey_color) || "" },
-      ...(review.video ? { model: reviewAiModel() } : {}),
+      ...(review.video ? { model: reviewClaudeModel() } : {}),
       ...payload
     })
   });
@@ -24684,10 +24689,17 @@ function renderReviewScanBar(){
   if(!v){ return; }
   const d = reviewDuration() || Number(v.duration_seconds) || 0;
   const cursor = Number(v.scan_cursor) || 0;
-  const waiting = !review.scanning && (reviewPendingBatches(v).length || reviewUntagged(v).length);
+  const waiting = !review.scanning && (reviewPendingBatches(v).length || reviewUntagged(v).length || reviewTlTasks(v).length);
   const show = review.scanning || waiting || (cursor > 0 && Number(v.scan_progress) < 1);
   bar.hidden = !show;
   if(!show){ return; }
+  if(waiting && reviewTlTasks(v).length){
+    const n = reviewTlTasks(v).length;
+    document.getElementById("rv-scanbar-fill").style.width = "100%";
+    document.getElementById("rv-scan-text").textContent =
+      `Twelve Labs is watching ${n} part${n === 1 ? "" : "s"} of the game. Usually a few minutes; checked every 30 seconds while this request is open. You can close it and come back.${review.tlCheckedAt ? ` Last checked ${new Date(review.tlCheckedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.` : ""}`;
+    return;
+  }
   if(waiting){
     const n = reviewPendingBatches(v).length;
     const left = reviewUntagged(v).length;
@@ -24801,11 +24813,27 @@ async function setReviewNetSide(side, period){
 
 // One flag from the scan, kept so it can be grouped into moments to check,
 // saved with the video so it's still there after reopening.
-function addReviewCandidate(v, t, confidence, goal){
-  const c = { t: Math.round(Number(t) * 100) / 100, confidence: Number(confidence) || 0, goal: !!goal };
+// span: { start, end } when the AI gives a stretch rather than a moment
+// (Twelve Labs does).
+function addReviewCandidate(v, t, confidence, goal, span){
+  const r2 = x => Math.round(Number(x) * 100) / 100;
+  const c = { t: r2(t), confidence: Number(confidence) || 0, goal: !!goal };
+  if(span && Number.isFinite(Number(span.start)) && Number.isFinite(Number(span.end)) && Number(span.end) > Number(span.start)){
+    c.s = r2(span.start);
+    c.e = r2(span.end);
+  }
   review.candidates.push(c);
   const saved = (v.period_marks && Array.isArray(v.period_marks._candidates)) ? v.period_marks._candidates : [];
-  v.period_marks = { ...(v.period_marks || {}), _candidates: [...saved, { t: c.t, c: Math.round(c.confidence * 100) / 100, ...(c.goal ? { g: 1 } : {}) }].slice(-2000) };
+  v.period_marks = { ...(v.period_marks || {}), _candidates: [...saved, reviewCandidateRecord(c)].slice(-2000) };
+}
+
+function reviewCandidateRecord(c){
+  return {
+    t: c.t,
+    c: Math.round((Number(c.confidence) || 0) * 100) / 100,
+    ...(c.goal ? { g: 1 } : {}),
+    ...(Number.isFinite(c.s) && Number.isFinite(c.e) ? { s: c.s, e: c.e } : {})
+  };
 }
 
 // Every flag from the scan becomes part of a moment to check (flags close
@@ -24958,18 +24986,21 @@ const REVIEW_MOMENT_MAX = 40;    // a longer run of flags is split
 const REVIEW_MOMENT_PAD = 3;     // seconds played before and after
 
 // Flags ({ t, confidence, goal }) grouped into moments.
+// A flag may carry its own stretch (s to e); a single still is just t.
 function groupReviewFlags(flags){
   const out = [];
-  flags.slice().sort((a, b) => a.t - b.t).forEach(f => {
+  const from = f => Number.isFinite(f.s) ? Math.min(f.s, f.t) : f.t;
+  const to = f => Number.isFinite(f.e) ? Math.max(f.e, f.t) : f.t;
+  flags.slice().sort((a, b) => from(a) - from(b)).forEach(f => {
     const m = out[out.length - 1];
-    if(m && f.t - m.end <= REVIEW_MOMENT_GAP && f.t - m.start <= REVIEW_MOMENT_MAX){
-      m.end = f.t;
+    if(m && from(f) - m.end <= REVIEW_MOMENT_GAP && to(f) - m.start <= REVIEW_MOMENT_MAX){
+      m.end = Math.max(m.end, to(f));
       m.flags.push(f);
       if((Number(f.confidence) || 0) > m.confidence){ m.confidence = Number(f.confidence) || 0; m.t = f.t; }
       m.goal = m.goal || !!f.goal;
     }
     else{
-      out.push({ start: f.t, end: f.t, t: f.t, confidence: Number(f.confidence) || 0, goal: !!f.goal, flags: [f] });
+      out.push({ start: from(f), end: to(f), t: f.t, confidence: Number(f.confidence) || 0, goal: !!f.goal, flags: [f] });
     }
   });
   return out;
@@ -24994,7 +25025,7 @@ function saveReviewCandidates(){
   if(!v){ return; }
   const { _candidates, ...rest } = v.period_marks || {};
   v.period_marks = review.candidates.length
-    ? { ...rest, _candidates: review.candidates.map(c => ({ t: c.t, c: Math.round((Number(c.confidence) || 0) * 100) / 100, ...(c.goal ? { g: 1 } : {}) })) }
+    ? { ...rest, _candidates: review.candidates.map(reviewCandidateRecord) }
     : rest;
   clearTimeout(review.candidateSaveTimer);
   review.candidateSaveTimer = setTimeout(() => {
@@ -25132,7 +25163,7 @@ async function clearReviewAiResults(){
   const aiShots = review.drafts.filter(d => d.source === "ai" && !d.edited);
   const checks = reviewChecks().length;
   const stretches = Array.isArray(marks._action) ? marks._action.length : 0;
-  const pending = reviewPendingBatches(v).length + reviewUntagged(v).length;
+  const pending = reviewPendingBatches(v).length + reviewUntagged(v).length + reviewTlTasks(v).length;
 
   if(!aiShots.length && !(review.candidates || []).length && !stretches && !pending && !Number(v.scan_cursor)){
     showToast("There are no AI results on this video to clear.");
@@ -25159,7 +25190,7 @@ async function clearReviewAiResults(){
       }
     }
 
-    const { _action, _candidates, _batches, _untagged, ...rest } = marks;
+    const { _action, _candidates, _batches, _untagged, _tl, ...rest } = marks;
     const { error } = await supabaseClient.from("game_videos")
       .update({ period_marks: rest, scan_cursor: 0, scan_progress: 0 }).eq("id", v.id);
     if(error){ throw error; }
@@ -25172,6 +25203,7 @@ async function clearReviewAiResults(){
     review.checkT = null;
     review.scanStats = null;
     stopReviewBatchPolling();
+    stopReviewTlPolling();
 
     renderReviewPreview(null);
     renderReviewHeader();
@@ -25187,12 +25219,208 @@ async function clearReviewAiResults(){
 }
 
 
+/* ---------- Twelve Labs ----------
+   With "Twelve Labs" picked as the AI model, Run AI sends the uncut parts
+   of the game (split at the period marks, so each part has one net side)
+   to Twelve Labs' video model through /api/admin/twelvelabs. It watches
+   the footage itself and returns each shot on the tracked goalie as a
+   timestamped segment; those become moments to check. The tasks are
+   saved in period_marks._tl and checked every 30 seconds while the
+   request is open, so the admin can close it and come back. */
+
+const REVIEW_TL_POLL_MS = 30 * 1000;
+const REVIEW_TL_USD_PER_HOUR = 1.75;
+let reviewTlTimer = null;
+
+function reviewTlTasks(v){
+  return (v && v.period_marks && v.period_marks._tl && Array.isArray(v.period_marks._tl.tasks)) ? v.period_marks._tl.tasks : [];
+}
+
+// The parts of the video left after cuts, split where periods start.
+function reviewKeptRanges(){
+  const v = review.video;
+  const d = reviewDuration() || Number(v && v.duration_seconds) || 0;
+  if(!v || !d){ return []; }
+  const kept = [];
+  let a = 0;
+  reviewCuts(v).forEach(c => {
+    if(c[0] > a){ kept.push([a, Math.min(c[0], d)]); }
+    a = Math.max(a, c[1]);
+  });
+  if(a < d){ kept.push([a, d]); }
+  const marks = ["2", "3", "OT"].map(k => Number((v.period_marks || {})[k])).filter(Number.isFinite).sort((x, y) => x - y);
+  const parts = [];
+  kept.forEach(([s, e]) => {
+    let cur = s;
+    marks.forEach(m => { if(m > cur && m < e){ parts.push([cur, m]); cur = m; } });
+    parts.push([cur, e]);
+  });
+  return parts.filter(r => r[1] - r[0] >= 10);
+}
+
+async function twelveLabsApi(body){
+  const res = await fetch("/api/admin/twelvelabs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accessToken: currentSession.access_token, ...body })
+  });
+  let data = {};
+  try{ data = await res.json(); }catch(e){ data = {}; }
+  if(!res.ok){
+    const err = new Error(data.error || `The Twelve Labs request failed (error ${res.status}).`);
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+
+async function runReviewTwelveLabs(){
+
+  const v = review.video;
+  if(!v || review.scanning || review.collecting){ return; }
+  if(reviewTlTasks(v).length){ collectReviewTwelveLabs(true); return; }
+
+  const parts = reviewKeptRanges();
+  if(!parts.length){ showToast("Nothing left to analyse: the whole video is cut.", "error"); return; }
+  const seconds = parts.reduce((sum, r) => sum + (r[1] - r[0]), 0);
+  const minutes = Math.ceil(seconds / 60);
+  if(!confirm(
+    `Send ${formatClock(seconds)} of game (${parts.length} part${parts.length === 1 ? "" : "s"}) to Twelve Labs?\n\n` +
+    `Its video model watches the footage and lists each shot it sees on the goalie as a moment to check. ` +
+    `It uses ${minutes} of your free Twelve Labs minutes (600 on the free plan), or about ${formatUsd(seconds / 3600 * REVIEW_TL_USD_PER_HOUR)} once those run out.\n\n` +
+    `Results usually take a few minutes. You can close this request and come back.`
+  )){ return; }
+
+  review.collecting = true;
+  renderReviewHeader();
+  document.getElementById("rv-scanbar").hidden = false;
+  document.getElementById("rv-scanbar-fill").style.width = "100%";
+  document.getElementById("rv-scan-text").textContent = "Sending the game to Twelve Labs…";
+
+  try{
+    const data = await twelveLabsApi({
+      op: "start",
+      gameVideoId: v.id,
+      jersey: v.team_jersey_color || "",
+      ranges: parts.map(([start, end]) => ({ start, end, side: reviewNetSideAt((start + end) / 2) }))
+    });
+    v.period_marks = { ...(v.period_marks || {}), _tl: { tasks: data.tasks, sent_at: new Date().toISOString() } };
+    await saveReviewMarks(v);
+    review.runCostStart = review.aiCost;
+    review.runSplit = null;
+    showToast(`Sent to Twelve Labs (${data.tasks.length} part${data.tasks.length === 1 ? "" : "s"}). Results usually take a few minutes and are checked every 30 seconds while this request is open.`, "success");
+  }
+  catch(error){
+    console.error(error);
+    showToast(error.message || "Couldn't send the game to Twelve Labs.", "error");
+  }
+  finally{
+    review.collecting = false;
+    renderReviewHeader();
+    renderReviewScanBar();
+  }
+
+  startReviewTlPolling();
+
+}
+
+function startReviewTlPolling(){
+  stopReviewTlPolling();
+  if(!review.video || !reviewTlTasks(review.video).length){ return; }
+  collectReviewTwelveLabs(false);
+  reviewTlTimer = setInterval(() => collectReviewTwelveLabs(false), REVIEW_TL_POLL_MS);
+}
+
+function stopReviewTlPolling(){
+  if(reviewTlTimer){ clearInterval(reviewTlTimer); reviewTlTimer = null; }
+}
+
+const REVIEW_TL_CONFIDENCE = { high: 0.9, medium: 0.6, low: 0.3 };
+
+async function collectReviewTwelveLabs(manual){
+
+  const v = review.video;
+  const tasks = reviewTlTasks(v);
+  if(!v || !tasks.length){ stopReviewTlPolling(); return; }
+  if(review.tlChecking){ return; }
+  review.tlChecking = true;
+
+  try{
+    const data = await twelveLabsApi({ op: "status", gameVideoId: v.id, tasks });
+    if(!review.video || review.video.id !== v.id){ return; }
+    review.tlCheckedAt = Date.now();
+
+    const done = new Set();
+    const errors = [];
+    let segments = 0;
+    (data.tasks || []).forEach(t => {
+      if(t.status === "ready"){
+        done.add(t.id);
+        (t.segments || []).forEach(s => {
+          const conf = s.outcome === "missed_net" ? 0.2 : (REVIEW_TL_CONFIDENCE[s.confidence] || 0.3);
+          addReviewCandidate(v, s.t, conf, s.outcome === "goal", { start: s.start, end: s.end });
+          segments++;
+        });
+        if(Number.isFinite(Number(t.usd))){ addReviewAiCost(Number(t.usd), "scan"); }
+      }
+      else if(t.status === "failed"){
+        done.add(t.id);
+        errors.push(t.error || "The analysis failed.");
+      }
+    });
+
+    if(done.size){
+      const left = tasks.filter(t => !done.has(t.id));
+      const { _tl, ...rest } = v.period_marks;
+      v.period_marks = left.length ? { ...rest, _tl: { ..._tl, tasks: left } } : rest;
+      await saveReviewMarks(v);
+      renderReviewShots();
+      if(!left.length){
+        stopReviewTlPolling();
+        const n = reviewChecks().length;
+        showToast(
+          `Twelve Labs finished: ${segments} shot${segments === 1 ? "" : "s"} found, grouped into ${n} moment${n === 1 ? "" : "s"} to check on the right.${errors.length ? ` ${errors.length} part${errors.length === 1 ? "" : "s"} failed: ${errors[0]}` : ""}${reviewRunCostText()} Watch each one (M), press S at each shot, or D if there wasn't one.`,
+          errors.length && !segments ? "error" : "success"
+        );
+      }
+      else if(errors.length){
+        showToast(`A part of the game failed at Twelve Labs: ${errors[0]}`, "error");
+      }
+    }
+    else if(manual){
+      showToast("Twelve Labs is still watching the game. Results usually take a few minutes.");
+    }
+  }
+  catch(error){
+    console.error(error);
+    if(manual || error.status === 401 || error.status === 403 || error.status === 503){
+      showToast(error.message || "Couldn't check Twelve Labs.", "error");
+    }
+  }
+  finally{
+    review.tlChecking = false;
+    if(review.video && review.video.id === v.id){
+      renderReviewScanBar();
+      renderReviewHeader();
+    }
+  }
+
+}
+
 /* ---------- AI model ---------- */
 
 const REVIEW_MODELS = {
   "claude-sonnet-5-5": "Sonnet 5.5",
-  "claude-opus-5-5": "Opus 5.5"
+  "claude-opus-5-5": "Opus 5.5",
+  "twelvelabs": "Twelve Labs"
 };
+
+// The Claude model for scans, closer looks and AI fill: the picked one,
+// or Opus when Twelve Labs is picked (Twelve Labs only finds the shots).
+function reviewClaudeModel(){
+  const m = reviewAiModel();
+  return m.startsWith("claude-") ? m : "claude-opus-5-5";
+}
 
 function reviewAiModel(){
   const sel = document.getElementById("rv-ai-model");
@@ -25238,6 +25466,10 @@ async function runReviewAccuracyTest(){
   const v = review.video;
   if(!v || review.scanning || review.collecting){ return; }
   if(review.testing){ review.testing = false; return; }
+  if(reviewAiModel() === "twelvelabs"){
+    showToast("Test accuracy runs the Claude scan. Pick Opus 5.5 or Sonnet 5.5 as the AI model to use it.", "error");
+    return;
+  }
 
   const d = reviewDuration();
   if(!d){ showToast("Wait for the video to load first.", "error"); return; }
@@ -25574,6 +25806,10 @@ function toggleReviewScan(){
     return;
   }
   if(review.collecting){ return; }
+  if(review.video && reviewTlTasks(review.video).length){
+    collectReviewTwelveLabs(true);
+    return;
+  }
   if(review.video && (reviewPendingBatches(review.video).length || reviewUntagged(review.video).length)){
     collectReviewBatches(true);
     return;
@@ -25594,6 +25830,8 @@ function toggleReviewScan(){
 }
 
 async function runReviewScan(){
+
+  if(reviewAiModel() === "twelvelabs"){ return runReviewTwelveLabs(); }
 
   const v = review.video;
   if(!v || review.scanning || review.collecting){ return; }
