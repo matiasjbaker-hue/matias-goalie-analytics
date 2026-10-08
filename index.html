@@ -2278,6 +2278,50 @@
 
   </div>
 
+
+  <div class="card section-space" id="reboundReviewCard">
+
+    <h3>Rebound Review</h3>
+
+    <p class="chart-caption">Every shot with a tagged rebound outcome, with its clip. Pick what you want to review, then watch them one by one or all in a row.</p>
+
+    <div class="giq-modal-filters" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+      <select id="rcReviewKind" onchange="renderReboundReview()" aria-label="What to review">
+        <option value="problems">Bad rebounds and goals</option>
+        <option value="bad">Bad rebounds only</option>
+        <option value="goals">Goals only</option>
+        <option value="second">Rebound chances against (second shots)</option>
+      </select>
+      <select id="rcReviewZone" onchange="renderReboundReview()" aria-label="Where on the body">
+        <option value="">Any body part</option>
+        <option value="glove">Glove</option>
+        <option value="blocker">Blocker</option>
+        <option value="midsection">Midsection</option>
+        <option value="pad_stick">Pad / Stick</option>
+      </select>
+      <button type="button" class="watch-btn" id="rcPlayAllBtn" onclick="playReboundReviewAll()">▶ Play all</button>
+    </div>
+
+    <div id="rcReviewSummary" class="small-note" style="margin-bottom:8px"></div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Opponent</th>
+            <th>Period</th>
+            <th>Outcome</th>
+            <th>Result</th>
+            <th>Clip</th>
+          </tr>
+        </thead>
+        <tbody id="rcReviewBody"></tbody>
+      </table>
+    </div>
+
+  </div>
+
 </section>
 
 
@@ -4105,6 +4149,14 @@
             <option value="quick_release">Quick Release</option>
             <option value="extended_possession">Extended Possession (&gt;2s)</option>
           </select>
+        </div>
+        <div class="field" style="grid-column:1/-1">
+          <label for="shotEditRebound">Rebound outcome (how the save went)</label>
+          <select id="shotEditRebound">
+            <option value="">Not tagged</option>
+            <option value="glove_caught">Glove — Caught</option><option value="glove_rebound">Glove — Rebound</option><option value="glove_goal">Glove — Goal</option><option value="blocker_good">Blocker — Good</option><option value="blocker_bad">Blocker — Bad</option><option value="blocker_goal">Blocker — Goal</option><option value="midsection_good">Midsection — Good</option><option value="midsection_bad">Midsection — Bad</option><option value="midsection_goal">Midsection — Goal</option><option value="pad_stick_good">Pad/Stick — Good</option><option value="pad_stick_bad">Pad/Stick — Bad</option><option value="pad_stick_goal">Pad/Stick — Goal</option>
+          </select>
+          <div class="small-note">Powers the clip list on the Rebound Control tab. The game's rebound totals only change when you switch or clear an outcome that was already tagged.</div>
         </div>
       </div>
 
@@ -7195,6 +7247,7 @@ function openShotEditModal(shotId){
   document.getElementById("shotEditStrength").value = shot.strength || "";
   document.getElementById("shotEditType").value = shot.shot_type || "";
   document.getElementById("shotEditRelease").value = shot.release_type || "";
+  document.getElementById("shotEditRebound").value = shot.rebound_tag || "";
 
   document.querySelectorAll("#shotEditModalOverlay [data-flag]").forEach(box => {
     box.checked = shotBoolean(shot[box.dataset.flag]);
@@ -7296,6 +7349,37 @@ async function adjustPeriodTotals(gameId, ownerId, period, delta, goalDelta){
 
 }
 
+// Moves one counted rebound-control outcome from `oldTag` to `newTag`
+// (or just removes it when newTag is null) on the game's totals row.
+async function adjustReboundTotals(gameId, oldTag, newTag){
+
+  const { data: rows, error } =
+    await supabaseClient.from("goalierebound_control").select("*").eq("game_id", gameId).limit(1);
+
+  if(error){ throw error; }
+
+  if(!rows || !rows.length){ return; }
+
+  const row = rows[0];
+  const patch = {};
+
+  if(oldTag && REBOUND_TALLY_KEYS.includes(oldTag)){
+    patch[oldTag] = Math.max(0, num(row[oldTag]) - 1);
+  }
+
+  if(newTag && REBOUND_TALLY_KEYS.includes(newTag)){
+    patch[newTag] = num(row[newTag]) + 1;
+  }
+
+  if(!Object.keys(patch).length){ return; }
+
+  const { error: upErr } =
+    await supabaseClient.from("goalierebound_control").update(patch).eq("id", row.id);
+
+  if(upErr){ throw upErr; }
+
+}
+
 async function saveShotEdit(){
 
   if(!shotEditState){ return; }
@@ -7310,6 +7394,7 @@ async function saveShotEdit(){
     strength: document.getElementById("shotEditStrength").value || null,
     shot_type: document.getElementById("shotEditType").value || null,
     release_type: document.getElementById("shotEditRelease").value || null,
+    rebound_tag: document.getElementById("shotEditRebound").value || null,
     loc_x: hasPin ? shotEditState.loc_x : null,
     loc_y: hasPin ? shotEditState.loc_y : null,
     location: hasPin ? classifyShotLocation(shotEditState.loc_x, shotEditState.loc_y) : (shot.location || null)
@@ -7378,6 +7463,16 @@ async function saveShotEdit(){
     }
     else if(wasGoal !== nowGoal){
       await adjustPeriodTotals(shot.game_id, shot.user_id, newPeriod, 0, nowGoal - wasGoal);
+    }
+
+    // Moving or clearing a rebound outcome that was already counted keeps
+    // the game's rebound-control totals in step. A first-time tag isn't
+    // added again: older games' totals were counted when they were tagged.
+    const oldReb = shot.rebound_tag || null;
+    const newReb = patch.rebound_tag || null;
+
+    if(oldReb && oldReb !== newReb){
+      await adjustReboundTotals(shot.game_id, oldReb, newReb);
     }
 
     Object.assign(shot, data[0]);
@@ -7777,7 +7872,29 @@ async function deleteShotClip(shotId, button){
 }
 
 
-async function watchShotClip(shotId){
+// Set while playing a list of clips back to back (Rebound Review).
+let watchQueue = null;
+
+function watchQueueNext(){
+
+  if(!watchQueue){ return; }
+
+  watchQueue.i++;
+
+  if(watchQueue.i >= watchQueue.ids.length){
+    watchQueue = null;
+    showToast("That was the last clip.", "success");
+    return;
+  }
+
+  showToast(`Clip ${watchQueue.i + 1} of ${watchQueue.ids.length}`, "success");
+  watchShotClip(watchQueue.ids[watchQueue.i], true);
+
+}
+
+async function watchShotClip(shotId, keepQueue){
+
+  if(!keepQueue){ watchQueue = null; }
 
   const shot =
     allShots.find(s => String(s.shot_id ?? s.id) === String(shotId));
@@ -7847,11 +7964,22 @@ async function watchShotClip(shotId){
     // viewer can keep manually scrubbing past it if they want more
     // context, this just stops it from playing straight into the
     // next shot unattended.
+    let advanced = false;
+
+    const advanceQueue = () => {
+      if(advanced || !watchQueue){ return; }
+      advanced = true;
+      setTimeout(watchQueueNext, 900);
+    };
+
     videoEl.ontimeupdate = () => {
       if(endAt !== null && videoEl.currentTime >= endAt){
         videoEl.pause();
+        advanceQueue();
       }
     };
+
+    videoEl.onended = advanceQueue;
 
     statusEl.style.display = "none";
     videoEl.style.display = "block";
@@ -7871,9 +7999,12 @@ async function watchShotClip(shotId){
 
 function closeWatchModal(){
 
+  watchQueue = null;
+
   const videoEl =
     document.getElementById("watchModalVideo");
 
+  videoEl.onended = null;
   videoEl.pause();
   videoEl.removeAttribute("src");
   videoEl.onloadedmetadata = null;
@@ -9675,7 +9806,7 @@ function renderReboundControl(){
         </td>
 
         <td class="bad">
-          ${data.bad}
+          ${reboundReviewLink(direction, "bad", data.bad)}
         </td>
 
         <td>
@@ -9691,7 +9822,7 @@ function renderReboundControl(){
         </td>
 
         <td>
-          ${data.goals}
+          ${reboundReviewLink(direction, "goals", data.goals)}
         </td>
 
       </tr>
@@ -9705,6 +9836,166 @@ function renderReboundControl(){
     "Rebound Control rows:",
     rows
   );
+
+  renderReboundReview();
+
+}
+
+
+/* ============================================================
+   REBOUND REVIEW
+   Each shot can carry a rebound outcome tag (glove_rebound,
+   blocker_goal, ...). This lists the ones worth reviewing, filtered
+   by kind and body part, each with its clip, and can play them back
+   to back.
+============================================================ */
+
+const REBOUND_REVIEW_ZONES = ["glove", "blocker", "midsection", "pad_stick"];
+const REBOUND_DIRECTION_ZONE = { "Glove": "glove", "Blocker": "blocker", "Body": "midsection", "Pad / Stick": "pad_stick" };
+
+// "good" | "bad" | "goal" | null
+function reboundTagKind(tag){
+
+  const t = String(tag || "");
+
+  if(!t){ return null; }
+  if(/_goal$/.test(t)){ return "goal"; }
+  if(t === "glove_caught" || /_good$/.test(t)){ return "good"; }
+  if(t === "glove_rebound" || /_bad$/.test(t)){ return "bad"; }
+
+  return null;
+
+}
+
+function reboundTagZone(tag){
+  return REBOUND_REVIEW_ZONES.find(z => String(tag || "").startsWith(z + "_")) || null;
+}
+
+// Number in the Directional Breakdown table that jumps to the review list.
+function reboundReviewLink(direction, kind, count){
+
+  if(!count){ return String(count); }
+
+  return `<button type="button" onclick="reboundReviewFocus('${REBOUND_DIRECTION_ZONE[direction] || ""}','${kind}')" title="Review these" style="background:none;border:0;padding:0;font:inherit;color:inherit;text-decoration:underline;cursor:pointer">${count}</button>`;
+
+}
+
+function reboundReviewFocus(zone, kind){
+
+  const kindSel = document.getElementById("rcReviewKind");
+  const zoneSel = document.getElementById("rcReviewZone");
+
+  if(kindSel){ kindSel.value = kind === "goals" ? "goals" : "bad"; }
+  if(zoneSel){ zoneSel.value = zone || ""; }
+
+  renderReboundReview();
+
+  const card = document.getElementById("reboundReviewCard");
+  if(card){ card.scrollIntoView({ behavior: "smooth", block: "start" }); }
+
+}
+
+let reboundReviewList = [];
+
+function reboundReviewShots(){
+
+  const kind = (document.getElementById("rcReviewKind") || {}).value || "problems";
+  const zone = (document.getElementById("rcReviewZone") || {}).value || "";
+
+  const list = seasonShots.filter(s => {
+
+    if(kind === "second"){ return shotBoolean(s.rebound); }
+
+    const k = reboundTagKind(s.rebound_tag);
+
+    if(!k){ return false; }
+    if(zone && reboundTagZone(s.rebound_tag) !== zone){ return false; }
+
+    if(kind === "bad"){ return k === "bad"; }
+    if(kind === "goals"){ return k === "goal"; }
+
+    return k === "bad" || k === "goal";
+
+  });
+
+  const gameOf = s => games.find(g => String(g.id) === String(s.game_id));
+  const dateOf = s => String(gameDate(gameOf(s) || {}) || "");
+
+  return list.sort((a, b) =>
+    dateOf(b).localeCompare(dateOf(a)) ||
+    String(a.period).localeCompare(String(b.period)) ||
+    num(a.shot_id ?? a.id) - num(b.shot_id ?? b.id)
+  );
+
+}
+
+function renderReboundReview(){
+
+  const body = document.getElementById("rcReviewBody");
+
+  if(!body){ return; }
+
+  const kind = document.getElementById("rcReviewKind").value;
+  const list = reboundReviewShots();
+  const withClip = list.filter(s => s.game_video_id);
+
+  reboundReviewList = withClip;
+
+  const taggedAny = seasonShots.some(s => reboundTagKind(s.rebound_tag));
+
+  body.innerHTML = list.map(s => {
+
+    const game = games.find(g => String(g.id) === String(s.game_id)) || {};
+    const id = s.shot_id ?? s.id;
+
+    const outcome = kind === "second"
+      ? "Rebound chance"
+      : (REBOUND_TALLY_LABELS[s.rebound_tag] || "—");
+
+    return `
+      <tr>
+        <td>${escapeHtml(gameDate(game) || "—")}</td>
+        <td>${escapeHtml(gameOpponent(game) || "—")}</td>
+        <td>${escapeHtml(s.period) || "—"}</td>
+        <td>${escapeHtml(outcome)}</td>
+        <td><span class="result-pill ${isGoal(s) ? "result-loss" : "result-win"}">${isGoal(s) ? "Goal" : "Save"}</span></td>
+        <td>${s.game_video_id
+          ? `<button type="button" class="watch-btn" onclick="watchShotClip(${jsArg(id)})">▶ Watch</button>`
+          : `<button type="button" class="watch-btn" disabled>No clip</button>`}</td>
+      </tr>
+    `;
+
+  }).join("") ||
+    `<tr><td colspan="6"><div class="empty-state">${
+      kind !== "second" && !taggedAny
+        ? "No shots have a rebound outcome tagged yet. Shots tagged from now on keep their outcome, and any older shot can be tagged from the shot log with Edit."
+        : "Nothing matches this filter."
+    }</div></td></tr>`;
+
+  const summary = document.getElementById("rcReviewSummary");
+
+  if(summary){
+    summary.textContent = list.length
+      ? `${list.length} shot${list.length === 1 ? "" : "s"}${withClip.length === list.length ? "" : `, ${withClip.length} with a clip`}.`
+      : "";
+  }
+
+  const playAll = document.getElementById("rcPlayAllBtn");
+
+  if(playAll){
+    playAll.disabled = !withClip.length;
+    playAll.textContent = withClip.length > 1 ? `▶ Play all (${withClip.length})` : "▶ Play all";
+  }
+
+}
+
+function playReboundReviewAll(){
+
+  if(!reboundReviewList.length){ return; }
+
+  watchQueue = { ids: reboundReviewList.map(s => s.shot_id ?? s.id), i: 0 };
+
+  watchShotClip(watchQueue.ids[0], true);
 
 }
 
@@ -18142,7 +18433,9 @@ const PRESERVED_SHOT_FIELDS = [
   "loc_x",
   "loc_y",
   // Same reason: strength isn't editable in that form.
-  "strength"
+  "strength",
+  // Rebound-control outcome for the shot.
+  "rebound_tag"
 ];
 
 
@@ -20281,7 +20574,10 @@ function liveTagShotPayload(shot, gameId, userId){
     screened: shot.screened,
     breakaway: shot.breakaway,
     cross_ice: shot.cross_ice,
-    deflection: shot.deflection
+    deflection: shot.deflection,
+    // How the save went (glove_rebound, blocker_goal, ...). Kept per shot
+    // so the Rebound Control tab can link each one to its clip.
+    rebound_tag: shot.reboundTag && shot.reboundTag !== "skip" ? shot.reboundTag : null
   };
 
   if(shot.ai){
