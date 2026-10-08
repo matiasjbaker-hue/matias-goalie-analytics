@@ -64,7 +64,7 @@ const BATCH_ID_RE = /^msgbatch_[A-Za-z0-9]{1,100}$/;
 // ~450 KB of JPEG per frame; the browser sends ~640px frames at ~60 KB.
 const MAX_FRAME_BASE64 = 600 * 1024;
 
-const SHOT_TYPES = ["Wrist", "Slap", "Snap", "Flick", "Backhand", "Tip", "unknown"];
+const SHOT_TYPES = ["Wrist", "Slap", "Snap", "Flick", "Backhand", "unknown"];
 const RELEASE_TYPES = ["unclear", "one_timer", "catch_and_release", "quick_release", "extended_possession"];
 const REBOUND_TAGS = [
   "skip",

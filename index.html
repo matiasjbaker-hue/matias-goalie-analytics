@@ -2780,7 +2780,6 @@
         <button type="button" class="tag-btn" data-value="Snap" onclick="selectLiveTagChoice('shot_type','Snap',this)">Snap</button>
         <button type="button" class="tag-btn" data-value="Flick" onclick="selectLiveTagChoice('shot_type','Flick',this)">Flick</button>
         <button type="button" class="tag-btn" data-value="Backhand" onclick="selectLiveTagChoice('shot_type','Backhand',this)">Backhand</button>
-        <button type="button" class="tag-btn" data-value="Tip" onclick="selectLiveTagChoice('shot_type','Tip',this)">Tip</button>
       </div>
     </div>
 
@@ -3586,7 +3585,7 @@
               <select id="rv-ed-type" onchange="updateReviewShot('shot_type', this.value || null)">
                 <option value="">Unknown</option>
                 <option>Wrist</option><option>Slap</option><option>Snap</option><option>Flick</option>
-                <option>Backhand</option><option>Tip</option>
+                <option>Backhand</option>
               </select>
             </div>
             <div class="field">
@@ -3949,7 +3948,7 @@
           <select id="shotEditType">
             <option value="">Unknown</option>
             <option>Wrist</option><option>Slap</option><option>Snap</option><option>Flick</option>
-            <option>Backhand</option><option>Tip</option>
+            <option>Backhand</option>
           </select>
         </div>
         <div class="field" style="grid-column:1/-1">
@@ -14563,7 +14562,7 @@ function computeGameReportData(gameId){
 
   // Shot type breakdown
   const shotTypeRows =
-    ["Wrist", "Slap", "Snap", "Flick", "Backhand", "Tip"]
+    ["Wrist", "Slap", "Snap", "Flick", "Backhand"]
       .map(label => {
         const key = label.toLowerCase();
         const subset = gameShotsList.filter(shot => {
