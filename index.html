@@ -2440,6 +2440,25 @@
 
 
   <div class="section-heading">
+    <h3>Vs. Your Peers</h3>
+    <p>How this goalie compares with the anonymous average of other GoalieIQ goalies this season.</p>
+  </div>
+
+  <div class="card section-space" id="peerCard">
+    <div id="peerSummary" class="callout" style="margin-bottom:14px">Loading peer comparison…</div>
+    <div class="table-wrap" id="peerTableWrap" style="display:none">
+      <table>
+        <thead>
+          <tr><th>Stat</th><th>You</th><th>Peer average</th><th>Read</th></tr>
+        </thead>
+        <tbody id="peerBody"></tbody>
+      </table>
+    </div>
+    <div class="small-note" id="peerNote"></div>
+  </div>
+
+
+  <div class="section-heading">
     <h3>Stopping</h3>
     <p>Measure whether your actual stopping ability is improving beyond the quality of shots you face.</p>
   </div>
@@ -10739,6 +10758,151 @@ function renderInlineTrends(){
 
 }
 
+/* ============================================================
+   VS. PEERS
+   Anonymous averages from the peer_benchmarks() database function.
+   It returns nothing until 5 goalies have games this season, and never
+   returns another goalie's name or numbers.
+============================================================ */
+
+const PEER_METRICS = [
+  ["Overall", "sv_pct", "Save %"],
+  ["Overall", "gaa", "GAA"],
+  ["Overall", "sv_above_expected", "SV% above expected"],
+  ["Overall", "gsax_per60", "GSAx per 60"],
+  ["Shot danger", "hd_sv", "High-danger SV%"],
+  ["Situations", "rush_sv", "Rush SV%"],
+  ["Situations", "rebound_sv", "Rebound-shot SV%"],
+  ["Situations", "screened_sv", "Screened SV%"],
+  ["Situations", "breakaway_sv", "Breakaway SV%"],
+  ["Situations", "cross_ice_sv", "Cross-ice SV%"],
+  ["Situations", "deflection_sv", "Deflection SV%"],
+  ["Release", "quick_sv", "Quick-release SV%"],
+  ["Release", "extended_sv", "Extended-possession SV%"],
+  ["Rebound control", "good_rebound", "Good rebound %"],
+  ["Puck playing", "rim_stop", "Rim stop %"],
+  ["Puck playing", "pass_pct", "Pass completion %"]
+];
+
+let peerRequestKey = null;
+
+async function renderPeerComparison(){
+
+  const summary = document.getElementById("peerSummary");
+
+  if(!summary){ return; }
+
+  const goalieId = (currentRole === "goalie")
+    ? (currentSession && currentSession.user && currentSession.user.id)
+    : activeGoalieId;
+
+  const wrap = document.getElementById("peerTableWrap");
+  const note = document.getElementById("peerNote");
+
+  if(!goalieId){
+    wrap.style.display = "none";
+    summary.textContent = "Open a goalie to see how they compare with their peers.";
+    note.textContent = "";
+    return;
+  }
+
+  const season = SELECTED_SEASON || CURRENT_SEASON;
+  const key = `${goalieId}|${season}`;
+  peerRequestKey = key;
+
+  let data, error;
+
+  try{
+    ({ data, error } = await supabaseClient.rpc("peer_benchmarks", { p_season: season, p_user: goalieId }));
+  }
+  catch(err){ error = err; }
+
+  if(peerRequestKey !== key){ return; }
+
+  if(error || !data){
+    console.error(error);
+    wrap.style.display = "none";
+    summary.textContent = "Peer comparison isn't available right now.";
+    note.textContent = "";
+    return;
+  }
+
+  if(!data.unlocked){
+    wrap.style.display = "none";
+    summary.textContent = `Peer comparison unlocks once ${data.needed || 5} goalies have logged games this season (${data.goalies || 0} so far). It only ever shows anonymous averages.`;
+    note.textContent = "";
+    return;
+  }
+
+  const defs = baselineStatDefs();
+  const metrics = data.metrics || {};
+  const better = [];
+  const worse = [];
+  let lastGroup = null;
+  let html = "";
+
+  PEER_METRICS.forEach(([group, id, label]) => {
+
+    const m = metrics[id];
+    const def = defs.find(d => d.label === label);
+
+    if(!m || !def || (m.you === null && m.peer === null)){ return; }
+
+    if(group !== lastGroup){
+      html += `<tr><td colspan="4" style="font-weight:700;padding-top:14px">${escapeHtml(group)}</td></tr>`;
+      lastGroup = group;
+    }
+
+    const youTxt = m.you === null ? "—" : `${def.fmt(m.you)} <span class="small-note">(${m.you_n} ${def.noun === "games" ? "shots" : def.noun})</span>`;
+
+    if(m.peer === null){
+      html += `<tr><td>${escapeHtml(label)}</td><td>${youTxt}</td><td>—</td><td class="small-note">Not enough peers with this stat yet.</td></tr>`;
+      return;
+    }
+
+    if(m.you === null){
+      html += `<tr><td>${escapeHtml(label)}</td><td>—</td><td>${def.fmt(m.peer)}</td><td class="small-note">Not enough of your own data yet.</td></tr>`;
+      return;
+    }
+
+    const delta = m.you - m.peer;
+    const dir = classifySignal(delta, def.thr, !!def.lowerIsBetter);
+    const mag = Math.abs(delta).toFixed(def.unit ? 1 : 2);
+    const unit = def.unit ? " pts" : "";
+
+    let read;
+    if(dir === "up"){ read = `Above peers: ${mag}${unit} ${def.lowerIsBetter ? "lower" : "higher"}`; better.push(label); }
+    else if(dir === "down"){ read = `Below peers: ${mag}${unit} ${def.lowerIsBetter ? "higher" : "lower"}`; worse.push(label); }
+    else{ read = "In line with peers"; }
+
+    const cls = dir === "up" ? "signal-values up" : dir === "down" ? "signal-values down" : "";
+    const arrow = dir === "up" ? "▲" : dir === "down" ? "▼" : "–";
+
+    html += `<tr>
+      <td>${escapeHtml(label)}</td>
+      <td><strong>${def.fmt(m.you)}</strong> <span class="small-note">(${m.you_n} ${def.noun === "games" ? "shots" : def.noun})</span></td>
+      <td>${def.fmt(m.peer)}</td>
+      <td class="${cls}">${arrow} ${escapeHtml(read)}</td>
+    </tr>`;
+
+  });
+
+  document.getElementById("peerBody").innerHTML = html;
+  wrap.style.display = "";
+
+  const parts = [];
+  if(better.length){ parts.push(`Above peers: ${better.join(", ")}.`); }
+  if(worse.length){ parts.push(`Below peers: ${worse.join(", ")}.`); }
+
+  summary.textContent =
+    `Compared with ${data.cohort} (${data.goalies} goalies) this season. ` +
+    (parts.join(" ") || "Nothing stands out from the peer average yet.");
+
+  note.textContent =
+    "Averages are anonymous and only shown for stats at least 5 goalies have enough data on. Each goalie counts once, however many shots they've faced.";
+
+}
+
 function renderBaselineTrend(){
 
   const body = document.getElementById("baselineTrendBody");
@@ -10914,6 +11078,7 @@ function renderIncremental(){
 
   renderRecentForm();
   renderBaselineTrend();
+  renderPeerComparison();
   setTimeout(renderInlineTrends, 0);
 
   const advanced =
