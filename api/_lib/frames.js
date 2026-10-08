@@ -125,11 +125,15 @@ export async function grabFrames(url, times, width, concurrency = 4, thumb = fal
 const PIXEL_CHANGE = 14;   // grey levels; ignores compression noise
 const DARK_LEVEL = 14;     // average grey below this = a covered or black frame
 
+// Default 0.0015 (about 8 thumbnail pixels): only a black, frozen or
+// paused picture counts as dead. A fixed camera far from the ice changes
+// very few pixels during real play, so anything looser could drop live
+// frames; warm-up and intermissions are for the admin's cuts instead.
 export function stillThreshold() {
   const raw = process.env.SCAN_STILL_THRESHOLD;
-  if (raw === undefined || raw === "") return 0.004;
+  if (raw === undefined || raw === "") return 0.0015;
   const n = Number(raw);
-  return Number.isFinite(n) && n >= 0 ? n : 0.004;   // 0 turns the check off
+  return Number.isFinite(n) && n >= 0 ? n : 0.0015;   // 0 turns the check off
 }
 
 function changedShare(a, b) {

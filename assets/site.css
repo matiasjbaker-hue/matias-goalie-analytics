@@ -4770,12 +4770,16 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
 .rv-action{
   position:absolute;
   bottom:0;
-  height:7px;
+  height:10px;
+  padding:0;
+  border:0;
   background:var(--pine-bright);
   opacity:.55;
   border-radius:2px 2px 0 0;
-  pointer-events:none;
+  cursor:pointer;
 }
+.rv-action:hover,
+.rv-action:focus-visible{ opacity:.9; }
 
 .rv-action-bar{
   display:flex;
@@ -5293,3 +5297,28 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]) .rv-legend .lg-cut{ background:repeating-linear-gradient(135deg, rgba(244,245,241,.28) 0 3px, rgba(244,245,241,.08) 3px 6px); }
 }
+
+
+/* Shot rows: quick delete for AI shots, and the "basics only" badge */
+.rv-shot-row{ display:flex; align-items:stretch; }
+.rv-shot-row .rv-shot{ flex:1; min-width:0; }
+.rv-shot-x{
+  flex:none;
+  width:34px;
+  padding:0;
+  border:0;
+  border-bottom:1px dashed var(--seam);
+  background:transparent;
+  color:var(--ink-2);
+  font:inherit;
+  font-size:17px;
+  font-weight:800;
+  cursor:pointer;
+}
+.rv-shot-x:hover,
+.rv-shot-x:focus-visible{ color:var(--goal); background:var(--face); }
+.ai-badge.is-basic{
+  border-style:dotted;
+  background:transparent;
+}
+.rv-side-head #rv-fill-all{ margin-left:auto; }

@@ -124,7 +124,7 @@ const DETECT_SCHEMA = {
         properties: {
           frame: { type: "integer", description: "1-based number of the frame where the shot is released or the save/goal happens." },
           goal: { type: "boolean", description: "True only if the puck clearly ends up in the tracked goalie's net." },
-          confidence: { type: "number", description: "0.9 shot or save clearly visible; 0.6 strong evidence but the puck isn't visible; 0.3 possible." },
+          confidence: { type: "number", description: "0 to 1." },
         },
         required: ["frame", "goal", "confidence"],
         additionalProperties: false,
@@ -140,22 +140,20 @@ const DETECT_SCHEMA = {
   additionalProperties: false,
 };
 
-const DETECT_PROMPT = `You are the first pass of a system that turns hockey game film into the shots faced by ONE tracked goalie. You do two separate jobs on the same frames: a generous one (zone_frames) and a precise one (events).
+// The wording that found 19 of 19 shots on the first full test game
+// (Oct 6). Change it only with the review screen's Test accuracy to
+// compare against.
+const DETECT_PROMPT = `You are the first pass of a system that cuts hockey game film into shot moments for ONE tracked goalie. An admin watches every moment you flag and edits or deletes it, so your job is to catch ALL the action: a missed shot is a real failure, an extra flag costs the admin one click.
 
-You get still frames about one to two seconds apart, in time order, with timestamps. The camera is often a wide, high view of the rink and may pan to follow play, so players and the puck are small.
+You get still frames about one to two seconds apart, in time order, with timestamps. The camera is often a wide, high view of the whole rink and may pan to follow play, so players and the puck are small.
 
-Which net: when a frame's label says which side of the picture the tracked goalie's net is on, that is certain, and both jobs are about that net only. Shots, scrambles and zone time at the other net never count, however exciting. Without that label, the tracked goalie is identified by their team's jersey colour (given below when known).
+Which net: the tracked goalie is identified by their team's jersey colour (given below when known). Watch the net that goalie defends. Teams switch ends between periods, so if the goalie in that colour is now at the other end, follow them there. Some frame labels also say which side of the picture the tracked goalie's net is on (set by the admin): use that to confirm which net is theirs.
 
-Job 1, zone_frames (be generous): every frame where play is in the tracked goalie's defensive zone: attackers with the puck between that goalie's blue line and the end boards, the puck near that net, or a stoppage at that net. These become the action stretches the admin watches, so include anything borderline. Leave out play at the other end, the neutral zone, faceoffs at centre, empty ice, intermissions and warm-ups.
+Flag every frame where, at that net, any of these is happening or just happened: a shot or shot attempt (wrist, slap, snap, backhand, tip, deflection, one-timer, wraparound, rebound); a player winding up, releasing, or following through toward the net; the puck moving toward or bouncing off the goalie; the goalie moving into a save, down, stretched, covering the puck, or recovering; a scramble or crowd at the crease; attacking players with the puck in the slot or circles facing the net; a whistle with players gathered at the net; a goal celebration or players skating away after a goal. Shots happen fast and may fall between two stills: if the play is in that zone and the next frame shows the aftermath (goalie down, puck loose, players crashing the net), flag the frame before it.
 
-Job 2, events (be precise): shot attempts on the tracked net, one per attempt, at the frame where the shot is released or the save or goal happens. An admin reviews every event and pays for each one to be examined, so a false event costs time and money; anything borderline belongs in zone_frames only. List an event only when the frames show the shot or its unmistakable result:
-- a player releasing or following through toward the net from shooting range, with the goalie set or reacting;
-- the goalie in a save motion, or down or stretched with the puck at, under or bouncing off them;
-- the puck in the net.
-A shot can fall between two stills: if one frame shows a shooter loading up toward the net and the next shows the goalie in a save motion or the puck loose in the crease, list the earlier frame.
-Not events: passes, carries, dump-ins, board battles, faceoffs, line changes, whistles or scrums without a shot, celebrations (list the shot that caused them instead), and anything at the other net. A shot and its rebound shot are two events.
+Separately, list in zone_frames EVERY frame where play is in the tracked goalie's defensive zone (between that goalie's blue line and end boards, attackers with the puck there, or the puck near that net), whether or not a shot happens. Be generous: these frames become the action stretches the admin watches, so leaving out zone time can hide a shot.
 
-Confidence for events: 0.9 when the shot or save is clearly visible; 0.6 when the evidence is strong but the puck itself isn't visible; 0.3 when a shot is possible but you are unsure.`;
+Do not flag: play clearly at the other end of the rink with no pressure on the tracked net, centre-ice faceoffs, line changes, empty ice, intermissions, warm-ups, replays or overlays. Several frames of the same sequence: flag one per distinct attempt (a shot and its rebound shot are two). Confidence: 0.2 when you suspect action, 0.5 when an attempt is likely, 0.8+ when a shot is clearly visible.`;
 
 function cleanFrames(frames) {
   if (!Array.isArray(frames) || !frames.length || frames.length > MAX_FRAMES) return null;
@@ -585,15 +583,15 @@ export default async function handler(req, res) {
 
     const message = await claude().beta.messages.create({
       model,
-      max_tokens: 4000,
+      max_tokens: 8000,
       // Re-run a declined request on Anthropic's recommended fallback
       // model instead of failing the clip.
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
       output_config: {
-        // Low: most of a closer look's cost was the model thinking before
-        // it answered; the fields it fills don't need long reasoning.
-        effort: "low",
+        // Medium, as in the run that tagged 19 of 19 well. Closer looks
+        // now only run on likely shots or ones the admin keeps.
+        effort: "medium",
         format: { type: "json_schema", schema: SHOT_SCHEMA },
       },
       system: SYSTEM_PROMPT,
