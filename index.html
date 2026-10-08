@@ -3532,6 +3532,7 @@
         <div class="rv-side-head">
           <h4>Shots <span id="rv-count"></span></h4>
           <span class="small-note" id="rv-tally"></span>
+          <button type="button" class="rv-linkbtn" id="rv-regroup" onclick="regroupReviewBasics()" hidden title="Turns AI shots with only the basics (from an earlier run) into moments to check, grouped by sequence. Free.">Turn into moments</button>
           <button type="button" class="rv-linkbtn" id="rv-fill-all" onclick="aiFillAllReviewShots()" hidden title="Fills in location, shot type and the rest for every AI shot that only has the basics. Delete the ones that aren't shots first.">AI fill all</button>
         </div>
 
@@ -21416,6 +21417,11 @@ function renderReviewShots(){
   }
 
   const basic = drafts.filter(reviewDraftIsBasic).length;
+  const regroupBtn = document.getElementById("rv-regroup");
+  if(regroupBtn){
+    regroupBtn.hidden = !basic;
+    regroupBtn.textContent = `Turn ${basic} into moments`;
+  }
   const fillBtn = document.getElementById("rv-fill-all");
   if(fillBtn && !review.filling){
     fillBtn.hidden = !basic;
@@ -22403,6 +22409,30 @@ async function aiFillAllReviewShots(){
     `Filled in ${filled} shot${filled === 1 ? "" : "s"}${nosee ? `; the AI couldn't see a shot at ${nosee} (they say so)` : ""}${failed ? `; ${failed} failed (${lastError}): press AI fill all again to retry` : ""}.`,
     failed ? "error" : "success"
   );
+}
+
+// AI shots with only the basics come from runs before moments existed
+// (one per flag, several per real shot). This turns them back into flags
+// grouped into moments to check, without running the AI again.
+async function regroupReviewBasics(){
+  const v = review.video;
+  if(!v || review.scanning){ return; }
+  const basics = review.drafts.filter(reviewDraftIsBasic);
+  if(!basics.length){ return; }
+  if(!confirm(`Turn ${basics.length} AI shot${basics.length === 1 ? "" : "s"} with only the basics into moments to check?\n\nThey're grouped by sequence (the AI usually flagged several stills per real shot). Then watch each moment and press S at the shot. Nothing is charged.`)){ return; }
+  const { error } = await supabaseClient.from("video_shot_drafts").delete().in("id", basics.map(d => d.id));
+  if(error){ showToast(`Couldn't convert them: ${error.message}`, "error"); return; }
+  const gone = new Set(basics.map(d => String(d.id)));
+  review.drafts = review.drafts.filter(d => !gone.has(String(d.id)));
+  if(review.selectedId && gone.has(String(review.selectedId))){
+    review.selectedId = null;
+    document.getElementById("rv-editor").hidden = true;
+  }
+  basics.forEach(d => addReviewCandidate(v, Number(d.t_seconds), Number(d.ai_confidence) || 0, d.outcome === "goal"));
+  try{ await saveReviewMarks(v); }catch(e){ console.error(e); }
+  renderReviewShots();
+  const n = reviewChecks().length;
+  showToast(`${basics.length} AI flags grouped into ${n} moment${n === 1 ? "" : "s"} to check. M plays the first one.`, "success");
 }
 
 async function quickDeleteReviewShot(id){
