@@ -1647,6 +1647,147 @@
 
   </div>
 
+
+  <div class="card section-space">
+
+    <h3>Shot Maps by Period</h3>
+
+    <p class="chart-caption">Where shots came from in each period, as seen from your net. Dashed ring = goal against.</p>
+
+    <div id="periodMapsGrid" class="grid grid-2"></div>
+
+    <div class="shotmap-legend">
+      <span class="lg-save">Save</span>
+      <span class="lg-goal">Goal</span>
+    </div>
+
+    <div id="periodMapsNote" class="small-note"></div>
+
+  </div>
+
+
+  <div class="card section-space">
+
+    <h3>Where Shots Came From, by Period</h3>
+
+    <p class="chart-caption">Shots (goals against) from each zone. Shots without a map pin are split between left and right.</p>
+
+    <div class="table-wrap">
+
+      <table>
+
+        <thead>
+          <tr>
+            <th>Zone</th>
+            <th>1st</th>
+            <th>2nd</th>
+            <th>3rd</th>
+            <th>OT</th>
+          </tr>
+        </thead>
+
+        <tbody id="periodZoneBody"></tbody>
+
+      </table>
+
+    </div>
+
+  </div>
+
+
+  <div class="card section-space">
+
+    <h3>Expected Goals by Period</h3>
+
+    <p class="chart-caption">Built from tagged shots only. GSAx is goals saved above expected: positive means you stopped more than the shots were expected to allow.</p>
+
+    <div class="table-wrap">
+
+      <table>
+
+        <thead>
+          <tr>
+            <th>Period</th>
+            <th>Tagged Shots</th>
+            <th>Goals Against</th>
+            <th>SV%</th>
+            <th>Expected SV%</th>
+            <th>xGA</th>
+            <th>GSAx</th>
+            <th>Avg xG / Shot</th>
+          </tr>
+        </thead>
+
+        <tbody id="periodAdvBody"></tbody>
+
+      </table>
+
+    </div>
+
+  </div>
+
+
+  <div class="card section-space">
+
+    <h3>Shot Quality by Period</h3>
+
+    <p class="chart-caption">A+ and A are the most dangerous chances. High-danger SV% is your save percentage on those.</p>
+
+    <div class="table-wrap">
+
+      <table>
+
+        <thead>
+          <tr>
+            <th>Period</th>
+            <th>A+</th>
+            <th>A</th>
+            <th>B</th>
+            <th>C</th>
+            <th>High-Danger Shots</th>
+            <th>High-Danger SV%</th>
+          </tr>
+        </thead>
+
+        <tbody id="periodGradeBody"></tbody>
+
+      </table>
+
+    </div>
+
+  </div>
+
+
+  <div class="card section-space">
+
+    <h3>Strength by Period</h3>
+
+    <p class="chart-caption">Shots and SV% in each game situation. Penalty kill means your team was outnumbered.</p>
+
+    <div class="table-wrap">
+
+      <table>
+
+        <thead>
+          <tr>
+            <th>Period</th>
+            <th>Even Strength</th>
+            <th>Penalty Kill</th>
+            <th>Power Play</th>
+            <th>Not Tagged</th>
+          </tr>
+        </thead>
+
+        <tbody id="periodStrengthBody"></tbody>
+
+      </table>
+
+    </div>
+
+    <div id="periodDetailNote" class="small-note"></div>
+
+  </div>
+
 </section>
 
 
@@ -8242,6 +8383,272 @@ function renderPeriods(){
 
     }
   );
+
+}
+
+
+/* ============================================================
+   PERIOD DETAIL
+   Shot maps, expected goals, shot grades, strength and zones for
+   each period, built from the season's tagged shots.
+============================================================ */
+
+const PERIOD_DETAIL_KEYS = ["1", "2", "3", "OT"];
+const PERIOD_DETAIL_LABELS = { "1": "1st", "2": "2nd", "3": "3rd", "OT": "OT" };
+
+// "1", "1st", "P1", "ot", "overtime" -> "1" / "OT"; anything else -> null
+function periodKeyOfShot(shot){
+
+  const raw = String(shot && shot.period !== undefined && shot.period !== null ? shot.period : "")
+    .trim()
+    .toLowerCase()
+    .replace(/^p/, "");
+
+  if(raw === "1" || raw === "1st"){ return "1"; }
+  if(raw === "2" || raw === "2nd"){ return "2"; }
+  if(raw === "3" || raw === "3rd"){ return "3"; }
+  if(raw === "ot" || raw === "overtime"){ return "OT"; }
+
+  return null;
+
+}
+
+function renderPeriodDetail(){
+
+  const byPeriod = { "1": [], "2": [], "3": [], "OT": [] };
+  let noPeriod = 0;
+
+  seasonShots.forEach(shot => {
+
+    const key = periodKeyOfShot(shot);
+
+    if(key){ byPeriod[key].push(shot); }
+    else{ noPeriod++; }
+
+  });
+
+  const fmtPct = v => v === null ? "—" : `${v.toFixed(1)}%`;
+  const fmtGsax = v => v === null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(2)}`;
+  const svOf = list => list.length ? (list.length - list.filter(isGoal).length) / list.length * 100 : null;
+  const empty = cols => `<tr><td colspan="${cols}"><div class="empty-state">No tagged shots yet.</div></td></tr>`;
+
+  const hasShots = PERIOD_DETAIL_KEYS.some(k => byPeriod[k].length);
+
+  /* ---------- shot maps ---------- */
+
+  const mapsHost = document.getElementById("periodMapsGrid");
+
+  if(mapsHost){
+
+    const keys = PERIOD_DETAIL_KEYS.filter(k => k !== "OT" || byPeriod.OT.length);
+
+    mapsHost.innerHTML = keys.map(k => {
+
+      const list = byPeriod[k];
+      const goals = list.filter(isGoal).length;
+      const pinned = list.filter(shotMapHasPin).length;
+
+      const body = list.length
+        ? `<div class="shotmap-wrap">${shotMapSvg("pmap" + k, shotMapDotsMarkup(list), false)}</div>
+           <div class="small-note">${list.length} shot${list.length === 1 ? "" : "s"} · ${goals} GA · SV% ${fmtPct(svOf(list))} · ${pinned} of ${list.length} pinned</div>`
+        : `<div class="empty-state">No tagged shots in this period.</div>`;
+
+      return `<div><h4 style="margin:0 0 8px">${PERIOD_DETAIL_LABELS[k]} Period</h4>${body}</div>`;
+
+    }).join("");
+
+  }
+
+  const mapsNote = document.getElementById("periodMapsNote");
+
+  if(mapsNote){
+
+    const pinnedAll = seasonShots.filter(shotMapHasPin).length;
+
+    mapsNote.textContent =
+      !seasonShots.length
+        ? ""
+        : pinnedAll === 0
+          ? "No pinned shots yet. Shots tagged on the rink map will appear here. Older shots were tagged by zone only, so they can't be plotted."
+          : pinnedAll < seasonShots.length
+            ? `${pinnedAll} of ${seasonShots.length} shots have a pinned location. Older shots were tagged by zone only, so they aren't plotted.`
+            : "";
+
+  }
+
+  /* ---------- zones by period ---------- */
+
+  const zoneBody = document.getElementById("periodZoneBody");
+
+  if(zoneBody){
+
+    const grouped = {};
+    const labels = new Set();
+
+    PERIOD_DETAIL_KEYS.forEach(k => {
+
+      grouped[k] = {};
+
+      groupShotsBySidedZone(byPeriod[k]).forEach(z => {
+        grouped[k][z.label] = z;
+        labels.add(z.label);
+      });
+
+    });
+
+    const rank = label => {
+      const i = SHOT_ZONE_ORDER.indexOf(label);
+      return i === -1 ? SHOT_ZONE_ORDER.length : i;
+    };
+
+    const rows = [...labels].sort((a, b) => rank(a) - rank(b)).map(label => `
+      <tr>
+        <td>${escapeHtml(label)}</td>
+        ${PERIOD_DETAIL_KEYS.map(k => {
+          const z = grouped[k][label];
+          return `<td>${z ? `${z.shots} (${z.goals})` : "—"}</td>`;
+        }).join("")}
+      </tr>
+    `);
+
+    zoneBody.innerHTML = rows.length ? rows.join("") : empty(5);
+
+  }
+
+  /* ---------- expected goals + shot quality ---------- */
+
+  const advBody = document.getElementById("periodAdvBody");
+  const gradeBody = document.getElementById("periodGradeBody");
+
+  if(advBody && gradeBody){
+
+    const advRows = [];
+    const gradeRows = [];
+
+    PERIOD_DETAIL_KEYS.forEach(k => {
+
+      const list = byPeriod[k];
+
+      if(!list.length){ return; }
+
+      const adv = calculateAdvancedForShots(list);
+      const label = PERIOD_DETAIL_LABELS[k];
+
+      advRows.push(`
+        <tr>
+          <td>${label}</td>
+          <td>${adv.shots}</td>
+          <td>${adv.goals}</td>
+          <td>${fmtPct(adv.actualSV)}</td>
+          <td>${fmtPct(adv.expectedSV)}</td>
+          <td>${adv.xGA.toFixed(2)}</td>
+          <td>${fmtGsax(adv.gsax)}</td>
+          <td>${(adv.xGA / adv.shots).toFixed(3)}</td>
+        </tr>
+      `);
+
+      const highDanger = list.filter(sh => { const g = shotGrade(sh); return g === "A+" || g === "A"; });
+
+      gradeRows.push(`
+        <tr>
+          <td>${label}</td>
+          <td>${adv.grades["A+"]}</td>
+          <td>${adv.grades["A"]}</td>
+          <td>${adv.grades["B"]}</td>
+          <td>${adv.grades["C"]}</td>
+          <td>${highDanger.length}</td>
+          <td>${fmtPct(svOf(highDanger))}</td>
+        </tr>
+      `);
+
+    });
+
+    if(hasShots){
+
+      const all = calculateAdvancedForShots(PERIOD_DETAIL_KEYS.flatMap(k => byPeriod[k]));
+      const allList = PERIOD_DETAIL_KEYS.flatMap(k => byPeriod[k]);
+      const allHigh = allList.filter(sh => { const g = shotGrade(sh); return g === "A+" || g === "A"; });
+
+      advRows.push(`
+        <tr style="font-weight:700">
+          <td>All periods</td>
+          <td>${all.shots}</td>
+          <td>${all.goals}</td>
+          <td>${fmtPct(all.actualSV)}</td>
+          <td>${fmtPct(all.expectedSV)}</td>
+          <td>${all.xGA.toFixed(2)}</td>
+          <td>${fmtGsax(all.gsax)}</td>
+          <td>${(all.xGA / all.shots).toFixed(3)}</td>
+        </tr>
+      `);
+
+      gradeRows.push(`
+        <tr style="font-weight:700">
+          <td>All periods</td>
+          <td>${all.grades["A+"]}</td>
+          <td>${all.grades["A"]}</td>
+          <td>${all.grades["B"]}</td>
+          <td>${all.grades["C"]}</td>
+          <td>${allHigh.length}</td>
+          <td>${fmtPct(svOf(allHigh))}</td>
+        </tr>
+      `);
+
+    }
+
+    advBody.innerHTML = advRows.length ? advRows.join("") : empty(8);
+    gradeBody.innerHTML = gradeRows.length ? gradeRows.join("") : empty(7);
+
+  }
+
+  /* ---------- strength by period ---------- */
+
+  const strBody = document.getElementById("periodStrengthBody");
+
+  if(strBody){
+
+    const cell = list => list.length
+      ? `${list.length} shot${list.length === 1 ? "" : "s"} · ${fmtPct(svOf(list))}`
+      : "—";
+
+    const rows = [];
+
+    PERIOD_DETAIL_KEYS.forEach(k => {
+
+      const list = byPeriod[k];
+
+      if(!list.length){ return; }
+
+      const cats = { even: [], outnumbered: [], advantage: [], untagged: [] };
+
+      list.forEach(sh => { cats[strengthCategory(sh.strength)].push(sh); });
+
+      rows.push(`
+        <tr>
+          <td>${PERIOD_DETAIL_LABELS[k]}</td>
+          <td>${cell(cats.even)}</td>
+          <td>${cell(cats.outnumbered)}</td>
+          <td>${cell(cats.advantage)}</td>
+          <td>${cats.untagged.length || "—"}</td>
+        </tr>
+      `);
+
+    });
+
+    strBody.innerHTML = rows.length ? rows.join("") : empty(5);
+
+  }
+
+  const note = document.getElementById("periodDetailNote");
+
+  if(note){
+
+    note.textContent =
+      noPeriod
+        ? `${noPeriod} shot${noPeriod === 1 ? " has" : "s have"} no period tagged, so ${noPeriod === 1 ? "it isn't" : "they aren't"} included in the period tables or maps.`
+        : "";
+
+  }
 
 }
 
@@ -16897,6 +17304,8 @@ function applyActiveGoalieFilter(){
   renderGameOverview();
 
   renderPeriods();
+
+  renderPeriodDetail();
 
   renderSituational();
 
