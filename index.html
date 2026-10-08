@@ -1139,6 +1139,35 @@
   </div>
 </div>
 
+<div class="giq-modal-overlay" id="profileGateOverlay" data-required="1" style="z-index:300">
+  <div class="giq-modal" style="max-width:560px">
+
+    <div class="giq-modal-header">
+      <h3>Complete your goalie profile</h3>
+    </div>
+
+    <div class="giq-modal-body">
+      <p class="small-note" style="margin:0 0 12px">Fill this in to keep using GoalieIQ. It takes about a minute, and your coaches use it to put your numbers in context.</p>
+      <div class="field-grid">
+        <div class="field">
+          <label for="gate-team">Team</label>
+          <input id="gate-team" type="text" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="gate-birthyear">Birth year</label>
+          <input id="gate-birthyear" type="number" min="1950" step="1" inputmode="numeric">
+        </div>
+        <div id="gateExtra" style="display:contents"></div>
+      </div>
+      <div class="small-note" id="profileGateStatus" style="min-height:18px;margin-top:8px"></div>
+      <div style="margin-top:12px">
+        <button type="button" class="btn-primary" id="profileGateSaveBtn" onclick="saveProfileGate(this)">Save and continue</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
 <div class="giq-modal-overlay" id="adminProfileModalOverlay">
   <div class="giq-modal" style="max-width:480px">
 
@@ -1169,6 +1198,7 @@
           <label for="adminProfileGameLength">Game length (minutes)</label>
           <input id="adminProfileGameLength" type="number" min="10" max="90" step="1" inputmode="numeric" placeholder="60">
         </div>
+        <div id="adminProfileExtra" style="display:contents"></div>
         <div class="field">
           <label for="adminProfileRole">Role</label>
           <select id="adminProfileRole">
@@ -3956,6 +3986,11 @@
           <strong>Season:</strong> <span id="about-season">—</span>
         </p>
 
+        <p><strong>Height / weight:</strong> <span id="about-size">—</span></p>
+        <p><strong>Catches:</strong> <span id="about-catches">—</span></p>
+        <p><strong>Level / league:</strong> <span id="about-level">—</span></p>
+        <p><strong>Birthplace:</strong> <span id="about-birthplace">—</span></p>
+
       </div>
 
       <div id="about-player-edit" style="display:none">
@@ -3981,6 +4016,8 @@
             <label for="about-edit-season">Season</label>
             <input type="text" id="about-edit-season" placeholder="e.g. 2026-27">
           </div>
+
+          <div id="aboutEditExtra" style="display:contents"></div>
 
         </div>
 
@@ -12489,6 +12526,9 @@ async function applyRoleAndLoad(){
   // Deep link (e.g. #game-overview?game=123) captured at page load.
   restoreRouteFromUrl();
 
+  // Goalies with missing player details must fill them in.
+  maybePromptProfileDetails();
+
 }
 
 
@@ -12924,7 +12964,10 @@ function renderGoalieProfile(goalieId){
     profile.full_name || "Unnamed Goalie";
 
   document.getElementById("goalieProfileMeta").textContent =
-    `${profile.team || "No team set"} · ${profile.season || CURRENT_SEASON}`;
+    [profile.team || "No team set", profile.season || CURRENT_SEASON, profile.level, profile.league,
+     profile.catches ? `Catches ${profile.catches === "L" ? "left" : "right"}` : null,
+     profile.height_in || profile.weight_lbs ? profileSizeText(profile) : null,
+     profile.birthplace].filter(Boolean).join(" · ");
 
   const summary = computeGoalieSummary(goalieId, CURRENT_SEASON);
 
@@ -13921,7 +13964,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // Escape closes any open pop-up.
 document.addEventListener("keydown", e => {
   if(e.key !== "Escape"){ return; }
-  document.querySelectorAll(".giq-modal-overlay.open").forEach(m => m.classList.remove("open"));
+  document.querySelectorAll(".giq-modal-overlay.open:not([data-required])").forEach(m => m.classList.remove("open"));
 });
 
 
@@ -15426,6 +15469,7 @@ function openAdminProfileModal(profileId){
   document.getElementById("adminProfileBirthYear").value = profile.birth_year || "";
   document.getElementById("adminProfileSeason").value = profile.season || "";
   document.getElementById("adminProfileGameLength").value = profile.game_length_minutes || "";
+  fillProfileExtra("adm", profile);
 
   const roleSelect = document.getElementById("adminProfileRole");
   roleSelect.value = profile.role || "goalie";
@@ -15487,12 +15531,16 @@ async function saveAdminProfile(button){
     }
   }
 
+  const extra = readProfileExtra("adm", false);
+  if(extra.error){ return fail(extra.error); }
+
   const payload = {
     full_name: name,
     team: team || null,
     season: season || null,
     birth_year: birthYear,
-    game_length_minutes: gameLength
+    game_length_minutes: gameLength,
+    ...extra.values
   };
 
   if(!roleSelect.disabled){
@@ -19077,6 +19125,199 @@ async function submitFeedback(button){
 }
 
 
+/* ============================================================
+   PLAYER DETAILS (height, weight, catches, level, league, birthplace)
+   Goalies are asked for these in a pop-up until they are all filled in.
+   Admins can edit them from the account editor.
+============================================================ */
+
+const PROFILE_LEVELS = [
+  "U11 (Atom)", "U13 (Peewee)", "U15 (Bantam)", "U18 (Midget)",
+  "Junior C", "Junior B", "Junior A", "Major Junior (OHL / WHL / QMJHL)",
+  "U SPORTS / NCAA", "Pro", "Adult / Rec", "Other"
+];
+
+function profileExtraMarkup(p){
+
+  return `
+    <div class="field">
+      <label for="${p}-ft">Height</label>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input id="${p}-ft" type="number" min="3" max="7" step="1" inputmode="numeric" placeholder="ft" style="width:80px">
+        <input id="${p}-in" type="number" min="0" max="11" step="1" inputmode="numeric" placeholder="in" style="width:80px">
+      </div>
+    </div>
+    <div class="field">
+      <label for="${p}-lbs">Weight (lbs)</label>
+      <input id="${p}-lbs" type="number" min="40" max="400" step="1" inputmode="numeric">
+    </div>
+    <div class="field">
+      <label for="${p}-catches">Catches</label>
+      <select id="${p}-catches">
+        <option value="">Select…</option>
+        <option value="L">Left</option>
+        <option value="R">Right</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="${p}-level">Level</label>
+      <select id="${p}-level">
+        <option value="">Select…</option>
+        ${PROFILE_LEVELS.map(l => `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="field">
+      <label for="${p}-league">League</label>
+      <input id="${p}-league" type="text" autocomplete="off" placeholder="e.g. GTHL, OJHL">
+    </div>
+    <div class="field">
+      <label for="${p}-birthplace">Birthplace</label>
+      <input id="${p}-birthplace" type="text" autocomplete="off" placeholder="City, province / state, country">
+    </div>`;
+
+}
+
+function fillProfileExtra(p, profile){
+
+  const set = (id, v) => { const el = document.getElementById(`${p}-${id}`); if(el){ el.value = v ?? ""; } };
+  const h = num(profile && profile.height_in);
+
+  set("ft", h ? Math.floor(h / 12) : "");
+  set("in", h ? h % 12 : "");
+  set("lbs", profile && profile.weight_lbs);
+  set("catches", profile && profile.catches);
+  set("level", profile && profile.level);
+  set("league", profile && profile.league);
+  set("birthplace", profile && profile.birthplace);
+
+}
+
+// Returns { values } or { error }. With `required`, every field must be filled.
+function readProfileExtra(p, required){
+
+  const get = id => document.getElementById(`${p}-${id}`).value.trim();
+
+  const ftRaw = get("ft"), inRaw = get("in"), lbsRaw = get("lbs");
+  const values = {
+    catches: get("catches") || null,
+    level: get("level") || null,
+    league: get("league") || null,
+    birthplace: get("birthplace") || null,
+    height_in: null,
+    weight_lbs: null
+  };
+
+  if(ftRaw !== "" || inRaw !== ""){
+    const ft = parseInt(ftRaw || "0", 10), inch = parseInt(inRaw || "0", 10);
+    if(!Number.isInteger(ft) || !Number.isInteger(inch) || ft < 3 || ft > 7 || inch < 0 || inch > 11){
+      return { error: "Height must be between 3'0\" and 7'11\"." };
+    }
+    values.height_in = ft * 12 + inch;
+  }
+
+  if(lbsRaw !== ""){
+    const lbs = parseInt(lbsRaw, 10);
+    if(!Number.isInteger(lbs) || lbs < 40 || lbs > 400){ return { error: "Weight must be between 40 and 400 lbs." }; }
+    values.weight_lbs = lbs;
+  }
+
+  if(required){
+    const missing = [
+      ["height", values.height_in], ["weight", values.weight_lbs], ["which hand you catch with", values.catches],
+      ["level", values.level], ["league", values.league], ["birthplace", values.birthplace]
+    ].filter(x => !x[1]).map(x => x[0]);
+
+    if(missing.length){ return { error: `Please fill in: ${missing.join(", ")}.` }; }
+  }
+
+  return { values };
+
+}
+
+function profileSizeText(profile){
+  const h = num(profile.height_in);
+  const parts = [];
+  if(h){ parts.push(`${Math.floor(h / 12)}'${h % 12}"`); }
+  if(profile.weight_lbs){ parts.push(`${profile.weight_lbs} lbs`); }
+  return parts.join(" · ") || "—";
+}
+
+function profileMissingDetails(profile){
+
+  if(!profile){ return false; }
+
+  return !(profile.team && profile.birth_year && profile.height_in && profile.weight_lbs &&
+           profile.catches && profile.level && profile.league && profile.birthplace);
+
+}
+
+function maybePromptProfileDetails(){
+
+  if(currentRole !== "goalie" || !profileMissingDetails(currentProfile)){ return; }
+
+  document.getElementById("gate-team").value = currentProfile.team || "";
+  document.getElementById("gate-birthyear").value = currentProfile.birth_year || "";
+  fillProfileExtra("gate", currentProfile);
+  document.getElementById("profileGateStatus").textContent = "";
+  document.getElementById("profileGateOverlay").classList.add("open");
+
+}
+
+async function saveProfileGate(button){
+
+  const status = document.getElementById("profileGateStatus");
+  const fail = msg => { status.textContent = msg; status.style.color = "#B42318"; };
+
+  const team = document.getElementById("gate-team").value.trim();
+  const birthYear = parseInt(document.getElementById("gate-birthyear").value, 10);
+  const thisYear = new Date().getFullYear();
+
+  if(!team){ return fail("Please enter your team."); }
+  if(!Number.isInteger(birthYear) || birthYear < 1950 || birthYear > thisYear){ return fail(`Birth year must be between 1950 and ${thisYear}.`); }
+
+  const extra = readProfileExtra("gate", true);
+  if(extra.error){ return fail(extra.error); }
+
+  const payload = { team, birth_year: birthYear, ...extra.values };
+
+  button.disabled = true;
+  status.style.color = "";
+  status.textContent = "Saving...";
+
+  try{
+
+    const { data, error } = await supabaseClient
+      .from("profiles").update(payload).eq("id", currentSession.user.id).select();
+
+    if(error){ throw new Error(error.message); }
+    if(!data || !data.length){ throw new Error("Nothing was saved. Please try again."); }
+
+    currentProfile = { ...currentProfile, ...payload };
+
+    document.getElementById("profileGateOverlay").classList.remove("open");
+    renderAboutCard();
+    showToast("Profile saved. Thanks!", "success");
+
+  }
+  catch(err){
+    console.error(err);
+    fail("Couldn't save: " + err.message);
+  }
+  finally{
+    button.disabled = false;
+  }
+
+}
+
+function renderProfileExtraForms(){
+
+  [["adminProfileExtra", "adm"], ["aboutEditExtra", "abt"], ["gateExtra", "gate"]].forEach(([host, p]) => {
+    const el = document.getElementById(host);
+    if(el){ el.innerHTML = profileExtraMarkup(p); }
+  });
+
+}
+
 function renderAboutCard(){
 
   if(!currentProfile){
@@ -19095,6 +19336,13 @@ function renderAboutCard(){
   document.getElementById("about-season").textContent =
     currentProfile.season || "—";
 
+  document.getElementById("about-size").textContent = profileSizeText(currentProfile);
+  document.getElementById("about-catches").textContent =
+    currentProfile.catches === "L" ? "Left" : currentProfile.catches === "R" ? "Right" : "—";
+  document.getElementById("about-level").textContent =
+    [currentProfile.level, currentProfile.league].filter(Boolean).join(" · ") || "—";
+  document.getElementById("about-birthplace").textContent = currentProfile.birthplace || "—";
+
 }
 
 
@@ -19110,6 +19358,7 @@ function toggleAboutEdit(show){
     document.getElementById("about-edit-birthyear").value = currentProfile.birth_year || "";
     document.getElementById("about-edit-team").value = currentProfile.team || "";
     document.getElementById("about-edit-season").value = currentProfile.season || "";
+    fillProfileExtra("abt", currentProfile);
 
   }
 
@@ -19123,11 +19372,19 @@ async function saveAboutProfile(button){
     return;
   }
 
+  const extra = readProfileExtra("abt", false);
+
+  if(extra.error){
+    showToast(extra.error, "error");
+    return;
+  }
+
   const payload = {
     full_name: textOrNull(document.getElementById("about-edit-name").value),
     birth_year: numOrNull(document.getElementById("about-edit-birthyear").value),
     team: textOrNull(document.getElementById("about-edit-team").value),
-    season: textOrNull(document.getElementById("about-edit-season").value)
+    season: textOrNull(document.getElementById("about-edit-season").value),
+    ...extra.values
   };
 
   button.disabled = true;
@@ -26442,6 +26699,7 @@ async function deleteGameVideo(gameVideoId, button){
    START
 ============================================================ */
 
+renderProfileExtraForms();
 renderLiveTagPuckControls();
 renderPuckFormFields();
 initLiveTagShotMap();
