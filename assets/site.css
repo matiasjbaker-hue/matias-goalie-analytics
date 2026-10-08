@@ -5290,7 +5290,7 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
 .rv-legend i{ display:inline-block; flex:none; }
 .rv-legend .lg-save{ width:5px; height:13px; border-radius:2px; background:var(--save); }
 .rv-legend .lg-goal{ width:7px; height:13px; border-radius:2px; border:2px dashed var(--goal); }
-.rv-legend .lg-check{ width:6px; height:13px; border-radius:3px; border:2px solid var(--gold-deep); }
+.rv-legend .lg-check{ width:18px; height:12px; border-radius:3px; border:2px solid var(--gold-deep); background:rgba(232,185,35,.3); }
 .rv-legend .lg-action{ width:18px; height:6px; border-radius:2px; background:var(--pine-bright); opacity:.55; }
 .rv-legend .lg-cut{ width:18px; height:12px; border-radius:2px; background:repeating-linear-gradient(135deg, rgba(18,20,18,.34) 0 3px, rgba(18,20,18,.12) 3px 6px); }
 :root[data-theme="dark"] .rv-legend .lg-cut{ background:repeating-linear-gradient(135deg, rgba(244,245,241,.28) 0 3px, rgba(244,245,241,.08) 3px 6px); }
@@ -5322,3 +5322,22 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
   background:transparent;
 }
 .rv-side-head #rv-fill-all{ margin-left:auto; }
+
+
+/* Moments to check on the review timeline: one block per stretch where
+   the AI saw a likely shot. Above the action strip, under the shot ticks. */
+.rv-moment{
+  position:absolute;
+  top:4px;
+  bottom:13px;
+  min-width:8px;
+  padding:0;
+  border:2px solid var(--gold-deep);
+  border-radius:4px;
+  background:rgba(232,185,35,.3);
+  cursor:pointer;
+}
+.rv-moment:hover,
+.rv-moment:focus-visible,
+.rv-moment.is-selected{ background:rgba(232,185,35,.7); }
+.rv-moment-range{ white-space:nowrap; min-width:0; }

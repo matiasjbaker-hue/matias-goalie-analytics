@@ -3364,7 +3364,7 @@
           </select>
         </label>
         <button type="button" class="btn-secondary" id="rv-scan-btn" onclick="toggleReviewScan()">Run AI</button>
-        <button type="button" class="btn-secondary" id="rv-clear-ai-btn" onclick="clearReviewAiResults()" title="Removes the AI's shots you haven't touched, the To check list and the action stretches, so Run AI starts fresh. Your own shots, period marks and cuts are kept.">Clear AI results</button>
+        <button type="button" class="btn-secondary" id="rv-clear-ai-btn" onclick="clearReviewAiResults()" title="Removes the moments to check, the action stretches and any AI shots you haven't touched, so Run AI starts fresh. Your own shots, period marks and cuts are kept.">Clear AI results</button>
         <button type="button" class="btn-secondary" id="rv-test-btn" onclick="runReviewAccuracyTest()" title="Checks the AI against shots you've already marked and reports how many it found, how many extra it flagged, and the cost. Doesn't change the shot list.">Test accuracy</button>
         <button type="button" class="btn-danger" onclick="flagReviewNeedsAttention()">Needs attention</button>
         <label class="rv-check" title="Sends the goalie a recap with their PDF stat sheet from the company Gmail">
@@ -3420,7 +3420,7 @@
         <div class="rv-legend" aria-hidden="true">
           <span><i class="lg-save"></i>Save</span>
           <span><i class="lg-goal"></i>Goal</span>
-          <span><i class="lg-check"></i>To check</span>
+          <span><i class="lg-check"></i>Moment to check</span>
           <span><i class="lg-action"></i>Action: play in the goalie's zone</span>
           <span><i class="lg-cut"></i>Cut</span>
         </div>
@@ -3523,7 +3523,7 @@
           </div>
         </section>
 
-        <p class="small-note rv-keys">Keys: Space play/pause · ← → 5 seconds · ] [ next or previous action · S add a shot · N / P next or previous shot · G toggle goal · I / O mark in / out · Delete cut in → out · X start or end a cut · , . one frame · Shift + ← → 1 second · U undo · M next moment to check (Shift + M previous) · A add it as a shot · D dismiss it</p>
+        <p class="small-note rv-keys">Keys: Space play/pause · ← → 5 seconds · ] [ next or previous action · S add a shot · N / P next or previous shot · G toggle goal · I / O mark in / out · Delete cut in → out · X start or end a cut · , . one frame · Shift + ← → 1 second · U undo · M play the next moment to check (Shift + M previous) · S at the shot clears it · A take the AI's best guess · D no shot</p>
 
       </div>
 
@@ -3538,10 +3538,10 @@
         <ol class="rv-shotlist" id="rv-shotlist"></ol>
 
         <div class="rv-side-head rv-check-head" id="rv-check-head" hidden>
-          <h4>To check <span id="rv-check-count"></span></h4>
+          <h4>Moments to check <span id="rv-check-count"></span></h4>
           <button type="button" class="rv-linkbtn" onclick="dismissAllReviewChecks()">Dismiss all</button>
         </div>
-        <p class="small-note rv-check-note" id="rv-check-note" hidden>Moments the AI wasn't sure about. M plays the next one; A adds it as a shot, D dismisses it.</p>
+        <p class="small-note rv-check-note" id="rv-check-note" hidden>Where the AI saw a likely shot but can't tell the exact second. M plays the next one: press S at the shot (the moment then clears), D if there wasn't one, or A to take the AI's best guess.</p>
         <ol class="rv-checklist" id="rv-checklist" hidden></ol>
 
         <div class="rv-editor" id="rv-editor" hidden>
@@ -20785,10 +20785,9 @@ const REVIEW_TAG_WIDTH = 768;
 // Every flagged moment goes on the list for the admin; only flags
 // below this are shown as faint "looked here" ticks instead.
 const REVIEW_KEEP_UNSURE = 0.15;
-// Scan flags from REVIEW_LIST_MIN up go on the shot list, as in the run
-// that found 19 of 19; from REVIEW_FILL_MIN up a closer look fills them
-// in straight away (the rest get the basics, and AI fill all). Lower
-// flags go to To check.
+// Accuracy-test bands for the AI's confidence. (Every scan flag becomes
+// part of a moment to check; confidence alone doesn't separate real
+// shots from the rest, see groupReviewFlags.)
 const REVIEW_LIST_MIN = 0.15;
 const REVIEW_FILL_MIN = 0.5;
 const REVIEW_DETECT_CONCURRENCY = 4;
@@ -21350,8 +21349,8 @@ function renderReviewTimeline(){
     ["2", "3", "OT"].filter(k => marks[k] !== undefined && marks[k] !== null).map(k =>
       `<span class="rv-pmark" style="left:${pct(marks[k])}%" title="${k === "OT" ? "OT" : k === "2" ? "2nd period" : "3rd period"} starts ${formatClock(marks[k])}">${k === "OT" ? "OT" : k}</span>`
     ).join("") +
-    reviewChecks().map(c =>
-      `<button type="button" class="rv-tick is-candidate ${Number.isFinite(review.checkT) && Math.abs(review.checkT - c.t) < 0.01 ? "is-selected" : ""}" style="left:${pct(c.t)}%" onclick="event.stopPropagation(); selectReviewCheck(${c.t}, true)" title="${escapeHtml(formatClock(c.t))} · To check: ${c.goal ? "possible goal" : "possible shot"} (AI ${Math.round((Number(c.confidence) || 0) * 100)}% sure). Click to watch; A adds it, D dismisses it." aria-label="To check: ${escapeHtml(formatClock(c.t))}"></button>`
+    reviewChecks().map(m =>
+      `<button type="button" class="rv-moment ${Number.isFinite(review.checkT) && Math.abs(review.checkT - m.start) < 0.01 ? "is-selected" : ""}" style="left:${pct(m.start - 1)}%;width:${Math.max(0.6, pct(m.end + 1) - pct(m.start - 1))}%" onclick="event.stopPropagation(); selectReviewCheck(${m.start}, true)" title="Moment to check, ${escapeHtml(formatMomentRange(m))}: ${m.goal ? "possible goal" : "possible shot"}. Click to watch it, press S at the shot or D if there's none." aria-label="Moment to check, ${escapeHtml(formatMomentRange(m))}"></button>`
     ).join("") +
     review.drafts.map(dr => {
       const cls = ["rv-tick", dr.outcome === "goal" ? "is-goal" : "is-save", String(dr.id) === String(review.selectedId) ? "is-selected" : ""].join(" ");
@@ -22203,7 +22202,7 @@ function renderReviewScanBar(){
     const left = reviewUntagged(v).length;
     document.getElementById("rv-scanbar-fill").style.width = "100%";
     document.getElementById("rv-scan-text").textContent = review.collecting
-      ? `Collecting AI results${left ? `: taking a closer look at ${left} moment${left === 1 ? "" : "s"}` : ""}… ${(review.scanStats || {}).found || 0} shots added so far. Keep this tab open.`
+      ? `Collecting AI results… ${reviewChecks().length} moment${reviewChecks().length === 1 ? "" : "s"} to check so far. Keep this tab open.`
       : n
         ? `Waiting for the AI (half price): ${n} part${n === 1 ? "" : "s"} of the game still out. Results usually arrive within an hour and are collected every minute while this request is open. You can close it and come back.${review.batchCheckedAt ? ` Last checked ${new Date(review.batchCheckedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.` : ""}`
         : `${left} flagged moment${left === 1 ? "" : "s"} still need a closer look. Press Check AI results to finish.`;
@@ -22213,12 +22212,12 @@ function renderReviewScanBar(){
   document.getElementById("rv-scanbar-fill").style.width = `${pct}%`;
   const st = review.scanStats || { found: 0 };
   const detail = st.batches !== undefined
-    ? ` (${st.batches} stretches checked${st.skipped ? ` · ${st.skipped} dead-time stills skipped` : ""} · ${st.flagged} moments flagged · ${st.found} shots added (${st.likely || 0} likely) · ${st.toCheck || 0} to check · ${st.duplicate || 0} already on the list${st.errors ? ` · ${st.errors} errors: ${st.lastError}` : ""})`
+    ? ` (${st.batches} stretches checked${st.skipped ? ` · ${st.skipped} dead-time stills skipped` : ""} · ${st.flagged} flags · ${reviewChecks().length} moments to check${st.errors ? ` · ${st.errors} errors: ${st.lastError}` : ""})`
     : "";
   document.getElementById("rv-scan-text").textContent = review.scanning
     ? review.scanHalfPrice
       ? `Sending the game to the AI at half price: ${formatClock(cursor)} of ${formatClock(d)} · ${st.sent || 0} stills sent${st.skipped ? ` · ${st.skipped} dead-time stills skipped` : ""}. Keep this tab open until sending finishes.`
-      : `AI scanning: ${formatClock(cursor)} of ${formatClock(d)} · ${st.found} shot${st.found === 1 ? "" : "s"} added${detail}. Keep this tab open.`
+      : `AI scanning: ${formatClock(cursor)} of ${formatClock(d)}${detail}. Keep this tab open.`
     : `AI paused at ${formatClock(cursor)} of ${formatClock(d)}${detail}. Press Resume AI to continue.`;
 }
 
@@ -22309,7 +22308,7 @@ async function setReviewNetSide(side, period){
   }
 }
 
-// A flagged moment the AI wasn't sure about: on the To check list,
+// One flag from the scan, kept so it can be grouped into moments to check,
 // saved with the video so it's still there after reopening.
 function addReviewCandidate(v, t, confidence, goal){
   const c = { t: Math.round(Number(t) * 100) / 100, confidence: Number(confidence) || 0, goal: !!goal };
@@ -22318,57 +22317,14 @@ function addReviewCandidate(v, t, confidence, goal){
   v.period_marks = { ...(v.period_marks || {}), _candidates: [...saved, { t: c.t, c: Math.round(c.confidence * 100) / 100, ...(c.goal ? { g: 1 } : {}) }].slice(-2000) };
 }
 
-// One flagged moment from the scan. The scan is the only thing a run
-// pays for: every flag from REVIEW_LIST_MIN up goes on the shot list
-// with the basics (time, save or goal, how sure the AI was), and nothing
-// is looked at more closely until the admin has deleted what isn't a
-// shot and pressed AI fill all. Below REVIEW_LIST_MIN goes to To check.
-// A shot already within REVIEW_MIN_GAP, in this tab or saved by another
-// tab or admin, is skipped.
+// Every flag from the scan becomes part of a moment to check (flags close
+// together are one moment). The scan is the only charge: nothing goes on
+// the shot list until the admin presses S at a shot (or A for the AI's
+// best guess), and only then does "AI fills in shots I add" look closer.
 async function reviewTagEvent(v, ev){
-  const st = review.scanStats || (review.scanStats = newReviewScanStats());
-  const conf = Number(ev.confidence) || 0;
-  const t = Math.round(Number(ev.t) * 10) / 10;
-  if(review.drafts.some(d => d.game_video_id === v.id && Math.abs(Number(d.t_seconds) - t) < REVIEW_MIN_GAP)){
-    st.duplicate++;
-    renderReviewScanBar();
-    return;
-  }
-  if(conf < REVIEW_LIST_MIN){
-    st.toCheck++;
-    addReviewCandidate(v, ev.t, conf, ev.goal);
-    renderReviewChecklist();
-    renderReviewTimeline();
-    renderReviewScanBar();
-    return;
-  }
-  // Another tab (or another admin) may have saved this one already.
-  const { data: near, error: nearErr } = await supabaseClient.from("video_shot_drafts")
-    .select("*").eq("game_video_id", v.id)
-    .gt("t_seconds", t - REVIEW_MIN_GAP).lt("t_seconds", t + REVIEW_MIN_GAP).limit(1);
-  if(!nearErr && near && near.length){
-    if(!review.drafts.some(d => String(d.id) === String(near[0].id))){
-      review.drafts.push(near[0]);
-      review.drafts.sort((a, b) => Number(a.t_seconds) - Number(b.t_seconds));
-    }
-    st.duplicate++;
-    renderReviewShots();
-    renderReviewScanBar();
-    return;
-  }
-  const likely = conf >= REVIEW_FILL_MIN;
-  await insertReviewDraft({
-    game_video_id: v.id,
-    t_seconds: t,
-    source: "ai",
-    outcome: ev.goal ? "goal" : "save",
-    ai_confidence: Math.round(conf * 100) / 100,
-    ai_model: null,
-    ai_notes: `${likely ? "Likely" : "Possible"} ${ev.goal ? "goal" : "shot"} (AI ${Math.round(conf * 100)}% sure). Watch it: delete it if it isn't a shot. AI fill all fills in the ones you keep.`
-  });
-  st.found++;
-  if(likely){ st.likely++; } else { st.basic++; }
-  renderReviewShots();
+  addReviewCandidate(v, ev.t, ev.confidence, ev.goal);
+  renderReviewChecklist();
+  renderReviewTimeline();
   renderReviewScanBar();
 }
 
@@ -22470,16 +22426,52 @@ function playReviewAction(start){
 }
 
 
-/* ---------- To check: moments the AI wasn't sure about ----------
-   Listed under the shots in the side panel (and as amber ticks on the
-   timeline). M plays the next one from a few seconds before; A adds it
-   as a shot (AI fills it in if "AI fills in shots I add" is on); D
-   dismisses it. Saved with the video in period_marks._candidates. */
+/* ---------- Moments to check ----------
+   The scan looks at a still every 1 to 1.5 seconds. It finds the
+   sequences where something happens at the goalie's net, but a shot
+   lasts a fraction of a second, so it flags several stills across each
+   sequence and can't say which second the shot was. Flags within
+   REVIEW_MOMENT_GAP of each other are grouped into one moment: a stretch
+   the admin watches (it plays from just before to just after, then
+   pauses), presses S at the shot, and moves on. A moment with a shot
+   inside it is done and leaves the list; D dismisses one with no shot;
+   A adds a shot at the AI's best guess. Raw flags are kept in
+   period_marks._candidates as { t, c, g }. */
 
+const REVIEW_MOMENT_GAP = 8;     // seconds between flags in one moment
+const REVIEW_MOMENT_MAX = 40;    // a longer run of flags is split
+const REVIEW_MOMENT_PAD = 3;     // seconds played before and after
+
+// Flags ({ t, confidence, goal }) grouped into moments.
+function groupReviewFlags(flags){
+  const out = [];
+  flags.slice().sort((a, b) => a.t - b.t).forEach(f => {
+    const m = out[out.length - 1];
+    if(m && f.t - m.end <= REVIEW_MOMENT_GAP && f.t - m.start <= REVIEW_MOMENT_MAX){
+      m.end = f.t;
+      m.flags.push(f);
+      if((Number(f.confidence) || 0) > m.confidence){ m.confidence = Number(f.confidence) || 0; m.t = f.t; }
+      m.goal = m.goal || !!f.goal;
+    }
+    else{
+      out.push({ start: f.t, end: f.t, t: f.t, confidence: Number(f.confidence) || 0, goal: !!f.goal, flags: [f] });
+    }
+  });
+  return out;
+}
+
+function momentHasShot(m, shotTimes){
+  return shotTimes.some(t => t >= m.start - REVIEW_MOMENT_PAD && t <= m.end + REVIEW_MOMENT_PAD);
+}
+
+// The moments still to check: those without a shot inside them yet.
 function reviewChecks(){
-  return (review.candidates || [])
-    .filter(c => !review.drafts.some(d => Math.abs(Number(d.t_seconds) - c.t) < REVIEW_MIN_GAP))
-    .sort((a, b) => a.t - b.t);
+  const shots = review.drafts.map(d => Number(d.t_seconds));
+  return groupReviewFlags(review.candidates || []).filter(m => !momentHasShot(m, shots));
+}
+
+function formatMomentRange(m){
+  return m.start === m.end ? formatClock(m.start) : `${formatClock(m.start)}–${formatClock(m.end)}`;
 }
 
 function saveReviewCandidates(){
@@ -22491,39 +22483,48 @@ function saveReviewCandidates(){
     : rest;
   clearTimeout(review.candidateSaveTimer);
   review.candidateSaveTimer = setTimeout(() => {
-    saveReviewMarks(v).catch(error => showToast(`Couldn't save the To check list: ${error.message}`, "error"));
+    saveReviewMarks(v).catch(error => showToast(`Couldn't save the moments to check: ${error.message}`, "error"));
   }, 600);
 }
 
 function renderReviewChecklist(){
   const list = document.getElementById("rv-checklist");
   if(!list){ return; }
-  const checks = reviewChecks();
-  const has = checks.length > 0;
+  const moments = reviewChecks();
+  const has = moments.length > 0;
   document.getElementById("rv-check-head").hidden = !has;
   document.getElementById("rv-check-note").hidden = !has;
   list.hidden = !has;
-  document.getElementById("rv-check-count").textContent = has ? `(${checks.length})` : "";
-  list.innerHTML = checks.map(c => {
-    const sel = Number.isFinite(review.checkT) && Math.abs(review.checkT - c.t) < 0.01;
-    const label = `${formatClock(c.t)}, ${c.goal ? "possible goal" : "possible shot"}`;
+  document.getElementById("rv-check-count").textContent = has ? `(${moments.length})` : "";
+  list.innerHTML = moments.map(m => {
+    const sel = Number.isFinite(review.checkT) && Math.abs(review.checkT - m.start) < 0.01;
+    const what = m.goal ? "Possible goal" : "Possible shot";
+    const range = formatMomentRange(m);
     return `
       <li class="${sel ? "is-selected" : ""}">
-        <button type="button" class="rv-check-go" onclick="selectReviewCheck(${c.t}, true)" aria-label="Watch ${escapeHtml(label)}">
-          <span class="rv-shot-time">${escapeHtml(formatClock(c.t))}</span>
-          <span>${c.goal ? "Possible goal" : "Possible shot"}</span>
-          <span class="rv-check-conf">${Math.round((Number(c.confidence) || 0) * 100)}%</span>
+        <button type="button" class="rv-check-go" onclick="selectReviewCheck(${m.start}, true)" aria-label="Watch ${escapeHtml(range)}, ${what.toLowerCase()}">
+          <span class="rv-shot-time rv-moment-range">${escapeHtml(range)}</span>
+          <span>${what}</span>
+          <span class="rv-check-conf">${m.flags.length} flag${m.flags.length === 1 ? "" : "s"}</span>
         </button>
-        <button type="button" class="rv-check-add" onclick="acceptReviewCheck(${c.t})" title="It's a shot: add it (A)" aria-label="Add ${escapeHtml(label)} as a shot">Add</button>
-        <button type="button" class="rv-check-x" onclick="dismissReviewCheck(${c.t})" title="Not a shot: dismiss (D)" aria-label="Dismiss ${escapeHtml(label)}">×</button>
+        <button type="button" class="rv-check-add" onclick="acceptReviewCheck(${m.start})" title="Add a shot at the AI's best guess, ${escapeHtml(formatClock(m.t))} (A)" aria-label="Add a shot at ${escapeHtml(formatClock(m.t))}">Add</button>
+        <button type="button" class="rv-check-x" onclick="dismissReviewCheck(${m.start})" title="No shot here (D)" aria-label="No shot in ${escapeHtml(range)}: dismiss">×</button>
       </li>`;
   }).join("");
 }
 
-function selectReviewCheck(t, play){
-  review.checkT = Number(t);
+function reviewMomentAt(start){
+  return reviewChecks().find(m => Math.abs(m.start - Number(start)) < 0.01) || null;
+}
+
+// Plays the moment from just before to just after, then pauses.
+function selectReviewCheck(start, play){
+  const m = reviewMomentAt(start);
+  if(!m){ return; }
+  review.checkT = m.start;
+  review.checkStopAt = m.end + REVIEW_MOMENT_PAD;
   const video = document.getElementById("rv-video");
-  video.currentTime = Math.max(0, review.checkT - 4);
+  video.currentTime = Math.max(0, m.start - REVIEW_MOMENT_PAD);
   if(play){ video.play().catch(() => {}); }
   renderReviewChecklist();
   renderReviewTimeline();
@@ -22531,46 +22532,58 @@ function selectReviewCheck(t, play){
   if(row){ row.scrollIntoView({ block: "nearest" }); }
 }
 
+function enforceReviewMomentStop(){
+  const stop = review.checkStopAt;
+  if(!Number.isFinite(stop)){ return; }
+  const video = document.getElementById("rv-video");
+  if(video.currentTime > stop + 2){ review.checkStopAt = null; return; }   // the admin skipped ahead
+  if(!video.paused && video.currentTime >= stop){
+    video.pause();
+    review.checkStopAt = null;
+  }
+}
+
 function nextReviewCheck(dir){
-  const checks = reviewChecks();
-  if(!checks.length){ showToast("Nothing left to check."); return; }
+  const moments = reviewChecks();
+  if(!moments.length){ showToast("No moments left to check."); return; }
   const now = Number.isFinite(review.checkT) ? review.checkT : document.getElementById("rv-video").currentTime;
   const target = dir > 0
-    ? (checks.find(c => c.t > now + 0.01) || checks[0])
-    : ([...checks].reverse().find(c => c.t < now - 0.01) || checks[checks.length - 1]);
-  selectReviewCheck(target.t, true);
+    ? (moments.find(m => m.start > now + 0.01) || moments[0])
+    : ([...moments].reverse().find(m => m.start < now - 0.01) || moments[moments.length - 1]);
+  selectReviewCheck(target.start, true);
 }
 
-function reviewCheckTarget(t){
-  const target = Number.isFinite(Number(t)) && t !== null && t !== undefined ? Number(t) : review.checkT;
-  if(!Number.isFinite(target)){
-    showToast("Pick a moment from To check first (M plays the next one).", "error");
+function reviewCheckTarget(start){
+  const key = Number.isFinite(Number(start)) && start !== null && start !== undefined ? Number(start) : review.checkT;
+  const m = Number.isFinite(key) ? reviewMomentAt(key) : null;
+  if(!m){
+    showToast("Pick a moment from Moments to check first (M plays the next one).", "error");
     return null;
   }
-  return target;
+  return m;
 }
 
-async function acceptReviewCheck(t){
-  const target = reviewCheckTarget(t);
-  if(target === null){ return; }
-  const c = (review.candidates || []).find(x => Math.abs(x.t - target) < 0.01);
-  const next = reviewChecks().find(x => x.t > target + 0.01);
-  review.candidates = (review.candidates || []).filter(x => Math.abs(x.t - target) >= 0.01);
-  saveReviewCandidates();
-  review.checkT = next ? next.t : null;
-  await addReviewShotAt(target, c && c.goal ? "goal" : "save");
+async function acceptReviewCheck(start){
+  const m = reviewCheckTarget(start);
+  if(!m){ return; }
+  const next = reviewChecks().find(x => x.start > m.start + 0.01);
+  review.checkT = next ? next.start : null;
+  review.checkStopAt = null;
+  await addReviewShotAt(m.t, m.goal ? "goal" : "save");
   renderReviewChecklist();
 }
 
-function dismissReviewCheck(t){
-  const target = reviewCheckTarget(t);
-  if(target === null){ return; }
-  const next = reviewChecks().find(x => x.t > target + 0.01);
-  review.candidates = (review.candidates || []).filter(x => Math.abs(x.t - target) >= 0.01);
+function dismissReviewCheck(start){
+  const m = reviewCheckTarget(start);
+  if(!m){ return; }
+  const next = reviewChecks().find(x => x.start > m.start + 0.01);
+  const gone = new Set(m.flags);
+  review.candidates = (review.candidates || []).filter(c => !gone.has(c));
   saveReviewCandidates();
-  if(next){ selectReviewCheck(next.t, true); }
+  if(next){ selectReviewCheck(next.start, true); }
   else{
     review.checkT = null;
+    review.checkStopAt = null;
     renderReviewChecklist();
     renderReviewTimeline();
   }
@@ -22578,9 +22591,10 @@ function dismissReviewCheck(t){
 
 function dismissAllReviewChecks(){
   const n = reviewChecks().length;
-  if(!n || !confirm(`Dismiss all ${n} moments in To check? The shot list isn't changed.`)){ return; }
+  if(!n || !confirm(`Dismiss all ${n} moments to check? The shot list isn't changed.`)){ return; }
   review.candidates = [];
   review.checkT = null;
+  review.checkStopAt = null;
   saveReviewCandidates();
   renderReviewChecklist();
   renderReviewTimeline();
@@ -22589,7 +22603,7 @@ function dismissAllReviewChecks(){
 
 /* ---------- clear AI results ----------
    A clean slate before re-running the AI: removes the AI's shots the
-   admin hasn't edited, the To check list, the action stretches, any
+   admin hasn't edited, the moments to check, the action stretches, any
    half-price results still on the way, and the scan position. Shots the
    admin added or edited, period marks, the goalie's net, cuts, the edit
    and accuracy test results are kept. */
@@ -22601,18 +22615,18 @@ async function clearReviewAiResults(){
 
   const marks = v.period_marks || {};
   const aiShots = review.drafts.filter(d => d.source === "ai" && !d.edited);
-  const checks = (review.candidates || []).length;
+  const checks = reviewChecks().length;
   const stretches = Array.isArray(marks._action) ? marks._action.length : 0;
   const pending = reviewPendingBatches(v).length + reviewUntagged(v).length;
 
-  if(!aiShots.length && !checks && !stretches && !pending && !Number(v.scan_cursor)){
+  if(!aiShots.length && !(review.candidates || []).length && !stretches && !pending && !Number(v.scan_cursor)){
     showToast("There are no AI results on this video to clear.");
     return;
   }
 
   const lines = [
     `${aiShots.length} AI shot${aiShots.length === 1 ? "" : "s"} you haven't edited`,
-    `${checks} moment${checks === 1 ? "" : "s"} in To check`,
+    `${checks} moment${checks === 1 ? "" : "s"} to check`,
     "the action stretches (the coloured strip along the bottom of the timeline)",
     ...(pending ? [`${pending} half-price result${pending === 1 ? "" : "s"} still on the way (already paid for)`] : [])
   ];
@@ -22793,9 +22807,16 @@ async function runReviewAccuracyTest(){
   const scanned = times.length * step;
   const stretchSeconds = stretches.reduce((sum, r) => sum + Math.max(0, Math.min(r[1], b) - Math.max(r[0], a)), 0);
 
+  const testMoments = groupReviewFlags(events.map(e => ({ t: e.t, confidence: e.confidence, goal: e.goal })));
+  const inMoment = truths.filter(t => testMoments.some(m => t >= m.start - REVIEW_MOMENT_PAD && t <= m.end + REVIEW_MOMENT_PAD)).length;
+  const emptyMoments = testMoments.filter(m => !momentHasShot(m, truths)).length;
+
   const result = {
     at: new Date().toISOString(),
     model, detail,
+    moments: testMoments.length,
+    inMoment,
+    emptyMoments,
     seconds: Math.round(scanned),
     shots: truths.length,
     rows,
@@ -22811,8 +22832,7 @@ async function runReviewAccuracyTest(){
 
   renderReviewTests();
   renderReviewScanBar();
-  const listed = rows[0];
-  showToast(`${REVIEW_MODELS[model]}: put ${listed.found} of ${truths.length} real shots on the list, plus ${listed.extra} that weren't shots. Cost ${formatUsd(usd)}. Results are under the video.`, "success");
+  showToast(`${REVIEW_MODELS[model]}: ${inMoment} of ${truths.length} real shots fell inside one of its ${testMoments.length} moments to check; ${emptyMoments} of those moments had no shot. Cost ${formatUsd(usd)}. Results are under the video.`, "success");
   document.getElementById("rv-tests").scrollIntoView({ behavior: "smooth", block: "nearest" });
 
 }
@@ -22832,23 +22852,20 @@ function renderReviewTests(){
         <thead><tr>
           <th scope="col">Model · detail</th>
           <th scope="col">Video tested</th>
-          <th scope="col">Real shots found<br><span>on the list (15%+)</span></th>
-          <th scope="col">Not shots<br><span>on the list (15%+)</span></th>
-          <th scope="col">Found and filled in<br><span>likely (50%+)</span></th>
+          <th scope="col">Real shots<br><span>inside a moment</span></th>
+          <th scope="col">Moments<br><span>with no shot</span></th>
           <th scope="col">Shots inside<br><span>action stretches</span></th>
           <th scope="col">Cost</th>
           <th scope="col">Per 2-hr game<br><span>scan, half price</span></th>
         </tr></thead>
         <tbody>${[...tests].reverse().map(t => {
           const any = t.rows.find(r => r.th === 0.15) || t.rows.find(r => r.th === 0.3) || {};
-          const sure = t.rows.find(r => r.th === 0.5) || t.rows.find(r => r.th === 0.6) || {};
           const per2h = t.seconds ? t.usd / t.seconds * 7200 / 2 : 0;
           return `<tr>
             <td>${escapeHtml(REVIEW_MODELS[t.model] || t.model)} · ${escapeHtml(t.detail)}</td>
             <td>${escapeHtml(formatClock(t.seconds))}</td>
-            <td><strong>${any.found} of ${t.shots}</strong> (${pct(any.found, t.shots)})</td>
-            <td>${any.extra}</td>
-            <td>${sure.found} of ${t.shots} · ${sure.extra} not shots</td>
+            <td>${Number.isFinite(t.inMoment) ? `<strong>${t.inMoment} of ${t.shots}</strong> (${pct(t.inMoment, t.shots)})` : `${any.found} of ${t.shots} (older test)`}</td>
+            <td>${Number.isFinite(t.emptyMoments) ? `${t.emptyMoments} of ${t.moments}` : "–"}</td>
             <td>${t.inStretch} of ${t.shots} · ${Math.round(t.stretchShare * 100)}% of the video</td>
             <td>${escapeHtml(formatUsd(t.usd))}${t.errors ? ` · ${t.errors} errors` : ""}</td>
             <td>${escapeHtml(formatUsd(per2h))}</td>
@@ -22856,7 +22873,7 @@ function renderReviewTests(){
         }).join("")}</tbody>
       </table>
     </div>
-    <p class="small-note">Found: the AI flagged within 3 seconds of a shot you marked. Everything 15%+ goes on the shot list; 50%+ is filled in by a closer look straight away. Per 2-hour game is the scan alone at half price, before cuts and dead-time skipping; each shot's closer look adds about 1 to 2 cents.</p>`;
+    <p class="small-note">A real shot counts as found when it falls inside one of the AI's moments to check (or within 3 seconds of it). Per 2-hour game is the scan alone at half price, before cuts and dead-time skipping; each shot's closer look adds about 1 to 2 cents.</p>`;
 }
 
 
@@ -23004,8 +23021,10 @@ async function collectReviewBatches(manual){
       stopReviewBatchPolling();
       finished = true;
       showToast(
-        `AI results are in: ${st.found} new shot${st.found === 1 ? "" : "s"} added (${st.likely} likely), ${st.toCheck} moment${st.toCheck === 1 ? "" : "s"} in To check, ${st.duplicate} already on your list${st.errors ? `, ${st.errors} errors: ${st.lastError}` : ""}.${reviewRunCostText()} The AI has finished; nothing more is charged for this run. Next: × the ones that aren't shots, then AI fill all.`,
-        st.found ? "success" : "error"
+        reviewChecks().length
+          ? `AI results are in: ${reviewChecks().length} moment${reviewChecks().length === 1 ? "" : "s"} to check on the right (from ${st.flagged} flags).${reviewRunCostText()} Nothing more is charged for this run. Watch each one (M plays the next), press S at each shot, or D if there wasn't one.`
+          : `AI results are in, but it flagged nothing.${reviewRunCostText()} Nothing more is charged for this run. Use Play action only, or add shots by hand with S.`,
+        reviewChecks().length ? "success" : "error"
       );
     }
 
@@ -23025,7 +23044,7 @@ async function collectReviewBatches(manual){
       renderReviewTimeline();
       if(finished){
         document.getElementById("rv-scanbar").hidden = false;
-        document.getElementById("rv-scan-text").textContent = `Last scan: ${st.found} shots added, ${st.toCheck} to check, ${st.flagged} moments flagged, ${st.duplicate} already on your list${st.errors ? `, ${st.errors} errors (${st.lastError})` : ""}.${reviewRunCostText()}`;
+        document.getElementById("rv-scan-text").textContent = `Last scan: ${st.flagged} flags grouped into ${reviewChecks().length} moments to check${st.errors ? `, ${st.errors} errors (${st.lastError})` : ""}.${reviewRunCostText()}`;
       }
     }
     if(fatal){ stopReviewBatchPolling(); showToast(fatal.message, "error"); }
@@ -23272,15 +23291,13 @@ async function runReviewScan(){
     }
     else if(!failure && isCurrent() && Number(v.scan_progress) >= 1){
       const st = review.scanStats;
-      const summary = `${st.batches} stretches checked${st.skipped ? ` (${st.skipped} dead-time stills skipped)` : ""}, ${st.flagged} moments flagged, ${st.found} shots added (${st.likely} likely), ${st.toCheck} to check, ${st.duplicate} already on your list${st.errors ? `, ${st.errors} errors (${st.lastError})` : ""}.${reviewRunCostText()}`;
-      const allKnown = !st.found && st.flagged > 0 && st.duplicate > 0 && !st.errors;
+      const moments = reviewChecks().length;
+      const summary = `${st.batches} stretches checked${st.skipped ? ` (${st.skipped} dead-time stills skipped)` : ""}, ${st.flagged} flags grouped into ${moments} moment${moments === 1 ? "" : "s"} to check${st.errors ? `, ${st.errors} errors (${st.lastError})` : ""}.${reviewRunCostText()}`;
       showToast(
-        st.found
-          ? `AI scan finished: ${st.found} new shot${st.found === 1 ? "" : "s"} added. ${summary} Nothing more is charged for this run. Next: × the ones that aren't shots, then AI fill all.`
-          : allKnown
-            ? `AI scan finished: everything it found is already on your shot list. ${summary} Use Play action only to check for anything missed.`
-            : `AI scan finished but added no shots. ${summary} Check the frames under the progress bar look like the game, and add shots by hand with S.`,
-        st.found || allKnown ? "success" : "error"
+        moments
+          ? `AI scan finished: ${moments} moment${moments === 1 ? "" : "s"} to check on the right. Nothing more is charged for this run. Watch each one (M plays the next), press S at each shot, or D if there wasn't one. ${summary}`
+          : `AI scan finished and flagged nothing. ${summary} Use Play action only, or add shots by hand with S.`,
+        moments ? "success" : "error"
       );
       document.getElementById("rv-scanbar").hidden = false;
       document.getElementById("rv-scan-text").textContent = `Last scan: ${summary}`;
@@ -24064,6 +24081,7 @@ async function loadReviewUser(userId){
   ["timeupdate", "play", "pause", "seeked", "durationchange"].forEach(evt => video.addEventListener(evt, updateReviewPlayhead));
   video.addEventListener("timeupdate", enforceReviewActionOnly);
   video.addEventListener("timeupdate", enforceReviewPreviewEdit);
+  video.addEventListener("timeupdate", enforceReviewMomentStop);
   wireReviewCutDrag(timeline);
 
   timeline.addEventListener("click", e => {
