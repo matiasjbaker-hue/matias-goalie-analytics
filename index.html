@@ -8350,7 +8350,7 @@ function renderSituational(){
   renderStrengthBreakdown();
 
   // Sided zones (Left top of circle, Right point, ...). Pinned shots go
-  // to their side; unpinned shots are split evenly across the sides.
+  // to their side; unpinned shots alternate left/right (whole numbers).
   const zoneRows = groupShotsBySidedZone(seasonShots);
 
   const locationCounts = {};
@@ -14560,8 +14560,8 @@ function computeGameReportData(gameId){
       .filter(Boolean);
 
   // Shot location breakdown
-  // Sided zones: pinned shots go to their side, unpinned shots are
-  // split evenly across the sides (so counts can be fractional).
+  // Sided zones: pinned shots go to their side, unpinned shots
+  // alternate left/right (whole numbers; unpinned point -> middle point).
   const locationRows =
     groupShotsBySidedZone(gameShotsList).map(g => {
       const sv = g.shots ? ((g.shots - g.goals) / g.shots * 100) : null;
@@ -17708,8 +17708,8 @@ function classifyShotLocation(x, y){
    derived for display and charts:
      - shot has a map pin  -> sided by the pin's x (left = viewer's left
        on the map, which is the goalie's left looking out)
-     - shot has no pin     -> its stats are split evenly across the
-       sides (halves for left/right zones, thirds for the point)
+     - shot has no pin     -> shots are alternated left / right (whole
+       numbers only); an unpinned point goes to the middle point
 ------------------------------------------------------------ */
 
 // Point shots are split left / middle / right at +/- this many feet
@@ -17768,60 +17768,54 @@ function shotZoneDisplay(shot){
 
 }
 
-// [{ label, weight }] for charts. Pinned shots count fully toward their
-// side; unpinned shots are split evenly across the possible sides.
-function shotZoneWeights(shot){
+// Zone label for charts, always one whole shot. Pinned shots go to their
+// side. Unpinned shots with a left/right zone alternate left, right,
+// left, ... (goals and saves alternate separately, so each side gets an
+// even share and no counts are fractional). An unpinned "point" has no
+// side to go on, so it all goes to the middle point.
+function shotZoneForChart(shot, counters){
 
   if(shotMapHasPin(shot)){
-    return [{ label: shotZoneFromPin(Number(shot.loc_x), Number(shot.loc_y)), weight: 1 }];
+    return shotZoneFromPin(Number(shot.loc_x), Number(shot.loc_y));
   }
 
   const raw = String(shot.location || shot.shot_location || "").trim();
 
-  if(!raw){
-    return [{ label: "Unknown", weight: 1 }];
-  }
+  if(!raw){ return "Unknown"; }
 
   const key = raw.toLowerCase();
 
-  if(key === "point"){
-    return [
-      { label: "Left point",   weight: 1 / 3 },
-      { label: "Middle point", weight: 1 / 3 },
-      { label: "Right point",  weight: 1 / 3 }
-    ];
-  }
+  if(key === "point"){ return "Middle point"; }
 
   if(SHOT_ZONE_SIDED_BASES.includes(key)){
-    return [
-      { label: "Left " + key,  weight: 0.5 },
-      { label: "Right " + key, weight: 0.5 }
-    ];
+
+    const ck = key + "|" + (isGoal(shot) ? "goal" : "save");
+    const n = counters[ck] || 0;
+    counters[ck] = n + 1;
+
+    return (n % 2 === 0 ? "Left " : "Right ") + key;
+
   }
 
-  return [{ label: raw, weight: 1 }];
+  return raw;
 
 }
 
 // Groups shots into sided zones: [{ label, shots, goals }] in
-// SHOT_ZONE_ORDER (unknown labels after). Counts can be fractional
-// because unpinned shots are split across sides.
+// SHOT_ZONE_ORDER (unknown labels after). Whole numbers only.
 function groupShotsBySidedZone(shots){
 
   const groups = {};
+  const counters = {};
 
   shots.forEach(shot => {
 
-    const goal = isGoal(shot);
+    const label = shotZoneForChart(shot, counters);
 
-    shotZoneWeights(shot).forEach(({ label, weight }) => {
+    if(!groups[label]){ groups[label] = { label, shots: 0, goals: 0 }; }
 
-      if(!groups[label]){ groups[label] = { label, shots: 0, goals: 0 }; }
-
-      groups[label].shots += weight;
-      if(goal){ groups[label].goals += weight; }
-
-    });
+    groups[label].shots += 1;
+    if(isGoal(shot)){ groups[label].goals += 1; }
 
   });
 
@@ -17830,13 +17824,7 @@ function groupShotsBySidedZone(shots){
     return i === -1 ? SHOT_ZONE_ORDER.length : i;
   };
 
-  return Object.values(groups)
-    .map(g => ({
-      label: g.label,
-      shots: Math.round(g.shots * 10) / 10,
-      goals: Math.round(g.goals * 10) / 10
-    }))
-    .sort((a, b) => rank(a.label) - rank(b.label));
+  return Object.values(groups).sort((x, y) => rank(x.label) - rank(y.label));
 
 }
 
