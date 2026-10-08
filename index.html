@@ -3359,7 +3359,7 @@
         <label class="rv-density" title="Opus 5.5 reads the video more sharply and costs about twice as much. Use Test accuracy to compare them on your own footage.">
           <span>AI model</span>
           <select id="rv-ai-model" onchange="onReviewModelChange(this.value)">
-            <option value="claude-opus-5-5" selected>Opus 5.5 (found 19 of 19)</option>
+            <option value="claude-opus-5-5" selected>Opus 5.5 (sharper)</option>
             <option value="claude-sonnet-5-5">Sonnet 5.5 (about half the cost)</option>
           </select>
         </label>
@@ -22739,7 +22739,7 @@ async function runReviewAccuracyTest(){
   const [a, b] = reviewTestRange();
   const truths = review.drafts.map(x => Number(x.t_seconds)).filter(t => t >= a && t <= b && !reviewInCut(t)).sort((x, y) => x - y);
   if(!truths.length){
-    showToast("Mark the real shots first (S at each shot) in the stretch you want to test. The test checks the AI against them. To test part of the video, set In (I) and Out (O) around it.", "error");
+    showToast("The test needs an answer key: the real shots on this video. Easiest: Run AI, fix the shot list (× what isn't a shot, S for any it missed), then press Test accuracy. It compares a fresh scan against that list.", "error");
     return;
   }
 
@@ -22754,7 +22754,7 @@ async function runReviewAccuracyTest(){
   if(!confirm(
     `Test ${REVIEW_MODELS[model]} at ${detail} detail on ${formatClock(b - a)} of video (${times.length} stills) against the ${truths.length} shot${truths.length === 1 ? "" : "s"} you've marked there?\n\n` +
     `Costs about ${formatUsd(est)} (full price, no closer looks). Your shot list isn't changed.\n\n` +
-    `Only test a stretch where you've marked every real shot, or the results will look worse than they are.`
+    `Your shot list is the answer key, so make sure it's right first: every real shot on it and nothing else. Otherwise the results won't mean much.`
   )){ return; }
 
   review.testing = true;
