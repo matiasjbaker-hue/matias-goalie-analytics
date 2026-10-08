@@ -11290,8 +11290,14 @@ function puckBreakdown(rows){
   const typedAttempts = passes.reduce((a, r) => a + r.attempts, 0);
   const typedCompleted = passes.reduce((a, r) => a + r.completed, 0);
 
-  const untypedAttempts = Math.max(0, passAttempts - typedAttempts);
-  const untypedCompleted = Math.max(0, passesCompleted - typedCompleted);
+  // Passes with no recorded type count as forehand.
+  const fh = passes.find(p => p.key === "forehand");
+  fh.attempts += Math.max(0, passAttempts - typedAttempts);
+  fh.completed += Math.max(0, passesCompleted - typedCompleted);
+  fh.pct = fh.attempts ? fh.completed / fh.attempts * 100 : null;
+
+  const untypedAttempts = 0;
+  const untypedCompleted = 0;
 
   return {
     rims,
@@ -18536,9 +18542,15 @@ function fillPuckForm(puck){
     if(el){ el.value = puck && num(puck[key]) ? puck[key] : ""; }
   });
 
-  // Older games only have pass totals. Keep that remainder so saving
+  // Older games only have pass totals, folded into forehand above, so saving
   // the game doesn't wipe it.
   const b = puckBreakdown(puck ? [puck] : []);
+  b.passes.forEach(p => {
+    const att = document.getElementById("pp-pass_attempts_" + p.key);
+    const comp = document.getElementById("pp-passes_completed_" + p.key);
+    if(att){ att.value = p.attempts || ""; }
+    if(comp){ comp.value = p.completed || ""; }
+  });
   const showUntyped = (wrapId, inputId, value) => {
     document.getElementById(wrapId).style.display = value ? "" : "none";
     document.getElementById(inputId).value = value || "";

@@ -32,3 +32,8 @@ update public.puck_playing set
   rims_stopped_backhand_ice = coalesce(rims_stopped, 0) - case when game_id % 2 = 0 then (coalesce(rims_stopped, 0) + 1) / 2 else coalesce(rims_stopped, 0) / 2 end
 where rims_faced_forehand_ice + rims_faced_backhand_ice + rims_faced_forehand_high + rims_faced_backhand_high
     + rims_stopped_forehand_ice + rims_stopped_backhand_ice + rims_stopped_forehand_high + rims_stopped_backhand_high = 0;
+
+-- Passes with no recorded type count as forehand.
+update puck_playing set
+  pass_attempts_forehand = coalesce(pass_attempts_forehand,0) + greatest(0, coalesce(pass_attempts,0) - coalesce(pass_attempts_forehand,0) - coalesce(pass_attempts_backhand,0) - coalesce(pass_attempts_stretch,0)),
+  passes_completed_forehand = coalesce(passes_completed_forehand,0) + greatest(0, coalesce(passes_completed,0) - coalesce(passes_completed_forehand,0) - coalesce(passes_completed_backhand,0) - coalesce(passes_completed_stretch,0));
