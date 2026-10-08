@@ -25427,6 +25427,7 @@ async function collectReviewTwelveLabs(manual){
     const done = new Set();
     const errors = [];
     let segments = 0;
+    const leftOut = { other_net: 0, not_shot: 0 };
     (data.tasks || []).forEach(t => {
       if(t.status === "ready"){
         done.add(t.id);
@@ -25436,6 +25437,10 @@ async function collectReviewTwelveLabs(manual){
           segments++;
         });
         if(Number.isFinite(Number(t.usd))){ addReviewAiCost(Number(t.usd), "scan"); }
+        if(t.leftOut){
+          leftOut.other_net += Number(t.leftOut.other_net) || 0;
+          leftOut.not_shot += Number(t.leftOut.not_shot) || 0;
+        }
       }
       else if(t.status === "failed"){
         done.add(t.id);
@@ -25453,7 +25458,7 @@ async function collectReviewTwelveLabs(manual){
         stopReviewTlPolling();
         const n = reviewChecks().length;
         showToast(
-          `Twelve Labs finished: ${segments} shot${segments === 1 ? "" : "s"} found, grouped into ${n} moment${n === 1 ? "" : "s"} to check on the right.${errors.length ? ` ${errors.length} part${errors.length === 1 ? "" : "s"} failed: ${errors[0]}` : ""}${reviewRunCostText()} Watch each one (M), press S at each shot, or D if there wasn't one.`,
+          `Twelve Labs finished: ${segments} shot${segments === 1 ? "" : "s"} on your goalie, grouped into ${n} moment${n === 1 ? "" : "s"} to check on the right.${leftOut.other_net || leftOut.not_shot ? ` Left out: ${leftOut.other_net} at the other net, ${leftOut.not_shot} that weren't shots on goal.` : ""}${errors.length ? ` ${errors.length} part${errors.length === 1 ? "" : "s"} failed: ${errors[0]}` : ""}${reviewRunCostText()} Watch each one (M), press S at each shot, or D if there wasn't one.`,
           errors.length && !segments ? "error" : "success"
         );
       }

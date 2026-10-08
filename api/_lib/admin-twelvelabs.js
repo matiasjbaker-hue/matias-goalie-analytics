@@ -203,36 +203,39 @@ function clean(text, max) {
 // Twelve Labs' segments are stretches of video (like scenes); single
 // moments inside them are "events" in a time_array field, each with its
 // own start and end. So the segments here are stretches of play, and each
-// shot is an event inside one. (Defining each shot as a segment made it
-// split the game into a few long stretches and call each one a shot.)
+// shot is an event inside one.
+//
+// Told to leave out shots at the other net, it didn't reliably. So it's
+// asked to list every shot attempt at either net and label each one
+// (what it was, which end of the rink, which goalie faced it), and the
+// filter below keeps only shots on goal against the tracked goalie.
 function shotDefinition(jersey, side) {
-  const who = jersey
-    ? `The tracked goalie's team wears ${jersey}.`
-    : "The tracked goalie is the one defending the net named below.";
+  const team = jersey || "the tracked goalie's team colour";
   const net = side === "left" || side === "right"
-    ? ` In this part of the game the tracked goalie's net is on the ${side.toUpperCase()} side of the picture.`
+    ? ` In this part of the game the tracked goalie defends the net at the ${side.toUpperCase()} end of the rink as this camera sees it.`
     : "";
   return {
     id: "play",
     description:
-      `Stretches of ice hockey game play, split wherever play stops (a whistle or faceoff). ${who}${net} ` +
-      "The stretches only organise the shots listed in each one.",
+      `Stretches of ice hockey game play, split wherever play stops (a whistle or faceoff). The tracked goalie's team wears ${team}.${net} ` +
+      "The stretches only organise the shot attempts listed in each one.",
     fields: [
       {
         name: "shots",
         type: "time_array",
         description:
-          "Every shot on goal against the tracked goalie in this stretch: one event per shot attempt " +
-          "(wrist, slap, snap, backhand, tip, deflection, one-timer, wraparound or rebound). Each event starts " +
-          "when the puck leaves the shooter's stick and ends when the goalie saves it, the puck goes in, or play " +
-          "moves on, usually a few seconds later. A rebound shot is its own event. Leave out shots on the other " +
-          "goalie, passes, dump-ins, carries, faceoffs, line changes, stoppages and celebrations. If there are no " +
-          "shots on the tracked goalie in this stretch, return an empty list.",
+          "Every shot attempt at EITHER net in this stretch, one event per attempt, each labelled with the fields below. " +
+          "Each event starts when the puck leaves the shooter's stick and ends when the goalie saves it, the puck goes in, " +
+          "or play moves on, usually a few seconds later. A rebound shot is its own event. Do not list passes, dump-ins, " +
+          "carries, faceoffs or line changes as attempts. If there are none, return an empty list.",
         items: {
           type: "object",
           fields: [
-            { name: "outcome", type: "string", enum: ["save", "goal", "missed_net", "unclear"], description: "save if the goalie stops it, goal only if the puck goes into the tracked goalie's net, missed_net if it misses the net or is blocked before reaching it, unclear if you can't tell." },
-            { name: "confidence", type: "string", enum: ["high", "medium", "low"], description: "How sure you are that this is a shot on the tracked goalie's net." },
+            { name: "event", type: "string", enum: ["shot_on_goal", "missed_or_blocked", "not_a_shot"], description: "shot_on_goal if the puck reaches the goalie or goes in; missed_or_blocked if it misses the net or a skater blocks it; not_a_shot if this turns out to be a pass, dump-in or something else." },
+            { name: "net", type: "string", enum: ["left", "right", "unclear"], description: "Which net the shot is aimed at: the one at the left end of the rink or the right end, as this camera sees the rink. unclear if you can't tell." },
+            { name: "goalie", type: "string", enum: ["tracked", "other", "unclear"], description: `Which goalie faces the shot: tracked if that goalie's team wears ${team}, other if it's the opposing goalie, unclear if you can't tell.` },
+            { name: "outcome", type: "string", enum: ["save", "goal", "unclear"], description: "save if the goalie stops it, goal only if the puck goes into the net, unclear if you can't tell." },
+            { name: "confidence", type: "string", enum: ["high", "medium", "low"], description: "How sure you are about this event's labels." },
           ],
         },
       },
@@ -240,32 +243,43 @@ function shotDefinition(jersey, side) {
   };
 }
 
-// Shots from a finished task, in the review player's time. Reads the
-// events inside each stretch of play; also reads tasks sent before that
-// change, where each segment was a shot.
-function shotsFromResult(data, offset) {
-  const pick = (outcome, confidence) => ({
-    outcome: ["save", "goal", "missed_net", "unclear"].includes(outcome) ? outcome : "unclear",
-    confidence: ["high", "medium", "low"].includes(confidence) ? confidence : "low",
-  });
+// Keeps the shots on goal against the tracked goalie. side is the net
+// side the admin set for this part of the game, or null.
+function onTrackedNet(e, side) {
+  if (e.event !== "shot_on_goal") return "not_shot";
+  if (e.goalie === "other") return "other_net";
+  if (side && e.net !== "unclear" && e.net !== side) return "other_net";
+  if (!side && e.goalie !== "tracked") return "other_net";
+  return "keep";
+}
+
+// Shots from a finished task, in the review player's time, plus what was
+// left out. Also reads tasks sent before the labels existed.
+function shotsFromResult(data, offset, side) {
+  const level = c => (["high", "medium", "low"].includes(c) ? c : "low");
   const out = [];
+  const left = { other_net: 0, not_shot: 0 };
   (Array.isArray(data.play) ? data.play : []).forEach(seg => {
     const events = seg && seg.metadata && Array.isArray(seg.metadata.shots) ? seg.metadata.shots : [];
     events.forEach(e => {
+      const labelled = "event" in e || "net" in e || "goalie" in e;
+      const verdict = labelled ? onTrackedNet(e, side) : "keep";
+      if (verdict !== "keep") { left[verdict]++; return; }
       const a = Number(e.start_time) - offset;
       const b = Number(e.end_time) - offset;
-      out.push({ start: a, end: b, t: a, ...pick(e.outcome, e.confidence) });
+      out.push({ start: a, end: b, t: a, outcome: ["save", "goal"].includes(e.outcome) ? e.outcome : "unclear", confidence: level(e.confidence) });
     });
   });
   (Array.isArray(data.shots) ? data.shots : []).forEach(s => {
     const m = (s && s.metadata) || {};
     const a = Number(s.start_time) - offset;
     const shot = Number(m.shot_time);
-    out.push({ start: a, end: Number(s.end_time) - offset, t: Number.isFinite(shot) ? shot - offset : a, ...pick(m.outcome, m.confidence) });
+    out.push({ start: a, end: Number(s.end_time) - offset, t: Number.isFinite(shot) ? shot - offset : a, outcome: ["save", "goal"].includes(m.outcome) ? m.outcome : "unclear", confidence: level(m.confidence) });
   });
-  return out
+  const shots = out
     .filter(x => Number.isFinite(x.start) && Number.isFinite(x.end) && x.end >= x.start)
     .map(x => ({ ...x, start: Math.round(x.start * 10) / 10, end: Math.round(x.end * 10) / 10, t: Math.round(x.t * 10) / 10 }));
+  return { shots, left };
 }
 
 async function checkAdmin(accessToken) {
@@ -344,7 +358,7 @@ async function start(req, res, caller) {
         segment_definitions: [shotDefinition(team, w.side)],
       },
     });
-    tasks.push({ id: made.task_id || made._id, start: w.start, end: w.end, offset });
+    tasks.push({ id: made.task_id || made._id, start: w.start, end: w.end, offset, side: w.side });
   }
 
   res.status(200).json({ tasks });
@@ -379,7 +393,8 @@ async function status(req, res, caller) {
 
     let data = {};
     try { data = JSON.parse((task.result && task.result.data) || "{}"); } catch (e) { data = {}; }
-    const segments = shotsFromResult(data, offset);
+    const side = t.side === "left" || t.side === "right" ? t.side : null;
+    const { shots: segments, left } = shotsFromResult(data, offset, side);
 
     // Billed on the task's window; logged once per task.
     const hours = Math.max(0, (Number(t.end) - Number(t.start)) / 3600);
@@ -388,7 +403,7 @@ async function status(req, res, caller) {
       gameVideoId, requestedBy: caller.id, kind: "tl-segment", model: `twelvelabs-${MODEL}`,
       batchId: `tl:${id}`, tokens: NO_TOKENS, usd,
     });
-    out.push({ id, status: "ready", segments, usd });
+    out.push({ id, status: "ready", segments, usd, leftOut: left });
   }
   res.status(200).json({ tasks: out });
 }
