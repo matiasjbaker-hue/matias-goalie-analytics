@@ -30,8 +30,9 @@
 //     -> { next, done } (pieces from..next-1 sent and reported)
 //   op "asset":   { assetId } -> { status: processing | ready | failed, error? }
 //
-// Vercel environment variable: TWELVELABS_API_KEY (from the Twelve Labs
-// dashboard's API Keys page).
+// Vercel environment variables: TWELVELABS_API_KEY (from the Twelve Labs
+// dashboard's API Keys page), and TWELVELABS_PAID=1 once the account is on
+// a paid plan. Until then runs use free minutes and are recorded at $0.
 
 import { spawn } from "child_process";
 import { GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
@@ -396,14 +397,16 @@ async function status(req, res, caller) {
     const side = t.side === "left" || t.side === "right" ? t.side : null;
     const { shots: segments, left } = shotsFromResult(data, offset, side);
 
-    // Billed on the task's window; logged once per task.
+    // Billed on the task's window; logged once per task. On the free plan
+    // it uses free minutes instead of money.
     const hours = Math.max(0, (Number(t.end) - Number(t.start)) / 3600);
-    const usd = Math.round(hours * USD_PER_HOUR * 10000) / 10000;
+    const paid = String(process.env.TWELVELABS_PAID || "") === "1";
+    const usd = paid ? Math.round(hours * USD_PER_HOUR * 10000) / 10000 : 0;
     await logAiUsage({
       gameVideoId, requestedBy: caller.id, kind: "tl-segment", model: `twelvelabs-${MODEL}`,
       batchId: `tl:${id}`, tokens: NO_TOKENS, usd,
     });
-    out.push({ id, status: "ready", segments, usd, leftOut: left });
+    out.push({ id, status: "ready", segments, usd, minutes: Math.ceil(hours * 60), leftOut: left });
   }
   res.status(200).json({ tasks: out });
 }
