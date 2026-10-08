@@ -22213,7 +22213,7 @@ function renderReviewScanBar(){
   document.getElementById("rv-scanbar-fill").style.width = `${pct}%`;
   const st = review.scanStats || { found: 0 };
   const detail = st.batches !== undefined
-    ? ` (${st.batches} stretches checked${st.skipped ? ` · ${st.skipped} dead-time stills skipped` : ""} · ${st.flagged} moments flagged · ${st.found} shots added${st.basic ? ` (${st.basic} with the basics only)` : ""} · ${st.toCheck || 0} to check · ${st.duplicate || 0} already on the list${st.errors ? ` · ${st.errors} errors: ${st.lastError}` : ""})`
+    ? ` (${st.batches} stretches checked${st.skipped ? ` · ${st.skipped} dead-time stills skipped` : ""} · ${st.flagged} moments flagged · ${st.found} shots added (${st.likely || 0} likely) · ${st.toCheck || 0} to check · ${st.duplicate || 0} already on the list${st.errors ? ` · ${st.errors} errors: ${st.lastError}` : ""})`
     : "";
   document.getElementById("rv-scan-text").textContent = review.scanning
     ? review.scanHalfPrice
@@ -22235,7 +22235,7 @@ function renderReviewPreview(frames){
 }
 
 function newReviewScanStats(){
-  return { found: 0, batches: 0, sent: 0, skipped: 0, flagged: 0, confirmed: 0, unsure: 0, basic: 0, toCheck: 0, rejected: 0, duplicate: 0, errors: 0, lastError: "" };
+  return { found: 0, batches: 0, sent: 0, skipped: 0, flagged: 0, confirmed: 0, unsure: 0, basic: 0, likely: 0, toCheck: 0, rejected: 0, duplicate: 0, errors: 0, lastError: "" };
 }
 
 /* ---------- which net is the goalie's ----------
@@ -22318,21 +22318,18 @@ function addReviewCandidate(v, t, confidence, goal){
   v.period_marks = { ...(v.period_marks || {}), _candidates: [...saved, { t: c.t, c: Math.round(c.confidence * 100) / 100, ...(c.goal ? { g: 1 } : {}) }].slice(-2000) };
 }
 
-// One flagged moment from the scan, routed as in the run that found 19
-// of 19 shots (every flag from REVIEW_LIST_MIN up goes on the shot list),
-// but only likely ones get the paid closer look straight away:
-//   - a shot already on the list within a couple of seconds: skipped;
-//   - REVIEW_FILL_MIN or more: on the list, filled in by a closer look.
-//     The closer look never removes a shot: if it doesn't see it, or
-//     fails, the shot stays and says so;
-//   - REVIEW_LIST_MIN up to REVIEW_FILL_MIN: on the list with the basics
-//     (time, save or goal). "AI fill all" fills in the ones the admin keeps;
-//   - below REVIEW_LIST_MIN: To check (no cost).
-async function reviewTagEvent(v, ev, tagger){
+// One flagged moment from the scan. The scan is the only thing a run
+// pays for: every flag from REVIEW_LIST_MIN up goes on the shot list
+// with the basics (time, save or goal, how sure the AI was), and nothing
+// is looked at more closely until the admin has deleted what isn't a
+// shot and pressed AI fill all. Below REVIEW_LIST_MIN goes to To check.
+// A shot already within REVIEW_MIN_GAP, in this tab or saved by another
+// tab or admin, is skipped.
+async function reviewTagEvent(v, ev){
   const st = review.scanStats || (review.scanStats = newReviewScanStats());
-  const isCurrent = () => review.video && review.video.id === v.id;
   const conf = Number(ev.confidence) || 0;
-  if(review.drafts.some(d => d.game_video_id === v.id && Math.abs(Number(d.t_seconds) - ev.t) < REVIEW_MIN_GAP)){
+  const t = Math.round(Number(ev.t) * 10) / 10;
+  if(review.drafts.some(d => d.game_video_id === v.id && Math.abs(Number(d.t_seconds) - t) < REVIEW_MIN_GAP)){
     st.duplicate++;
     renderReviewScanBar();
     return;
@@ -22345,52 +22342,32 @@ async function reviewTagEvent(v, ev, tagger){
     renderReviewScanBar();
     return;
   }
-  if(conf < REVIEW_FILL_MIN){
-    st.basic++;
-    await insertReviewDraft({
-      game_video_id: v.id,
-      t_seconds: Math.round(ev.t * 10) / 10,
-      source: "ai",
-      outcome: ev.goal ? "goal" : "save",
-      ai_confidence: Math.round(conf * 100) / 100,
-      ai_model: null,
-      ai_notes: `Possible shot (AI ${Math.round(conf * 100)}% sure). Only the basics are filled in: keep it and press AI fill, or delete it.`
-    });
-    st.found++;
+  // Another tab (or another admin) may have saved this one already.
+  const { data: near, error: nearErr } = await supabaseClient.from("video_shot_drafts")
+    .select("*").eq("game_video_id", v.id)
+    .gt("t_seconds", t - REVIEW_MIN_GAP).lt("t_seconds", t + REVIEW_MIN_GAP).limit(1);
+  if(!nearErr && near && near.length){
+    if(!review.drafts.some(d => String(d.id) === String(near[0].id))){
+      review.drafts.push(near[0]);
+      review.drafts.sort((a, b) => Number(a.t_seconds) - Number(b.t_seconds));
+    }
+    st.duplicate++;
     renderReviewShots();
     renderReviewScanBar();
     return;
   }
-  let res = { shot: null, model: null };
-  let lookFailed = false;
-  try{ res = await aiOnStoredVideo("tag", burstTimes(ev.t), REVIEW_TAG_WIDTH, tagger); }
-  catch(error){
-    if(error.status === 403 || error.status === 503 || error.status === 404){ throw error; }
-    lookFailed = true;
-    st.errors++;
-    st.lastError = `closer look failed: ${error.message || error}`;
-  }
-  if(!isCurrent()){ return; }
-  let shot = res.shot;
-  if(shot && shot.shot_detected){
-    st.confirmed++;
-  }
-  else{
-    st.unsure++;
-    shot = {
-      ...(shot || { loc_x: null, loc_y: null }),
-      shot_detected: true,
-      outcome: ev.goal ? "goal" : "save",
-      confidence: Math.min(conf, 0.5),
-      notes: lookFailed
-        ? "The scan flagged a shot here, but the closer look failed, so nothing else is filled in. Press AI fill to try again, or delete it."
-        : "The scan flagged a shot here, but the closer look didn't see the shot itself. Watch it, then keep, fix or delete."
-    };
-  }
-  if(ev.goal && shot.outcome !== "goal"){ shot.notes = (shot.notes ? shot.notes + " " : "") + "The scan thought this might be a goal; check."; }
-  // A failed look leaves the shot unfilled, so AI fill all retries it.
-  await insertReviewDraft(draftRowFromAi(shot, ev.t, lookFailed ? null : res.model));
+  const likely = conf >= REVIEW_FILL_MIN;
+  await insertReviewDraft({
+    game_video_id: v.id,
+    t_seconds: t,
+    source: "ai",
+    outcome: ev.goal ? "goal" : "save",
+    ai_confidence: Math.round(conf * 100) / 100,
+    ai_model: null,
+    ai_notes: `${likely ? "Likely" : "Possible"} ${ev.goal ? "goal" : "shot"} (AI ${Math.round(conf * 100)}% sure). Watch it: delete it if it isn't a shot. AI fill all fills in the ones you keep.`
+  });
   st.found++;
+  if(likely){ st.likely++; } else { st.basic++; }
   renderReviewShots();
   renderReviewScanBar();
 }
@@ -23027,7 +23004,7 @@ async function collectReviewBatches(manual){
       stopReviewBatchPolling();
       finished = true;
       showToast(
-        `AI results are in: ${st.found} new shot${st.found === 1 ? "" : "s"} added${st.basic ? ` (${st.basic} with only the basics: delete the ones that aren't shots, then AI fill all)` : ""}${st.unsure ? `, ${st.unsure} the closer look couldn't confirm (they say so)` : ""}, ${st.toCheck} moment${st.toCheck === 1 ? "" : "s"} in To check, ${st.duplicate} already on your list${st.errors ? `, ${st.errors} errors: ${st.lastError}` : ""}.${reviewRunCostText()} Check each one, then approve.`,
+        `AI results are in: ${st.found} new shot${st.found === 1 ? "" : "s"} added (${st.likely} likely), ${st.toCheck} moment${st.toCheck === 1 ? "" : "s"} in To check, ${st.duplicate} already on your list${st.errors ? `, ${st.errors} errors: ${st.lastError}` : ""}.${reviewRunCostText()} The AI has finished; nothing more is charged for this run. Next: × the ones that aren't shots, then AI fill all.`,
         st.found ? "success" : "error"
       );
     }
@@ -23295,11 +23272,11 @@ async function runReviewScan(){
     }
     else if(!failure && isCurrent() && Number(v.scan_progress) >= 1){
       const st = review.scanStats;
-      const summary = `${st.batches} stretches checked${st.skipped ? ` (${st.skipped} dead-time stills skipped)` : ""}, ${st.flagged} moments flagged, ${st.found} shots added${st.basic ? ` (${st.basic} with only the basics: delete the ones that aren't shots, then AI fill all)` : ""}${st.unsure ? `, ${st.unsure} the closer look couldn't confirm` : ""}, ${st.toCheck} to check, ${st.duplicate} already on your list${st.errors ? `, ${st.errors} errors (${st.lastError})` : ""}.${reviewRunCostText()}`;
+      const summary = `${st.batches} stretches checked${st.skipped ? ` (${st.skipped} dead-time stills skipped)` : ""}, ${st.flagged} moments flagged, ${st.found} shots added (${st.likely} likely), ${st.toCheck} to check, ${st.duplicate} already on your list${st.errors ? `, ${st.errors} errors (${st.lastError})` : ""}.${reviewRunCostText()}`;
       const allKnown = !st.found && st.flagged > 0 && st.duplicate > 0 && !st.errors;
       showToast(
         st.found
-          ? `AI scan finished: ${st.found} new shot${st.found === 1 ? "" : "s"} added. ${summary} Check each one, then approve.`
+          ? `AI scan finished: ${st.found} new shot${st.found === 1 ? "" : "s"} added. ${summary} Nothing more is charged for this run. Next: × the ones that aren't shots, then AI fill all.`
           : allKnown
             ? `AI scan finished: everything it found is already on your shot list. ${summary} Use Play action only to check for anything missed.`
             : `AI scan finished but added no shots. ${summary} Check the frames under the progress bar look like the game, and add shots by hand with S.`,
