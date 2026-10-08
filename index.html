@@ -2778,6 +2778,7 @@
         <button type="button" class="tag-btn" data-value="Wrist" onclick="selectLiveTagChoice('shot_type','Wrist',this)">Wrist</button>
         <button type="button" class="tag-btn" data-value="Slap" onclick="selectLiveTagChoice('shot_type','Slap',this)">Slap</button>
         <button type="button" class="tag-btn" data-value="Snap" onclick="selectLiveTagChoice('shot_type','Snap',this)">Snap</button>
+        <button type="button" class="tag-btn" data-value="Flick" onclick="selectLiveTagChoice('shot_type','Flick',this)">Flick</button>
         <button type="button" class="tag-btn" data-value="Backhand" onclick="selectLiveTagChoice('shot_type','Backhand',this)">Backhand</button>
         <button type="button" class="tag-btn" data-value="Tip" onclick="selectLiveTagChoice('shot_type','Tip',this)">Tip</button>
       </div>
@@ -3584,7 +3585,7 @@
               <label for="rv-ed-type">Shot type</label>
               <select id="rv-ed-type" onchange="updateReviewShot('shot_type', this.value || null)">
                 <option value="">Unknown</option>
-                <option>Wrist</option><option>Slap</option><option>Snap</option>
+                <option>Wrist</option><option>Slap</option><option>Snap</option><option>Flick</option>
                 <option>Backhand</option><option>Tip</option>
               </select>
             </div>
@@ -3947,7 +3948,7 @@
           <label for="shotEditType">Shot type</label>
           <select id="shotEditType">
             <option value="">Unknown</option>
-            <option>Wrist</option><option>Slap</option><option>Snap</option>
+            <option>Wrist</option><option>Slap</option><option>Snap</option><option>Flick</option>
             <option>Backhand</option><option>Tip</option>
           </select>
         </div>
@@ -13093,6 +13094,7 @@ function recapKind(s){
   if(t === "slap" || t === "slap shot"){ return "a slap shot"; }
   if(t === "wrist" || t === "wrist shot"){ return "a wrist shot"; }
   if(t === "snap" || t === "snap shot"){ return "a snap shot"; }
+  if(t === "flick" || t === "flick shot"){ return "a flick shot"; }
 
   return "a shot";
 
@@ -14559,6 +14561,22 @@ function computeGameReportData(gameId){
       })
       .filter(Boolean);
 
+  // Shot type breakdown
+  const shotTypeRows =
+    ["Wrist", "Slap", "Snap", "Flick", "Backhand", "Tip"]
+      .map(label => {
+        const key = label.toLowerCase();
+        const subset = gameShotsList.filter(shot => {
+          const t = shotType(shot);
+          return t === key || t === key + " shot";
+        });
+        if(!subset.length){ return null; }
+        const g = subset.filter(isGoal).length;
+        const sv = (subset.length - g) / subset.length * 100;
+        return { label, shots: subset.length, goals: g, svPct: sv };
+      })
+      .filter(Boolean);
+
   // Shot location breakdown
   // Sided zones: pinned shots go to their side, unpinned shots
   // alternate left/right (whole numbers; unpinned point -> middle point).
@@ -14604,7 +14622,7 @@ function computeGameReportData(gameId){
 
   return {
     game, shotsAgainst, saves, goals, minutes, svPct, gaa, advanced,
-    periodRows, situationalRows, locationRows, reboundSummary, puckSummary,
+    periodRows, situationalRows, shotTypeRows, locationRows, reboundSummary, puckSummary,
     shotCount: gameShotsList.length,
     xgModelVersions: Array.from(new Set(
       gameShotsList.map(s => s.xg_model_version).filter(Boolean)
@@ -14729,6 +14747,16 @@ function buildGameNarrativeInputText(data, goalieInfo){
     lines.push("Situational breakdown:");
 
     data.situationalRows.forEach(s => {
+      lines.push(`  ${s.label}: ${s.shots} shots, ${s.goals} goals, SV% ${formatPdfPct(s.svPct)}`);
+    });
+
+  }
+
+  if(data.shotTypeRows.length){
+
+    lines.push("Shot type breakdown:");
+
+    data.shotTypeRows.forEach(s => {
       lines.push(`  ${s.label}: ${s.shots} shots, ${s.goals} goals, SV% ${formatPdfPct(s.svPct)}`);
     });
 
@@ -15045,6 +15073,20 @@ async function generateGameReportPDF(gameId, buttonEl, options = {}){
     y = pdfTableRow(doc, y, ["Situation","Shots","Goals","SV%"], [140,80,80,80], true);
 
     data.situationalRows.forEach(s => {
+      y = pdfTableRow(doc, y, [s.label, s.shots, s.goals, formatPdfPct(s.svPct)], [140,80,80,80]);
+    });
+
+    y += 10;
+
+  }
+
+  // Shot Type Breakdown
+  if(data.shotTypeRows.length){
+
+    y = pdfSectionHeading(doc, y, "Shot Type Breakdown");
+    y = pdfTableRow(doc, y, ["Shot Type","Shots","Goals","SV%"], [140,80,80,80], true);
+
+    data.shotTypeRows.forEach(s => {
       y = pdfTableRow(doc, y, [s.label, s.shots, s.goals, formatPdfPct(s.svPct)], [140,80,80,80]);
     });
 
@@ -16399,6 +16441,23 @@ function renderGameOverviewBreakdowns(game, m){
         ${goRowsTable(
           ["Situation","Shots","GA","SV%"],
           [...r.situationalRows]
+            .sort((a,b) => b.shots - a.shots)
+            .map(s => `
+              <tr><td>${escapeHtml(s.label)}</td><td>${s.shots}</td><td>${s.goals}</td>${goSvCell(s.svPct)}</tr>
+            `)
+        )}
+      </div>
+    `);
+  }
+
+  // Shot type
+  if(r.shotTypeRows.length){
+    cardsA.push(`
+      <div class="card">
+        <h3>Shot Type</h3>
+        ${goRowsTable(
+          ["Shot type","Shots","GA","SV%"],
+          [...r.shotTypeRows]
             .sort((a,b) => b.shots - a.shots)
             .map(s => `
               <tr><td>${escapeHtml(s.label)}</td><td>${s.shots}</td><td>${s.goals}</td>${goSvCell(s.svPct)}</tr>

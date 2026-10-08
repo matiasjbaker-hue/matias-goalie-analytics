@@ -64,7 +64,7 @@ const BATCH_ID_RE = /^msgbatch_[A-Za-z0-9]{1,100}$/;
 // ~450 KB of JPEG per frame; the browser sends ~640px frames at ~60 KB.
 const MAX_FRAME_BASE64 = 600 * 1024;
 
-const SHOT_TYPES = ["Wrist", "Slap", "Snap", "Backhand", "Tip", "unknown"];
+const SHOT_TYPES = ["Wrist", "Slap", "Snap", "Flick", "Backhand", "Tip", "unknown"];
 const RELEASE_TYPES = ["unclear", "one_timer", "catch_and_release", "quick_release", "extended_possession"];
 const REBOUND_TAGS = [
   "skip",
@@ -149,7 +149,7 @@ You get still frames about one to two seconds apart, in time order, with timesta
 
 Which net: the tracked goalie is identified by their team's jersey colour (given below when known). Watch the net that goalie defends. Teams switch ends between periods, so if the goalie in that colour is now at the other end, follow them there. Some frame labels also say which side of the picture the tracked goalie's net is on (set by the admin): use that to confirm which net is theirs.
 
-Flag every frame where, at that net, any of these is happening or just happened: a shot or shot attempt (wrist, slap, snap, backhand, tip, deflection, one-timer, wraparound, rebound); a player winding up, releasing, or following through toward the net; the puck moving toward or bouncing off the goalie; the goalie moving into a save, down, stretched, covering the puck, or recovering; a scramble or crowd at the crease; attacking players with the puck in the slot or circles facing the net; a whistle with players gathered at the net; a goal celebration or players skating away after a goal. Shots happen fast and may fall between two stills: if the play is in that zone and the next frame shows the aftermath (goalie down, puck loose, players crashing the net), flag the frame before it.
+Flag every frame where, at that net, any of these is happening or just happened: a shot or shot attempt (wrist, slap, snap, flick, backhand, tip, deflection, one-timer, wraparound, rebound); a player winding up, releasing, or following through toward the net; the puck moving toward or bouncing off the goalie; the goalie moving into a save, down, stretched, covering the puck, or recovering; a scramble or crowd at the crease; attacking players with the puck in the slot or circles facing the net; a whistle with players gathered at the net; a goal celebration or players skating away after a goal. Shots happen fast and may fall between two stills: if the play is in that zone and the next frame shows the aftermath (goalie down, puck loose, players crashing the net), flag the frame before it.
 
 Separately, list in zone_frames EVERY frame where play is in the tracked goalie's defensive zone (between that goalie's blue line and end boards, attackers with the puck there, or the puck near that net), whether or not a shot happens. Be generous: these frames become the action stretches the admin watches, so leaving out zone time can hide a shot.
 
