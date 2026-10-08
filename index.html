@@ -2320,6 +2320,21 @@
       </table>
     </div>
 
+    <div id="rcCatchup" style="display:none;margin-top:22px;padding-top:16px;border-top:1px solid var(--border,#2a2f3a)">
+      <h4 style="margin:0 0 4px">Catch up older games</h4>
+      <p class="chart-caption">Watch each clip and set how the save went. The game's rebound totals already count these, so nothing is double-counted.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+        <select id="rcCatchupGame" onchange="renderReboundCatchup()" aria-label="Game to catch up"></select>
+        <span id="rcCatchupLeft" class="small-note"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Period</th><th>Result</th><th>Clip</th><th>Rebound outcome</th></tr></thead>
+          <tbody id="rcCatchupBody"></tbody>
+        </table>
+      </div>
+    </div>
+
   </div>
 
 </section>
@@ -9973,11 +9988,105 @@ function renderReboundReview(){
       : "";
   }
 
+  renderReboundCatchup();
+
   const playAll = document.getElementById("rcPlayAllBtn");
 
   if(playAll){
     playAll.disabled = !withClip.length;
     playAll.textContent = withClip.length > 1 ? `▶ Play all (${withClip.length})` : "▶ Play all";
+  }
+
+}
+
+// Untagged shots that have a clip, so they can be tagged while watching.
+function reboundCatchupShots(){
+  return seasonShots.filter(s => s.game_video_id && !reboundTagKind(s.rebound_tag));
+}
+
+function renderReboundCatchup(){
+
+  const wrap = document.getElementById("rcCatchup");
+  if(!wrap){ return; }
+
+  if(currentRole !== "admin"){ wrap.style.display = "none"; return; }
+
+  const pending = reboundCatchupShots();
+  wrap.style.display = pending.length ? "" : "none";
+  if(!pending.length){ return; }
+
+  const sel = document.getElementById("rcCatchupGame");
+  const counts = {};
+  pending.forEach(s => { counts[s.game_id] = (counts[s.game_id] || 0) + 1; });
+
+  const gameList = games
+    .filter(g => counts[g.id])
+    .sort((a, b) => String(gameDate(b) || "").localeCompare(String(gameDate(a) || "")));
+
+  const prev = sel.value;
+  sel.innerHTML = gameList.map(g =>
+    `<option value="${escapeHtml(String(g.id))}">${escapeHtml(gameDate(g) || "—")} vs ${escapeHtml(gameOpponent(g) || "—")} (${counts[g.id]} left)</option>`
+  ).join("");
+  if(prev && gameList.some(g => String(g.id) === prev)){ sel.value = prev; }
+
+  const rows = pending
+    .filter(s => String(s.game_id) === sel.value)
+    .sort((a, b) => String(a.period).localeCompare(String(b.period)) || num(a.shot_id ?? a.id) - num(b.shot_id ?? b.id));
+
+  document.getElementById("rcCatchupLeft").textContent = `${rows.length} left in this game, ${pending.length} overall.`;
+
+  document.getElementById("rcCatchupBody").innerHTML = rows.map(s => {
+
+    const id = s.shot_id ?? s.id;
+    const goal = isGoal(s);
+
+    const opts = REBOUND_TALLY_KEYS
+      .filter(k => (reboundTagKind(k) === "goal") === goal)
+      .map(k => `<option value="${k}">${escapeHtml(REBOUND_TALLY_LABELS[k] || k)}</option>`)
+      .join("");
+
+    return `<tr>
+      <td>${escapeHtml(s.period) || "—"}</td>
+      <td><span class="result-pill ${goal ? "result-loss" : "result-win"}">${goal ? "Goal" : "Save"}</span></td>
+      <td><button type="button" class="watch-btn" onclick="watchShotClip(${jsArg(id)})">▶ Watch</button></td>
+      <td><select onchange="saveCatchupRebound(${jsArg(id)}, this)"><option value="">Pick outcome…</option>${opts}</select></td>
+    </tr>`;
+
+  }).join("");
+
+}
+
+async function saveCatchupRebound(shotId, selectEl){
+
+  const tag = selectEl.value;
+  const shot = findShotById(shotId) || seasonShots.find(s => String(s.shot_id ?? s.id) === String(shotId));
+
+  if(!shot || !tag){ return; }
+
+  selectEl.disabled = true;
+
+  try{
+
+    const { error } = await supabaseClient.from("Shots")
+      .update({ rebound_tag: tag })
+      .eq(shotIdColumn(shot), shot.shot_id ?? shot.id);
+
+    if(error){ throw error; }
+
+    shot.rebound_tag = tag;
+    seasonShots.forEach(s => { if(String(s.shot_id ?? s.id) === String(shotId)){ s.rebound_tag = tag; } });
+
+    showToast("Rebound outcome saved.", "success");
+    renderReboundReview();
+
+  }
+  catch(error){
+
+    console.error(error);
+    selectEl.disabled = false;
+    selectEl.value = "";
+    showToast(`Could not save: ${error.message || error}`, "error");
+
   }
 
 }
