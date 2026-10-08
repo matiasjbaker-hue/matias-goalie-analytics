@@ -10550,6 +10550,13 @@ function baselineStatDefs(){
         return { value: svs.length ? svs.filter(v => v >= 91.5).length / svs.length * 100 : null, n: svs.length };
       } },
 
+    { group: "Workload", label: "Goals per 60", fmt: v => v.toFixed(2), unit: "", thr: 0.3, minN: 1, noun: "games", lowerIsBetter: true, inlineOnly: true,
+      calc: ctx => ({ value: ctx.minutes ? ctx.goalsAgainst / ctx.minutes * 60 : null, n: ctx.games.length }) },
+    { group: "Workload", label: "Shots per 60", fmt: v => v.toFixed(1), unit: "", thr: 2, minN: 1, noun: "games", neutral: true, inlineOnly: true,
+      calc: ctx => ({ value: ctx.minutes ? ctx.shotsAgainst / ctx.minutes * 60 : null, n: ctx.games.length }) },
+    { group: "Workload", label: "Shots per game", fmt: v => v.toFixed(1), unit: "", thr: 2, minN: 1, noun: "games", neutral: true, inlineOnly: true,
+      calc: ctx => ({ value: ctx.games.length ? ctx.shotsAgainst / ctx.games.length : null, n: ctx.games.length }) },
+
     shotSV("Shot danger", "High-danger SV%", isHighDanger, 4, 5),
     shotSV("Shot danger", "A+ shots SV%", grade("A+"), 8, 4),
     shotSV("Shot danger", "A shots SV%", grade("A"), 6, 5),
@@ -10612,6 +10619,89 @@ function baselineContext(gameList){
 
 }
 
+// Small "last 3 / last 5 vs season" read under each stat on the
+// Stopping and Incremental Game Factors cards.
+const INLINE_TREND_MAP = [
+  ["incSVDelta", "SV% above expected"],
+  ["incGSAx", "GSAx per 60"],
+  ["incHighDanger", "High-danger SV%"],
+  ["incRebound", "Good rebound %"],
+  ["incRushSV", "Rush SV%"],
+  ["incScreenSV", "Screened SV%"],
+  ["incOneTimerSV", "One-timer SV%"],
+  ["incReboundSV", "Rebound-shot SV%"],
+  ["incShots60", "Shots per 60"],
+  ["incGoals60", "Goals per 60"],
+  ["incAvgShots", "Shots per game"],
+  ["incExtendedSV", "Extended-possession SV%"],
+  ["incQuickReleaseSV", "Quick-release SV%"],
+  ["incQualityStartPct", "Quality start %"]
+];
+
+function inlineTrendFor(def, season, windowSize, sorted){
+
+  if(sorted.length <= windowSize){ return { text: `Last ${windowSize}: need more games`, cls: "" }; }
+
+  const recent = def.calc(baselineContext(sorted.slice(-windowSize)));
+
+  if(recent.value === null || recent.n < def.minN){ return { text: `Last ${windowSize}: too few ${def.noun} yet`, cls: "" }; }
+
+  const delta = recent.value - season.value;
+  const dir = classifySignal(delta, def.thr, !!def.lowerIsBetter);
+  const shown = def.fmt(recent.value);
+
+  if(def.neutral){
+    const word = dir === "up" ? "higher than season" : dir === "down" ? "lower than season" : "in line with season";
+    return { text: `Last ${windowSize}: ${shown} · ${word}`, cls: "" };
+  }
+
+  const word = dir === "up" ? "▲ Improving" : dir === "down" ? "▼ Declining" : "– Steady";
+
+  return { text: `Last ${windowSize}: ${shown} · ${word}`, cls: dir === "up" ? "up" : dir === "down" ? "down" : "" };
+
+}
+
+function renderInlineTrends(){
+
+  document.querySelectorAll(".inc-trend").forEach(el => el.remove());
+
+  const sorted = sortGamesByDate(seasonGames);
+  const seasonCtx = baselineContext(sorted);
+  const defs = baselineStatDefs();
+
+  INLINE_TREND_MAP.forEach(([elId, label]) => {
+
+    const valueEl = document.getElementById(elId);
+    const def = defs.find(d => d.label === label);
+
+    if(!valueEl || !def){ return; }
+
+    const season = def.calc(seasonCtx);
+
+    if(season.value === null){ return; }
+
+    const holder = document.createElement("div");
+    holder.className = "inc-trend small-note";
+    holder.style.cssText = "display:flex;gap:14px;flex-wrap:wrap;margin:-2px 0 8px";
+
+    [3, 5].forEach(w => {
+      const t = inlineTrendFor(def, season, w, sorted);
+      const span = document.createElement("span");
+      span.textContent = t.text;
+      if(t.cls){ span.className = "signal-values " + t.cls; }
+      holder.appendChild(span);
+    });
+
+    const row = valueEl.closest(".stat-row");
+    const card = valueEl.closest(".metric-card");
+
+    if(row){ row.insertAdjacentElement("afterend", holder); }
+    else if(card){ holder.style.justifyContent = "center"; holder.style.margin = "6px 0 0"; card.appendChild(holder); }
+
+  });
+
+}
+
 function renderBaselineTrend(){
 
   const body = document.getElementById("baselineTrendBody");
@@ -10643,7 +10733,7 @@ function renderBaselineTrend(){
   let lastGroup = null;
   let html = "";
 
-  baselineStatDefs().forEach(def => {
+  baselineStatDefs().filter(d => !d.inlineOnly).forEach(def => {
 
     const season = def.calc(seasonCtx);
     const recent = def.calc(recentCtx);
@@ -10787,6 +10877,7 @@ function renderIncremental(){
 
   renderRecentForm();
   renderBaselineTrend();
+  setTimeout(renderInlineTrends, 0);
 
   const advanced =
     calculateAdvancedForShots(
