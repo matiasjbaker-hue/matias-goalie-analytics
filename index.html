@@ -1510,6 +1510,8 @@
 
     <div class="grid grid-2 section-space" id="goBreakdownB"></div>
 
+    <div id="goPeriodDetail"></div>
+
     <div class="go-trend-header">
       <div>
         <h3>Development Over Time</h3>
@@ -8413,6 +8415,53 @@ function periodKeyOfShot(shot){
 
 }
 
+// Per-period detail for a list of shots (one game or a whole season):
+// [{ key, label, list, shots, goals, svPct, xga, gsax, expSV, grades,
+//    hdShots, hdSV, pinned, cats, zones }] for every period that has shots.
+function buildPeriodDetail(shotList){
+
+  const svOf = list => list.length ? (list.length - list.filter(isGoal).length) / list.length * 100 : null;
+  const isHigh = sh => { const g = shotGrade(sh); return g === "A+" || g === "A"; };
+
+  return PERIOD_DETAIL_KEYS.map(key => {
+
+    const list = shotList.filter(sh => periodKeyOfShot(sh) === key);
+
+    if(!list.length){ return null; }
+
+    const adv = calculateAdvancedForShots(list);
+    const high = list.filter(isHigh);
+    const cats = { even: [], outnumbered: [], advantage: [], untagged: [] };
+
+    list.forEach(sh => { cats[strengthCategory(sh.strength)].push(sh); });
+
+    return {
+      key,
+      label: PERIOD_DETAIL_LABELS[key],
+      list,
+      shots: list.length,
+      goals: adv.goals,
+      svPct: adv.actualSV,
+      xga: adv.xGA,
+      gsax: adv.gsax,
+      expSV: adv.expectedSV,
+      grades: adv.grades,
+      hdShots: high.length,
+      hdSV: svOf(high),
+      pinned: list.filter(shotMapHasPin).length,
+      cats: {
+        even:        { shots: cats.even.length,        sv: svOf(cats.even) },
+        outnumbered: { shots: cats.outnumbered.length, sv: svOf(cats.outnumbered) },
+        advantage:   { shots: cats.advantage.length,   sv: svOf(cats.advantage) },
+        untagged:    cats.untagged.length
+      },
+      zones: groupShotsBySidedZone(list)
+    };
+
+  }).filter(Boolean);
+
+}
+
 function renderPeriodDetail(){
 
   const byPeriod = { "1": [], "2": [], "3": [], "OT": [] };
@@ -15030,7 +15079,7 @@ function computeGameReportData(gameId){
 
   return {
     game, shotsAgainst, saves, goals, minutes, svPct, gaa, advanced,
-    periodRows, situationalRows, shotTypeRows, locationRows, reboundSummary, puckSummary,
+    periodRows, periodDetail: buildPeriodDetail(gameShotsList), situationalRows, shotTypeRows, locationRows, reboundSummary, puckSummary,
     shotCount: gameShotsList.length,
     xgModelVersions: Array.from(new Set(
       gameShotsList.map(s => s.xg_model_version).filter(Boolean)
@@ -15109,6 +15158,86 @@ function pdfTableRow(doc, y, cells, widths, isHeader){
 }
 
 
+// Draws a to-scale defensive zone with this period's shots, using the
+// same coordinates as the on-screen shot map. (ox, oy) is the top-left.
+function pdfDrawShotMap(doc, ox, oy, width, shotList){
+
+  const sc = width / 85;
+  const px = x => ox + (x + 42.5) * sc;
+  const py = svgY => oy + (svgY + 1.5) * sc;
+  const goalY = SHOT_MAP.blueLineY;
+
+  // rink outline: straight sides, rounded far corners (r = 28 ft)
+  const pts = [[-42.5, -1], [42.5, -1], [42.5, 47]];
+
+  for(let i = 1; i <= 8; i++){
+    const a = (i / 8) * Math.PI / 2;
+    pts.push([14.5 + 28 * Math.cos(a), 47 + 28 * Math.sin(a)]);
+  }
+
+  for(let i = 0; i <= 8; i++){
+    const a = Math.PI / 2 + (i / 8) * Math.PI / 2;
+    pts.push([-14.5 + 28 * Math.cos(a), 47 + 28 * Math.sin(a)]);
+  }
+
+  const abs = pts.map(([x, y]) => [px(x), py(y)]);
+  const rel = abs.slice(1).map((pt, i) => [pt[0] - abs[i][0], pt[1] - abs[i][1]]);
+
+  doc.setFillColor(252, 253, 252);
+  doc.setDrawColor(18, 20, 18);
+  doc.setLineWidth(0.9);
+  doc.lines(rel, abs[0][0], abs[0][1], [1, 1], "FD", true);
+
+  // blue line, goal line
+  doc.setLineWidth(1.6);
+  doc.setDrawColor(31, 95, 191);
+  doc.line(px(-42.5), py(0), px(42.5), py(0));
+
+  doc.setLineWidth(0.7);
+  doc.setDrawColor(200, 16, 46);
+  doc.line(px(-42.5), py(goalY), px(42.5), py(goalY));
+
+  // faceoff circles + dots
+  [-22, 22].forEach(cx => {
+    doc.setLineWidth(0.6);
+    doc.circle(px(cx), py(goalY - SHOT_MAP.dotY), SHOT_MAP.circleR * sc, "S");
+    doc.setFillColor(200, 16, 46);
+    doc.circle(px(cx), py(goalY - SHOT_MAP.dotY), 1 * sc, "F");
+  });
+
+  // crease + net
+  doc.setLineWidth(0.6);
+  doc.setFillColor(200, 225, 248);
+  doc.rect(px(-6), py(goalY - 6), 12 * sc, 6 * sc, "FD");
+  doc.setFillColor(235, 235, 235);
+  doc.rect(px(-3), py(goalY), 6 * sc, 3.3 * sc, "FD");
+
+  // shots: saves first so goals sit on top
+  const pinned = shotList.filter(shotMapHasPin);
+
+  pinned.filter(sh => !isGoal(sh)).forEach(sh => {
+    doc.setFillColor(23, 112, 79);
+    doc.setDrawColor(255, 255, 255);
+    doc.setLineWidth(0.3);
+    doc.circle(px(Number(sh.loc_x)), py(shotMapSvgY(Number(sh.loc_y))), 1.5 * sc, "FD");
+  });
+
+  pinned.filter(isGoal).forEach(sh => {
+    const cx = px(Number(sh.loc_x));
+    const cy = py(shotMapSvgY(Number(sh.loc_y)));
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(18, 20, 18);
+    doc.setLineWidth(1);
+    doc.circle(cx, cy, 2.5 * sc, "FD");
+    doc.setFillColor(18, 20, 18);
+    doc.circle(cx, cy, 0.9 * sc, "F");
+  });
+
+  return (77 * sc);
+
+}
+
+
 function formatPdfPct(v){
   return v === null || v === undefined ? "n/a" : v.toFixed(1) + "%";
 }
@@ -15146,6 +15275,29 @@ function buildGameNarrativeInputText(data, goalieInfo){
 
     data.periodRows.forEach(p => {
       lines.push(`  ${p.label}: ${p.shots} shots, ${p.saves} saves, ${p.goals} goals against, SV% ${formatPdfPct(p.svPct)}`);
+    });
+
+  }
+
+  if(data.periodDetail && data.periodDetail.length){
+
+    lines.push("Period detail (tagged shots):");
+
+    data.periodDetail.forEach(d => {
+
+      const gr = d.grades;
+      const topZones = d.zones.slice().sort((a, b) => b.shots - a.shots).slice(0, 3)
+        .map(z => `${z.label} ${z.shots}`).join(", ");
+
+      lines.push(
+        `  ${d.label}: ${d.shots} shots, ${d.goals} goals against, SV% ${formatPdfPct(d.svPct)}, ` +
+        `xGA ${d.xga.toFixed(2)}, GSAx ${d.gsax >= 0 ? "+" : ""}${d.gsax.toFixed(2)}, ` +
+        `shot grades A+ ${gr["A+"]} / A ${gr["A"]} / B ${gr["B"]} / C ${gr["C"]}, ` +
+        `high-danger SV% ${formatPdfPct(d.hdSV)}, ` +
+        `even strength ${d.cats.even.shots} shots, penalty kill ${d.cats.outnumbered.shots}, power play ${d.cats.advantage.shots}` +
+        (topZones ? `, most shots from: ${topZones}` : "")
+      );
+
     });
 
   }
@@ -15471,6 +15623,121 @@ async function generateGameReportPDF(gameId, buttonEl, options = {}){
     });
 
     y += 10;
+
+  }
+
+  // Period Detail: shot map, xG, grades, strength, zones for each period
+  if(data.periodDetail && data.periodDetail.length){
+
+    const pd = data.periodDetail;
+    const signed = v => (v >= 0 ? "+" : "") + v.toFixed(2);
+
+    y = pdfSectionHeading(doc, y, "Shot Maps by Period");
+
+    const mapW = 238;
+    const mapH = 77 * mapW / 85;
+
+    for(let i = 0; i < pd.length; i += 2){
+
+      y = pdfEnsureSpace(doc, y, mapH + 52);
+
+      [pd[i], pd[i + 1]].forEach((d, col) => {
+
+        if(!d){ return; }
+
+        const ox = col === 0 ? 48 : 312;
+
+        doc.setFont("helvetica","bold");
+        doc.setFontSize(10);
+        doc.setTextColor(20,20,20);
+        doc.text(`${d.label} Period`, ox, y);
+
+        pdfDrawShotMap(doc, ox, y + 6, mapW, d.list);
+
+        doc.setFont("helvetica","normal");
+        doc.setFontSize(8.5);
+        doc.setTextColor(90,90,90);
+        doc.text(
+          `${d.shots} shots · ${d.goals} GA · SV% ${formatPdfPct(d.svPct)} · ${d.pinned} of ${d.shots} pinned`,
+          ox, y + 6 + mapH + 12
+        );
+
+      });
+
+      y += mapH + 34;
+
+    }
+
+    y = pdfEnsureSpace(doc, y, 14);
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(90,90,90);
+    doc.text("Green dot = save. Ringed dot = goal against. Only shots tagged on the rink map are plotted.", 48, y);
+    y += 20;
+
+    y = pdfSectionHeading(doc, y, "Expected Goals by Period");
+    y = pdfTableRow(doc, y, ["Period","Shots","GA","SV%","Exp SV%","xGA","GSAx"], [70,60,50,70,75,60,60], true);
+
+    pd.forEach(d => {
+      y = pdfTableRow(doc, y,
+        [d.label, d.shots, d.goals, formatPdfPct(d.svPct), formatPdfPct(d.expSV), d.xga.toFixed(2), signed(d.gsax)],
+        [70,60,50,70,75,60,60]
+      );
+    });
+
+    y += 10;
+
+    y = pdfSectionHeading(doc, y, "Shot Quality by Period");
+    y = pdfTableRow(doc, y, ["Period","A+","A","B","C","High-danger","HD SV%"], [70,50,50,50,50,90,80], true);
+
+    pd.forEach(d => {
+      y = pdfTableRow(doc, y,
+        [d.label, d.grades["A+"], d.grades["A"], d.grades["B"], d.grades["C"], d.hdShots, formatPdfPct(d.hdSV)],
+        [70,50,50,50,50,90,80]
+      );
+    });
+
+    y += 10;
+
+    y = pdfSectionHeading(doc, y, "Strength by Period");
+    y = pdfTableRow(doc, y, ["Period","Even strength","Penalty kill","Power play","Not tagged"], [70,120,120,120,70], true);
+
+    const strCell = c => c.shots ? `${c.shots} · ${formatPdfPct(c.sv)}` : "-";
+
+    pd.forEach(d => {
+      y = pdfTableRow(doc, y,
+        [d.label, strCell(d.cats.even), strCell(d.cats.outnumbered), strCell(d.cats.advantage), d.cats.untagged || "-"],
+        [70,120,120,120,70]
+      );
+    });
+
+    y += 10;
+
+    const zoneLabels = [...new Set(pd.flatMap(d => d.zones.map(z => z.label)))]
+      .sort((a, b) => {
+        const ra = SHOT_ZONE_ORDER.indexOf(a), rb = SHOT_ZONE_ORDER.indexOf(b);
+        return (ra === -1 ? 99 : ra) - (rb === -1 ? 99 : rb);
+      });
+
+    if(zoneLabels.length){
+
+      y = pdfSectionHeading(doc, y, "Where Shots Came From, by Period (shots / GA)");
+      y = pdfTableRow(doc, y, ["Zone","1st","2nd","3rd","OT"], [160,80,80,80,80], true);
+
+      zoneLabels.forEach(label => {
+        y = pdfTableRow(doc, y,
+          [label].concat(PERIOD_DETAIL_KEYS.map(k => {
+            const d = pd.find(x => x.key === k);
+            const z = d && d.zones.find(zz => zz.label === label);
+            return z ? `${z.shots} / ${z.goals}` : "-";
+          })),
+          [160,80,80,80,80]
+        );
+      });
+
+      y += 10;
+
+    }
 
   }
 
@@ -16969,6 +17236,98 @@ function renderGameOverviewBreakdowns(game, m){
   // A single card shouldn't sit in half the row.
   a.className = "grid section-space " + (cardsA.length > 1 ? "grid-2" : "");
   b.className = "grid section-space " + (cardsB.length > 1 ? "grid-2" : "");
+
+  renderGameOverviewPeriodDetail(r);
+
+}
+
+// Shot map, expected goals, shot grades, strength and zones for each
+// period of one game.
+function renderGameOverviewPeriodDetail(r){
+
+  const host = document.getElementById("goPeriodDetail");
+
+  if(!host){ return; }
+
+  const pd = r.periodDetail || [];
+
+  if(!pd.length){
+    host.innerHTML = "";
+    return;
+  }
+
+  const signed = v => (v >= 0 ? "+" : "") + v.toFixed(2);
+  const pct = v => v === null || v === undefined ? "—" : v.toFixed(1) + "%";
+
+  const maps = pd.map(d => `
+    <div>
+      <h4 style="margin:0 0 8px">${escapeHtml(d.label)} Period</h4>
+      <div class="shotmap-wrap">${shotMapSvg("gopm" + d.key, shotMapDotsMarkup(d.list), false)}</div>
+      <div class="small-note">${d.shots} shots · ${d.goals} GA · SV% ${pct(d.svPct)} · ${d.pinned} of ${d.shots} pinned</div>
+    </div>
+  `).join("");
+
+  const strCell = c => c.shots ? `${c.shots} · ${pct(c.sv)}` : "—";
+
+  const zoneLabels = [...new Set(pd.flatMap(d => d.zones.map(z => z.label)))]
+    .sort((a, b) => {
+      const ra = SHOT_ZONE_ORDER.indexOf(a), rb = SHOT_ZONE_ORDER.indexOf(b);
+      return (ra === -1 ? 99 : ra) - (rb === -1 ? 99 : rb);
+    });
+
+  const zoneRows = zoneLabels.map(label => `
+    <tr>
+      <td>${escapeHtml(label)}</td>
+      ${PERIOD_DETAIL_KEYS.map(k => {
+        const d = pd.find(x => x.key === k);
+        const z = d && d.zones.find(zz => zz.label === label);
+        return `<td>${z ? `${z.shots} (${z.goals})` : "—"}</td>`;
+      }).join("")}
+    </tr>
+  `);
+
+  host.innerHTML = `
+    <div class="card section-space">
+      <h3>Shot Maps by Period</h3>
+      <p class="chart-caption">Where shots came from in each period, as seen from your net. Dashed ring = goal against.</p>
+      <div class="grid grid-2">${maps}</div>
+      <div class="shotmap-legend"><span class="lg-save">Save</span><span class="lg-goal">Goal</span></div>
+    </div>
+
+    <div class="grid grid-2 section-space">
+      <div class="card">
+        <h3>Expected Goals by Period</h3>
+        ${goRowsTable(
+          ["Period","Shots","GA","SV%","Exp SV%","xGA","GSAx"],
+          pd.map(d => `<tr><td>${escapeHtml(d.label)}</td><td>${d.shots}</td><td>${d.goals}</td>${goSvCell(d.svPct)}<td>${pct(d.expSV)}</td><td>${d.xga.toFixed(2)}</td><td>${signed(d.gsax)}</td></tr>`)
+        )}
+      </div>
+
+      <div class="card">
+        <h3>Shot Quality by Period</h3>
+        ${goRowsTable(
+          ["Period","A+","A","B","C","High-danger SV%"],
+          pd.map(d => `<tr><td>${escapeHtml(d.label)}</td><td>${d.grades["A+"]}</td><td>${d.grades["A"]}</td><td>${d.grades["B"]}</td><td>${d.grades["C"]}</td><td>${d.hdShots ? `${pct(d.hdSV)} (${d.hdShots})` : "—"}</td></tr>`)
+        )}
+      </div>
+    </div>
+
+    <div class="grid grid-2 section-space">
+      <div class="card">
+        <h3>Strength by Period</h3>
+        ${goRowsTable(
+          ["Period","Even strength","Penalty kill","Power play"],
+          pd.map(d => `<tr><td>${escapeHtml(d.label)}</td><td>${strCell(d.cats.even)}</td><td>${strCell(d.cats.outnumbered)}</td><td>${strCell(d.cats.advantage)}</td></tr>`)
+        )}
+      </div>
+
+      <div class="card">
+        <h3>Where Shots Came From, by Period</h3>
+        ${goRowsTable(["Zone","1st","2nd","3rd","OT"], zoneRows)}
+        <div class="small-note">Shots (goals against). Shots without a map pin are split between left and right.</div>
+      </div>
+    </div>
+  `;
 
 }
 
