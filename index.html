@@ -24984,13 +24984,16 @@ function playReviewAction(start){
 const REVIEW_MOMENT_GAP = 8;     // seconds between flags in one moment
 const REVIEW_MOMENT_MAX = 40;    // a longer run of flags is split
 const REVIEW_MOMENT_PAD = 3;     // seconds played before and after
+const REVIEW_MOMENT_MAX_FLAG = 15;  // longest stretch one flag can cover
 
 // Flags ({ t, confidence, goal }) grouped into moments.
 // A flag may carry its own stretch (s to e); a single still is just t.
 function groupReviewFlags(flags){
   const out = [];
   const from = f => Number.isFinite(f.s) ? Math.min(f.s, f.t) : f.t;
-  const to = f => Number.isFinite(f.e) ? Math.max(f.e, f.t) : f.t;
+  // A shot is seconds long: cap a flag's stretch so a long one can't
+  // turn into a minutes-long moment.
+  const to = f => Number.isFinite(f.e) ? Math.min(Math.max(f.e, f.t), from(f) + REVIEW_MOMENT_MAX_FLAG) : f.t;
   flags.slice().sort((a, b) => from(a) - from(b)).forEach(f => {
     const m = out[out.length - 1];
     if(m && from(f) - m.end <= REVIEW_MOMENT_GAP && to(f) - m.start <= REVIEW_MOMENT_MAX){

@@ -200,6 +200,11 @@ function clean(text, max) {
   return String(text || "").replace(/[^\w #/-]/g, "").replace(/\s+/g, " ").trim().slice(0, max);
 }
 
+// Twelve Labs' segments are stretches of video (like scenes); single
+// moments inside them are "events" in a time_array field, each with its
+// own start and end. So the segments here are stretches of play, and each
+// shot is an event inside one. (Defining each shot as a segment made it
+// split the game into a few long stretches and call each one a shot.)
 function shotDefinition(jersey, side) {
   const who = jersey
     ? `The tracked goalie's team wears ${jersey}.`
@@ -208,20 +213,59 @@ function shotDefinition(jersey, side) {
     ? ` In this part of the game the tracked goalie's net is on the ${side.toUpperCase()} side of the picture.`
     : "";
   return {
-    id: "shots",
+    id: "play",
     description:
-      `A shot on goal against the tracked goalie in an ice hockey game. ${who}${net} ` +
-      "One segment per shot attempt: an opposing player shoots the puck at the tracked goalie's net " +
-      "(wrist, slap, snap, backhand, tip, deflection, one-timer, wraparound or rebound), starting a couple of " +
-      "seconds before the release and ending when the goalie saves it, the puck goes in, or play moves on. " +
-      "A rebound shot right after another shot is its own segment. Do not include shots on the other goalie, " +
-      "passes, dump-ins, carries, board battles, faceoffs, line changes, stoppages, celebrations or replays.",
+      `Stretches of ice hockey game play, split wherever play stops (a whistle or faceoff). ${who}${net} ` +
+      "The stretches only organise the shots listed in each one.",
     fields: [
-      { name: "shot_time", type: "timestamp", format: "seconds", description: "The moment the puck leaves the shooter's stick." },
-      { name: "outcome", type: "string", enum: ["save", "goal", "missed_net", "unclear"], description: "save if the goalie stops it, goal only if the puck goes into the tracked goalie's net, missed_net if it misses the net or is blocked before reaching it, unclear if you can't tell." },
-      { name: "confidence", type: "string", enum: ["high", "medium", "low"], description: "How sure you are that this is a shot on the tracked goalie's net." },
+      {
+        name: "shots",
+        type: "time_array",
+        description:
+          "Every shot on goal against the tracked goalie in this stretch: one event per shot attempt " +
+          "(wrist, slap, snap, backhand, tip, deflection, one-timer, wraparound or rebound). Each event starts " +
+          "when the puck leaves the shooter's stick and ends when the goalie saves it, the puck goes in, or play " +
+          "moves on, usually a few seconds later. A rebound shot is its own event. Leave out shots on the other " +
+          "goalie, passes, dump-ins, carries, faceoffs, line changes, stoppages and celebrations. If there are no " +
+          "shots on the tracked goalie in this stretch, return an empty list.",
+        items: {
+          type: "object",
+          fields: [
+            { name: "outcome", type: "string", enum: ["save", "goal", "missed_net", "unclear"], description: "save if the goalie stops it, goal only if the puck goes into the tracked goalie's net, missed_net if it misses the net or is blocked before reaching it, unclear if you can't tell." },
+            { name: "confidence", type: "string", enum: ["high", "medium", "low"], description: "How sure you are that this is a shot on the tracked goalie's net." },
+          ],
+        },
+      },
     ],
   };
+}
+
+// Shots from a finished task, in the review player's time. Reads the
+// events inside each stretch of play; also reads tasks sent before that
+// change, where each segment was a shot.
+function shotsFromResult(data, offset) {
+  const pick = (outcome, confidence) => ({
+    outcome: ["save", "goal", "missed_net", "unclear"].includes(outcome) ? outcome : "unclear",
+    confidence: ["high", "medium", "low"].includes(confidence) ? confidence : "low",
+  });
+  const out = [];
+  (Array.isArray(data.play) ? data.play : []).forEach(seg => {
+    const events = seg && seg.metadata && Array.isArray(seg.metadata.shots) ? seg.metadata.shots : [];
+    events.forEach(e => {
+      const a = Number(e.start_time) - offset;
+      const b = Number(e.end_time) - offset;
+      out.push({ start: a, end: b, t: a, ...pick(e.outcome, e.confidence) });
+    });
+  });
+  (Array.isArray(data.shots) ? data.shots : []).forEach(s => {
+    const m = (s && s.metadata) || {};
+    const a = Number(s.start_time) - offset;
+    const shot = Number(m.shot_time);
+    out.push({ start: a, end: Number(s.end_time) - offset, t: Number.isFinite(shot) ? shot - offset : a, ...pick(m.outcome, m.confidence) });
+  });
+  return out
+    .filter(x => Number.isFinite(x.start) && Number.isFinite(x.end) && x.end >= x.start)
+    .map(x => ({ ...x, start: Math.round(x.start * 10) / 10, end: Math.round(x.end * 10) / 10, t: Math.round(x.t * 10) / 10 }));
 }
 
 async function checkAdmin(accessToken) {
@@ -335,19 +379,7 @@ async function status(req, res, caller) {
 
     let data = {};
     try { data = JSON.parse((task.result && task.result.data) || "{}"); } catch (e) { data = {}; }
-    const segments = (Array.isArray(data.shots) ? data.shots : []).map(s => {
-      const m = (s && s.metadata) || {};
-      const a = Number(s.start_time) - offset;
-      const b = Number(s.end_time) - offset;
-      const shot = Number(m.shot_time);
-      return {
-        start: Math.round(a * 10) / 10,
-        end: Math.round(b * 10) / 10,
-        t: Math.round((Number.isFinite(shot) ? shot - offset : a) * 10) / 10,
-        outcome: ["save", "goal", "missed_net", "unclear"].includes(m.outcome) ? m.outcome : "unclear",
-        confidence: ["high", "medium", "low"].includes(m.confidence) ? m.confidence : "low",
-      };
-    }).filter(s => Number.isFinite(s.start) && Number.isFinite(s.end) && s.end >= s.start);
+    const segments = shotsFromResult(data, offset);
 
     // Billed on the task's window; logged once per task.
     const hours = Math.max(0, (Number(t.end) - Number(t.start)) / 3600);
