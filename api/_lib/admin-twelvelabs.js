@@ -14,9 +14,21 @@
 //     period marks), so warm-up and intermissions aren't analysed or
 //     billed: Twelve Labs bills the start_time-end_time window of each
 //     task. Replies { tasks: [{ id, start, end, offset }] }.
+//     With assetId (from the upload below), the task reads that uploaded
+//     file; otherwise a 24-hour signed link to the file in R2.
 //   op "status": { tasks: [{ id, start, end, offset }] }
 //     Replies { tasks: [{ id, status, segments?, error?, usd? }] }, with
 //     segment times in the review player's time (seconds from 0).
+//
+// Twelve Labs fetches files from a link only up to 4 GB. Bigger files (up
+// to 10 GB) are sent in pieces through its multipart upload, straight
+// from R2, a few pieces per call so each call stays inside the function
+// time limit; the browser keeps calling until it's done:
+//   op "prepare": { gameVideoId } -> { mode: "url" } for 4 GB or less, or
+//     { mode: "multipart", uploadId, assetId, chunkSize, totalChunks, headers }
+//   op "upload":  { gameVideoId, uploadId, chunkSize, totalChunks, headers, from }
+//     -> { next, done } (pieces from..next-1 sent and reported)
+//   op "asset":   { assetId } -> { status: processing | ready | failed, error? }
 //
 // Vercel environment variable: TWELVELABS_API_KEY (from the Twelve Labs
 // dashboard's API Keys page).
@@ -33,10 +45,111 @@ import { logAiUsage, NO_TOKENS } from "./ai-cost.js";
 const API = "https://api.twelvelabs.io/v1.3";
 const MODEL = "pegasus1.6";
 const USD_PER_HOUR = 1.75;              // Analyze API, per hour of video, per segment definition
-const MAX_FILE_BYTES = 10 * 1024 ** 3;  // Pegasus 1.6 limit
+const MAX_FILE_BYTES = 10 * 1024 ** 3;  // Pegasus 1.6 / multipart upload limit
+const MAX_URL_BYTES = 4 * 1024 ** 3;    // what Twelve Labs fetches from a link
+const UPLOAD_BUDGET_MS = 38 * 1000;     // per call, inside the 60 s limit
 const MAX_WINDOW = 2 * 3600;            // per task
 const MAX_VIDEO = 4 * 3600;             // when analysing part of a video
 const TASK_ID_RE = /^[A-Za-z0-9_-]{6,80}$/;
+const BIG_FILE_HELP = "Make a smaller copy (for example QuickTime: File > Export As > 1080p, or HandBrake's Fast 1080p30) and upload that with Add a video.";
+
+async function loadVideo(gameVideoId) {
+  const rows = await serviceSelect("game_videos", `select=*&id=eq.${encodeURIComponent(gameVideoId)}`);
+  const video = rows[0];
+  if (!video || !(await storagePathIsTrusted(video))) return null;
+  return video;
+}
+
+async function objectSize(key) {
+  const head = await r2Client().send(new HeadObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: key }));
+  return Number(head.ContentLength) || 0;
+}
+
+async function prepare(req, res) {
+  if (!r2Configured()) { res.status(501).json({ error: "Video storage isn't configured on the server." }); return; }
+  const video = await loadVideo((req.body || {}).gameVideoId);
+  if (!video) { res.status(404).json({ error: "Video not found." }); return; }
+  const size = await objectSize(video.storage_path);
+  if (size > MAX_FILE_BYTES) {
+    res.status(400).json({ error: `This video file is ${(size / 1024 ** 3).toFixed(1)} GB; Twelve Labs takes up to 10 GB. ${BIG_FILE_HELP}` });
+    return;
+  }
+  if (size <= MAX_URL_BYTES) { res.status(200).json({ mode: "url", size }); return; }
+  const made = await tl("POST", "/assets/multipart-uploads", {
+    filename: String(video.storage_path).split("/").pop().slice(0, 200) || "game.mp4",
+    type: "video",
+    total_size: size,
+  });
+  res.status(200).json({
+    mode: "multipart", size,
+    uploadId: made.upload_id, assetId: made.asset_id,
+    chunkSize: made.chunk_size, totalChunks: made.total_chunks,
+    headers: made.upload_headers || {},
+  });
+}
+
+// Sends pieces from..., as many as fit in the time budget, then reports
+// them. Pieces are numbered from 1; piece i is bytes (i-1)*chunkSize up to
+// i*chunkSize-1 (the last may be shorter).
+async function upload(req, res) {
+  const { gameVideoId, uploadId, headers } = req.body || {};
+  const chunkSize = Number(req.body && req.body.chunkSize);
+  const totalChunks = Number(req.body && req.body.totalChunks);
+  let next = Number(req.body && req.body.from) || 1;
+  if (!TASK_ID_RE.test(String(uploadId || "")) || !Number.isInteger(chunkSize) || chunkSize <= 0 ||
+      !Number.isInteger(totalChunks) || totalChunks <= 0 || totalChunks > 100000 || next < 1) {
+    res.status(400).json({ error: "That upload isn't valid. Press Run AI to start again." });
+    return;
+  }
+  const video = await loadVideo(gameVideoId);
+  if (!video) { res.status(404).json({ error: "Video not found." }); return; }
+  const size = await objectSize(video.storage_path);
+  if (Math.ceil(size / chunkSize) !== totalChunks) {
+    res.status(409).json({ error: "The video file changed since the upload started. Press Run AI to start again." });
+    return;
+  }
+  const extra = headers && typeof headers === "object" ? Object.fromEntries(Object.entries(headers).filter(([k, v]) => /^[A-Za-z0-9-]{1,64}$/.test(k) && typeof v === "string")) : {};
+  const parallel = chunkSize <= 32 * 1024 ** 2 ? 6 : chunkSize <= 128 * 1024 ** 2 ? 3 : 1;
+  const started = Date.now();
+  const sent = [];
+
+  while (next <= totalChunks && Date.now() - started < UPLOAD_BUDGET_MS) {
+    const count = Math.min(parallel, totalChunks - next + 1);
+    const got = await tl("POST", `/assets/multipart-uploads/${encodeURIComponent(uploadId)}/presigned-urls`, { start: next, count });
+    const urls = (got && got.upload_urls) || [];
+    if (!urls.length) throw new Error("Twelve Labs didn't return upload links for the next pieces.");
+    await Promise.all(urls.map(async u => {
+      const i = Number(u.chunk_index);
+      const a = (i - 1) * chunkSize;
+      const b = Math.min(size, i * chunkSize) - 1;
+      const obj = await r2Client().send(new GetObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: video.storage_path, Range: `bytes=${a}-${b}` }));
+      const body = Buffer.from(await obj.Body.transformToByteArray());
+      const put = await fetch(u.url, { method: "PUT", body, headers: extra });
+      if (!put.ok) throw new Error(`Twelve Labs refused piece ${i} of the video (HTTP ${put.status}).`);
+      const etag = put.headers.get("etag");
+      if (!etag) throw new Error(`Twelve Labs didn't confirm piece ${i} of the video.`);
+      sent.push({ chunk_index: i, proof: etag, proof_type: "etag", chunk_size: body.length });
+    }));
+    next = Math.max(...urls.map(u => Number(u.chunk_index))) + 1;
+  }
+
+  if (sent.length) {
+    await tl("POST", `/assets/multipart-uploads/${encodeURIComponent(uploadId)}`, { completed_chunks: sent.sort((x, y) => x.chunk_index - y.chunk_index) });
+  }
+  res.status(200).json({ next, done: next > totalChunks });
+}
+
+async function assetStatus(req, res) {
+  const assetId = String((req.body || {}).assetId || "");
+  if (!TASK_ID_RE.test(assetId)) { res.status(400).json({ error: "Unknown upload." }); return; }
+  try {
+    const a = await tl("GET", `/assets/${encodeURIComponent(assetId)}`);
+    res.status(200).json({ status: a.status || "processing", error: a.error ? (a.error.message || String(a.error)) : undefined });
+  } catch (error) {
+    if (error.status === 404) { res.status(200).json({ status: "missing" }); return; }
+    throw error;
+  }
+}
 
 function apiKey() {
   return String(process.env.TWELVELABS_API_KEY || "").trim();
@@ -120,7 +233,7 @@ async function checkAdmin(accessToken) {
 }
 
 async function start(req, res, caller) {
-  const { gameVideoId, ranges, jersey } = req.body || {};
+  const { gameVideoId, ranges, jersey, assetId } = req.body || {};
   if (!Array.isArray(ranges) || !ranges.length || ranges.length > 20) {
     res.status(400).json({ error: "Nothing to analyse: the whole video is cut." });
     return;
@@ -137,11 +250,13 @@ async function start(req, res, caller) {
     return;
   }
 
-  const head = await r2Client().send(new HeadObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: video.storage_path }));
-  const size = Number(head.ContentLength) || 0;
-  if (size > MAX_FILE_BYTES) {
-    res.status(400).json({ error: `This video file is ${(size / 1024 ** 3).toFixed(1)} GB; Twelve Labs takes up to 10 GB. Upload a smaller copy (for example exported at 1080p) with Add a video.` });
-    return;
+  const useAsset = TASK_ID_RE.test(String(assetId || ""));
+  if (!useAsset) {
+    const size = await objectSize(video.storage_path);
+    if (size > MAX_URL_BYTES) {
+      res.status(400).json({ error: `This video file is ${(size / 1024 ** 3).toFixed(1)} GB, over the 4 GB Twelve Labs fetches from a link; it has to be uploaded to Twelve Labs first. Press Run AI again to do that.` });
+      return;
+    }
   }
 
   // Long enough for Twelve Labs to fetch the file even if tasks queue.
@@ -176,7 +291,7 @@ async function start(req, res, caller) {
     const made = await tl("POST", "/analyze/tasks", {
       model_name: MODEL,
       custom_id: `giq-${video.id}-${Date.now()}-${i}`,
-      video: { type: "url", url },
+      video: useAsset ? { type: "asset_id", asset_id: String(assetId) } : { type: "url", url },
       analysis_mode: "time_based_metadata",
       start_time: Math.round((w.start + offset) * 100) / 100,
       end_time: Math.round((w.end + offset) * 100) / 100,
@@ -265,6 +380,9 @@ export default async function handler(req, res) {
     const op = (req.body || {}).op;
     if (op === "start") { await start(req, res, auth.caller); return; }
     if (op === "status") { await status(req, res, auth.caller); return; }
+    if (op === "prepare") { await prepare(req, res); return; }
+    if (op === "upload") { await upload(req, res); return; }
+    if (op === "asset") { await assetStatus(req, res); return; }
     res.status(400).json({ error: "Unknown operation." });
   } catch (error) {
     console.error(error);

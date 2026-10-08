@@ -25274,6 +25274,74 @@ async function twelveLabsApi(body){
   return data;
 }
 
+function setReviewTlProgress(text, pct){
+  if(!review.video){ return; }
+  document.getElementById("rv-scanbar").hidden = false;
+  document.getElementById("rv-scanbar-fill").style.width = `${Math.max(0, Math.min(100, pct))}%`;
+  document.getElementById("rv-scan-text").textContent = text;
+}
+
+// Twelve Labs fetches files from a link only up to 4 GB. Bigger files (up
+// to 10 GB) are uploaded to it in pieces first, straight from storage;
+// progress is saved (period_marks._tl_upload), so closing the tab and
+// pressing Run AI again carries on. The upload is kept
+// (period_marks._tl_asset) and reused for later runs on the same video.
+// Returns the uploaded file's id, or null to use a link.
+async function ensureReviewTlAsset(v){
+
+  const saved = (v.period_marks || {})._tl_asset;
+  if(saved && saved.id){
+    const a = await twelveLabsApi({ op: "asset", assetId: saved.id });
+    if(a.status === "ready"){ return saved.id; }
+    if(a.status === "processing"){ return waitReviewTlAsset(v, saved.id); }
+  }
+
+  let up = (v.period_marks || {})._tl_upload;
+  const fresh = up && up.uploadId && Date.now() - Date.parse(up.started_at) < 20 * 3600 * 1000;
+  if(!fresh){
+    setReviewTlProgress("Getting the video ready for Twelve Labs…", 0);
+    const prep = await twelveLabsApi({ op: "prepare", gameVideoId: v.id });
+    if(prep.mode === "url"){ return null; }
+    up = { uploadId: prep.uploadId, assetId: prep.assetId, chunkSize: prep.chunkSize, totalChunks: prep.totalChunks, headers: prep.headers || {}, size: prep.size, next: 1, started_at: new Date().toISOString() };
+    v.period_marks = { ...(v.period_marks || {}), _tl_upload: up };
+    await saveReviewMarks(v);
+  }
+
+  while(up.next <= up.totalChunks){
+    const pct = Math.round((up.next - 1) / up.totalChunks * 100);
+    setReviewTlProgress(`Sending the video to Twelve Labs (${(up.size / 1024 ** 3).toFixed(1)} GB, more than it can fetch from a link): ${pct}%. Keep this tab open; if it closes, press Run AI to carry on.`, pct);
+    const r = await twelveLabsApi({ op: "upload", gameVideoId: v.id, uploadId: up.uploadId, chunkSize: up.chunkSize, totalChunks: up.totalChunks, headers: up.headers, from: up.next });
+    up = { ...up, next: r.next };
+    v.period_marks = { ...(v.period_marks || {}), _tl_upload: up };
+    await saveReviewMarks(v);
+    if(!review.video || review.video.id !== v.id){
+      throw new Error("Sending to Twelve Labs paused because the request was closed. Open it and press Run AI to carry on.");
+    }
+  }
+
+  const { _tl_upload, ...rest } = v.period_marks;
+  v.period_marks = { ...rest, _tl_asset: { id: up.assetId, at: new Date().toISOString() } };
+  await saveReviewMarks(v);
+  return waitReviewTlAsset(v, up.assetId);
+
+}
+
+async function waitReviewTlAsset(v, assetId){
+  for(let i = 0; i < 120; i++){
+    const a = await twelveLabsApi({ op: "asset", assetId });
+    if(a.status === "ready"){ return assetId; }
+    if(a.status === "failed" || a.status === "missing"){
+      const { _tl_asset, ...rest } = v.period_marks || {};
+      v.period_marks = rest;
+      await saveReviewMarks(v);
+      throw new Error(`Twelve Labs couldn't read the video file${a.error ? `: ${a.error}` : ""}. Press Run AI to send it again.`);
+    }
+    setReviewTlProgress("Twelve Labs is checking the video file. This usually takes a minute or two.", 100);
+    await new Promise(r => setTimeout(r, 5000));
+  }
+  throw new Error("Twelve Labs is still checking the video file. Press Run AI again in a few minutes.");
+}
+
 async function runReviewTwelveLabs(){
 
   const v = review.video;
@@ -25298,9 +25366,12 @@ async function runReviewTwelveLabs(){
   document.getElementById("rv-scan-text").textContent = "Sending the game to Twelve Labs…";
 
   try{
+    const assetId = await ensureReviewTlAsset(v);
+    setReviewTlProgress("Sending the game to Twelve Labs…", 100);
     const data = await twelveLabsApi({
       op: "start",
       gameVideoId: v.id,
+      assetId: assetId || undefined,
       jersey: v.team_jersey_color || "",
       ranges: parts.map(([start, end]) => ({ start, end, side: reviewNetSideAt((start + end) / 2) }))
     });
