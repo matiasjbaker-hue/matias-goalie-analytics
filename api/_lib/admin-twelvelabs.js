@@ -267,18 +267,33 @@ async function copyPieceToR2(srcUrl, start, end, key) {
   const r2 = r2Client();
   const Bucket = process.env.R2_BUCKET_NAME;
   const { UploadId } = await r2.send(new CreateMultipartUploadCommand({ Bucket, Key: key, ContentType: "video/mp2t" }));
+  // R2 requires every part except the last to be exactly the same size,
+  // so the stream is cut into PIECE_PART_BYTES parts and only the final
+  // part may be shorter.
   const parts = [];
   let chunks = [];
   let pending = 0;
   let total = 0;
-  const flush = async () => {
-    if (!pending) return;
-    const Body = Buffer.concat(chunks, pending);
-    chunks = [];
-    pending = 0;
+  const sendPart = async Body => {
     const PartNumber = parts.length + 1;
     const r = await r2.send(new UploadPartCommand({ Bucket, Key: key, UploadId, PartNumber, Body }));
     parts.push({ ETag: r.ETag, PartNumber });
+  };
+  const flushFull = async () => {
+    if (pending < PIECE_PART_BYTES) return;
+    const all = Buffer.concat(chunks, pending);
+    let off = 0;
+    while (all.length - off >= PIECE_PART_BYTES) {
+      await sendPart(all.subarray(off, off + PIECE_PART_BYTES));
+      off += PIECE_PART_BYTES;
+    }
+    chunks = off < all.length ? [all.subarray(off)] : [];
+    pending = all.length - off;
+  };
+  const flushLast = async () => {
+    if (pending || !parts.length) await sendPart(Buffer.concat(chunks, pending));
+    chunks = [];
+    pending = 0;
   };
 
   const args = [
@@ -299,13 +314,13 @@ async function copyPieceToR2(srcUrl, start, end, key) {
       chunks.push(c);
       pending += c.length;
       total += c.length;
-      if (pending >= PIECE_PART_BYTES) await flush();
+      if (pending >= PIECE_PART_BYTES) await flushFull();
     }
     const code = await exited;
     clearTimeout(timer);
     if (timedOut) { const e = new Error("Copying that part took too long."); e.status = 504; e.code = "cut_timeout"; throw e; }
     if (code !== 0 || !total) throw new Error(`Couldn't copy that part of the video: ${stderr.trim().slice(0, 200) || `exit ${code}`}`);
-    await flush();
+    await flushLast();
     await r2.send(new CompleteMultipartUploadCommand({ Bucket, Key: key, UploadId, MultipartUpload: { Parts: parts } }));
     return total;
   } catch (error) {
