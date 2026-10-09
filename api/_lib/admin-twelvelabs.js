@@ -428,31 +428,50 @@ function shotDefinition(jersey, side) {
   };
 }
 
-// Keeps the shots on goal against the tracked goalie. side is the net
-// side the admin set for this part of the game, or null.
+// Which shots to keep. side is the net side the admin set for this part
+// of the game, or null. A missed shot costs the admin more than a moment
+// to skip, and Twelve Labs' net and goalie labels are often wrong, so it
+// leans towards keeping: a shot is only left out at the other net when
+// its labels point there more than at the tracked goalie.
+//   "keep"      shot on goal, labels on the tracked goalie (none against)
+//   "maybe"     kept as a low-confidence moment: the labels disagree or
+//               can't tell, or a missed/blocked shot both labels put on
+//               the tracked net (often a save it misjudged)
+//   "other_net" / "not_shot"  left out
 function onTrackedNet(e, side) {
-  if (e.event !== "shot_on_goal") return "not_shot";
-  if (e.goalie === "other") return "other_net";
-  if (side && e.net !== "unclear" && e.net !== side) return "other_net";
-  if (!side && e.goalie !== "tracked") return "other_net";
-  return "keep";
+  if (e.event === "not_a_shot") return "not_shot";
+  const net = side && (e.net === "left" || e.net === "right") ? (e.net === side ? "tracked" : "other") : "unclear";
+  const goalie = e.goalie === "tracked" || e.goalie === "other" ? e.goalie : "unclear";
+  const tracked = (net === "tracked" ? 1 : 0) + (goalie === "tracked" ? 1 : 0);
+  const other = (net === "other" ? 1 : 0) + (goalie === "other" ? 1 : 0);
+  if (other > tracked) return "other_net";
+  if (e.event === "missed_or_blocked") return tracked === 2 ? "maybe" : "not_shot";
+  return tracked >= 1 && other === 0 ? "keep" : "maybe";
 }
 
 // Shots from a finished task, in the review player's time, plus what was
-// left out. Also reads tasks sent before the labels existed.
+// left out, plus every labelled event (raw) so the filter can be tuned
+// against the shots the admin marks without paying for another run.
+// Also reads tasks sent before the labels existed.
 function shotsFromResult(data, offset, side) {
   const level = c => (["high", "medium", "low"].includes(c) ? c : "low");
+  const label = x => (typeof x === "string" ? x.slice(0, 24) : null);
+  const r1 = x => Math.round(x * 10) / 10;
   const out = [];
+  const raw = [];
   const left = { other_net: 0, not_shot: 0 };
   (Array.isArray(data.play) ? data.play : []).forEach(seg => {
     const events = seg && seg.metadata && Array.isArray(seg.metadata.shots) ? seg.metadata.shots : [];
     events.forEach(e => {
       const labelled = "event" in e || "net" in e || "goalie" in e;
       const verdict = labelled ? onTrackedNet(e, side) : "keep";
-      if (verdict !== "keep") { left[verdict]++; return; }
       const a = Number(e.start_time) - offset;
       const b = Number(e.end_time) - offset;
-      out.push({ start: a, end: b, t: a, outcome: ["save", "goal"].includes(e.outcome) ? e.outcome : "unclear", confidence: level(e.confidence) });
+      if (Number.isFinite(a) && Number.isFinite(b)) {
+        raw.push({ s: r1(a), e: r1(b), ev: label(e.event), net: label(e.net), gk: label(e.goalie), out: label(e.outcome), c: label(e.confidence), side, v: verdict });
+      }
+      if (verdict === "other_net" || verdict === "not_shot") { left[verdict]++; return; }
+      out.push({ start: a, end: b, t: a, outcome: ["save", "goal"].includes(e.outcome) ? e.outcome : "unclear", confidence: verdict === "maybe" ? "low" : level(e.confidence) });
     });
   });
   (Array.isArray(data.shots) ? data.shots : []).forEach(s => {
@@ -464,7 +483,7 @@ function shotsFromResult(data, offset, side) {
   const shots = out
     .filter(x => Number.isFinite(x.start) && Number.isFinite(x.end) && x.end >= x.start)
     .map(x => ({ ...x, start: Math.round(x.start * 10) / 10, end: Math.round(x.end * 10) / 10, t: Math.round(x.t * 10) / 10 }));
-  return { shots, left };
+  return { shots, left, raw };
 }
 
 async function checkAdmin(accessToken) {
@@ -632,7 +651,7 @@ async function checkTask(t, video, caller, gameVideoId) {
   let data = {};
   try { data = JSON.parse((task.result && task.result.data) || "{}"); } catch (e) { data = {}; }
   const side = t.side === "left" || t.side === "right" ? t.side : null;
-  const { shots: segments, left } = shotsFromResult(data, pieceTimeBase(t, data, offset), side);
+  const { shots: segments, left, raw } = shotsFromResult(data, pieceTimeBase(t, data, offset), side);
   if (t.key) await deletePieceFor(t.key, video);
 
   // Billed on the task's window; logged once per task. On the free plan
@@ -644,7 +663,7 @@ async function checkTask(t, video, caller, gameVideoId) {
     gameVideoId, requestedBy: caller.id, kind: "tl-segment", model: `twelvelabs-${MODEL}`,
     batchId: `tl:${id}`, tokens: NO_TOKENS, usd,
   });
-  return { id, status: "ready", segments, usd, minutes: Math.ceil(hours * 60), leftOut: left };
+  return { id, status: "ready", segments, usd, minutes: Math.ceil(hours * 60), leftOut: left, events: raw };
 }
 
 // A long game is dozens of tasks; checking them one after another can run

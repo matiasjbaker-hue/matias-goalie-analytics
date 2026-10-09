@@ -25272,7 +25272,7 @@ async function clearReviewAiResults(){
       }
     }
 
-    const { _action, _candidates, _batches, _untagged, _tl, ...rest } = marks;
+    const { _action, _candidates, _batches, _untagged, _tl, _tl_raw, ...rest } = marks;
     const { error } = await supabaseClient.from("game_videos")
       .update({ period_marks: rest, scan_cursor: 0, scan_progress: 0 }).eq("id", v.id);
     if(error){ throw error; }
@@ -25425,13 +25425,16 @@ async function waitReviewTlAsset(v, assetId){
 }
 
 // Only the kept parts go to Twelve Labs: the server copies each one out
-// of the stored video into small pieces (no re-encoding, original
-// timestamps), sized from the file's bitrate so each copy fits in one
-// request. A piece is never longer than its own start time (minus a
+// of the stored video into small pieces (no re-encoding), sized from the
+// file's bitrate so each copy fits in one request, and at most
+// REVIEW_TL_PIECE_SECONDS long: on 8-minute pieces Twelve Labs listed 0
+// shots in some and 14 in others, and missed many. A piece is never longer than its own start time (minus a
 // margin), so the server can tell from Twelve Labs' times whether they're
 // on the full video's clock or the piece's.
+const REVIEW_TL_PIECE_SECONDS = 180;
+
 function planReviewTlPieces(parts, bytesPerSec){
-  const P = Math.max(20, Math.min(1200, Math.floor(160e6 / (Number(bytesPerSec) || 1e6))));
+  const P = Math.max(20, Math.min(REVIEW_TL_PIECE_SECONDS, Math.floor(160e6 / (Number(bytesPerSec) || 1e6))));
   const out = [];
   parts.forEach(([a, b]) => {
     let s = a;
@@ -25551,7 +25554,8 @@ async function runReviewTwelveLabs(){
       });
       tasks = data.tasks;
     }
-    v.period_marks = { ...(v.period_marks || {}), _tl: { tasks, sent_at: new Date().toISOString() } };
+    // _tl_raw: every event Twelve Labs labels, kept or not (for tuning).
+    v.period_marks = { ...(v.period_marks || {}), _tl: { tasks, sent_at: new Date().toISOString() }, _tl_raw: [] };
     await saveReviewMarks(v);
     review.runCostStart = review.aiCost;
     review.runSplit = null;
@@ -25622,6 +25626,13 @@ async function collectReviewTwelveLabs(manual){
         errors.push(t.error || "The analysis failed.");
       }
     });
+
+    const raw = [];
+    (data.tasks || []).forEach(t => { if(t.status === "ready" && Array.isArray(t.events)){ raw.push(...t.events); } });
+    if(raw.length){
+      const prev = Array.isArray(v.period_marks._tl_raw) ? v.period_marks._tl_raw : [];
+      v.period_marks = { ...v.period_marks, _tl_raw: [...prev, ...raw].slice(-3000) };
+    }
 
     if(done.size){
       const left = tasks.filter(t => !done.has(t.id));
