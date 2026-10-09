@@ -37,7 +37,12 @@
 // task finishes.
 //   op "plan": { gameVideoId } -> { size, duration, offset, bytesPerSec, canCut }
 //   op "cut":  { gameVideoId, start, end } -> { key, bytes, pieceStart, pieceDuration }
-//   op "start" with pieces: [{ key, start, end, side, pieceStart, pieceDuration }]
+//   op "start" with pieces: [{ key, start, end, side, pieceStart, pieceDuration }], offset
+//     A long game is many pieces, and each one is a separate Twelve Labs
+//     task, so the page sends them a few at a time (each call has to finish
+//     inside the 60 s function limit) and the tasks inside a call are
+//     created several at once. offset (from op "plan") saves measuring the
+//     whole stored video again, which is slow.
 //
 // Vercel environment variables: TWELVELABS_API_KEY (from the Twelve Labs
 // dashboard's API Keys page), and TWELVELABS_PAID=1 once the account is on
@@ -67,6 +72,9 @@ const TASK_ID_RE = /^[A-Za-z0-9_-]{6,80}$/;
 const PIECE_MAX_SECONDS = 1800;
 const CUT_TIMEOUT_MS = 48 * 1000;
 const PIECE_PART_BYTES = 8 * 1024 ** 2;
+const START_PARALLEL = 4;               // Twelve Labs tasks created at once
+const STATUS_PARALLEL = 6;              // tasks checked at once
+const MAX_TASKS = 100;                  // pieces per game
 const BIG_FILE_HELP = "Make a smaller copy (for example QuickTime: File > Export As > 1080p, or HandBrake's Fast 1080p30) and upload that with Add a video.";
 
 async function loadVideo(gameVideoId) {
@@ -433,7 +441,7 @@ async function checkAdmin(accessToken) {
 async function start(req, res, caller) {
   const { gameVideoId, ranges, jersey, assetId, pieces } = req.body || {};
   const usePieces = Array.isArray(pieces) && pieces.length > 0;
-  if (usePieces && pieces.length > 200) {
+  if (usePieces && pieces.length > MAX_TASKS) {
     res.status(400).json({ error: "Too many parts to send at once." });
     return;
   }
@@ -464,7 +472,12 @@ async function start(req, res, caller) {
 
   // Long enough for Twelve Labs to fetch the file even if tasks queue.
   const url = await getSignedUrl(r2Client(), new GetObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: video.storage_path }), { expiresIn: 60 * 60 * 24 });
-  const { offset, duration } = await probe(url);
+  // When sending parts the page already has the video's start time from op
+  // "plan", so it isn't measured again (reading the whole stored video).
+  const given = usePieces ? Number(req.body.offset) : NaN;
+  const { offset, duration } = Number.isFinite(given) && given >= 0 && given < 86400
+    ? { offset: given, duration: null }
+    : await probe(url);
   if (duration && duration > MAX_VIDEO) {
     res.status(400).json({ error: "Twelve Labs can analyse videos up to 4 hours long, and this one is longer." });
     return;
@@ -473,25 +486,40 @@ async function start(req, res, caller) {
   const team = clean(jersey, 40);
 
   if (usePieces) {
-    const tasks = [];
-    for (let i = 0; i < pieces.length; i++) {
-      const p = pieces[i] || {};
-      if (!pieceKeyIsFor(video, p.key)) { res.status(400).json({ error: "A part of the video wasn't prepared for this request." }); return; }
-      const side = p.side === "left" || p.side === "right" ? p.side : null;
-      // The whole piece is analysed (it holds only the kept part), so
-      // there's no window to get wrong and only the piece counts.
-      const made = await tl("POST", "/analyze/tasks", {
-        model_name: MODEL,
-        custom_id: `giq-${video.id}-${Date.now()}-${i}`,
-        video: { type: "url", url: await signedGet(p.key, 60 * 60 * 24) },
-        analysis_mode: "time_based_metadata",
-        response_format: { type: "segment_definitions", segment_definitions: [shotDefinition(team, side)] },
-      });
-      tasks.push({
-        id: made.task_id || made._id, start: Number(p.start), end: Number(p.end), offset, side, key: p.key,
-        pieceStart: Number(p.pieceStart) || 0, pieceDuration: Number(p.pieceDuration) || 0,
-      });
+    // Check every part before creating anything, so a bad one can't leave
+    // earlier tasks running at Twelve Labs with nothing pointing at them.
+    for (const p of pieces) {
+      if (!pieceKeyIsFor(video, p && p.key)) { res.status(400).json({ error: "A part of the video wasn't prepared for this request." }); return; }
     }
+    const tasks = new Array(pieces.length);
+    let next = 0;
+    let failed = false;
+    const worker = async () => {
+      while (!failed && next < pieces.length) {
+        const i = next++;
+        const p = pieces[i];
+        const side = p.side === "left" || p.side === "right" ? p.side : null;
+        try {
+          // The whole piece is analysed (it holds only the kept part), so
+          // there's no window to get wrong and only the piece counts.
+          const made = await tl("POST", "/analyze/tasks", {
+            model_name: MODEL,
+            custom_id: `giq-${video.id}-${Date.now()}-${i}`,
+            video: { type: "url", url: await signedGet(p.key, 60 * 60 * 24) },
+            analysis_mode: "time_based_metadata",
+            response_format: { type: "segment_definitions", segment_definitions: [shotDefinition(team, side)] },
+          });
+          tasks[i] = {
+            id: made.task_id || made._id, start: Number(p.start), end: Number(p.end), offset, side, key: p.key,
+            pieceStart: Number(p.pieceStart) || 0, pieceDuration: Number(p.pieceDuration) || 0,
+          };
+        } catch (error) {
+          failed = true; // don't start more tasks once one has failed
+          throw error;
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(START_PARALLEL, pieces.length) }, worker));
     res.status(200).json({ tasks });
     return;
   }
@@ -550,56 +578,64 @@ function pieceTimeBase(t, data, offset) {
   return fromPieceStart ? offset - t.pieceStart : offset;
 }
 
-async function deletePieceFor(key, gameVideoId) {
-  const video = await loadVideo(gameVideoId);
+async function deletePieceFor(key, video) {
   if (video && pieceKeyIsFor(video, key)) await deletePiece(key);
 }
 
+// One task's state. Pieces of a finished task are deleted from R2.
+async function checkTask(t, video, caller, gameVideoId) {
+  const id = String(t && t.id || "");
+  if (!TASK_ID_RE.test(id)) return { id, status: "failed", error: "Unknown task." };
+  const offset = Number(t.offset) || 0;
+  let task;
+  try {
+    task = await tl("GET", `/analyze/tasks/${encodeURIComponent(id)}`);
+  } catch (error) {
+    return { id, status: error.status === 404 ? "failed" : "unknown", error: error.message };
+  }
+  if (task.status === "failed" || task.status === "canceled") {
+    if (t.key) await deletePieceFor(t.key, video);
+    return { id, status: "failed", error: (task.error && task.error.message) || `The analysis was ${task.status}.` };
+  }
+  if (task.status !== "ready") return { id, status: task.status || "processing" };
+
+  let data = {};
+  try { data = JSON.parse((task.result && task.result.data) || "{}"); } catch (e) { data = {}; }
+  const side = t.side === "left" || t.side === "right" ? t.side : null;
+  const { shots: segments, left } = shotsFromResult(data, pieceTimeBase(t, data, offset), side);
+  if (t.key) await deletePieceFor(t.key, video);
+
+  // Billed on the task's window; logged once per task. On the free plan
+  // it uses free minutes instead of money.
+  const hours = Math.max(0, (Number(t.end) - Number(t.start)) / 3600);
+  const paid = String(process.env.TWELVELABS_PAID || "") === "1";
+  const usd = paid ? Math.round(hours * USD_PER_HOUR * 10000) / 10000 : 0;
+  await logAiUsage({
+    gameVideoId, requestedBy: caller.id, kind: "tl-segment", model: `twelvelabs-${MODEL}`,
+    batchId: `tl:${id}`, tokens: NO_TOKENS, usd,
+  });
+  return { id, status: "ready", segments, usd, minutes: Math.ceil(hours * 60), leftOut: left };
+}
+
+// A long game is dozens of tasks; checking them one after another can run
+// past the 60 s function limit, so several are checked at once. Answers
+// stay in the order the tasks were sent.
 async function status(req, res, caller) {
   const { gameVideoId, tasks } = req.body || {};
-  if (!Array.isArray(tasks) || !tasks.length || tasks.length > 40) {
+  if (!Array.isArray(tasks) || !tasks.length || tasks.length > MAX_TASKS) {
     res.status(400).json({ error: "No Twelve Labs tasks to check." });
     return;
   }
-  const out = [];
-  for (const t of tasks) {
-    const id = String(t && t.id || "");
-    if (!TASK_ID_RE.test(id)) { out.push({ id, status: "failed", error: "Unknown task." }); continue; }
-    const offset = Number(t.offset) || 0;
-    let task;
-    try {
-      task = await tl("GET", `/analyze/tasks/${encodeURIComponent(id)}`);
-    } catch (error) {
-      out.push({ id, status: error.status === 404 ? "failed" : "unknown", error: error.message });
-      continue;
+  const video = tasks.some(t => t && t.key) ? await loadVideo(gameVideoId) : null;
+  const out = new Array(tasks.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < tasks.length) {
+      const i = next++;
+      out[i] = await checkTask(tasks[i], video, caller, gameVideoId);
     }
-    if (task.status === "failed" || task.status === "canceled") {
-      if (t.key) await deletePieceFor(t.key, gameVideoId);
-      out.push({ id, status: "failed", error: (task.error && task.error.message) || `The analysis was ${task.status}.` });
-      continue;
-    }
-    if (task.status !== "ready") {
-      out.push({ id, status: task.status || "processing" });
-      continue;
-    }
-
-    let data = {};
-    try { data = JSON.parse((task.result && task.result.data) || "{}"); } catch (e) { data = {}; }
-    const side = t.side === "left" || t.side === "right" ? t.side : null;
-    const { shots: segments, left } = shotsFromResult(data, pieceTimeBase(t, data, offset), side);
-    if (t.key) await deletePieceFor(t.key, gameVideoId);
-
-    // Billed on the task's window; logged once per task. On the free plan
-    // it uses free minutes instead of money.
-    const hours = Math.max(0, (Number(t.end) - Number(t.start)) / 3600);
-    const paid = String(process.env.TWELVELABS_PAID || "") === "1";
-    const usd = paid ? Math.round(hours * USD_PER_HOUR * 10000) / 10000 : 0;
-    await logAiUsage({
-      gameVideoId, requestedBy: caller.id, kind: "tl-segment", model: `twelvelabs-${MODEL}`,
-      batchId: `tl:${id}`, tokens: NO_TOKENS, usd,
-    });
-    out.push({ id, status: "ready", segments, usd, minutes: Math.ceil(hours * 60), leftOut: left });
-  }
+  };
+  await Promise.all(Array.from({ length: Math.min(STATUS_PARALLEL, tasks.length) }, worker));
   res.status(200).json({ tasks: out });
 }
 

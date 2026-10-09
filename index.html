@@ -25475,6 +25475,33 @@ async function cutReviewTlPieces(v, windows){
   return pieces;
 }
 
+// A long game is many pieces, and the server can only start a few Twelve
+// Labs tasks inside one request's time limit (60 s). So they go in small
+// groups; a group that times out or loses its connection is tried once
+// more. The tasks are saved only when every group is in.
+const REVIEW_TL_START_GROUP = 6;
+
+async function startReviewTlPieces(v, pieces, offset, jersey){
+  const tasks = [];
+  for(let i = 0; i < pieces.length; i += REVIEW_TL_START_GROUP){
+    const group = pieces.slice(i, i + REVIEW_TL_START_GROUP);
+    setReviewTlProgress(`Sending to Twelve Labs (${i} of ${pieces.length} parts). Keep this tab open.`, Math.round(i / pieces.length * 100));
+    const send = () => twelveLabsApi({ op: "start", gameVideoId: v.id, pieces: group, offset, jersey });
+    let data;
+    try{ data = await send(); }
+    catch(error){
+      if(error.status && ![502, 503, 504].includes(error.status)){ throw error; }
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      data = await send();
+    }
+    tasks.push(...data.tasks);
+    if(!review.video || review.video.id !== v.id){
+      throw new Error("Stopped because the request was closed. Open it and press Run AI to start again.");
+    }
+  }
+  return tasks;
+}
+
 async function runReviewTwelveLabs(){
 
   const v = review.video;
@@ -25510,19 +25537,25 @@ async function runReviewTwelveLabs(){
       assetId = await ensureReviewTlAsset(v);
     }
     setReviewTlProgress("Sending to Twelve Labs…", 100);
-    const data = await twelveLabsApi({
-      op: "start",
-      gameVideoId: v.id,
-      pieces: pieces || undefined,
-      assetId: assetId || undefined,
-      jersey: v.team_jersey_color || "",
-      ranges: parts.map(([start, end]) => ({ start, end, side: reviewNetSideAt((start + end) / 2) }))
-    });
-    v.period_marks = { ...(v.period_marks || {}), _tl: { tasks: data.tasks, sent_at: new Date().toISOString() } };
+    let tasks;
+    if(pieces){
+      tasks = await startReviewTlPieces(v, pieces, info.offset, v.team_jersey_color || "");
+    }
+    else{
+      const data = await twelveLabsApi({
+        op: "start",
+        gameVideoId: v.id,
+        assetId: assetId || undefined,
+        jersey: v.team_jersey_color || "",
+        ranges: parts.map(([start, end]) => ({ start, end, side: reviewNetSideAt((start + end) / 2) }))
+      });
+      tasks = data.tasks;
+    }
+    v.period_marks = { ...(v.period_marks || {}), _tl: { tasks, sent_at: new Date().toISOString() } };
     await saveReviewMarks(v);
     review.runCostStart = review.aiCost;
     review.runSplit = null;
-    showToast(`Sent to Twelve Labs (${data.tasks.length} part${data.tasks.length === 1 ? "" : "s"}). Results usually take a few minutes and are checked every 30 seconds while this request is open.`, "success");
+    showToast(`Sent to Twelve Labs (${tasks.length} part${tasks.length === 1 ? "" : "s"}). Results usually take a few minutes and are checked every 30 seconds while this request is open.`, "success");
   }
   catch(error){
     console.error(error);
