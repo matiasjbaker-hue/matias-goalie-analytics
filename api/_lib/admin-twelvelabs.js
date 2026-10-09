@@ -30,12 +30,24 @@
 //     -> { next, done } (pieces from..next-1 sent and reported)
 //   op "asset":   { assetId } -> { status: processing | ready | failed, error? }
 //
+// Only the kept parts are sent (the usual path): each kept part is copied
+// out of the stored video into small MPEG-TS pieces (stream copy, no
+// re-encoding, original timestamps kept), and only those pieces go to
+// Twelve Labs. Cut footage never leaves R2. Pieces are deleted when their
+// task finishes.
+//   op "plan": { gameVideoId } -> { size, duration, offset, bytesPerSec, canCut }
+//   op "cut":  { gameVideoId, start, end } -> { key, bytes, pieceStart, pieceDuration }
+//   op "start" with pieces: [{ key, start, end, side, pieceStart, pieceDuration }]
+//
 // Vercel environment variables: TWELVELABS_API_KEY (from the Twelve Labs
 // dashboard's API Keys page), and TWELVELABS_PAID=1 once the account is on
 // a paid plan. Until then runs use free minutes and are recorded at $0.
 
 import { spawn } from "child_process";
-import { GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
+import {
+  GetObjectCommand, HeadObjectCommand, DeleteObjectCommand,
+  CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import ffmpegPath from "ffmpeg-static";
 import { verifyUser, getProfile, serviceSelect } from "./billing.js";
@@ -52,6 +64,9 @@ const UPLOAD_BUDGET_MS = 38 * 1000;     // per call, inside the 60 s limit
 const MAX_WINDOW = 2 * 3600;            // per task
 const MAX_VIDEO = 4 * 3600;             // when analysing part of a video
 const TASK_ID_RE = /^[A-Za-z0-9_-]{6,80}$/;
+const PIECE_MAX_SECONDS = 1800;
+const CUT_TIMEOUT_MS = 48 * 1000;
+const PIECE_PART_BYTES = 8 * 1024 ** 2;
 const BIG_FILE_HELP = "Make a smaller copy (for example QuickTime: File > Export As > 1080p, or HandBrake's Fast 1080p30) and upload that with Add a video.";
 
 async function loadVideo(gameVideoId) {
@@ -140,6 +155,40 @@ async function upload(req, res) {
   res.status(200).json({ next, done: next > totalChunks });
 }
 
+async function plan(req, res) {
+  if (!r2Configured()) { res.status(501).json({ error: "Video storage isn't configured on the server." }); return; }
+  const video = await loadVideo((req.body || {}).gameVideoId);
+  if (!video) { res.status(404).json({ error: "Video not found." }); return; }
+  const size = await objectSize(video.storage_path);
+  const { offset, duration } = await probe(await signedGet(video.storage_path, 3600));
+  res.status(200).json({
+    size, duration, offset,
+    bytesPerSec: duration ? size / duration : null,
+    canCut: ffmpegAvailable() && !!duration,
+  });
+}
+
+async function cut(req, res) {
+  if (!ffmpegAvailable()) { res.status(501).json({ error: "This server can't copy video parts.", code: "cut_unavailable" }); return; }
+  const start = Number(req.body && req.body.start);
+  const end = Number(req.body && req.body.end);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end - start < 4 || end - start > PIECE_MAX_SECONDS) {
+    res.status(400).json({ error: "That part of the video isn't valid." });
+    return;
+  }
+  const video = await loadVideo((req.body || {}).gameVideoId);
+  if (!video) { res.status(404).json({ error: "Video not found." }); return; }
+  const key = pieceKey(video, start, end);
+  try {
+    const bytes = await copyPieceToR2(await signedGet(video.storage_path, 3600), start, end, key);
+    const info = await probe(await signedGet(key, 600));
+    res.status(200).json({ key, bytes, pieceStart: info.offset, pieceDuration: info.duration });
+  } catch (error) {
+    if (error.code === "cut_timeout") { res.status(504).json({ error: error.message, code: "cut_timeout" }); return; }
+    throw error;
+  }
+}
+
 async function assetStatus(req, res) {
   const assetId = String((req.body || {}).assetId || "");
   if (!TASK_ID_RE.test(assetId)) { res.status(400).json({ error: "Unknown upload." }); return; }
@@ -195,6 +244,81 @@ function probe(url) {
     });
     proc.on("error", () => { clearTimeout(timer); resolve({ offset: 0, duration: null }); });
   });
+}
+
+function pieceKey(video, start, end) {
+  return `${video.user_id}/tl/${video.id}/${Math.round(start * 10)}-${Math.round(end * 10)}.ts`;
+}
+
+function pieceKeyIsFor(video, key) {
+  return typeof key === "string" && key.startsWith(`${video.user_id}/tl/${video.id}/`) && /^[\w/.-]+\.ts$/.test(key) && !key.includes("..");
+}
+
+async function signedGet(key, seconds) {
+  return getSignedUrl(r2Client(), new GetObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: key }), { expiresIn: seconds });
+}
+
+// Copies start..end of the stored video into an MPEG-TS piece in R2:
+// video only, stream copy (no re-encoding, so it's fast and identical),
+// with the original timestamps kept (-copyts), so a moment in the piece
+// has the same time as in the full video. Streams straight into an R2
+// multipart upload; nothing touches the function's small disk.
+async function copyPieceToR2(srcUrl, start, end, key) {
+  const r2 = r2Client();
+  const Bucket = process.env.R2_BUCKET_NAME;
+  const { UploadId } = await r2.send(new CreateMultipartUploadCommand({ Bucket, Key: key, ContentType: "video/mp2t" }));
+  const parts = [];
+  let chunks = [];
+  let pending = 0;
+  let total = 0;
+  const flush = async () => {
+    if (!pending) return;
+    const Body = Buffer.concat(chunks, pending);
+    chunks = [];
+    pending = 0;
+    const PartNumber = parts.length + 1;
+    const r = await r2.send(new UploadPartCommand({ Bucket, Key: key, UploadId, PartNumber, Body }));
+    parts.push({ ETag: r.ETag, PartNumber });
+  };
+
+  const args = [
+    "-hide_banner", "-loglevel", "error", "-nostdin", "-threads", "2",
+    "-ss", String(start), "-t", String(end - start + 1), "-copyts", "-i", srcUrl,
+    "-map", "0:v:0", "-c", "copy", "-an", "-sn", "-dn",
+    "-muxdelay", "0", "-muxpreload", "0", "-f", "mpegts", "pipe:1",
+  ];
+  const proc = spawn(ffmpegPath, args, { stdio: ["ignore", "pipe", "pipe"] });
+  let stderr = "";
+  let timedOut = false;
+  proc.stderr.on("data", c => { if (stderr.length < 2000) stderr += c.toString(); });
+  const timer = setTimeout(() => { timedOut = true; proc.kill("SIGKILL"); }, CUT_TIMEOUT_MS);
+  const exited = new Promise(resolve => proc.on("close", code => resolve(code)));
+
+  try {
+    for await (const c of proc.stdout) {
+      chunks.push(c);
+      pending += c.length;
+      total += c.length;
+      if (pending >= PIECE_PART_BYTES) await flush();
+    }
+    const code = await exited;
+    clearTimeout(timer);
+    if (timedOut) { const e = new Error("Copying that part took too long."); e.status = 504; e.code = "cut_timeout"; throw e; }
+    if (code !== 0 || !total) throw new Error(`Couldn't copy that part of the video: ${stderr.trim().slice(0, 200) || `exit ${code}`}`);
+    await flush();
+    await r2.send(new CompleteMultipartUploadCommand({ Bucket, Key: key, UploadId, MultipartUpload: { Parts: parts } }));
+    return total;
+  } catch (error) {
+    clearTimeout(timer);
+    try { proc.kill("SIGKILL"); } catch (e) { /* gone */ }
+    try { await r2.send(new AbortMultipartUploadCommand({ Bucket, Key: key, UploadId })); } catch (e) { /* nothing to abort */ }
+    throw error;
+  }
+}
+
+async function deletePiece(key) {
+  try { await r2Client().send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: key })); }
+  catch (e) { console.warn("Couldn't delete Twelve Labs piece", key, e.message); }
 }
 
 function clean(text, max) {
@@ -292,8 +416,13 @@ async function checkAdmin(accessToken) {
 }
 
 async function start(req, res, caller) {
-  const { gameVideoId, ranges, jersey, assetId } = req.body || {};
-  if (!Array.isArray(ranges) || !ranges.length || ranges.length > 20) {
+  const { gameVideoId, ranges, jersey, assetId, pieces } = req.body || {};
+  const usePieces = Array.isArray(pieces) && pieces.length > 0;
+  if (usePieces && pieces.length > 200) {
+    res.status(400).json({ error: "Too many parts to send at once." });
+    return;
+  }
+  if (!usePieces && (!Array.isArray(ranges) || !ranges.length || ranges.length > 20)) {
     res.status(400).json({ error: "Nothing to analyse: the whole video is cut." });
     return;
   }
@@ -309,8 +438,8 @@ async function start(req, res, caller) {
     return;
   }
 
-  const useAsset = TASK_ID_RE.test(String(assetId || ""));
-  if (!useAsset) {
+  const useAsset = !usePieces && TASK_ID_RE.test(String(assetId || ""));
+  if (!useAsset && !usePieces) {
     const size = await objectSize(video.storage_path);
     if (size > MAX_URL_BYTES) {
       res.status(400).json({ error: `This video file is ${(size / 1024 ** 3).toFixed(1)} GB, over the 4 GB Twelve Labs fetches from a link; it has to be uploaded to Twelve Labs first. Press Run AI again to do that.` });
@@ -327,6 +456,31 @@ async function start(req, res, caller) {
   }
 
   const team = clean(jersey, 40);
+
+  if (usePieces) {
+    const tasks = [];
+    for (let i = 0; i < pieces.length; i++) {
+      const p = pieces[i] || {};
+      if (!pieceKeyIsFor(video, p.key)) { res.status(400).json({ error: "A part of the video wasn't prepared for this request." }); return; }
+      const side = p.side === "left" || p.side === "right" ? p.side : null;
+      // The whole piece is analysed (it holds only the kept part), so
+      // there's no window to get wrong and only the piece counts.
+      const made = await tl("POST", "/analyze/tasks", {
+        model_name: MODEL,
+        custom_id: `giq-${video.id}-${Date.now()}-${i}`,
+        video: { type: "url", url: await signedGet(p.key, 60 * 60 * 24) },
+        analysis_mode: "time_based_metadata",
+        response_format: { type: "segment_definitions", segment_definitions: [shotDefinition(team, side)] },
+      });
+      tasks.push({
+        id: made.task_id || made._id, start: Number(p.start), end: Number(p.end), offset, side, key: p.key,
+        pieceStart: Number(p.pieceStart) || 0, pieceDuration: Number(p.pieceDuration) || 0,
+      });
+    }
+    res.status(200).json({ tasks });
+    return;
+  }
+
   const windows = [];
   for (const r of ranges) {
     let a = Math.max(0, Number(r && r.start));
@@ -365,6 +519,27 @@ async function start(req, res, caller) {
   res.status(200).json({ tasks });
 }
 
+// A piece keeps the full video's timestamps (it starts at, say, 35:00).
+// Twelve Labs could report times on that clock or from the piece's own
+// start; pieces are made so the two can't overlap (a piece is never
+// longer than its start time), so the times themselves say which.
+function pieceTimeBase(t, data, offset) {
+  if (!t.key || !(t.pieceStart > 0)) return offset;
+  const times = [];
+  (Array.isArray(data.play) ? data.play : []).forEach(seg => {
+    ((seg && seg.metadata && seg.metadata.shots) || []).forEach(e => times.push(Number(e.start_time), Number(e.end_time)));
+  });
+  const finite = times.filter(Number.isFinite);
+  if (!finite.length) return offset;
+  const fromPieceStart = t.pieceStart > t.pieceDuration + 2 && Math.max(...finite) <= t.pieceDuration + 2;
+  return fromPieceStart ? offset - t.pieceStart : offset;
+}
+
+async function deletePieceFor(key, gameVideoId) {
+  const video = await loadVideo(gameVideoId);
+  if (video && pieceKeyIsFor(video, key)) await deletePiece(key);
+}
+
 async function status(req, res, caller) {
   const { gameVideoId, tasks } = req.body || {};
   if (!Array.isArray(tasks) || !tasks.length || tasks.length > 40) {
@@ -384,6 +559,7 @@ async function status(req, res, caller) {
       continue;
     }
     if (task.status === "failed" || task.status === "canceled") {
+      if (t.key) await deletePieceFor(t.key, gameVideoId);
       out.push({ id, status: "failed", error: (task.error && task.error.message) || `The analysis was ${task.status}.` });
       continue;
     }
@@ -395,7 +571,8 @@ async function status(req, res, caller) {
     let data = {};
     try { data = JSON.parse((task.result && task.result.data) || "{}"); } catch (e) { data = {}; }
     const side = t.side === "left" || t.side === "right" ? t.side : null;
-    const { shots: segments, left } = shotsFromResult(data, offset, side);
+    const { shots: segments, left } = shotsFromResult(data, pieceTimeBase(t, data, offset), side);
+    if (t.key) await deletePieceFor(t.key, gameVideoId);
 
     // Billed on the task's window; logged once per task. On the free plan
     // it uses free minutes instead of money.
@@ -433,6 +610,8 @@ export default async function handler(req, res) {
     if (op === "prepare") { await prepare(req, res); return; }
     if (op === "upload") { await upload(req, res); return; }
     if (op === "asset") { await assetStatus(req, res); return; }
+    if (op === "plan") { await plan(req, res); return; }
+    if (op === "cut") { await cut(req, res); return; }
     res.status(400).json({ error: "Unknown operation." });
   } catch (error) {
     console.error(error);

@@ -25424,6 +25424,57 @@ async function waitReviewTlAsset(v, assetId){
   throw new Error("Twelve Labs is still checking the video file. Press Run AI again in a few minutes.");
 }
 
+// Only the kept parts go to Twelve Labs: the server copies each one out
+// of the stored video into small pieces (no re-encoding, original
+// timestamps), sized from the file's bitrate so each copy fits in one
+// request. A piece is never longer than its own start time (minus a
+// margin), so the server can tell from Twelve Labs' times whether they're
+// on the full video's clock or the piece's.
+function planReviewTlPieces(parts, bytesPerSec){
+  const P = Math.max(20, Math.min(1200, Math.floor(160e6 / (Number(bytesPerSec) || 1e6))));
+  const out = [];
+  parts.forEach(([a, b]) => {
+    let s = a;
+    while(b - s >= 4){
+      const start = s < 10 ? 0 : s;
+      let len = Math.min(P, b - start);
+      if(start > 0 && start < len + 25){ len = Math.max(4, start - 25); }
+      let end = Math.min(b, start + len);
+      if(b - end < 4){ end = b; }
+      out.push({ start: Math.round(start * 100) / 100, end: Math.round(end * 100) / 100, side: reviewNetSideAt((start + end) / 2) });
+      s = end;
+    }
+  });
+  return out;
+}
+
+async function cutReviewTlPieces(v, windows){
+  const pieces = [];
+  const queue = windows.slice();
+  while(queue.length){
+    const w = queue.shift();
+    const total = pieces.length + queue.length + 1;
+    setReviewTlProgress(`Copying the parts you kept for Twelve Labs (${pieces.length} of ${total}). Cut parts are never sent. Keep this tab open.`, Math.round(pieces.length / total * 100));
+    try{
+      const r = await twelveLabsApi({ op: "cut", gameVideoId: v.id, start: w.start, end: w.end });
+      pieces.push({ ...w, key: r.key, pieceStart: r.pieceStart, pieceDuration: r.pieceDuration });
+    }
+    catch(error){
+      // Took too long for one request: copy it in two halves instead.
+      if(error.status === 504 && w.end - w.start >= 16){
+        const mid = Math.round((w.start + w.end) / 2 * 100) / 100;
+        queue.unshift({ ...w, end: mid }, { ...w, start: mid });
+        continue;
+      }
+      throw error;
+    }
+    if(!review.video || review.video.id !== v.id){
+      throw new Error("Stopped because the request was closed. Open it and press Run AI to start again.");
+    }
+  }
+  return pieces;
+}
+
 async function runReviewTwelveLabs(){
 
   const v = review.video;
@@ -25436,7 +25487,7 @@ async function runReviewTwelveLabs(){
   const minutes = Math.ceil(seconds / 60);
   if(!confirm(
     `Send ${formatClock(seconds)} of game (${parts.length} part${parts.length === 1 ? "" : "s"}) to Twelve Labs?\n\n` +
-    `Its video model watches the footage and lists each shot it sees on the goalie as a moment to check. ` +
+    `Only these parts are sent: the cut parts never leave your storage. Its video model watches them and lists each shot it sees on the goalie as a moment to check. ` +
     `It uses ${minutes} of your free Twelve Labs minutes (600 on the free plan), or about ${formatUsd(seconds / 3600 * REVIEW_TL_USD_PER_HOUR)} on a paid plan. Shots you add with "AI fills in shots I add" ticked also use Claude, about 2 to 5 cents each; untick it to keep this free.\n\n` +
     `Results usually take a few minutes. You can close this request and come back.`
   )){ return; }
@@ -25448,11 +25499,21 @@ async function runReviewTwelveLabs(){
   document.getElementById("rv-scan-text").textContent = "Sending the game to Twelve Labs…";
 
   try{
-    const assetId = await ensureReviewTlAsset(v);
-    setReviewTlProgress("Sending the game to Twelve Labs…", 100);
+    setReviewTlProgress("Getting the video ready for Twelve Labs…", 0);
+    const info = await twelveLabsApi({ op: "plan", gameVideoId: v.id });
+    let pieces = null;
+    let assetId = null;
+    if(info.canCut){
+      pieces = await cutReviewTlPieces(v, planReviewTlPieces(parts, info.bytesPerSec));
+    }
+    else{
+      assetId = await ensureReviewTlAsset(v);
+    }
+    setReviewTlProgress("Sending to Twelve Labs…", 100);
     const data = await twelveLabsApi({
       op: "start",
       gameVideoId: v.id,
+      pieces: pieces || undefined,
       assetId: assetId || undefined,
       jersey: v.team_jersey_color || "",
       ranges: parts.map(([start, end]) => ({ start, end, side: reviewNetSideAt((start + end) / 2) }))
