@@ -4269,7 +4269,6 @@
       <div class="giq-modal-actions">
         <button type="button" class="btn-primary" id="shotEditSaveBtn" onclick="saveShotEdit()">Save shot</button>
         <button type="button" class="btn-secondary" onclick="closeShotEditModal()">Cancel</button>
-        <button type="button" class="btn-secondary" id="shotEditDeleteBtn" style="margin-left:auto;color:var(--red)" onclick="deleteShotFromEdit()">Delete shot</button>
       </div>
 
     </div>
@@ -7226,8 +7225,6 @@ function renderShotLogTable(){
     return;
   }
 
-  gameShotsList = groupShotsSharingClip(gameShotsList);
-
   const releaseLabel = {
     extended:"Extended Possession",
     quick:"Quick Release",
@@ -7267,8 +7264,7 @@ function renderShotLogTable(){
             ${editBtn}
             ${
               isAdmin
-                ? `<button type="button" class="watch-btn" onclick="splitShot(${arg}, this)" title="This clip has more than one shot in it">Split</button>
-                   <button type="button" class="watch-btn" onclick="promptReplaceClip(${arg})">Replace</button>
+                ? `<button type="button" class="watch-btn" onclick="promptReplaceClip(${arg})">Replace</button>
                    <button type="button" class="watch-btn watch-btn-danger" onclick="deleteShotClip(${arg}, this)">Delete</button>`
                 : ""
             }
@@ -7589,213 +7585,6 @@ async function saveShotEdit(){
 
     btn.disabled = false;
     btn.textContent = "Save shot";
-
-  }
-
-}
-
-
-/* ------------------------------------------------------------
-   ADMIN: SPLIT ONE CLIP INTO SEVERAL SHOTS
-   Some clips hold 2-3 shots, but were saved as one. Split adds the
-   extra shots to the game, each pointing at the same clip, so every
-   one can be watched and tagged on its own from Edit. New shots start
-   as saves in the same period and strength; the game's and periods'
-   totals go up by the same count. The clip file is shared, so
-   Replace / Delete on one of them never removes it from the others
-   (removeClipVideoIfUnused checks every shot first).
------------------------------------------------------------- */
-
-let shotSplitInFlight = false;
-
-// Shots that point at the same clip (same video + same start) are
-// listed together, in the position of the first one. Everything else
-// keeps its order.
-function groupShotsSharingClip(list){
-
-  const keyOf = s =>
-    s.game_video_id && s.clip_start_seconds !== null && s.clip_start_seconds !== undefined
-      ? `${s.game_video_id}@${s.clip_start_seconds}`
-      : null;
-
-  const groups = new Map();
-  list.forEach(s => {
-    const k = keyOf(s);
-    if(k){ (groups.get(k) || groups.set(k, []).get(k)).push(s); }
-  });
-
-  const out = [];
-  const done = new Set();
-
-  list.forEach(s => {
-    const k = keyOf(s);
-    if(!k){ out.push(s); return; }
-    if(done.has(k)){ return; }
-    done.add(k);
-    out.push(...groups.get(k));
-  });
-
-  return out;
-
-}
-
-async function splitShot(shotId, button){
-
-  if(currentRole !== "admin"){ return; }
-
-  if(shotSplitInFlight || clipOperationInFlight){
-    showToast("Another change is still saving. Try again in a moment.", "error");
-    return;
-  }
-
-  const shot = findShotById(shotId);
-
-  if(!shot){
-    showToast("That shot isn't loaded anymore. Refresh and try again.", "error");
-    return;
-  }
-
-  const answer = prompt("How many shots are in this clip? (2-5)\n\nThe extra shots are added as saves in the same period. Edit each one afterwards to tag it.", "2");
-
-  if(answer === null){ return; }
-
-  const total = parseInt(answer, 10);
-
-  if(!Number.isInteger(total) || total < 2 || total > 5){
-    showToast("Enter a number from 2 to 5.", "error");
-    return;
-  }
-
-  const extra = total - 1;
-
-  const rows = Array.from({ length: extra }, () => ({
-    game_id: shot.game_id,
-    user_id: shot.user_id,
-    period: shot.period,
-    strength: shot.strength || null,
-    outcome: "save",
-    game_video_id: shot.game_video_id,
-    clip_start_seconds: shot.clip_start_seconds,
-    clip_end_seconds: shot.clip_end_seconds ?? null
-  }));
-
-  shotSplitInFlight = true;
-
-  if(button){
-    button.disabled = true;
-    button.textContent = "Splitting…";
-  }
-
-  try{
-
-    const { data, error } =
-      await supabaseClient.from("Shots").insert(rows).select();
-
-    if(error){ throw error; }
-
-    if(!data || data.length !== extra){
-      throw new Error("The new shots didn't save -- you may not have permission to add shots to this game.");
-    }
-
-    // Shots against and saves go up by the same count (they're saves),
-    // in the game row and the period row.
-    await applyShotsToGameTotals(shot.game_id, shot.user_id, data.map(r => ({ period: r.period, outcome: "save" })));
-
-    allShots.push(...data);
-
-    renderShotLogTable();
-    showToast(`Split into ${total} shots. Edit each new one to tag it.`, "success");
-
-    loadDashboard().catch(err => console.error(err));
-
-  }
-  catch(error){
-
-    console.error(error);
-    showToast(`Could not split this shot: ${error.message || error}`, "error");
-    if(button){
-      button.disabled = false;
-      button.textContent = "Split";
-    }
-
-  }
-  finally{
-
-    shotSplitInFlight = false;
-
-  }
-
-}
-
-// Removes one shot (e.g. one split too many) and takes it back out of
-// the game's, periods' and rebound totals. A single-shot clip file is
-// only deleted when no other shot still uses it.
-async function deleteShotFromEdit(){
-
-  if(!shotEditState || currentRole !== "admin"){ return; }
-
-  if(shotSplitInFlight || clipOperationInFlight){
-    showToast("Another change is still saving. Try again in a moment.", "error");
-    return;
-  }
-
-  const shot = shotEditState.original;
-
-  if(!confirm("Delete this shot? It's removed from the game and its totals. This cannot be undone.")){
-    return;
-  }
-
-  const btn = document.getElementById("shotEditDeleteBtn");
-  btn.disabled = true;
-  btn.textContent = "Deleting…";
-  shotSplitInFlight = true;
-
-  try{
-
-    const idCol = shotIdColumn(shot);
-    const idVal = shot.shot_id ?? shot.id;
-
-    const { data, error } =
-      await supabaseClient.from("Shots").delete().eq(idCol, idVal).select();
-
-    if(error){ throw error; }
-
-    if(!data || !data.length){
-      throw new Error("Nothing was deleted -- you may not have permission to delete this shot.");
-    }
-
-    await applyShotsToGameTotals(shot.game_id, shot.user_id, [{
-      period: shot.period,
-      outcome: isGoal(shot) ? "goal" : "save",
-      reboundTag: shot.rebound_tag || null
-    }], -1);
-
-    const at = allShots.indexOf(shot);
-    if(at >= 0){ allShots.splice(at, 1); }
-
-    if(shot.game_video_id){
-      try{ await removeClipVideoIfUnused(shot.game_video_id); }
-      catch(clipErr){ console.error("Clip cleanup after shot delete:", clipErr); }
-    }
-
-    closeShotEditModal();
-    renderShotLogTable();
-    showToast("Shot deleted.", "success");
-
-    loadDashboard().catch(err => console.error(err));
-
-  }
-  catch(error){
-
-    console.error(error);
-    showToast(`Could not delete this shot: ${error.message || error}`, "error");
-
-  }
-  finally{
-
-    shotSplitInFlight = false;
-    btn.disabled = false;
-    btn.textContent = "Delete shot";
 
   }
 
