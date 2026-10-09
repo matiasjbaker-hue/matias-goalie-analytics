@@ -32,9 +32,13 @@
 //
 // Only the kept parts are sent (the usual path): each kept part is copied
 // out of the stored video into small MPEG-TS pieces (stream copy, no
-// re-encoding, original timestamps kept), and only those pieces go to
-// Twelve Labs. Cut footage never leaves R2. Pieces are deleted when their
-// task finishes.
+// re-encoding), and only those pieces go to Twelve Labs. Cut footage never
+// leaves R2. Pieces are deleted when their task finishes.
+//   Each piece's clock starts at 0, and pieceStart says where that 0 is on
+// the stored video's clock. Twelve Labs reads a video's times from 0 and
+// pins anything past the end to the end: pieces that kept the game's clock
+// (a piece from the 2nd period starting at 31:27) came back with every
+// shot at the piece's last second.
 //   op "plan": { gameVideoId } -> { size, duration, offset, bytesPerSec, canCut }
 //   op "cut":  { gameVideoId, start, end } -> { key, bytes, pieceStart, pieceDuration }
 //   op "start" with pieces: [{ key, start, end, side, pieceStart, pieceDuration }], offset
@@ -188,9 +192,13 @@ async function cut(req, res) {
   if (!video) { res.status(404).json({ error: "Video not found." }); return; }
   const key = pieceKey(video, start, end);
   try {
-    const bytes = await copyPieceToR2(await signedGet(video.storage_path, 3600), start, end, key);
+    const src = await signedGet(video.storage_path, 3600);
+    const [bytes, zeroAt] = await Promise.all([copyPieceToR2(src, start, end, key), keyframeTime(src, start)]);
     const info = await probe(await signedGet(key, 600));
-    res.status(200).json({ key, bytes, pieceStart: info.offset, pieceDuration: info.duration });
+    if (zeroAt === null) console.warn("Couldn't read the keyframe time; using the requested start", video.id, start);
+    // Without the keyframe time, the requested start is off by at most one
+    // keyframe gap (a second or two).
+    res.status(200).json({ key, bytes, pieceStart: zeroAt ?? start, pieceDuration: info.duration });
   } catch (error) {
     if (error.code === "cut_timeout") { res.status(504).json({ error: error.message, code: "cut_timeout" }); return; }
     throw error;
@@ -268,9 +276,9 @@ async function signedGet(key, seconds) {
 
 // Copies start..end of the stored video into an MPEG-TS piece in R2:
 // video only, stream copy (no re-encoding, so it's fast and identical),
-// with the original timestamps kept (-copyts), so a moment in the piece
-// has the same time as in the full video. Streams straight into an R2
-// multipart upload; nothing touches the function's small disk.
+// timestamps starting at 0 (see keyframeTime for where that 0 is on the
+// full video). Streams straight into an R2 multipart upload; nothing
+// touches the function's small disk.
 async function copyPieceToR2(srcUrl, start, end, key) {
   const r2 = r2Client();
   const Bucket = process.env.R2_BUCKET_NAME;
@@ -306,8 +314,9 @@ async function copyPieceToR2(srcUrl, start, end, key) {
 
   const args = [
     "-hide_banner", "-loglevel", "error", "-nostdin", "-threads", "2",
-    "-ss", String(start), "-t", String(end - start + 1), "-copyts", "-i", srcUrl,
+    "-ss", String(start), "-t", String(end - start + 1), "-i", srcUrl,
     "-map", "0:v:0", "-c", "copy", "-an", "-sn", "-dn",
+    "-avoid_negative_ts", "make_zero",
     "-muxdelay", "0", "-muxpreload", "0", "-f", "mpegts", "pipe:1",
   ];
   const proc = spawn(ffmpegPath, args, { stdio: ["ignore", "pipe", "pipe"] });
@@ -337,6 +346,34 @@ async function copyPieceToR2(srcUrl, start, end, key) {
     try { await r2.send(new AbortMultipartUploadCommand({ Bucket, Key: key, UploadId })); } catch (e) { /* nothing to abort */ }
     throw error;
   }
+}
+
+// Where a piece's 0 is on the stored video's clock. A stream copy can
+// only start on a keyframe, which is at or a little before `start`, so
+// this reads the first packet a copy from `start` would take (same seek,
+// no decoding) and returns its time on the file's own clock. null if it
+// can't be read.
+function keyframeTime(srcUrl, start) {
+  return new Promise(resolve => {
+    const proc = spawn(ffmpegPath, [
+      "-hide_banner", "-loglevel", "error", "-nostdin",
+      "-ss", String(start), "-copyts", "-i", srcUrl,
+      "-map", "0:v:0", "-c", "copy", "-frames:v", "1", "-f", "framecrc", "pipe:1",
+    ], { stdio: ["ignore", "pipe", "ignore"] });
+    let out = "";
+    const timer = setTimeout(() => proc.kill("SIGKILL"), 20000);
+    proc.stdout.on("data", c => { if (out.length < 8000) out += c.toString(); });
+    proc.on("close", () => {
+      clearTimeout(timer);
+      // "#tb 0: 1/90000" then "0, dts, pts, duration, size, crc"; the piece's
+      // 0 is the first packet's dts (make_zero shifts by it).
+      const tb = /#tb 0: (\d+)\/(\d+)/.exec(out);
+      const line = out.split("\n").find(l => /^\s*0,/.test(l));
+      const dts = line ? Number(line.split(",")[1]) : NaN;
+      resolve(tb && Number.isFinite(dts) ? Math.round(dts * Number(tb[1]) / Number(tb[2]) * 1000) / 1000 : null);
+    });
+    proc.on("error", () => { clearTimeout(timer); resolve(null); });
+  });
 }
 
 async function deletePiece(key) {
@@ -562,20 +599,13 @@ async function start(req, res, caller) {
   res.status(200).json({ tasks });
 }
 
-// A piece keeps the full video's timestamps (it starts at, say, 35:00).
-// Twelve Labs could report times on that clock or from the piece's own
-// start; pieces are made so the two can't overlap (a piece is never
-// longer than its start time), so the times themselves say which.
+// A piece's clock starts at 0, at pieceStart on the full video's clock,
+// so Twelve Labs' times map back by adding pieceStart. (Pieces used to keep
+// the full video's clock and this guessed which clock the times were on;
+// Twelve Labs pins those times to the piece's end, so there's nothing to
+// guess any more, and a guess could misplace a whole piece.)
 function pieceTimeBase(t, data, offset) {
-  if (!t.key || !(t.pieceStart > 0)) return offset;
-  const times = [];
-  (Array.isArray(data.play) ? data.play : []).forEach(seg => {
-    ((seg && seg.metadata && seg.metadata.shots) || []).forEach(e => times.push(Number(e.start_time), Number(e.end_time)));
-  });
-  const finite = times.filter(Number.isFinite);
-  if (!finite.length) return offset;
-  const fromPieceStart = t.pieceStart > t.pieceDuration + 2 && Math.max(...finite) <= t.pieceDuration + 2;
-  return fromPieceStart ? offset - t.pieceStart : offset;
+  return t.key ? offset - (Number(t.pieceStart) || 0) : offset;
 }
 
 async function deletePieceFor(key, video) {
