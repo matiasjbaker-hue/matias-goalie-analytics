@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+*.pt
+*.mp4
+*.json
+!bytetrack.yaml
