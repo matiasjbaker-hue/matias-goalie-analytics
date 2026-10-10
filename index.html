@@ -3710,7 +3710,6 @@
           <label class="rv-check"><input type="checkbox" id="rv-action-only" onchange="onReviewActionOnlyChange()"> <span>Play action only</span></label>
           <button type="button" class="btn-secondary" onclick="jumpReviewAction(-1)">Previous action</button>
           <button type="button" class="btn-secondary" onclick="jumpReviewAction(1)">Next action</button>
-          <label class="rv-check"><input type="checkbox" id="rv-auto-fill" checked> <span>AI fills in shots I add</span></label>
           <span class="small-note" id="rv-action-note"></span>
         </div>
 
@@ -3924,7 +3923,6 @@
 
           <div class="rv-editor-actions">
             <button type="button" class="btn-secondary" onclick="jumpToReviewShot()">Watch this shot</button>
-            <button type="button" class="btn-secondary" id="rv-ed-ai-btn" onclick="aiFillReviewShot()">AI fill this shot</button>
             <button type="button" class="btn-danger" onclick="deleteReviewShot()">Delete shot</button>
           </div>
 
@@ -24203,8 +24201,6 @@ async function addReviewShotAt(t, outcome = "save"){
     renderReviewShots();
     selectReviewShot(row.id, false);
     markReviewInProgress();
-    const auto = document.getElementById("rv-auto-fill");
-    if(auto && auto.checked){ aiFillReviewShot(); }
   }
   catch(error){
     console.error(error);
@@ -24738,38 +24734,6 @@ function burstTimes(t){
   return out;
 }
 
-async function aiFillReviewShot(){
-
-  const d = review.drafts.find(x => String(x.id) === String(review.selectedId));
-  if(!d){ return; }
-
-  const btn = document.getElementById("rv-ed-ai-btn");
-  btn.disabled = true;
-  btn.textContent = "Reading frames…";
-
-  const grabber = createFrameGrabber(review.video.id);
-
-  try{
-    btn.textContent = "Tagging…";
-    const result = await fillReviewDraft(d, grabber);
-    if(result === "nosee"){
-      showToast("The AI didn't see a shot here. Check the time, or fill it in by hand.", "error");
-    }
-    renderReviewShots();
-    renderReviewEditor();
-  }
-  catch(error){
-    console.error(error);
-    showToast(error.message || "The AI couldn't tag this shot.", "error");
-  }
-  finally{
-    grabber.destroy();
-    btn.disabled = false;
-    btn.textContent = "AI fill this shot";
-  }
-
-}
-
 function renderReviewScanBar(){
   const bar = document.getElementById("rv-scanbar");
   const v = review.video;
@@ -24926,7 +24890,7 @@ function reviewCandidateRecord(c){
 // Every flag from the scan becomes part of a moment to check (flags close
 // together are one moment). The scan is the only charge: nothing goes on
 // the shot list until the admin presses S at a shot (or A for the AI's
-// best guess), and only then does "AI fills in shots I add" look closer.
+// best guess). Shots you add are never sent to the AI (no per-shot charge).
 async function reviewTagEvent(v, ev){
   addReviewCandidate(v, ev.t, ev.confidence, ev.goal);
   renderReviewChecklist();
@@ -25526,7 +25490,7 @@ async function runReviewTwelveLabs(){
   if(!confirm(
     `Send ${formatClock(seconds)} of game (${parts.length} part${parts.length === 1 ? "" : "s"}) to Twelve Labs?\n\n` +
     `Only these parts are sent: the cut parts never leave your storage. Its video model watches them and lists each shot it sees on the goalie as a moment to check. ` +
-    `It uses ${minutes} of your free Twelve Labs minutes (600 on the free plan), or about ${formatUsd(seconds / 3600 * REVIEW_TL_USD_PER_HOUR)} on a paid plan. Shots you add with "AI fills in shots I add" ticked also use Claude, about 2 to 5 cents each; untick it to keep this free.\n\n` +
+    `It uses ${minutes} of your free Twelve Labs minutes (600 on the free plan), or about ${formatUsd(seconds / 3600 * REVIEW_TL_USD_PER_HOUR)} on a paid plan.\n\n` +
     `Results usually take a few minutes. You can close this request and come back.`
   )){ return; }
 
