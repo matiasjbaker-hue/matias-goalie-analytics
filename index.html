@@ -3632,6 +3632,8 @@
         </label>
         <button type="button" class="btn-secondary" id="rv-scan-btn" onclick="toggleReviewScan()">Run AI</button>
         <button type="button" class="btn-secondary" id="rv-clear-ai-btn" onclick="clearReviewAiResults()" title="Removes the moments to check, the action stretches and any AI shots you haven't touched, so Run AI starts fresh. Your own shots, period marks and cuts are kept.">Clear AI results</button>
+        <button type="button" class="btn-secondary" id="rv-yolo-calib-btn" onclick="openYoloCalibModal()" title="One-time setup: click a few rink markings so the YOLO scan can judge real speed and direction.">Calibrate rink</button>
+        <button type="button" class="btn-secondary" id="rv-yolo-btn" onclick="toggleYoloScan()" title="Tracks players and the puck locally (no AI cost) on your own PC, via tracking/worker.py.">Run YOLO scan</button>
         <button type="button" class="btn-secondary" id="rv-test-btn" onclick="runReviewAccuracyTest()" title="Checks the AI against shots you've already marked and reports how many it found, how many extra it flagged, and the cost. Doesn't change the shot list.">Test accuracy</button>
         <button type="button" class="btn-danger" onclick="flagReviewNeedsAttention()">Needs attention</button>
         <label class="rv-check" title="Sends the goalie a recap with their PDF stat sheet from the company Gmail">
@@ -3644,6 +3646,11 @@
     <div class="rv-scanbar" id="rv-scanbar" hidden>
       <div class="rv-scanbar-track"><i id="rv-scanbar-fill"></i></div>
       <span id="rv-scan-text" aria-live="polite"></span>
+    </div>
+
+    <div class="rv-scanbar" id="rv-yolobar" hidden>
+      <div class="rv-scanbar-track"><i id="rv-yolobar-fill"></i></div>
+      <span id="rv-yolo-text" aria-live="polite"></span>
     </div>
 
     <div class="rv-preview" id="rv-preview" hidden></div>
@@ -4283,6 +4290,39 @@
         <button type="button" class="btn-secondary" onclick="closeShotEditModal()">Cancel</button>
       </div>
 
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ========================================================= -->
+<!-- ADMIN: CALIBRATE RINK FOR LOCAL YOLO SCAN -->
+<!-- ========================================================= -->
+
+<div class="giq-modal-overlay" id="yoloCalibModalOverlay" style="z-index:220">
+  <div class="giq-modal" role="dialog" aria-modal="true" aria-labelledby="yoloCalibTitle">
+
+    <div class="giq-modal-header">
+      <h3 id="yoloCalibTitle">Calibrate rink for YOLO scan</h3>
+      <button type="button" class="giq-modal-close" onclick="closeYoloCalibModal()" aria-label="Close">&times;</button>
+    </div>
+
+    <div class="giq-modal-body">
+      <p class="small-note" id="yoloCalibStep">Loading a frame…</p>
+      <div style="max-width:100%; overflow:auto;">
+        <canvas id="yoloCalibCanvas" style="max-width:100%; cursor:crosshair; touch-action:none;"></canvas>
+      </div>
+      <div class="giq-modal-actions" style="flex-wrap:wrap; align-items:center;">
+        <label class="small-note">Frame at (s)
+          <input type="number" id="yoloCalibFrameT" min="0" step="1" value="0" style="width:80px">
+        </label>
+        <button type="button" class="btn-secondary" onclick="reloadYoloCalibFrame()">Load frame</button>
+        <button type="button" class="btn-secondary" onclick="undoYoloCalibPoint()">Undo point</button>
+        <button type="button" class="btn-secondary" onclick="skipYoloCalibPoint()">Skip (not visible)</button>
+        <span class="small-note" id="yoloCalibStatus" aria-live="polite" style="flex:1"></span>
+        <button type="button" class="btn-primary" id="yoloCalibSaveBtn" onclick="saveYoloCalibration()" disabled>Save calibration</button>
+      </div>
     </div>
 
   </div>
@@ -23532,6 +23572,7 @@ async function openReview(videoId){
   if(review.scanning){ review.scanning = false; }
   stopReviewBatchPolling();
   stopReviewTlPolling();
+  stopYoloPolling();
 
   review.video = { ...v, period_marks: v.period_marks || {} };
   review.scanStats = null;
@@ -23544,7 +23585,7 @@ async function openReview(videoId){
   review.cutHistory = [];
   review.drafts = [];
   review.candidates = ((v.period_marks && Array.isArray(v.period_marks._candidates)) ? v.period_marks._candidates : [])
-    .map(c => ({ t: Number(c.t), confidence: Number(c.c) || 0, goal: !!c.g, ...(Number.isFinite(Number(c.s)) && Number.isFinite(Number(c.e)) ? { s: Number(c.s), e: Number(c.e) } : {}) }))
+    .map(c => ({ t: Number(c.t), confidence: Number(c.c) || 0, goal: !!c.g, ...(Number.isFinite(Number(c.s)) && Number.isFinite(Number(c.e)) ? { s: Number(c.s), e: Number(c.e) } : {}), ...(c.src ? { src: String(c.src) } : {}) }))
     .filter(c => Number.isFinite(c.t));
   review.checkT = null;
   review.selectedId = null;
@@ -23586,6 +23627,8 @@ async function openReview(videoId){
   renderReviewTests();
   startReviewBatchPolling();
   startReviewTlPolling();
+  startYoloPolling();
+  renderYoloScanBar();
 
   window.scrollTo({ top: 0, behavior: "smooth" });
 
@@ -23596,6 +23639,7 @@ function closeReview(){
   review.scanning = false;
   stopReviewBatchPolling();
   stopReviewTlPolling();
+  stopYoloPolling();
   review.video = null;
   const video = document.getElementById("rv-video");
   video.pause();
@@ -24735,6 +24779,7 @@ function burstTimes(t){
 }
 
 function renderReviewScanBar(){
+  renderYoloScanBar(); // separate bar/button, but always kept in sync with this one's many call sites
   const bar = document.getElementById("rv-scanbar");
   const v = review.video;
   if(!v){ return; }
@@ -24866,24 +24911,31 @@ async function setReviewNetSide(side, period){
 // saved with the video so it's still there after reopening.
 // span: { start, end } when the AI gives a stretch rather than a moment
 // (Twelve Labs does).
-function addReviewCandidate(v, t, confidence, goal, span){
+function addReviewCandidate(v, t, confidence, goal, span, src){
   const r2 = x => Math.round(Number(x) * 100) / 100;
   const c = { t: r2(t), confidence: Number(confidence) || 0, goal: !!goal };
   if(span && Number.isFinite(Number(span.start)) && Number.isFinite(Number(span.end)) && Number(span.end) > Number(span.start)){
     c.s = r2(span.start);
     c.e = r2(span.end);
   }
+  if(src){ c.src = String(src).slice(0, 20); }
   review.candidates.push(c);
   const saved = (v.period_marks && Array.isArray(v.period_marks._candidates)) ? v.period_marks._candidates : [];
   v.period_marks = { ...(v.period_marks || {}), _candidates: [...saved, reviewCandidateRecord(c)].slice(-2000) };
 }
 
+// src ("yolo", or absent for the Claude/Twelve Labs scans that predate
+// it) rides along so the checklist can show which method flagged a
+// moment -- kept even when the browser re-saves candidates it didn't
+// add itself (e.g. after a new scan appends more), so a round trip
+// through here never silently drops the tag.
 function reviewCandidateRecord(c){
   return {
     t: c.t,
     c: Math.round((Number(c.confidence) || 0) * 100) / 100,
     ...(c.goal ? { g: 1 } : {}),
-    ...(Number.isFinite(c.s) && Number.isFinite(c.e) ? { s: c.s, e: c.e } : {})
+    ...(Number.isFinite(c.s) && Number.isFinite(c.e) ? { s: c.s, e: c.e } : {}),
+    ...(c.src ? { src: c.src } : {})
   };
 }
 
@@ -25100,12 +25152,14 @@ function renderReviewChecklist(){
     const sel = Number.isFinite(review.checkT) && Math.abs(review.checkT - m.start) < 0.01;
     const what = m.goal ? "Possible goal" : "Possible shot";
     const range = formatMomentRange(m);
+    const fromYolo = m.flags.length && m.flags.every(f => f.src === "yolo");
+    const flagCount = `${m.flags.length} flag${m.flags.length === 1 ? "" : "s"}${fromYolo ? " · YOLO" : ""}`;
     return `
       <li class="${sel ? "is-selected" : ""}">
         <button type="button" class="rv-check-go" onclick="selectReviewCheck(${m.start}, true)" aria-label="Watch ${escapeHtml(range)}, ${what.toLowerCase()}">
           <span class="rv-shot-time rv-moment-range">${escapeHtml(range)}</span>
           <span>${what}</span>
-          <span class="rv-check-conf">${m.flags.length} flag${m.flags.length === 1 ? "" : "s"}</span>
+          <span class="rv-check-conf">${escapeHtml(flagCount)}</span>
         </button>
         <button type="button" class="rv-check-add" onclick="acceptReviewCheck(${m.start})" title="Add a shot at the AI's best guess, ${escapeHtml(formatClock(m.t))} (A)" aria-label="Add a shot at ${escapeHtml(formatClock(m.t))}">Add</button>
         <button type="button" class="rv-check-x" onclick="dismissReviewCheck(${m.start})" title="No shot here (D)" aria-label="No shot in ${escapeHtml(range)}: dismiss">×</button>
@@ -25556,6 +25610,327 @@ function startReviewTlPolling(){
 
 function stopReviewTlPolling(){
   if(reviewTlTimer){ clearInterval(reviewTlTimer); reviewTlTimer = null; }
+}
+
+// ---- Local YOLO scan (tracking/worker.py on the admin's own PC) ----
+// The browser never talks to the worker directly: queuing is just a
+// game_videos.yolo_status write (guarded the same way period_marks is,
+// see supabase/migrations/20261010_yolo_scan.sql), and the worker
+// reports results through api/_lib/admin-yolo.js using its own shared
+// secret. This polls for the status/candidates that work produces.
+
+const REVIEW_YOLO_POLL_MS = 8 * 1000;
+const REVIEW_YOLO_ACTIVE = ["queued", "claimed", "running"];
+let reviewYoloTimer = null;
+
+function startYoloPolling(){
+  stopYoloPolling();
+  if(!review.video || !REVIEW_YOLO_ACTIVE.includes(review.video.yolo_status)){ return; }
+  reviewYoloTimer = setInterval(refreshYoloStatus, REVIEW_YOLO_POLL_MS);
+}
+
+function stopYoloPolling(){
+  if(reviewYoloTimer){ clearInterval(reviewYoloTimer); reviewYoloTimer = null; }
+}
+
+async function refreshYoloStatus(){
+  const v = review.video;
+  if(!v || review.yoloChecking){ return; }
+  review.yoloChecking = true;
+  try{
+    const { data, error } = await supabaseClient.from("game_videos")
+      .select("yolo_status,yolo_progress,yolo_error,period_marks")
+      .eq("id", v.id).single();
+    if(error){ throw error; }
+    Object.assign(v, data);
+    const cached = reviewQueueCache.find(x => String(x.id) === String(v.id));
+    if(cached){ Object.assign(cached, data); }
+    if(!REVIEW_YOLO_ACTIVE.includes(v.yolo_status)){
+      stopYoloPolling();
+      // The worker wrote new candidates straight into period_marks
+      // server-side; reload them the same way openReview() does, so
+      // they land in the checklist without reopening the video.
+      review.candidates = ((v.period_marks && Array.isArray(v.period_marks._candidates)) ? v.period_marks._candidates : [])
+        .map(c => ({ t: Number(c.t), confidence: Number(c.c) || 0, goal: !!c.g, ...(Number.isFinite(Number(c.s)) && Number.isFinite(Number(c.e)) ? { s: Number(c.s), e: Number(c.e) } : {}), ...(c.src ? { src: String(c.src) } : {}) }))
+        .filter(c => Number.isFinite(c.t));
+      renderReviewChecklist();
+      renderReviewTimeline();
+      if(v.yolo_status === "done"){ showToast("YOLO scan finished -- check the checklist for new moments."); }
+      else if(v.yolo_status === "failed"){ showToast(`YOLO scan failed: ${v.yolo_error || "unknown error"}`, "error"); }
+    }
+  }
+  catch(error){
+    console.warn("Couldn't check the YOLO scan status:", error.message);
+  }
+  finally{
+    review.yoloChecking = false;
+    renderYoloScanBar();
+  }
+}
+
+async function toggleYoloScan(){
+  const v = review.video;
+  if(!v){ return; }
+  if(REVIEW_YOLO_ACTIVE.includes(v.yolo_status)){
+    showToast("A YOLO scan for this video is already queued or running on your PC worker.");
+    return;
+  }
+  if(!v.yolo_calibration){
+    if(!confirm("This video hasn't been calibrated yet (Calibrate rink), so the scan can't judge real speed or direction and won't find any shots.\n\nRun it anyway?")){ return; }
+  }
+  const btn = document.getElementById("rv-yolo-btn");
+  if(btn){ btn.disabled = true; }
+  try{
+    const patch = { yolo_status: "queued", yolo_progress: 0, yolo_requested_at: new Date().toISOString(), yolo_error: null };
+    const { error } = await supabaseClient.from("game_videos").update(patch).eq("id", v.id);
+    if(error){ throw error; }
+    Object.assign(v, patch);
+    startYoloPolling();
+    showToast("Queued. Your worker (tracking/worker.py) will pick this up on its next poll -- make sure it's running.");
+  }
+  catch(error){
+    showToast(`Could not queue the scan: ${error.message}`, "error");
+  }
+  finally{
+    if(btn){ btn.disabled = false; }
+    renderYoloScanBar();
+  }
+}
+
+function renderYoloScanBar(){
+  const bar = document.getElementById("rv-yolobar");
+  const btn = document.getElementById("rv-yolo-btn");
+  if(!bar || !btn){ return; }
+  const v = review.video;
+  const status = v ? (v.yolo_status || "none") : "none";
+  const active = REVIEW_YOLO_ACTIVE.includes(status);
+  btn.textContent = active ? "YOLO scan running…" : (status === "done" ? "Re-run YOLO scan" : "Run YOLO scan");
+  btn.disabled = active;
+  bar.hidden = !active && status !== "failed";
+  if(!v || bar.hidden){ return; }
+  const pct = Math.round((Number(v.yolo_progress) || 0) * 100);
+  document.getElementById("rv-yolobar-fill").style.width = `${active ? Math.max(pct, 4) : 100}%`;
+  document.getElementById("rv-yolo-text").textContent =
+    status === "queued" ? "Queued -- waiting for your PC worker to pick it up." :
+    status === "claimed" ? "Claimed by your worker, starting…" :
+    status === "running" ? `Scanning on your PC: ${pct}%. Keep tracking/worker.py running.` :
+    status === "failed" ? `YOLO scan failed: ${v.yolo_error || "unknown error"}` : "";
+}
+
+// ---- Rink calibration (click 6 markings -> homography), for the
+// local YOLO scan. Reference feet match tracking/config.py's defaults
+// (NHL rink; verify against your actual rink if it differs). ----
+
+const YOLO_CALIB_STEPS = [
+  { key: "goal_post_near", label: "Goal post - NEAR side", ft: [0, -3] },
+  { key: "goal_post_far", label: "Goal post - FAR side", ft: [0, 3] },
+  { key: "faceoff_dot_near", label: "Defensive faceoff dot - NEAR side", ft: [20, -22] },
+  { key: "faceoff_dot_far", label: "Defensive faceoff dot - FAR side", ft: [20, 22] },
+  { key: "blue_line_near_board", label: "Blue line x boards - NEAR side", ft: [64, -42.5] },
+  { key: "blue_line_far_board", label: "Blue line x boards - FAR side", ft: [64, 42.5] },
+];
+
+let yoloCalibState = null; // { img, points: [[x,y]|null, ...], idx }
+
+function openYoloCalibModal(){
+  const v = review.video;
+  if(!v){ return; }
+  yoloCalibState = { img: null, points: new Array(YOLO_CALIB_STEPS.length).fill(null), idx: 0 };
+  document.getElementById("yoloCalibModalOverlay").classList.add("open");
+  const videoEl = document.getElementById("rv-video");
+  document.getElementById("yoloCalibFrameT").value = Math.round((videoEl && videoEl.currentTime) || 0);
+  reloadYoloCalibFrame();
+}
+
+function closeYoloCalibModal(){
+  document.getElementById("yoloCalibModalOverlay").classList.remove("open");
+  yoloCalibState = null;
+}
+
+async function reloadYoloCalibFrame(){
+  const v = review.video;
+  const state = yoloCalibState;
+  if(!v || !state){ return; }
+  const t = Math.max(0, Number(document.getElementById("yoloCalibFrameT").value) || 0);
+  document.getElementById("yoloCalibStatus").textContent = "Loading frame…";
+  const grabber = createFrameGrabber(v.id);
+  try{
+    const frames = await grabber.grab([t], 4096); // large width -> capped to the video's native size
+    const frame = frames[0];
+    if(!frame){ throw new Error("Could not read a frame at that time."); }
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = () => reject(new Error("Could not decode that frame."));
+      img.src = `data:image/jpeg;base64,${frame.data}`;
+    });
+    state.img = img;
+    state.points = new Array(YOLO_CALIB_STEPS.length).fill(null);
+    state.idx = 0;
+    const canvas = document.getElementById("yoloCalibCanvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    canvas.onclick = onYoloCalibClick;
+    drawYoloCalibOverlay();
+    updateYoloCalibUi();
+  }
+  catch(error){
+    document.getElementById("yoloCalibStatus").textContent = `Could not load a frame: ${error.message}`;
+  }
+  finally{
+    grabber.destroy();
+  }
+}
+
+function onYoloCalibClick(e){
+  const state = yoloCalibState;
+  if(!state || !state.img || state.idx >= YOLO_CALIB_STEPS.length){ return; }
+  const canvas = e.currentTarget;
+  const rect = canvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+  const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+  state.points[state.idx] = [x, y];
+  state.idx++;
+  drawYoloCalibOverlay();
+  updateYoloCalibUi();
+}
+
+function undoYoloCalibPoint(){
+  const state = yoloCalibState;
+  if(!state || state.idx <= 0){ return; }
+  state.idx--;
+  state.points[state.idx] = null;
+  drawYoloCalibOverlay();
+  updateYoloCalibUi();
+}
+
+function skipYoloCalibPoint(){
+  const state = yoloCalibState;
+  if(!state || state.idx >= YOLO_CALIB_STEPS.length){ return; }
+  state.points[state.idx] = null;
+  state.idx++;
+  drawYoloCalibOverlay();
+  updateYoloCalibUi();
+}
+
+function drawYoloCalibOverlay(){
+  const state = yoloCalibState;
+  const canvas = document.getElementById("yoloCalibCanvas");
+  if(!state || !state.img || !canvas){ return; }
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(state.img, 0, 0, canvas.width, canvas.height);
+  state.points.forEach((p, i) => {
+    if(!p){ return; }
+    ctx.beginPath();
+    ctx.arc(p[0], p[1], 7, 0, 2 * Math.PI);
+    ctx.fillStyle = "rgba(232,185,35,0.95)";
+    ctx.fill();
+    ctx.strokeStyle = "#121412";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = "#121412";
+    ctx.font = "bold 14px sans-serif";
+    ctx.fillText(String(i + 1), p[0] + 10, p[1] - 8);
+  });
+}
+
+function updateYoloCalibUi(){
+  const state = yoloCalibState;
+  const stepEl = document.getElementById("yoloCalibStep");
+  const saveBtn = document.getElementById("yoloCalibSaveBtn");
+  if(!state){ return; }
+  const given = state.points.filter(Boolean).length;
+  stepEl.textContent = state.idx < YOLO_CALIB_STEPS.length
+    ? `Click: ${YOLO_CALIB_STEPS[state.idx].label} (${state.idx + 1}/${YOLO_CALIB_STEPS.length})`
+    : "All points placed (or skipped). Press Save calibration.";
+  document.getElementById("yoloCalibStatus").textContent = `${given} of ${YOLO_CALIB_STEPS.length} points placed (need at least 4).`;
+  saveBtn.disabled = given < 4;
+}
+
+// Direct Linear Transform, least-squares when more than the minimum 4
+// points are given. Mirrors tracking/rink.py's RinkCalibration.from_clicks
+// (cv2.findHomography) in plain JS -- there's no OpenCV in this stack.
+function solveLinearSystem(M, rhs){
+  const n = rhs.length;
+  const A = M.map(row => row.slice());
+  const b = rhs.slice();
+  for(let col = 0; col < n; col++){
+    let pivot = col;
+    for(let r = col + 1; r < n; r++){ if(Math.abs(A[r][col]) > Math.abs(A[pivot][col])){ pivot = r; } }
+    if(Math.abs(A[pivot][col]) < 1e-9){ throw new Error("Those points are too close to a straight line -- click points that aren't collinear."); }
+    if(pivot !== col){ [A[col], A[pivot]] = [A[pivot], A[col]]; [b[col], b[pivot]] = [b[pivot], b[col]]; }
+    for(let r = col + 1; r < n; r++){
+      const factor = A[r][col] / A[col][col];
+      for(let c = col; c < n; c++){ A[r][c] -= factor * A[col][c]; }
+      b[r] -= factor * b[col];
+    }
+  }
+  const sol = new Array(n).fill(0);
+  for(let r = n - 1; r >= 0; r--){
+    let sum = b[r];
+    for(let c = r + 1; c < n; c++){ sum -= A[r][c] * sol[c]; }
+    sol[r] = sum / A[r][r];
+  }
+  return sol;
+}
+
+function solveHomography(srcPoints, dstPoints){
+  const n = srcPoints.length;
+  if(n < 4){ throw new Error("Need at least 4 calibration points."); }
+  const A = [];
+  const b = [];
+  for(let i = 0; i < n; i++){
+    const [x, y] = srcPoints[i];
+    const [xp, yp] = dstPoints[i];
+    A.push([x, y, 1, 0, 0, 0, -x * xp, -y * xp]);
+    b.push(xp);
+    A.push([0, 0, 0, x, y, 1, -x * yp, -y * yp]);
+    b.push(yp);
+  }
+  const AtA = Array.from({ length: 8 }, () => new Array(8).fill(0));
+  const Atb = new Array(8).fill(0);
+  for(let i = 0; i < A.length; i++){
+    for(let r = 0; r < 8; r++){
+      Atb[r] += A[i][r] * b[i];
+      for(let c = 0; c < 8; c++){ AtA[r][c] += A[i][r] * A[i][c]; }
+    }
+  }
+  const h = solveLinearSystem(AtA, Atb);
+  return [[h[0], h[1], h[2]], [h[3], h[4], h[5]], [h[6], h[7], 1]];
+}
+
+async function saveYoloCalibration(){
+  const v = review.video;
+  const state = yoloCalibState;
+  if(!v || !state){ return; }
+  const src = [];
+  const dst = [];
+  state.points.forEach((p, i) => { if(p){ src.push(p); dst.push(YOLO_CALIB_STEPS[i].ft); } });
+  let homography;
+  try{
+    homography = solveHomography(src, dst);
+  }
+  catch(error){
+    showToast(error.message, "error");
+    return;
+  }
+  const record = {
+    homography,
+    geometry: { length_ft: 200, width_ft: 85, goal_line_from_boards_ft: 11, blue_line_from_goal_line_ft: 64,
+      faceoff_dot_from_goal_line_ft: 20, faceoff_dot_from_centerline_ft: 22, faceoff_circle_radius_ft: 15,
+      goal_width_ft: 6, crease_width_ft: 8, crease_depth_ft: 4.5 },
+    start_s: 0, end_s: null, side: "near",
+  };
+  try{
+    const { error } = await supabaseClient.from("game_videos").update({ yolo_calibration: [record] }).eq("id", v.id);
+    if(error){ throw error; }
+    v.yolo_calibration = [record];
+    showToast("Calibration saved. Run YOLO scan will now compute real speed and direction.");
+    closeYoloCalibModal();
+  }
+  catch(error){
+    showToast(`Could not save calibration: ${error.message}`, "error");
+  }
 }
 
 const REVIEW_TL_CONFIDENCE = { high: 0.9, medium: 0.6, low: 0.3 };

@@ -19,6 +19,7 @@ const ROUTES = {
   "make-clip": () => import("../_lib/admin-make-clip.js"),
   "create-request": () => import("../_lib/admin-create-request.js"),
   twelvelabs: () => import("../_lib/admin-twelvelabs.js"),
+  "yolo-worker": () => import("../_lib/admin-yolo.js"),
 };
 
 export default async function handler(req, res) {

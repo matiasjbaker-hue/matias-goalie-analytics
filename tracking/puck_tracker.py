@@ -120,6 +120,17 @@ class PuckTracker:
         self.last_confirmed = None  # (t, x, y) of the last real measurement
         self.history = []  # list of dicts: t, x, y, vx, vy, speed, status
 
+    def reset_track(self):
+        """Drop the current track without touching history: for a jump
+        in the video's own clock (a cut skipped by the worker, or a
+        new --start), where the prior velocity/position has no bearing
+        on what comes next and coasting across the gap would just
+        produce a nonsense straight-line guess."""
+        self.kf.initialised = False
+        self.coast_frames = 0
+        self.miss_streak = 0
+        self.last_confirmed = None
+
     def _best_candidate(self, candidates):
         if not candidates or not self.kf.initialised:
             return None, None
