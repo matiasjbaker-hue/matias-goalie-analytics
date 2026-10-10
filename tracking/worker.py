@@ -23,6 +23,17 @@ import os
 import sys
 import time
 import traceback
+
+# Running with no attached console (pythonw.exe, or any redirected/piped
+# invocation) makes stdout fully block-buffered instead of line-buffered,
+# so print()s can sit unflushed for a long time -- and vanish entirely if
+# the process is ever killed rather than exiting cleanly. Force line
+# buffering so worker.log actually reflects what's happening.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(line_buffering=True)
+    except Exception:
+        pass
 import urllib.error
 import urllib.request
 

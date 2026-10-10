@@ -7,3 +7,4 @@ __pycache__/
 !bytetrack.yaml
 .env
 worker_reports/
+*.log
