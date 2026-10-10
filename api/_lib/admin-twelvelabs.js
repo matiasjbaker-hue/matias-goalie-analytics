@@ -468,8 +468,7 @@ function onTrackedNet(e, side) {
 // left out, plus every labelled event (raw) so the filter can be tuned
 // against the shots the admin marks without paying for another run.
 // Also reads tasks sent before the labels existed.
-// strict (the check pass): only "keep" survives -- labels that disagree or
-// can't tell ("maybe") are dropped instead of kept as low-confidence.
+// strict (the check pass): also drops "maybe" missed/blocked attempts.
 function shotsFromResult(data, offset, side, strict = false) {
   const level = c => (["high", "medium", "low"].includes(c) ? c : "low");
   const label = x => (typeof x === "string" ? x.slice(0, 24) : null);
@@ -488,7 +487,10 @@ function shotsFromResult(data, offset, side, strict = false) {
         raw.push({ s: r1(a), e: r1(b), ev: label(e.event), net: label(e.net), gk: label(e.goalie), out: label(e.outcome), c: label(e.confidence), side, v: verdict });
       }
       if (verdict === "other_net" || verdict === "not_shot") { left[verdict]++; return; }
-      if (strict && verdict === "maybe") { left.unsure++; return; }
+      // The net/goalie labels are often "unclear" even on real shots, so
+      // the check pass doesn't require them to agree; it only drops a
+      // missed/blocked attempt (not a shot on goal) the labels can't settle.
+      if (strict && verdict === "maybe" && e.event === "missed_or_blocked") { left.unsure++; return; }
       out.push({ start: a, end: b, t: a, outcome: ["save", "goal"].includes(e.outcome) ? e.outcome : "unclear", confidence: verdict === "maybe" ? "low" : level(e.confidence) });
     });
   });

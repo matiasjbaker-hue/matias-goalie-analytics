@@ -25110,7 +25110,7 @@ function renderReviewChecklist(){
         <button type="button" class="rv-check-go" onclick="selectReviewCheck(${m.start}, true)" aria-label="Watch ${escapeHtml(range)}, ${what.toLowerCase()}">
           <span class="rv-shot-time rv-moment-range">${escapeHtml(range)}</span>
           <span>${what}</span>
-          <span class="rv-check-conf">${m.flags.length} flag${m.flags.length === 1 ? "" : "s"}${m.flags.some(f => f.src === "tl2") ? " · double-checked" : ""}</span>
+          <span class="rv-check-conf">${m.flags.length} flag${m.flags.length === 1 ? "" : "s"}${m.flags.some(f => f.src === "tl2") ? " · double-checked" : m.flags.every(f => f.src === "tl2x") ? " · not confirmed" : ""}</span>
         </button>
         <button type="button" class="rv-check-add" onclick="acceptReviewCheck(${m.start})" title="Add a shot at the AI's best guess, ${escapeHtml(formatClock(m.t))} (A)" aria-label="Add a shot at ${escapeHtml(formatClock(m.t))}">Add</button>
         <button type="button" class="rv-check-x" onclick="dismissReviewCheck(${m.start})" title="No shot here (D)" aria-label="No shot in ${escapeHtml(range)}: dismiss">×</button>
@@ -25569,9 +25569,10 @@ const REVIEW_TL_VERIFY_MIN = 8;
 const REVIEW_TL_VERIFY_MAX = 30;
 const REVIEW_TL_VERIFY_CUT_PARALLEL = 3;
 
-// First-pass flags: Twelve Labs gives stretches (s/e); confirmed ones are "tl2".
+// First-pass flags: Twelve Labs gives stretches (s/e); the check pass
+// marks what it saw ("tl2" confirmed, "tl2x" couldn't tell).
 function reviewTlFirstPassFlag(c){
-  return Number.isFinite(c.s) && c.src !== "tl2";
+  return Number.isFinite(c.s) && !c.src;
 }
 
 // One clip per moment still to check, padded; close moments share a clip.
@@ -25674,6 +25675,7 @@ async function collectReviewTwelveLabs(manual){
     const own = new Map(tasks.map(t => [t.id, t]));
     let confirmed = 0;
     let dropped = 0;
+    let unconfirmed = 0;
 
     const done = new Set();
     const errors = [];
@@ -25684,16 +25686,28 @@ async function collectReviewTwelveLabs(manual){
       if(t.status === "ready"){
         done.add(t.id);
         if(isVerify){
-          // Swap the first-pass flags in this clip's window for whatever
-          // the close-up confirmed (possibly nothing).
+          // Confirmed: swap the first-pass flags in this clip's window for
+          // the close-up's. A clear no (it saw only a shot at the other
+          // net, or something that wasn't a shot): remove them. Can't tell
+          // (it listed nothing at all, which Twelve Labs also does on real
+          // shots): keep them, marked not confirmed, so nothing real is lost.
           const sent = own.get(t.id) || {};
           const ms = Number(sent.ms);
           const me = Number(sent.me);
+          const segs = t.segments || [];
+          const lo = t.leftOut || {};
+          const clearNo = !segs.length && (Number(lo.other_net) || 0) + (Number(lo.not_shot) || 0) + (Number(lo.unsure) || 0) > 0;
           if(Number.isFinite(ms) && Number.isFinite(me)){
-            review.candidates = review.candidates.filter(c => !(reviewTlFirstPassFlag(c) && c.t >= ms - 1 && c.t <= me + 1));
+            const inWindow = c => reviewTlFirstPassFlag(c) && c.t >= ms - 1 && c.t <= me + 1;
+            if(segs.length || clearNo){
+              review.candidates = review.candidates.filter(c => !inWindow(c));
+            }
+            else{
+              review.candidates.forEach(c => { if(inWindow(c)){ c.src = "tl2x"; c.confidence = Math.min(Number(c.confidence) || 0, 0.2); } });
+            }
             v.period_marks = { ...v.period_marks, _candidates: review.candidates.map(reviewCandidateRecord) };
           }
-          if((t.segments || []).length){ confirmed++; } else { dropped++; }
+          if(segs.length){ confirmed++; } else if(clearNo){ dropped++; } else{ unconfirmed++; }
         }
         (t.segments || []).forEach(s => {
           const conf = s.outcome === "missed_net" ? 0.2 : (REVIEW_TL_CONFIDENCE[s.confidence] || 0.3);
@@ -25724,7 +25738,11 @@ async function collectReviewTwelveLabs(manual){
       const left = tasks.filter(t => !done.has(t.id));
       const { _tl, ...rest } = v.period_marks;
       // Check-pass totals build up over several polls.
-      const totals = { confirmed: (Number(_tl && _tl.confirmed) || 0) + confirmed, dropped: (Number(_tl && _tl.dropped) || 0) + dropped };
+      const totals = {
+        confirmed: (Number(_tl && _tl.confirmed) || 0) + confirmed,
+        dropped: (Number(_tl && _tl.dropped) || 0) + dropped,
+        unconfirmed: (Number(_tl && _tl.unconfirmed) || 0) + unconfirmed,
+      };
       v.period_marks = left.length ? { ...rest, _tl: { ..._tl, tasks: left, ...(isVerify ? totals : {}) } } : rest;
       await saveReviewMarks(v);
       renderReviewShots();
@@ -25735,7 +25753,7 @@ async function collectReviewTwelveLabs(manual){
         const n = reviewChecks().length;
         if(isVerify){
           showToast(
-            `Check pass finished: ${totals.confirmed} clip${totals.confirmed === 1 ? "" : "s"} confirmed a shot on your goalie, ${totals.dropped} didn't and ${totals.dropped === 1 ? "was" : "were"} removed. ${n} moment${n === 1 ? "" : "s"} left to check, marked "double-checked".${errors.length ? ` ${errors.length} clip${errors.length === 1 ? "" : "s"} failed and kept ${errors.length === 1 ? "its" : "their"} first-pass flags.` : ""}${reviewRunCostText()}`,
+            `Check pass finished: ${totals.confirmed} confirmed (marked "double-checked"), ${totals.dropped} removed (the close-up showed a shot at the other net or no shot), ${totals.unconfirmed} kept but not confirmed (it couldn't tell). ${n} moment${n === 1 ? "" : "s"} to check.${errors.length ? ` ${errors.length} clip${errors.length === 1 ? "" : "s"} failed and kept ${errors.length === 1 ? "its" : "their"} first-pass flags.` : ""}${reviewRunCostText()}`,
             "success"
           );
         }
