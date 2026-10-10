@@ -3634,6 +3634,7 @@
         <button type="button" class="btn-secondary" id="rv-clear-ai-btn" onclick="clearReviewAiResults()" title="Removes the moments to check, the action stretches and any AI shots you haven't touched, so Run AI starts fresh. Your own shots, period marks and cuts are kept.">Clear AI results</button>
         <button type="button" class="btn-secondary" id="rv-yolo-calib-btn" onclick="openYoloCalibModal()" title="One-time setup: click a few rink markings so the YOLO scan can judge real speed and direction.">Calibrate rink</button>
         <button type="button" class="btn-secondary" id="rv-yolo-btn" onclick="toggleYoloScan()" title="Tracks players and the puck locally (no AI cost) on your own PC, via tracking/worker.py.">Run YOLO scan</button>
+        <button type="button" class="btn-danger" id="rv-yolo-reset-btn" onclick="resetYoloScan()" hidden title="Clears the queued/running/failed status shown here. If your worker is mid-job it'll still finish and report in, this just resets what the site shows.">Reset YOLO scan</button>
         <button type="button" class="btn-secondary" id="rv-test-btn" onclick="runReviewAccuracyTest()" title="Checks the AI against shots you've already marked and reports how many it found, how many extra it flagged, and the cost. Doesn't change the shot list.">Test accuracy</button>
         <button type="button" class="btn-danger" onclick="flagReviewNeedsAttention()">Needs attention</button>
         <label class="rv-check" title="Sends the goalie a recap with their PDF stat sheet from the company Gmail">
@@ -25700,12 +25701,14 @@ async function toggleYoloScan(){
 function renderYoloScanBar(){
   const bar = document.getElementById("rv-yolobar");
   const btn = document.getElementById("rv-yolo-btn");
+  const resetBtn = document.getElementById("rv-yolo-reset-btn");
   if(!bar || !btn){ return; }
   const v = review.video;
   const status = v ? (v.yolo_status || "none") : "none";
   const active = REVIEW_YOLO_ACTIVE.includes(status);
   btn.textContent = active ? "YOLO scan running…" : (status === "done" ? "Re-run YOLO scan" : "Run YOLO scan");
   btn.disabled = active;
+  if(resetBtn){ resetBtn.hidden = !v || (status !== "failed" && !active); }
   bar.hidden = !active && status !== "failed";
   if(!v || bar.hidden){ return; }
   const pct = Math.round((Number(v.yolo_progress) || 0) * 100);
@@ -25715,6 +25718,26 @@ function renderYoloScanBar(){
     status === "claimed" ? "Claimed by your worker, starting…" :
     status === "running" ? `Scanning on your PC: ${pct}%. Keep tracking/worker.py running.` :
     status === "failed" ? `YOLO scan failed: ${v.yolo_error || "unknown error"}` : "";
+}
+
+async function resetYoloScan(){
+  const v = review.video;
+  if(!v){ return; }
+  if(!confirm("Reset the YOLO scan status shown here? If tracking/worker.py already claimed this job, it'll keep running on your PC and report results in when it finishes -- this only clears what the site displays, so you can start a fresh one now.")){ return; }
+  stopYoloPolling();
+  try{
+    const patch = { yolo_status: "none", yolo_progress: 0, yolo_error: null };
+    const { error } = await supabaseClient.from("game_videos").update(patch).eq("id", v.id);
+    if(error){ throw error; }
+    Object.assign(v, patch);
+    showToast("YOLO scan status reset.");
+  }
+  catch(error){
+    showToast(`Could not reset: ${error.message}`, "error");
+  }
+  finally{
+    renderYoloScanBar();
+  }
 }
 
 // ---- Rink calibration (click 6 markings -> homography), for the
