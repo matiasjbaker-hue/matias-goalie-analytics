@@ -25721,15 +25721,20 @@ function renderYoloScanBar(){
 // local YOLO scan. Reference feet match tracking/config.py's defaults
 // (NHL rink; verify against your actual rink if it differs). ----
 
+// label pairs: each row is ONE marking seen twice, once on the LEFT
+// side of the ice and once on the RIGHT side (as you look at the
+// frame) -- never two different markings. E.g. there is only one
+// defensive faceoff dot on each side; don't pick two different dots
+// on the same side.
 const YOLO_CALIB_STEPS = [
-  { key: "goal_post_near", label: "Goal post - NEAR side", ft: [0, -3] },
-  { key: "goal_post_far", label: "Goal post - FAR side", ft: [0, 3] },
-  { key: "faceoff_dot_near", label: "Defensive faceoff dot - NEAR side", ft: [20, -22] },
-  { key: "faceoff_dot_far", label: "Defensive faceoff dot - FAR side", ft: [20, 22] },
-  { key: "blue_line_near_board", label: "Blue line x boards - NEAR side", ft: [64, -42.5] },
-  { key: "blue_line_far_board", label: "Blue line x boards - FAR side", ft: [64, 42.5] },
-  { key: "center_line_near_board", label: "Centre (red) line x boards - NEAR side", ft: [89, -42.5] },
-  { key: "center_line_far_board", label: "Centre (red) line x boards - FAR side", ft: [89, 42.5] },
+  { key: "goal_post_near", label: "Goal post -- LEFT post (as seen on screen)", ft: [0, -3] },
+  { key: "goal_post_far", label: "Goal post -- RIGHT post (as seen on screen)", ft: [0, 3] },
+  { key: "faceoff_dot_near", label: "Defensive faceoff dot -- the one on the LEFT", ft: [20, -22] },
+  { key: "faceoff_dot_far", label: "Defensive faceoff dot -- the SAME dot type, on the RIGHT", ft: [20, 22] },
+  { key: "blue_line_near_board", label: "Blue line where it meets the LEFT board", ft: [64, -42.5] },
+  { key: "blue_line_far_board", label: "The SAME blue line where it meets the RIGHT board", ft: [64, 42.5] },
+  { key: "center_line_near_board", label: "Centre (red) line where it meets the LEFT board", ft: [89, -42.5] },
+  { key: "center_line_far_board", label: "The SAME centre line where it meets the RIGHT board", ft: [89, 42.5] },
 ];
 
 let yoloCalibState = null; // { img, points: [[x,y]|null, ...], idx }

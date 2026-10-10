@@ -84,7 +84,10 @@ def run(
 
     scan_ranges = list(ranges) if ranges else [(start_s, end_s)]
     resolved_ranges = [(max(0.0, s), video_duration if e is None else e) for s, e in scan_ranges]
-    total_scan_seconds = sum(max(0.0, e - s) for s, e in resolved_ranges if e is not None) or None
+    # Falls back to the whole file's duration (imprecise if ranges skip
+    # cuts, but still moving) rather than never reporting progress at
+    # all when a streamed URL's frame count can't be read up front.
+    total_scan_seconds = sum(max(0.0, e - s) for s, e in resolved_ranges if e is not None) or video_duration or None
 
     dt = stride / fps
     puck_trail = []  # recent pixel positions, for the annotated-video trail
