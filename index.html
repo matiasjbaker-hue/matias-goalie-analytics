@@ -3089,6 +3089,7 @@
         <button type="button" class="tag-btn" data-value="Snap" onclick="selectLiveTagChoice('shot_type','Snap',this)">Snap</button>
         <button type="button" class="tag-btn" data-value="Flick" onclick="selectLiveTagChoice('shot_type','Flick',this)">Flick</button>
         <button type="button" class="tag-btn" data-value="Backhand" onclick="selectLiveTagChoice('shot_type','Backhand',this)">Backhand</button>
+        <button type="button" class="tag-btn" data-value="Deke" onclick="selectLiveTagChoice('shot_type','Deke',this)">Deke</button>
       </div>
     </div>
 
@@ -3098,7 +3099,6 @@
         <button type="button" class="tag-btn selected" data-value="" onclick="selectLiveTagChoice('release_type','',this)">Unclear</button>
         <button type="button" class="tag-btn" data-value="one_timer" onclick="selectLiveTagChoice('release_type','one_timer',this)">One-Timer</button>
         <button type="button" class="tag-btn" data-value="catch_and_release" onclick="selectLiveTagChoice('release_type','catch_and_release',this)">Catch &amp; Release</button>
-        <button type="button" class="tag-btn" data-value="quick_release" onclick="selectLiveTagChoice('release_type','quick_release',this)">Quick Release</button>
         <button type="button" class="tag-btn" data-value="extended_possession" onclick="selectLiveTagChoice('release_type','extended_possession',this)">Extended Possession (&gt;2s)</button>
       </div>
     </div>
@@ -3862,7 +3862,7 @@
               <select id="rv-ed-type" onchange="updateReviewShot('shot_type', this.value || null)">
                 <option value="">Unknown</option>
                 <option>Wrist</option><option>Slap</option><option>Snap</option><option>Flick</option>
-                <option>Backhand</option>
+                <option>Backhand</option><option>Deke</option>
               </select>
             </div>
             <div class="field">
@@ -3871,7 +3871,6 @@
                 <option value="">Unclear</option>
                 <option value="one_timer">One-Timer</option>
                 <option value="catch_and_release">Catch &amp; Release</option>
-                <option value="quick_release">Quick Release</option>
                 <option value="extended_possession">Extended Possession</option>
               </select>
             </div>
@@ -4241,7 +4240,7 @@
           <select id="shotEditType">
             <option value="">Unknown</option>
             <option>Wrist</option><option>Slap</option><option>Snap</option><option>Flick</option>
-            <option>Backhand</option>
+            <option>Backhand</option><option>Deke</option>
           </select>
         </div>
         <div class="field" style="grid-column:1/-1">
@@ -4250,7 +4249,6 @@
             <option value="">Unclear</option>
             <option value="one_timer">One-Timer</option>
             <option value="catch_and_release">Catch &amp; Release</option>
-            <option value="quick_release">Quick Release</option>
             <option value="extended_possession">Extended Possession (&gt;2s)</option>
           </select>
         </div>
@@ -10650,6 +10648,7 @@ function baselineStatDefs(){
     shotSV("Shot type", "Snap SV%", type("snap")),
     shotSV("Shot type", "Flick SV%", type("flick")),
     shotSV("Shot type", "Backhand SV%", type("backhand")),
+    shotSV("Shot type", "Deke SV%", type("deke")),
 
     shotSV("Strength", "Even strength SV%", strength("even"), 3, 10),
     shotSV("Strength", "Power play (against) SV%", strength("advantage"), 5, 5),
@@ -14670,6 +14669,7 @@ function recapKind(s){
   if(t === "wrist" || t === "wrist shot"){ return "a wrist shot"; }
   if(t === "snap" || t === "snap shot"){ return "a snap shot"; }
   if(t === "flick" || t === "flick shot"){ return "a flick shot"; }
+  if(t === "deke"){ return "a deke"; }
 
   return "a shot";
 
@@ -16143,7 +16143,7 @@ function computeGameReportData(gameId){
 
   // Shot type breakdown
   const shotTypeRows =
-    ["Wrist", "Slap", "Snap", "Flick", "Backhand"]
+    ["Wrist", "Slap", "Snap", "Flick", "Backhand", "Deke"]
       .map(label => {
         const key = label.toLowerCase();
         const subset = gameShotsList.filter(shot => {
