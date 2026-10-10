@@ -55,7 +55,7 @@
 
 <!-- Build version: bumped on every push, so it's easy to tell whether the
      page you're looking at is the latest deploy. -->
-<div id="app-version" aria-hidden="true" style="position:fixed; top:calc(env(safe-area-inset-top, 0px) + 6px); right:8px; z-index:9999; pointer-events:none; font:600 11px/1.4 Archivo, system-ui, sans-serif; letter-spacing:.04em; color:#EEF5F0; background:rgba(18,20,18,.6); padding:1px 7px; border-radius:4px;">v1.0.2</div>
+<div id="app-version" aria-hidden="true" style="position:fixed; top:calc(env(safe-area-inset-top, 0px) + 6px); right:8px; z-index:9999; pointer-events:none; font:600 11px/1.4 Archivo, system-ui, sans-serif; letter-spacing:.04em; color:#EEF5F0; background:rgba(18,20,18,.6); padding:1px 7px; border-radius:4px;">v1.0.3</div>
 
 <!-- Toast notifications -- replaces alert() popups for a less jarring,
      on-brand way to show success/error feedback. See showToast() in
@@ -3830,6 +3830,12 @@
         </div>
         <p class="small-note rv-check-note" id="rv-check-note" hidden>Where the AI saw a likely shot but can't tell the exact second. M plays the next one: press S at the shot (the moment then clears), D if there wasn't one, or A to take the AI's best guess.</p>
         <ol class="rv-checklist" id="rv-checklist" hidden></ol>
+
+        <div class="rv-side-head rv-check-head" id="rv-zone-head" hidden>
+          <h4>Zone play <span id="rv-zone-count"></span></h4>
+        </div>
+        <p class="small-note rv-check-note" id="rv-zone-note" hidden>Every stretch where play is in your goalie's end. Press Play and they run back to back; press S at each shot. Click one to jump to it.</p>
+        <ol class="rv-checklist" id="rv-zonelist" hidden></ol>
 
         <div class="rv-editor" id="rv-editor" hidden>
 
@@ -23762,14 +23768,14 @@ function mergeActionStretches(list, joinGap = REVIEW_ACTION_JOIN_GAP){
 //    produce a shot between two stills);
 //  - stretches closer than REVIEW_ACTION_SAFE_JOIN merge (a short gap
 //    inside zone play is more likely a missed still than a real exit);
-//  - every moment any AI flagged (Claude or Twelve Labs) and every shot
-//    on the list is included;
+//  - every shot on the list is included (the zone scan already folds
+//    its own shot flags into the stretches; other moments, e.g. Twelve
+//    Labs', are left out so the reel is zone play only);
 //  - any part the scan hasn't reached yet counts as action, so stopping
 //    a scan halfway never hides the rest of the game.
 const REVIEW_ACTION_SAFE_BEFORE = 5;
 const REVIEW_ACTION_SAFE_AFTER = 3;
 const REVIEW_ACTION_SAFE_JOIN = 15;
-const REVIEW_ACTION_FLAG_PAD = 6;
 
 function reviewActionStretches(){
   const v = review.video;
@@ -23777,16 +23783,12 @@ function reviewActionStretches(){
   const saved = (v.period_marks && Array.isArray(v.period_marks._action)) ? v.period_marks._action : [];
   const padded = saved.map(r => [Number(r[0]) - REVIEW_ACTION_SAFE_BEFORE, Number(r[1]) + REVIEW_ACTION_SAFE_AFTER]);
   const aroundShots = review.drafts.map(d => [Number(d.t_seconds) - 8, Number(d.t_seconds) + 5]);
-  const aroundFlags = (review.candidates || []).map(c => [
-    (Number.isFinite(c.s) ? Math.min(c.s, c.t) : c.t) - REVIEW_ACTION_FLAG_PAD,
-    (Number.isFinite(c.e) ? Math.max(c.e, c.t) : c.t) + REVIEW_ACTION_FLAG_PAD,
-  ]);
   const d = reviewDuration() || Number(v.duration_seconds) || 0;
   const cursor = Number(v.scan_cursor) || 0;
   // No zone scan yet (or a Twelve Labs run only, which doesn't report the
   // zone) means nothing is known about the rest, so it all plays.
   const unscanned = d && Number(v.scan_progress) < 1 && cursor < d ? [[cursor, d]] : [];
-  return mergeActionStretches([...padded, ...aroundShots, ...aroundFlags, ...unscanned], REVIEW_ACTION_SAFE_JOIN)
+  return mergeActionStretches([...padded, ...aroundShots, ...unscanned], REVIEW_ACTION_SAFE_JOIN)
     .map(r => [r[0], d ? Math.min(d, r[1]) : r[1]]);
 }
 
@@ -23813,6 +23815,8 @@ function renderReviewActionNote(){
 
 function onReviewActionOnlyChange(){
   const on = document.getElementById("rv-action-only").checked;
+  renderReviewChecklist();
+  renderReviewTimeline();
   if(on){
     const video = document.getElementById("rv-video");
     const st = reviewActionStretches();
@@ -23856,6 +23860,7 @@ function reviewEffectivePeriod(d){
 
 function renderReviewTimeline(){
 
+  renderReviewZoneList();
   const d = reviewDuration();
   const ticks = document.getElementById("rv-ticks");
   if(!ticks){ return; }
@@ -23895,8 +23900,8 @@ function renderReviewTimeline(){
     ["2", "3", "OT"].filter(k => marks[k] !== undefined && marks[k] !== null).map(k =>
       `<span class="rv-pmark" style="left:${pct(marks[k])}%" title="${k === "OT" ? "OT" : k === "2" ? "2nd period" : "3rd period"} starts ${formatClock(marks[k])}">${k === "OT" ? "OT" : k}</span>`
     ).join("") +
-    reviewChecks().map(m =>
-      `<button type="button" class="rv-moment ${Number.isFinite(review.checkT) && Math.abs(review.checkT - m.start) < 0.01 ? "is-selected" : ""}" style="left:${pct(m.start - 1)}%;width:${Math.max(0.6, pct(m.end + 1) - pct(m.start - 1))}%" onclick="event.stopPropagation(); selectReviewCheck(${m.start}, true)" title="Moment to check, ${escapeHtml(formatMomentRange(m))}: ${m.goal ? "possible goal" : "possible shot"}. Click to watch it, press S at the shot or D if there's none." aria-label="Moment to check, ${escapeHtml(formatMomentRange(m))}"></button>`
+    (reviewActionOnlyOn() ? [] : reviewChecks()).map(m =>
+      `<button type="button" class="rv-moment${Number.isFinite(review.checkT) && Math.abs(review.checkT - m.start) < 0.01 ? "is-selected" : ""}" style="left:${pct(m.start - 1)}%;width:${Math.max(0.6, pct(m.end + 1) - pct(m.start - 1))}%" onclick="event.stopPropagation(); selectReviewCheck(${m.start}, true)" title="Moment to check, ${escapeHtml(formatMomentRange(m))}: ${m.goal ? "possible goal" : "possible shot"}. Click to watch it, press S at the shot or D if there's none." aria-label="Moment to check, ${escapeHtml(formatMomentRange(m))}"></button>`
     ).join("") +
     review.drafts.map(dr => {
       const cls = ["rv-tick", dr.outcome === "goal" ? "is-goal" : "is-save", String(dr.id) === String(review.selectedId) ? "is-selected" : ""].join(" ");
@@ -25177,10 +25182,41 @@ function saveReviewCandidates(){
   }, 600);
 }
 
+function reviewActionOnlyOn(){
+  const box = document.getElementById("rv-action-only");
+  return !!(box && box.checked);
+}
+
+// With "Play action only" on, the side panel lists the zone clips that
+// will play instead of the AI's moments to check.
+function renderReviewZoneList(){
+  const list = document.getElementById("rv-zonelist");
+  if(!list){ return; }
+  const on = reviewActionOnlyOn();
+  const st = on ? reviewActionStretches() : [];
+  document.getElementById("rv-zone-head").hidden = !on;
+  document.getElementById("rv-zone-note").hidden = !on;
+  list.hidden = !st.length;
+  document.getElementById("rv-zone-count").textContent = on ? `(${st.length})` : "";
+  list.innerHTML = st.map((r, i) => {
+    const n = review.drafts.filter(d => Number(d.t_seconds) >= r[0] && Number(d.t_seconds) < r[1]).length;
+    const range = `${formatClock(r[0])}–${formatClock(r[1])}`;
+    return `
+      <li>
+        <button type="button" class="rv-check-go" onclick="playReviewAction(${r[0]})" aria-label="Play zone clip ${i + 1}, ${escapeHtml(range)}">
+          <span class="rv-shot-time rv-moment-range">${escapeHtml(range)}</span>
+          <span>Zone clip ${i + 1}</span>
+          <span class="rv-check-conf">${Math.round(r[1] - r[0])}s${n ? ` · ${n} shot${n === 1 ? "" : "s"}` : ""}</span>
+        </button>
+      </li>`;
+  }).join("");
+}
+
 function renderReviewChecklist(){
+  renderReviewZoneList();
   const list = document.getElementById("rv-checklist");
   if(!list){ return; }
-  const moments = reviewChecks();
+  const moments = reviewActionOnlyOn() ? [] : reviewChecks();
   const has = moments.length > 0;
   document.getElementById("rv-check-head").hidden = !has;
   document.getElementById("rv-check-note").hidden = !has;
@@ -26344,6 +26380,14 @@ function toggleReviewScan(){
   }
   if(review.video && !(review.video.period_marks || {})._net && !review.scanning){
     if(!confirm("Which net is the goalie's isn't set (next to the period marks), so the AI may flag action at the wrong end. Run the AI anyway?")){ return; }
+  }
+  else if(review.video && !review.scanning){
+    const pm = review.video.period_marks || {};
+    const has = k => pm[k] !== undefined && pm[k] !== null;
+    if(!has("2") || !has("3")){
+      const missing = [!has("2") && "2nd", !has("3") && "3rd"].filter(Boolean).join(" and ");
+      if(!confirm(`Where the ${missing} period starts isn't marked, so the AI won't know when the goalie switches ends and will watch the wrong net from then on. Scrub to the start of each period and press "${missing.startsWith("2nd") ? "2nd" : "3rd"} starts here" first.\n\nRun the AI anyway?`)){ return; }
+    }
   }
   if(review.video && !reviewEditFinished(review.video)){
     const cuts = reviewCuts(review.video);
