@@ -3759,6 +3759,16 @@
           <span class="small-note" id="rv-period-note"></span>
         </div>
 
+        <section class="rv-puck" id="rv-puck" aria-labelledby="rv-puck-title">
+          <div class="rv-puck-head">
+            <h4 id="rv-puck-title">Puck playing</h4>
+            <span class="small-note" id="rv-puck-sum" aria-live="polite"></span>
+            <label class="rv-puck-toggle"><input type="checkbox" id="rv-puck-high" onchange="renderReviewPuck()"> Up-high rims</label>
+          </div>
+          <div class="rv-puck-body" id="rv-puck-body"></div>
+          <p class="small-note rv-puck-note">Count rims and passes as you watch. They save as you go and are added to the game when you publish. A stopped rim counts as faced, a completed pass as attempted.</p>
+        </section>
+
         <section class="rv-edit" id="rv-edit" aria-labelledby="rv-edit-title">
           <div class="rv-edit-head">
             <h4 id="rv-edit-title">Edit video</h4>
@@ -23559,6 +23569,8 @@ async function openReview(videoId){
 
   renderReviewHeader();
   fillReviewGameDetails();
+  document.getElementById("rv-puck-high").checked = false;
+  renderReviewPuck();
   document.getElementById("rv-editor").hidden = true;
   document.getElementById("rv-scanbar").hidden = true;
 
@@ -26657,6 +26669,100 @@ async function deleteReviewClipFiles(clipIds){
   }
 }
 
+/* ---------- puck playing while reviewing ----------
+   Rims and passes are counted here (+ / −) as the admin watches, kept in
+   period_marks._puck so they survive a refresh, and added to the game's
+   puck_playing row when it's published. A republish first takes out what
+   the last publish added (snapshot.puck), so counts entered for the game
+   some other way (Live Tag, Edit game) are never lost or doubled. */
+
+let reviewPuckSaveTimer = null;
+
+function reviewPuckTally(v){
+  const saved = (v && v.period_marks && v.period_marks._puck) || {};
+  const t = puckEmptyTally();
+  PUCK_FINE_KEYS.forEach(k => { t[k] = Math.max(0, Math.round(num(saved[k]))); });
+  return t;
+}
+
+function renderReviewPuck(){
+  const host = document.getElementById("rv-puck-body");
+  const v = review.video;
+  if(!host || !v){ return; }
+  const t = reviewPuckTally(v);
+  const high = document.getElementById("rv-puck-high");
+  if(PUCK_RIM_KINDS.some(k => k.high && (t["rims_faced_" + k.key] || t["rims_stopped_" + k.key]))){ high.checked = true; }
+  const step = (key, name) => `
+    <div class="counter-controls">
+      <button type="button" class="counter-step-btn" onclick="stepReviewPuck('${key}',-1)" aria-label="One less: ${escapeHtml(name)}">–</button>
+      <span class="counter-value">${t[key]}</span>
+      <button type="button" class="counter-step-btn" onclick="stepReviewPuck('${key}',1)" aria-label="One more: ${escapeHtml(name)}">+</button>
+    </div>`;
+  const row = (label, a, aName, b, bName) =>
+    `<div class="rv-puck-row"><span class="counter-name">${escapeHtml(label)}</span>${step(a, `${label}, ${aName}`)}${step(b, `${label}, ${bName}`)}</div>`;
+  const head = (title, a, b) => `<div class="rv-puck-row rv-puck-cols"><span>${title}</span><span>${a}</span><span>${b}</span></div>`;
+  host.innerHTML =
+    `<div class="rv-puck-group">${head("Rims", "Faced", "Stopped")}` +
+    PUCK_RIM_KINDS.filter(k => !k.high || high.checked).map(k => row(k.label, "rims_faced_" + k.key, "rims faced", "rims_stopped_" + k.key, "rims stopped")).join("") +
+    `</div><div class="rv-puck-group">${head("Passes", "Attempted", "Completed")}` +
+    PUCK_PASS_KINDS.map(k => row(k.label, "pass_attempts_" + k.key, "passes attempted", "passes_completed_" + k.key, "passes completed")).join("") +
+    `</div>`;
+  const s = puckTallyForSave(t);
+  document.getElementById("rv-puck-sum").textContent =
+    `Rims ${s.rims_stopped} of ${s.rims_faced} stopped · Passes ${s.passes_completed} of ${s.pass_attempts} completed`;
+}
+
+function stepReviewPuck(key, delta){
+  const v = review.video;
+  if(!v){ return; }
+  const t = reviewPuckTally(v);
+  t[key] = Math.max(0, t[key] + delta);
+  // A stopped rim was also faced, and a completed pass also attempted.
+  const pairs = [
+    ...PUCK_RIM_KINDS.map(k => ["rims_faced_" + k.key, "rims_stopped_" + k.key]),
+    ...PUCK_PASS_KINDS.map(k => ["pass_attempts_" + k.key, "passes_completed_" + k.key])
+  ];
+  pairs.forEach(([whole, part]) => {
+    if(t[part] > t[whole]){
+      if(key === part){ t[whole] = t[part]; } else { t[part] = t[whole]; }
+    }
+  });
+  v.period_marks = { ...(v.period_marks || {}), _puck: t };
+  renderReviewPuck();
+  clearTimeout(reviewPuckSaveTimer);
+  reviewPuckSaveTimer = setTimeout(() => {
+    reviewPuckSaveTimer = null;
+    saveReviewMarks(v).catch(error => showToast(`Couldn't save the puck counts: ${error.message}`, "error"));
+  }, 600);
+}
+
+async function flushReviewPuck(){
+  if(!reviewPuckSaveTimer){ return; }
+  clearTimeout(reviewPuckSaveTimer);
+  reviewPuckSaveTimer = null;
+  await saveReviewMarks(review.video);
+}
+
+// Adds (sign 1) or takes out (sign -1) a tally on the game's puck_playing
+// row: the fine columns and the four totals, never below 0.
+async function addReviewPuckToGame(gameId, userId, tally, sign){
+  if(!tally || !PUCK_FINE_KEYS.some(k => num(tally[k]) > 0)){ return; }
+  const totals = puckTallyForSave(tally);
+  const keys = [...PUCK_FINE_KEYS, "rims_faced", "rims_stopped", "pass_attempts", "passes_completed"];
+  const { data: rows, error } = await supabaseClient.from("puck_playing").select("*").eq("game_id", gameId).limit(1);
+  if(error){ throw error; }
+  if(rows && rows.length){
+    const patch = {};
+    keys.forEach(k => { patch[k] = Math.max(0, num(rows[0][k]) + sign * num(totals[k])); });
+    const { error: upErr } = await supabaseClient.from("puck_playing").update(patch).eq("id", rows[0].id);
+    if(upErr){ throw upErr; }
+  }
+  else if(sign > 0){
+    const { error: inErr } = await supabaseClient.from("puck_playing").insert({ ...totals, game_id: gameId, user_id: userId });
+    if(inErr){ throw inErr; }
+  }
+}
+
 async function saveReviewSnapshot(v, snapshot){
   v.period_marks = { ...(v.period_marks || {}), _published: snapshot };
   const { error } = await supabaseClient.from("game_videos").update({ period_marks: v.period_marks }).eq("id", v.id);
@@ -26689,10 +26795,14 @@ async function approveReview(){
   }
 
   const details = readReviewGameDetails();
+  const puckNow = puckTallyForSave(reviewPuckTally(v));
+  const puckText = puckNow.rims_faced || puckNow.pass_attempts
+    ? `, plus ${puckNow.rims_faced} rim${puckNow.rims_faced === 1 ? "" : "s"} and ${puckNow.pass_attempts} pass${puckNow.pass_attempts === 1 ? "" : "es"}`
+    : "";
 
   if(!confirm(republish
-    ? `Republish ${drafts.length} shots (${drafts.length - goals} saves, ${goals} goal${goals === 1 ? "" : "s"}) to ${reviewOwnerName(v)}? This replaces what was published before with the list as it is now.`
-    : `Publish ${drafts.length} shots (${drafts.length - goals} saves, ${goals} goal${goals === 1 ? "" : "s"}) to ${reviewOwnerName(v)}? They'll see the stats right away.`)){
+    ? `Republish ${drafts.length} shots (${drafts.length - goals} saves, ${goals} goal${goals === 1 ? "" : "s"})${puckText} to ${reviewOwnerName(v)}? This replaces what was published before with the list as it is now.`
+    : `Publish ${drafts.length} shots (${drafts.length - goals} saves, ${goals} goal${goals === 1 ? "" : "s"})${puckText} to ${reviewOwnerName(v)}? They'll see the stats right away.`)){
     return;
   }
 
@@ -26703,6 +26813,7 @@ async function approveReview(){
   try{
 
     await flushReviewSaves();
+    await flushReviewPuck();
 
     let gameId = v.game_id;
 
@@ -26730,6 +26841,7 @@ async function approveReview(){
         if(error){ throw error; }
         await applyShotsToGameTotals(gameId, v.user_id, old.shots, -1);
       }
+      if(old.puck){ await addReviewPuckToGame(gameId, v.user_id, old.puck, -1); }
       await deleteReviewClipFiles(old.clipIds);
     }
 
@@ -26766,6 +26878,9 @@ async function approveReview(){
 
     await applyShotsToGameTotals(gameId, v.user_id, shots, 1);
 
+    const puck = reviewPuckTally(v);
+    await addReviewPuckToGame(gameId, v.user_id, puck, 1);
+
     const snapshot = {
       shotIds: insertedShots.map(r => r.shot_id ?? r.id),
       idColumn: insertedShots[0] ? shotIdColumn(insertedShots[0]) : "id",
@@ -26774,6 +26889,8 @@ async function approveReview(){
       // film reads this, so it never depends on the MP4 clips.
       times: Object.fromEntries(insertedShots.map((r, i) => [String(r.shot_id ?? r.id), shots[i] ? shots[i].t : null]).filter(e => Number.isFinite(e[1]))),
       clipIds: [],
+      // Rims and passes this publish added, taken out again on a republish.
+      puck,
       at: now
     };
     await saveReviewSnapshot(v, snapshot);
