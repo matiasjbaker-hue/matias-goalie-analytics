@@ -23544,7 +23544,7 @@ async function openReview(videoId){
   review.cutHistory = [];
   review.drafts = [];
   review.candidates = ((v.period_marks && Array.isArray(v.period_marks._candidates)) ? v.period_marks._candidates : [])
-    .map(c => ({ t: Number(c.t), confidence: Number(c.c) || 0, goal: !!c.g, ...(Number.isFinite(Number(c.s)) && Number.isFinite(Number(c.e)) ? { s: Number(c.s), e: Number(c.e) } : {}) }))
+    .map(c => ({ t: Number(c.t), confidence: Number(c.c) || 0, goal: !!c.g, ...(Number.isFinite(Number(c.s)) && Number.isFinite(Number(c.e)) ? { s: Number(c.s), e: Number(c.e) } : {}), ...(c.src ? { src: String(c.src) } : {}) }))
     .filter(c => Number.isFinite(c.t));
   review.checkT = null;
   review.selectedId = null;
@@ -24746,9 +24746,11 @@ function renderReviewScanBar(){
   if(!show){ return; }
   if(waiting && reviewTlTasks(v).length){
     const n = reviewTlTasks(v).length;
+    const verifying = !!(v.period_marks._tl && v.period_marks._tl.verify);
     document.getElementById("rv-scanbar-fill").style.width = "100%";
-    document.getElementById("rv-scan-text").textContent =
-      `Twelve Labs is watching ${n} part${n === 1 ? "" : "s"} of the game. Usually a few minutes; checked every 30 seconds while this request is open. You can close it and come back.${review.tlCheckedAt ? ` Last checked ${new Date(review.tlCheckedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.` : ""}`;
+    document.getElementById("rv-scan-text").textContent = verifying
+      ? `Check pass: Twelve Labs is taking a closer look at ${n} flagged moment${n === 1 ? "" : "s"} still out. Checked every 30 seconds while this request is open; you can close it and come back.`
+      : `Twelve Labs is watching ${n} part${n === 1 ? "" : "s"} of the game. Usually a few minutes; checked every 30 seconds while this request is open. You can close it and come back.${review.tlCheckedAt ? ` Last checked ${new Date(review.tlCheckedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.` : ""}`;
     return;
   }
   if(waiting){
@@ -24866,13 +24868,15 @@ async function setReviewNetSide(side, period){
 // saved with the video so it's still there after reopening.
 // span: { start, end } when the AI gives a stretch rather than a moment
 // (Twelve Labs does).
-function addReviewCandidate(v, t, confidence, goal, span){
+// src: "tl2" marks a flag the Twelve Labs check pass confirmed.
+function addReviewCandidate(v, t, confidence, goal, span, src){
   const r2 = x => Math.round(Number(x) * 100) / 100;
   const c = { t: r2(t), confidence: Number(confidence) || 0, goal: !!goal };
   if(span && Number.isFinite(Number(span.start)) && Number.isFinite(Number(span.end)) && Number(span.end) > Number(span.start)){
     c.s = r2(span.start);
     c.e = r2(span.end);
   }
+  if(src){ c.src = String(src).slice(0, 20); }
   review.candidates.push(c);
   const saved = (v.period_marks && Array.isArray(v.period_marks._candidates)) ? v.period_marks._candidates : [];
   v.period_marks = { ...(v.period_marks || {}), _candidates: [...saved, reviewCandidateRecord(c)].slice(-2000) };
@@ -24883,7 +24887,8 @@ function reviewCandidateRecord(c){
     t: c.t,
     c: Math.round((Number(c.confidence) || 0) * 100) / 100,
     ...(c.goal ? { g: 1 } : {}),
-    ...(Number.isFinite(c.s) && Number.isFinite(c.e) ? { s: c.s, e: c.e } : {})
+    ...(Number.isFinite(c.s) && Number.isFinite(c.e) ? { s: c.s, e: c.e } : {}),
+    ...(c.src ? { src: c.src } : {})
   };
 }
 
@@ -25105,7 +25110,7 @@ function renderReviewChecklist(){
         <button type="button" class="rv-check-go" onclick="selectReviewCheck(${m.start}, true)" aria-label="Watch ${escapeHtml(range)}, ${what.toLowerCase()}">
           <span class="rv-shot-time rv-moment-range">${escapeHtml(range)}</span>
           <span>${what}</span>
-          <span class="rv-check-conf">${m.flags.length} flag${m.flags.length === 1 ? "" : "s"}</span>
+          <span class="rv-check-conf">${m.flags.length} flag${m.flags.length === 1 ? "" : "s"}${m.flags.some(f => f.src === "tl2") ? " · double-checked" : ""}</span>
         </button>
         <button type="button" class="rv-check-add" onclick="acceptReviewCheck(${m.start})" title="Add a shot at the AI's best guess, ${escapeHtml(formatClock(m.t))} (A)" aria-label="Add a shot at ${escapeHtml(formatClock(m.t))}">Add</button>
         <button type="button" class="rv-check-x" onclick="dismissReviewCheck(${m.start})" title="No shot here (D)" aria-label="No shot in ${escapeHtml(range)}: dismiss">×</button>
@@ -25456,12 +25461,12 @@ async function cutReviewTlPieces(v, windows){
 // more. The tasks are saved only when every group is in.
 const REVIEW_TL_START_GROUP = 6;
 
-async function startReviewTlPieces(v, pieces, offset, jersey){
+async function startReviewTlPieces(v, pieces, offset, jersey, extra = {}){
   const tasks = [];
   for(let i = 0; i < pieces.length; i += REVIEW_TL_START_GROUP){
     const group = pieces.slice(i, i + REVIEW_TL_START_GROUP);
     setReviewTlProgress(`Sending to Twelve Labs (${i} of ${pieces.length} parts). Keep this tab open.`, Math.round(i / pieces.length * 100));
-    const send = () => twelveLabsApi({ op: "start", gameVideoId: v.id, pieces: group, offset, jersey });
+    const send = () => twelveLabsApi({ op: "start", gameVideoId: v.id, pieces: group, offset, jersey, ...extra });
     let data;
     try{ data = await send(); }
     catch(error){
@@ -25490,7 +25495,8 @@ async function runReviewTwelveLabs(){
   if(!confirm(
     `Send ${formatClock(seconds)} of game (${parts.length} part${parts.length === 1 ? "" : "s"}) to Twelve Labs?\n\n` +
     `Only these parts are sent: the cut parts never leave your storage. Its video model watches them and lists each shot it sees on the goalie as a moment to check. ` +
-    `It uses ${minutes} of your free Twelve Labs minutes (600 on the free plan), or about ${formatUsd(seconds / 3600 * REVIEW_TL_USD_PER_HOUR)} on a paid plan.\n\n` +
+    `Then each flagged moment goes back as a short clip for a stricter second check, and moments it can't confirm are removed (about 15 seconds of video per moment).\n\n` +
+    `It uses ${minutes} of your free Twelve Labs minutes (600 on the free plan), or about ${formatUsd(seconds / 3600 * REVIEW_TL_USD_PER_HOUR)} on a paid plan, plus a little for the check.\n\n` +
     `Results usually take a few minutes. You can close this request and come back.`
   )){ return; }
 
@@ -25547,6 +25553,92 @@ async function runReviewTwelveLabs(){
 
 }
 
+/* ---------- Twelve Labs check pass ----------
+   Starts by itself when the first pass finishes. Each moment the first
+   pass flagged goes back as its own short clip (a few seconds either
+   side), asked a stricter question: a real shot, at the tracked goalie's
+   net. On a 3-minute piece the model misses detail; on a 10-30 second
+   close-up it doesn't have to search. Flags it can't confirm are removed;
+   confirmed ones are replaced with the release time it reports from the
+   close-up. Only the flagged seconds go out, so it costs a fraction of
+   the first pass. If any step fails, the first pass's moments stay as
+   they were. */
+
+const REVIEW_TL_VERIFY_PAD = 4;
+const REVIEW_TL_VERIFY_MIN = 8;
+const REVIEW_TL_VERIFY_MAX = 30;
+const REVIEW_TL_VERIFY_CUT_PARALLEL = 3;
+
+// First-pass flags: Twelve Labs gives stretches (s/e); confirmed ones are "tl2".
+function reviewTlFirstPassFlag(c){
+  return Number.isFinite(c.s) && c.src !== "tl2";
+}
+
+// One clip per moment still to check, padded; close moments share a clip.
+function reviewTlVerifyWindows(){
+  const v = review.video;
+  const d = reviewDuration() || Number(v && v.duration_seconds) || Infinity;
+  const r2 = x => Math.round(x * 100) / 100;
+  const out = [];
+  reviewChecks().filter(m => m.flags.some(reviewTlFirstPassFlag)).forEach(m => {
+    const a = Math.max(0, m.start - REVIEW_TL_VERIFY_PAD);
+    let b = Math.min(d, m.end + REVIEW_TL_VERIFY_PAD);
+    if(b - a < REVIEW_TL_VERIFY_MIN){ b = Math.min(d, a + REVIEW_TL_VERIFY_MIN); }
+    const last = out[out.length - 1];
+    if(last && a <= last.end && b - last.start <= REVIEW_TL_VERIFY_MAX){ last.end = Math.max(last.end, b); return; }
+    out.push({ start: a, end: Math.min(b, a + REVIEW_TL_VERIFY_MAX) });
+  });
+  return out
+    .filter(w => w.end - w.start >= 4)
+    .map(w => ({ start: r2(w.start), end: r2(w.end), ms: r2(w.start), me: r2(w.end), side: reviewNetSideAt((w.start + w.end) / 2) }));
+}
+
+async function startReviewTlVerify(v, offset){
+  if(!review.video || review.video.id !== v.id || review.collecting){ return; }
+  const windows = reviewTlVerifyWindows();
+  if(!windows.length){ return; }
+
+  review.collecting = true;
+  renderReviewHeader();
+  try{
+    const pieces = [];
+    const queue = windows.slice();
+    const worker = async () => {
+      while(queue.length){
+        const w = queue.shift();
+        setReviewTlProgress(`Check pass: copying ${windows.length} flagged moment${windows.length === 1 ? "" : "s"} for a closer look (${pieces.length} of ${windows.length}). Keep this tab open.`, Math.round(pieces.length / windows.length * 100));
+        try{
+          const r = await twelveLabsApi({ op: "cut", gameVideoId: v.id, start: w.start, end: w.end });
+          pieces.push({ ...w, key: r.key, pieceStart: r.pieceStart, pieceDuration: r.pieceDuration });
+        }
+        catch(error){
+          console.warn("Check pass: couldn't copy a moment; it keeps its first-pass flags.", w, error.message);
+        }
+        if(!review.video || review.video.id !== v.id){ queue.length = 0; }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(REVIEW_TL_VERIFY_CUT_PARALLEL, windows.length) }, worker));
+    if(!review.video || review.video.id !== v.id){ throw new Error("The check pass stopped because the request was closed."); }
+    if(!pieces.length){ throw new Error("The check pass couldn't copy any of the flagged moments."); }
+
+    const tasks = await startReviewTlPieces(v, pieces, offset, v.team_jersey_color || "", { verify: true });
+    v.period_marks = { ...(v.period_marks || {}), _tl: { tasks, sent_at: new Date().toISOString(), verify: true } };
+    await saveReviewMarks(v);
+    showToast(`Check pass sent: ${pieces.length} flagged moment${pieces.length === 1 ? "" : "s"} went back to Twelve Labs as short clips. Ones it can't confirm as a shot on your goalie will be removed.`, "success");
+  }
+  catch(error){
+    console.error(error);
+    showToast(`${error.message || "The check pass couldn't start."} The first pass's moments are kept as they are.`, "error");
+  }
+  finally{
+    review.collecting = false;
+    renderReviewHeader();
+    renderReviewScanBar();
+  }
+
+  startReviewTlPolling();
+}
+
 function startReviewTlPolling(){
   stopReviewTlPolling();
   if(!review.video || !reviewTlTasks(review.video).length){ return; }
@@ -25569,9 +25661,19 @@ async function collectReviewTwelveLabs(manual){
   review.tlChecking = true;
 
   try{
-    const data = await twelveLabsApi({ op: "status", gameVideoId: v.id, tasks });
+    // The server checks at most 100 tasks per call; a check pass can have more.
+    const data = { tasks: [] };
+    for(let i = 0; i < tasks.length; i += 100){
+      const part = await twelveLabsApi({ op: "status", gameVideoId: v.id, tasks: tasks.slice(i, i + 100) });
+      data.tasks.push(...(part.tasks || []));
+    }
     if(!review.video || review.video.id !== v.id){ return; }
     review.tlCheckedAt = Date.now();
+
+    const isVerify = !!(v.period_marks._tl && v.period_marks._tl.verify);
+    const own = new Map(tasks.map(t => [t.id, t]));
+    let confirmed = 0;
+    let dropped = 0;
 
     const done = new Set();
     const errors = [];
@@ -25581,9 +25683,21 @@ async function collectReviewTwelveLabs(manual){
     (data.tasks || []).forEach(t => {
       if(t.status === "ready"){
         done.add(t.id);
+        if(isVerify){
+          // Swap the first-pass flags in this clip's window for whatever
+          // the close-up confirmed (possibly nothing).
+          const sent = own.get(t.id) || {};
+          const ms = Number(sent.ms);
+          const me = Number(sent.me);
+          if(Number.isFinite(ms) && Number.isFinite(me)){
+            review.candidates = review.candidates.filter(c => !(reviewTlFirstPassFlag(c) && c.t >= ms - 1 && c.t <= me + 1));
+            v.period_marks = { ...v.period_marks, _candidates: review.candidates.map(reviewCandidateRecord) };
+          }
+          if((t.segments || []).length){ confirmed++; } else { dropped++; }
+        }
         (t.segments || []).forEach(s => {
           const conf = s.outcome === "missed_net" ? 0.2 : (REVIEW_TL_CONFIDENCE[s.confidence] || 0.3);
-          addReviewCandidate(v, s.t, conf, s.outcome === "goal", { start: s.start, end: s.end });
+          addReviewCandidate(v, s.t, conf, s.outcome === "goal", { start: s.start, end: s.end }, isVerify ? "tl2" : undefined);
           segments++;
         });
         if(Number(t.usd) > 0){ addReviewAiCost(Number(t.usd), "scan"); }
@@ -25609,16 +25723,35 @@ async function collectReviewTwelveLabs(manual){
     if(done.size){
       const left = tasks.filter(t => !done.has(t.id));
       const { _tl, ...rest } = v.period_marks;
-      v.period_marks = left.length ? { ...rest, _tl: { ..._tl, tasks: left } } : rest;
+      // Check-pass totals build up over several polls.
+      const totals = { confirmed: (Number(_tl && _tl.confirmed) || 0) + confirmed, dropped: (Number(_tl && _tl.dropped) || 0) + dropped };
+      v.period_marks = left.length ? { ...rest, _tl: { ..._tl, tasks: left, ...(isVerify ? totals : {}) } } : rest;
       await saveReviewMarks(v);
       renderReviewShots();
+      renderReviewChecklist();
+      renderReviewTimeline();
       if(!left.length){
         stopReviewTlPolling();
         const n = reviewChecks().length;
-        showToast(
-          `Twelve Labs finished: ${segments} shot${segments === 1 ? "" : "s"} on your goalie, grouped into ${n} moment${n === 1 ? "" : "s"} to check on the right.${leftOut.other_net || leftOut.not_shot ? ` Left out: ${leftOut.other_net} at the other net, ${leftOut.not_shot} that weren't shots on goal.` : ""}${minutes ? ` Used ${minutes} Twelve Labs minute${minutes === 1 ? "" : "s"} (free on the free plan).` : ""}${errors.length ? ` ${errors.length} part${errors.length === 1 ? "" : "s"} failed: ${errors[0]}` : ""}${reviewRunCostText()} Watch each one (M), press S at each shot, or D if there wasn't one.`,
-          errors.length && !segments ? "error" : "success"
-        );
+        if(isVerify){
+          showToast(
+            `Check pass finished: ${totals.confirmed} clip${totals.confirmed === 1 ? "" : "s"} confirmed a shot on your goalie, ${totals.dropped} didn't and ${totals.dropped === 1 ? "was" : "were"} removed. ${n} moment${n === 1 ? "" : "s"} left to check, marked "double-checked".${errors.length ? ` ${errors.length} clip${errors.length === 1 ? "" : "s"} failed and kept ${errors.length === 1 ? "its" : "their"} first-pass flags.` : ""}${reviewRunCostText()}`,
+            "success"
+          );
+        }
+        else{
+          // The check pass needs clips copied out of the stored video; the
+          // upload-the-whole-file route (no copying on the server) can't.
+          const canVerify = n > 0 && tasks.some(t => t.key);
+          showToast(
+            `Twelve Labs first pass finished: ${segments} possible shot${segments === 1 ? "" : "s"} on your goalie, grouped into ${n} moment${n === 1 ? "" : "s"}.${leftOut.other_net || leftOut.not_shot ? ` Left out: ${leftOut.other_net} at the other net, ${leftOut.not_shot} that weren't shots on goal.` : ""}${minutes ? ` Used ${minutes} Twelve Labs minute${minutes === 1 ? "" : "s"} (free on the free plan).` : ""}${errors.length ? ` ${errors.length} part${errors.length === 1 ? "" : "s"} failed: ${errors[0]}` : ""}${canVerify ? " Now double-checking each moment as a short clip…" : ` Watch each one (M), press S at each shot, or D if there wasn't one.`}`,
+            errors.length && !segments ? "error" : "success"
+          );
+          if(canVerify){
+            const sentOffset = Number((tasks.find(t => Number.isFinite(Number(t.offset))) || {}).offset);
+            startReviewTlVerify(v, Number.isFinite(sentOffset) ? sentOffset : undefined);
+          }
+        }
       }
       else if(errors.length){
         showToast(`A part of the game failed at Twelve Labs: ${errors[0]}`, "error");

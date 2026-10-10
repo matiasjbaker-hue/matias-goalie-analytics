@@ -42,6 +42,9 @@
 //   op "plan": { gameVideoId } -> { size, duration, offset, bytesPerSec, canCut }
 //   op "cut":  { gameVideoId, start, end } -> { key, bytes, pieceStart, pieceDuration }
 //   op "start" with pieces: [{ key, start, end, side, pieceStart, pieceDuration }], offset
+//     verify: true = the check pass: each piece is a short clip around
+//     first-pass moments (pieces also carry ms/me, that window), asked a
+//     stricter question and filtered strictly (see shotsFromResult).
 //     A long game is many pieces, and each one is a separate Twelve Labs
 //     task, so the page sends them a few at a time (each call has to finish
 //     inside the 60 s function limit) and the tasks inside a call are
@@ -394,25 +397,37 @@ function clean(text, max) {
 // asked to list every shot attempt at either net and label each one
 // (what it was, which end of the rink, which goalie faced it), and the
 // filter below keeps only shots on goal against the tracked goalie.
-function shotDefinition(jersey, side) {
+// verify: the second, stricter pass. Each task is a short clip cut around
+// one moment the first pass flagged, so the model gets a close-up instead
+// of a 3-minute stretch; same fields, so the same parser reads both.
+function shotDefinition(jersey, side, verify = false) {
   const team = jersey || "the tracked goalie's team colour";
   const net = side === "left" || side === "right"
     ? ` In this part of the game the tracked goalie defends the net at the ${side.toUpperCase()} end of the rink as this camera sees it.`
     : "";
+  const scope = verify
+    ? " This is a short clip cut around one possible shot an earlier pass flagged. Watch it closely: it may hold one shot attempt, " +
+      "a few, or none at all (often it's a pass, a dump-in, or a shot at the other net)."
+    : "";
+  const shotsWanted = verify
+    ? "Every real shot attempt in this clip, one event per attempt, each labelled with the fields below. Be strict: a shot is " +
+      "a skater deliberately sending the puck at a net. Each event starts at the exact moment the puck leaves the shooter's " +
+      "stick and ends when the goalie stops it, it goes in, or it misses. A rebound shot is its own event. Passes, dump-ins, " +
+      "clears, rims and pucks that just slide toward the net are not shots. If there is no shot attempt, return an empty list."
+    : "Every shot attempt at EITHER net in this stretch, one event per attempt, each labelled with the fields below. " +
+      "Each event starts when the puck leaves the shooter's stick and ends when the goalie saves it, the puck goes in, " +
+      "or play moves on, usually a few seconds later. A rebound shot is its own event. Do not list passes, dump-ins, " +
+      "carries, faceoffs or line changes as attempts. If there are none, return an empty list.";
   return {
     id: "play",
     description:
-      `Stretches of ice hockey game play, split wherever play stops (a whistle or faceoff). The tracked goalie's team wears ${team}.${net} ` +
+      `Stretches of ice hockey game play, split wherever play stops (a whistle or faceoff). The tracked goalie's team wears ${team}.${net}${scope} ` +
       "The stretches only organise the shot attempts listed in each one.",
     fields: [
       {
         name: "shots",
         type: "time_array",
-        description:
-          "Every shot attempt at EITHER net in this stretch, one event per attempt, each labelled with the fields below. " +
-          "Each event starts when the puck leaves the shooter's stick and ends when the goalie saves it, the puck goes in, " +
-          "or play moves on, usually a few seconds later. A rebound shot is its own event. Do not list passes, dump-ins, " +
-          "carries, faceoffs or line changes as attempts. If there are none, return an empty list.",
+        description: shotsWanted,
         items: {
           type: "object",
           fields: [
@@ -453,13 +468,15 @@ function onTrackedNet(e, side) {
 // left out, plus every labelled event (raw) so the filter can be tuned
 // against the shots the admin marks without paying for another run.
 // Also reads tasks sent before the labels existed.
-function shotsFromResult(data, offset, side) {
+// strict (the check pass): only "keep" survives -- labels that disagree or
+// can't tell ("maybe") are dropped instead of kept as low-confidence.
+function shotsFromResult(data, offset, side, strict = false) {
   const level = c => (["high", "medium", "low"].includes(c) ? c : "low");
   const label = x => (typeof x === "string" ? x.slice(0, 24) : null);
   const r1 = x => Math.round(x * 10) / 10;
   const out = [];
   const raw = [];
-  const left = { other_net: 0, not_shot: 0 };
+  const left = { other_net: 0, not_shot: 0, unsure: 0 };
   (Array.isArray(data.play) ? data.play : []).forEach(seg => {
     const events = seg && seg.metadata && Array.isArray(seg.metadata.shots) ? seg.metadata.shots : [];
     events.forEach(e => {
@@ -471,6 +488,7 @@ function shotsFromResult(data, offset, side) {
         raw.push({ s: r1(a), e: r1(b), ev: label(e.event), net: label(e.net), gk: label(e.goalie), out: label(e.outcome), c: label(e.confidence), side, v: verdict });
       }
       if (verdict === "other_net" || verdict === "not_shot") { left[verdict]++; return; }
+      if (strict && verdict === "maybe") { left.unsure++; return; }
       out.push({ start: a, end: b, t: a, outcome: ["save", "goal"].includes(e.outcome) ? e.outcome : "unclear", confidence: verdict === "maybe" ? "low" : level(e.confidence) });
     });
   });
@@ -496,6 +514,7 @@ async function checkAdmin(accessToken) {
 
 async function start(req, res, caller) {
   const { gameVideoId, ranges, jersey, assetId, pieces } = req.body || {};
+  const verify = (req.body || {}).verify === true;
   const usePieces = Array.isArray(pieces) && pieces.length > 0;
   if (usePieces && pieces.length > MAX_TASKS) {
     res.status(400).json({ error: "Too many parts to send at once." });
@@ -563,11 +582,14 @@ async function start(req, res, caller) {
             custom_id: `giq-${video.id}-${Date.now()}-${i}`,
             video: { type: "url", url: await signedGet(p.key, 60 * 60 * 24) },
             analysis_mode: "time_based_metadata",
-            response_format: { type: "segment_definitions", segment_definitions: [shotDefinition(team, side)] },
+            response_format: { type: "segment_definitions", segment_definitions: [shotDefinition(team, side, verify)] },
           });
           tasks[i] = {
             id: made.task_id || made._id, start: Number(p.start), end: Number(p.end), offset, side, key: p.key,
             pieceStart: Number(p.pieceStart) || 0, pieceDuration: Number(p.pieceDuration) || 0,
+            // ms/me: the window of first-pass moments this clip checks; the
+            // page replaces the flags inside it with what comes back.
+            ...(verify ? { verify: true, ms: Number(p.ms), me: Number(p.me) } : {}),
           };
         } catch (error) {
           failed = true; // don't start more tasks once one has failed
@@ -651,7 +673,7 @@ async function checkTask(t, video, caller, gameVideoId) {
   let data = {};
   try { data = JSON.parse((task.result && task.result.data) || "{}"); } catch (e) { data = {}; }
   const side = t.side === "left" || t.side === "right" ? t.side : null;
-  const { shots: segments, left, raw } = shotsFromResult(data, pieceTimeBase(t, data, offset), side);
+  const { shots: segments, left, raw } = shotsFromResult(data, pieceTimeBase(t, data, offset), side, !!t.verify);
   if (t.key) await deletePieceFor(t.key, video);
 
   // Billed on the task's window; logged once per task. On the free plan
