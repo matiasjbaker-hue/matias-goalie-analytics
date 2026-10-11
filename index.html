@@ -55,7 +55,7 @@
 
 <!-- Build version: bumped on every push, so it's easy to tell whether the
      page you're looking at is the latest deploy. -->
-<div id="app-version" aria-hidden="true" style="position:fixed; top:calc(env(safe-area-inset-top, 0px) + 6px); right:8px; z-index:9999; pointer-events:none; font:600 11px/1.4 Archivo, system-ui, sans-serif; letter-spacing:.04em; color:#EEF5F0; background:rgba(18,20,18,.6); padding:1px 7px; border-radius:4px;">v1.0.4</div>
+<div id="app-version" aria-hidden="true" style="position:fixed; top:calc(env(safe-area-inset-top, 0px) + 6px); right:8px; z-index:9999; pointer-events:none; font:600 11px/1.4 Archivo, system-ui, sans-serif; letter-spacing:.04em; color:#EEF5F0; background:rgba(18,20,18,.6); padding:1px 7px; border-radius:4px;">v1.0.5</div>
 
 <!-- Toast notifications -- replaces alert() popups for a less jarring,
      on-brand way to show success/error feedback. See showToast() in
@@ -3621,6 +3621,7 @@
             <option value="thorough">Thorough (1 s)</option>
             <option value="normal" selected>Normal (1.5 s)</option>
             <option value="fast">Fast (2.5 s)</option>
+            <option value="zone">Zone only (5 s): fastest, cheapest</option>
           </select>
         </label>
         <label class="rv-density" title="Half price: the AI answers within about an hour, usually sooner, and the results are collected while this request is open. Instant: answers while it scans, at full price.">
@@ -23291,7 +23292,11 @@ async function uploadGameVideo(){
 ============================================================ */
 
 // Seconds between detection stills; the admin can pick Thorough (1 s).
-const REVIEW_SCAN_STEPS = { thorough: 1, normal: 1.5, fast: 2.5 };
+// zone: for finding zone play only (the action stretches), not exact
+// shot moments. Zone play lasts many seconds and every stretch is padded
+// (see reviewActionStretches), so a still every 5 s still covers it, at
+// half the stills of "fast" to send and pay for.
+const REVIEW_SCAN_STEPS = { thorough: 1, normal: 1.5, fast: 2.5, zone: 5 };
 const REVIEW_SCAN_BATCH = 16;        // stills per detection request
 // Half-price scans send longer stretches per call; the server splits
 // them into requests of 16 and queues them as one Anthropic batch.
