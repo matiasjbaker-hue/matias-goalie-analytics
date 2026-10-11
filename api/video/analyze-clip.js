@@ -402,7 +402,10 @@ async function batchResults(req, res) {
       }
     }
 
-    res.status(200).json({ batches: out });
+    // Finished but not read in this call (over the read cap): the page
+    // checks again straight away instead of waiting for its next poll.
+    const readyLeft = statuses.filter(s => s === "ended").length - reads;
+    res.status(200).json({ batches: out, readyLeft });
   } catch (error) {
     sendServerError(res, error, "Couldn't check the AI results.");
   }
