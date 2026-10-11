@@ -55,7 +55,7 @@
 
 <!-- Build version: bumped on every push, so it's easy to tell whether the
      page you're looking at is the latest deploy. -->
-<div id="app-version" aria-hidden="true" style="position:fixed; top:calc(env(safe-area-inset-top, 0px) + 6px); right:8px; z-index:9999; pointer-events:none; font:600 11px/1.4 Archivo, system-ui, sans-serif; letter-spacing:.04em; color:#EEF5F0; background:rgba(18,20,18,.6); padding:1px 7px; border-radius:4px;">v1.0.6</div>
+<div id="app-version" aria-hidden="true" style="position:fixed; top:calc(env(safe-area-inset-top, 0px) + 6px); right:8px; z-index:9999; pointer-events:none; font:600 11px/1.4 Archivo, system-ui, sans-serif; letter-spacing:.04em; color:#EEF5F0; background:rgba(18,20,18,.6); padding:1px 7px; border-radius:4px;">v1.0.7</div>
 
 <!-- Toast notifications -- replaces alert() popups for a less jarring,
      on-brand way to show success/error feedback. See showToast() in
@@ -23660,7 +23660,7 @@ function renderReviewHeader(){
   }
   scanBtn.textContent =
     review.scanning ? "Pause AI" :
-    review.collecting ? "Collecting…" :
+    review.collecting ? "Stop AI" :
     reviewTlTasks(v).length ? "Check AI results" :
     (Number(v.scan_cursor) > 0 && Number(v.scan_progress) < 1) ? "Resume AI" :
     (reviewPendingBatches(v).length || reviewUntagged(v).length) ? "Check AI results" :
@@ -26277,11 +26277,11 @@ async function collectReviewBatches(manual){
     // checked again straight away while finished parts are still unread
     // (readyLeft) rather than 8 a minute.
     let anyDone = false;
-    for(let round = 0; round < REVIEW_BATCH_MAX_ROUNDS && isCurrent(); round++){
+    for(let round = 0; round < REVIEW_BATCH_MAX_ROUNDS && isCurrent() && !review.stopCollect; round++){
       const all = reviewPendingBatches(v);
       if(!all.length){ break; }
       let readyLeft = false;
-      for(let ci = 0; ci < all.length && isCurrent(); ci += REVIEW_BATCH_POLL_CHUNK){
+      for(let ci = 0; ci < all.length && isCurrent() && !review.stopCollect; ci += REVIEW_BATCH_POLL_CHUNK){
         const pending = all.slice(ci, ci + REVIEW_BATCH_POLL_CHUNK);
         const res = await callClipAi({ mode: "batch-results", gameVideoId: v.id, batches: pending.map(b => ({ id: b.id, requests: b.requests })) });
         review.batchCheckedAt = Date.now();
@@ -26296,19 +26296,12 @@ async function collectReviewBatches(manual){
           const step = Number(entry.step) || REVIEW_SCAN_STEPS.normal;
           addActionTimes([...(b.zone || []), ...(b.events || []).map(e => e.t)], step);
           found.push(...(b.events || []));
-          // Stretches the batch couldn't answer are re-run now, at full price.
+          // Stretches the batch couldn't answer used to be re-run here at
+          // full price, one by one: slow, and money nobody chose to spend.
+          // They now just count as action, so they play instead of being
+          // skipped, at no cost.
           for(const times of (b.failed || [])){
-            try{
-              const r = await aiOnStoredVideo("detect", times, REVIEW_SCAN_WIDTH, tagger);
-              addActionTimes([...(r.zone || []), ...(r.events || []).map(e => e.t)], step);
-              found.push(...(r.events || []));
-            }
-            catch(error){
-              st.errors++;
-              st.lastError = error.message || String(error);
-              // Never checked: count it as action so it gets watched, not skipped.
-              addActionTimes(times, step);
-            }
+            addActionTimes(times, step);
           }
         }
 
@@ -26333,7 +26326,7 @@ async function collectReviewBatches(manual){
 
     // Closer look at each flagged moment; saved progress every few.
     let sinceSave = 0;
-    while(isCurrent() && reviewUntagged(v).length){
+    while(isCurrent() && reviewUntagged(v).length && !review.stopCollect){
       renderReviewScanBar();
       const [ev, ...rest] = reviewUntagged(v);
       try{ await reviewTagEvent(v, ev, tagger); }
@@ -26375,6 +26368,10 @@ async function collectReviewBatches(manual){
   finally{
     tagger.destroy();
     review.collecting = false;
+    if(review.stopCollect && isCurrent()){
+      try{ await endReviewAiSession(v); }catch(e){ console.error(e); }
+    }
+    review.stopCollect = false;
     if(isCurrent()){
       renderReviewHeader();
       renderReviewScanBar();
@@ -26389,13 +26386,40 @@ async function collectReviewBatches(manual){
 
 }
 
+// Stop AI: ends this game's AI session for good. Drops every half-price
+// part still out and every flag waiting for a closer look, and stops the
+// once-a-minute checks, so nothing restarts when the game is reopened and
+// nothing more is checked or charged from this page. Zone stretches and
+// moments already found are kept.
+async function endReviewAiSession(v){
+  stopReviewBatchPolling();
+  const { _batches, _untagged, ...rest } = v.period_marks || {};
+  v.period_marks = rest;
+  await saveReviewMarks(v);
+  showToast("Stopped. Nothing is waiting or running for this game any more; what was already found is kept.", "success");
+}
+
+function stopReviewAiSession(){
+  const v = review.video;
+  if(!v){ return; }
+  if(!confirm("Stop the AI for this game and drop every part that hasn't come back yet? What it already found is kept. Requests already sent to Anthropic may still finish on their side, but this page won't check or charge anything more for them.")){ return; }
+  review.scanning = false;
+  stopReviewBatchPolling();
+  if(review.collecting){
+    review.stopCollect = true; // the running check ends the session when it stops
+    showToast("Stopping…");
+    return;
+  }
+  endReviewAiSession(v).then(() => { renderReviewHeader(); renderReviewScanBar(); });
+}
+
 function toggleReviewScan(){
   if(review.scanning){
     review.scanning = false;
     renderReviewHeader();
     return;
   }
-  if(review.collecting){ return; }
+  if(review.collecting){ stopReviewAiSession(); return; }
   if(review.video && reviewTlTasks(review.video).length){
     collectReviewTwelveLabs(true);
     return;
