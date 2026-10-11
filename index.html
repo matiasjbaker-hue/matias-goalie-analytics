@@ -55,7 +55,7 @@
 
 <!-- Build version: bumped on every push, so it's easy to tell whether the
      page you're looking at is the latest deploy. -->
-<div id="app-version" aria-hidden="true" style="position:fixed; top:calc(env(safe-area-inset-top, 0px) + 6px); right:8px; z-index:9999; pointer-events:none; font:600 11px/1.4 Archivo, system-ui, sans-serif; letter-spacing:.04em; color:#EEF5F0; background:rgba(18,20,18,.6); padding:1px 7px; border-radius:4px;">v1.0.3</div>
+<div id="app-version" aria-hidden="true" style="position:fixed; top:calc(env(safe-area-inset-top, 0px) + 6px); right:8px; z-index:9999; pointer-events:none; font:600 11px/1.4 Archivo, system-ui, sans-serif; letter-spacing:.04em; color:#EEF5F0; background:rgba(18,20,18,.6); padding:1px 7px; border-radius:4px;">v1.0.4</div>
 
 <!-- Toast notifications -- replaces alert() popups for a less jarring,
      on-brand way to show success/error feedback. See showToast() in
@@ -23654,7 +23654,9 @@ function renderReviewHeader(){
   scanBtn.textContent =
     review.scanning ? "Pause AI" :
     review.collecting ? "Collecting…" :
-    (reviewPendingBatches(v).length || reviewUntagged(v).length || reviewTlTasks(v).length) ? "Check AI results" :
+    reviewTlTasks(v).length ? "Check AI results" :
+    (Number(v.scan_cursor) > 0 && Number(v.scan_progress) < 1) ? "Resume AI" :
+    (reviewPendingBatches(v).length || reviewUntagged(v).length) ? "Check AI results" :
     Number(v.scan_progress) >= 1 ? "Re-run AI" :
     Number(v.scan_progress) > 0 ? "Resume AI" : "Run AI";
 
@@ -26374,7 +26376,11 @@ function toggleReviewScan(){
     collectReviewTwelveLabs(true);
     return;
   }
-  if(review.video && (reviewPendingBatches(review.video).length || reviewUntagged(review.video).length)){
+  // A paused scan resumes even with half-price batches still out (e.g.
+  // after switching AI cost to Instant for the rest): those batches keep
+  // being collected by the poller once the scan stops.
+  const unfinished = review.video && Number(review.video.scan_cursor) > 0 && Number(review.video.scan_progress) < 1;
+  if(review.video && !unfinished && (reviewPendingBatches(review.video).length || reviewUntagged(review.video).length)){
     collectReviewBatches(true);
     return;
   }
