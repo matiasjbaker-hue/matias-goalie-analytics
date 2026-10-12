@@ -5396,3 +5396,7 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
 .rv-moment:focus-visible,
 .rv-moment.is-selected{ background:rgba(232,185,35,.7); }
 .rv-moment-range{ white-space:nowrap; min-width:0; }
+
+.lt-shot-strength{padding:4px 6px;font-size:13px;border-radius:6px;max-width:80px}
+.lt-bulk-strength{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 0;font-size:13px}
+.lt-bulk-strength select{padding:4px 6px;font-size:13px;border-radius:6px}

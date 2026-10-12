@@ -21264,6 +21264,32 @@ function addLiveTagShot(){
 }
 
 
+let ltBulkFrom = null;
+let ltBulkTo = "5v5";
+
+function ltStrengthOptions(selected){
+  const list = STRENGTH_ORDER.includes(selected) ? STRENGTH_ORDER : [selected].concat(STRENGTH_ORDER);
+  return list.map(v => `<option value="${v}"${v === selected ? " selected" : ""}>${v}</option>`).join("");
+}
+
+function setLiveTagShotStrength(index, value){
+  const shot = liveTagState.shots[index];
+  if(!shot){ return; }
+  shot.strength = value;
+  renderLiveTagUI();
+}
+
+function changeLiveTagStrengthBulk(){
+  const from = ltBulkFrom, to = ltBulkTo;
+  if(!from || from === to){ return; }
+  let n = 0;
+  liveTagState.shots.forEach(s => {
+    if((s.strength || "5v5") === from){ s.strength = to; n++; }
+  });
+  renderLiveTagUI();
+  if(typeof showToast === "function"){ showToast(`Changed ${n} shot${n === 1 ? "" : "s"} from ${from} to ${to}`); }
+}
+
 function removeLiveTagShot(index){
 
   const shot = liveTagState.shots[index];
@@ -21388,7 +21414,6 @@ function renderLiveTagUI(){
     listEl.innerHTML = liveTagState.shots.map((shot, index) => {
 
       const bits = [
-        shot.strength && shot.strength !== "5v5" ? shot.strength : null,
         shot.location,
         shot.shot_type,
         shot.rush ? "Rush" : null,
@@ -21410,11 +21435,26 @@ function renderLiveTagUI(){
             ${bits ? " — " + escapeHtml(bits) : ""}
             ${aiBadge}
           </div>
+          <select class="lt-shot-strength" title="Strength" onchange="setLiveTagShotStrength(${index}, this.value)">${ltStrengthOptions(shot.strength || "5v5")}</select>
           <button type="button" class="repeater-remove" onclick="removeLiveTagShot(${index})">Remove</button>
         </div>
       `;
 
     }).join("");
+
+    const counts = {};
+    liveTagState.shots.forEach(s => { const k = s.strength || "5v5"; counts[k] = (counts[k] || 0) + 1; });
+    const present = Object.keys(counts);
+    if(!present.includes(ltBulkFrom)){ ltBulkFrom = present[0]; }
+    const fromOpts = present.map(k => `<option value="${k}"${k === ltBulkFrom ? " selected" : ""}>${k} (${counts[k]})</option>`).join("");
+    listEl.innerHTML = `
+      <div class="lt-bulk-strength">
+        <span>Change all</span>
+        <select onchange="ltBulkFrom=this.value">${fromOpts}</select>
+        <span>to</span>
+        <select onchange="ltBulkTo=this.value">${ltStrengthOptions(ltBulkTo)}</select>
+        <button type="button" class="btn-secondary" onclick="changeLiveTagStrengthBulk()">Apply</button>
+      </div>` + listEl.innerHTML;
 
   }
 
