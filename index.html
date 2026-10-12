@@ -13486,6 +13486,7 @@ let adminProfiles = [];
 let adminAssignments = [];
 let adminAccess = [];
 let adminAccessRequests = [];
+let adminPurchases = [];
 
 
 async function loadAdminExtras(){
@@ -13501,6 +13502,11 @@ async function loadAdminExtras(){
     adminAssignments = await q("coach_goalie_assignments");
     adminAccess = await q("goalie_access");
     adminAccessRequests = await qFiltered("feedback", "category=eq.access_request");
+
+    // Used only to tell who has actually paid; a failure here must not
+    // break the rest of the admin page.
+    try{ adminPurchases = await q("game_credit_purchases"); }
+    catch(purchaseErr){ console.warn("Could not load purchases:", purchaseErr); adminPurchases = []; }
 
   }
   catch(err){
@@ -14289,6 +14295,18 @@ async function confirmDeleteAccount(button){
 
 let adminAccessEditingId = null;
 
+// Paid = a recorded purchase, an active Stripe subscription, or a note
+// saying they paid (for e-transfers that never touch Stripe).
+function adminIsPaid(goalieId, row){
+
+  if(adminPurchases.some(p => p.user_id === goalieId)){ return true; }
+  if(row && row.stripe_subscription_id && row.status === "active"){ return true; }
+
+  const note = String((row && row.note) || "");
+  return /\bpaid\b/i.test(note) && !/\b(not|un)\s?paid\b/i.test(note);
+
+}
+
 function accessBadgeHtml(goalieId){
 
   const row = adminAccess.find(a => a.user_id === goalieId);
@@ -14301,27 +14319,30 @@ function accessBadgeHtml(goalieId){
   }
 
   const live = accessIsActive(row);
-  let label = ACCESS_LABELS[row.status] || row.status;
 
-  if(row.plan === "pay_per_game" && (row.status === "active" || row.status === "comp")){
+  if(!live){
+    const why = row.access_until ? `Ended ${accessDateLabel(row.access_until)}` : (row.note || "");
+    return `<span class="access-badge access-none" title="${escapeHtml(why)}">No access</span>`;
+  }
+
+  // Three labels only: Paid, Free trial, or Free.
+  //   Paid       -> has paid (see adminIsPaid)
+  //   Free       -> free access granted by you (comp)
+  //   Free trial -> trial, or a pay-per-game account that hasn't paid yet
+  const label =
+    adminIsPaid(goalieId, row) ? "Paid" :
+    row.status === "comp" ? "Free" :
+    "Free trial";
+
+  const details = [];
+  if(row.plan === "pay_per_game"){
     const left = row.game_credits || 0;
-    label = `${row.status === "comp" ? "Free" : "Pay per game"} · ${left} game${left === 1 ? "" : "s"} left`;
+    details.push(`${left} game${left === 1 ? "" : "s"} left`);
   }
-  else if(row.stripe_subscription_id && row.status === "active"){
-    const tierName = row.plan === "goalie_plus" ? "Goalie Plus" : row.plan === "goalie" ? "Goalie" : "Paid";
-    label = live ? `${tierName} · Stripe` : `${tierName} · lapsed`;
-  }
-  else if(row.status === "trial"){
-    label = live ? `Trial · ends ${accessDateLabel(row.access_until)}` : "Trial ended";
-  }
-  else if(row.access_until && live){
-    label += ` · until ${accessDateLabel(row.access_until)}`;
-  }
-  else if(row.access_until && !live){
-    label += " · ended";
-  }
+  if(row.access_until){ details.push(`until ${accessDateLabel(row.access_until)}`); }
+  if(row.note){ details.push(row.note); }
 
-  return `<span class="access-badge ${live ? "access-live" : "access-none"}" title="${escapeHtml(row.note || "")}">${escapeHtml(label)}</span>`;
+  return `<span class="access-badge access-live" title="${escapeHtml(details.join(" · "))}">${escapeHtml(label)}</span>`;
 
 }
 
