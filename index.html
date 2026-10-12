@@ -2958,45 +2958,6 @@
     <button type="button" class="period-btn" data-period="OT" onclick="setLiveTagPeriod('OT')">OT</button>
   </div>
 
-  <div class="section-heading">
-    <h3>Strength</h3>
-    <p>Skaters on the ice right now, from your goalie's team's view &mdash; <strong>your team's number first</strong> (4v5 = your team is a man down). Stays selected until you change it.</p>
-  </div>
-
-  <div class="card" id="lt-strength-card">
-    <div id="lt-strength-buttons">
-
-      <div class="tag-group">
-        <div class="tag-group-label">Even strength</div>
-        <div class="tag-btn-row">
-          <button type="button" class="tag-btn selected" data-value="5v5" onclick="setLiveTagStrength('5v5')">5v5</button>
-          <button type="button" class="tag-btn" data-value="4v4" onclick="setLiveTagStrength('4v4')">4v4</button>
-          <button type="button" class="tag-btn" data-value="3v3" onclick="setLiveTagStrength('3v3')">3v3</button>
-        </div>
-      </div>
-
-      <div class="tag-group">
-        <div class="tag-group-label">Your team is short-handed (penalty kill)</div>
-        <div class="tag-btn-row">
-          <button type="button" class="tag-btn" data-value="4v5" onclick="setLiveTagStrength('4v5')">4v5</button>
-          <button type="button" class="tag-btn" data-value="3v5" onclick="setLiveTagStrength('3v5')">3v5</button>
-          <button type="button" class="tag-btn" data-value="3v4" onclick="setLiveTagStrength('3v4')">3v4</button>
-          <button type="button" class="tag-btn" data-value="5v6" onclick="setLiveTagStrength('5v6')">5v6 (extra attacker)</button>
-        </div>
-      </div>
-
-      <div class="tag-group">
-        <div class="tag-group-label">Your team is on the power play</div>
-        <div class="tag-btn-row">
-          <button type="button" class="tag-btn" data-value="5v4" onclick="setLiveTagStrength('5v4')">5v4</button>
-          <button type="button" class="tag-btn" data-value="5v3" onclick="setLiveTagStrength('5v3')">5v3</button>
-          <button type="button" class="tag-btn" data-value="4v3" onclick="setLiveTagStrength('4v3')">4v3</button>
-        </div>
-      </div>
-
-    </div>
-  </div>
-
   <div class="card">
     <div class="field-grid">
       <div class="field">
@@ -3084,6 +3045,41 @@
     </div>
 
     <div class="tag-group">
+      <div class="tag-group-label">Strength — your team's number first (4v5 = your team is a man down). Stays selected until you change it.</div>
+      <div id="lt-strength-buttons">
+  
+        <div class="tag-group">
+          <div class="tag-group-label">Even strength</div>
+          <div class="tag-btn-row">
+            <button type="button" class="tag-btn selected" data-value="5v5" onclick="setLiveTagStrength('5v5')">5v5</button>
+            <button type="button" class="tag-btn" data-value="4v4" onclick="setLiveTagStrength('4v4')">4v4</button>
+            <button type="button" class="tag-btn" data-value="3v3" onclick="setLiveTagStrength('3v3')">3v3</button>
+          </div>
+        </div>
+  
+        <div class="tag-group">
+          <div class="tag-group-label">Your team is short-handed (penalty kill)</div>
+          <div class="tag-btn-row">
+            <button type="button" class="tag-btn" data-value="4v5" onclick="setLiveTagStrength('4v5')">4v5</button>
+            <button type="button" class="tag-btn" data-value="3v5" onclick="setLiveTagStrength('3v5')">3v5</button>
+            <button type="button" class="tag-btn" data-value="3v4" onclick="setLiveTagStrength('3v4')">3v4</button>
+            <button type="button" class="tag-btn" data-value="5v6" onclick="setLiveTagStrength('5v6')">5v6 (extra attacker)</button>
+          </div>
+        </div>
+  
+        <div class="tag-group">
+          <div class="tag-group-label">Your team is on the power play</div>
+          <div class="tag-btn-row">
+            <button type="button" class="tag-btn" data-value="5v4" onclick="setLiveTagStrength('5v4')">5v4</button>
+            <button type="button" class="tag-btn" data-value="5v3" onclick="setLiveTagStrength('5v3')">5v3</button>
+            <button type="button" class="tag-btn" data-value="4v3" onclick="setLiveTagStrength('4v3')">4v3</button>
+          </div>
+        </div>
+  
+      </div>
+    </div>
+
+    <div class="tag-group">
       <div class="tag-group-label">Location — tap the rink where the shot came from</div>
       <div id="lt-shotmap" class="shotmap-wrap"></div>
       <div id="lt-shotmap-readout" class="shotmap-readout">No location pinned yet.</div>
@@ -3151,7 +3147,7 @@
 
   <div class="section-heading">
     <h3>Shot Log</h3>
-    <p>Most recent first. Tap Remove to undo a mistake.</p>
+    <p>Most recent first. Tap a shot to edit it, or Remove to undo a mistake.</p>
   </div>
 
   <div class="card" style="padding:6px 16px" id="livetag-shot-list">
@@ -3167,10 +3163,6 @@
   <div class="card">
     <p class="small-note" style="margin:0 0 6px">Rims are the ones off the forecheck against.</p>
     <div id="lt-puck-host"></div>
-    <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:13px">
-      <input type="checkbox" id="lt-puck-high-toggle" onchange="syncPuckHighVisibility()">
-      Track rims up high too
-    </label>
   </div>
 
 
@@ -4213,6 +4205,54 @@
 <!-- ========================================================= -->
 <!-- ADMIN: EDIT ONE SHOT (fixes AI-tagged or hand-tagged shots) -->
 <!-- ========================================================= -->
+
+<div class="giq-modal-overlay" id="ltEditOverlay" style="z-index:220">
+  <div class="giq-modal giq-modal-narrow" role="dialog" aria-modal="true" aria-labelledby="ltEditTitle">
+    <div class="giq-modal-header">
+      <h3 id="ltEditTitle">Edit shot</h3>
+      <button type="button" class="giq-modal-close" onclick="closeLiveTagShotEdit()" aria-label="Close">&times;</button>
+    </div>
+    <div class="giq-modal-body">
+      <div class="field-grid">
+        <div class="field"><label for="ltEditOutcome">Result</label>
+          <select id="ltEditOutcome"><option value="save">Save</option><option value="goal">Goal</option></select></div>
+        <div class="field"><label for="ltEditPeriod">Period</label>
+          <select id="ltEditPeriod"><option value="1">1st</option><option value="2">2nd</option><option value="3">3rd</option><option value="OT">OT</option></select></div>
+        <div class="field"><label for="ltEditStrength">Strength</label>
+          <select id="ltEditStrength"><option value="">Not tagged</option>
+            <option>5v5</option><option>4v4</option><option>3v3</option>
+            <option>4v5</option><option>3v5</option><option>3v4</option><option>5v6</option>
+            <option>5v4</option><option>5v3</option><option>4v3</option></select></div>
+        <div class="field"><label for="ltEditType">Shot type</label>
+          <select id="ltEditType"><option value="">Unknown</option>
+            <option>Wrist</option><option>Slap</option><option>Snap</option><option>Flick</option><option>Backhand</option><option>Deke</option></select></div>
+        <div class="field" style="grid-column:1/-1"><label for="ltEditRelease">Release</label>
+          <select id="ltEditRelease"><option value="">Unclear</option><option value="one_timer">One-Timer</option><option value="catch_and_release">Catch &amp; Release</option><option value="extended_possession">Extended Possession (&gt;2s)</option></select></div>
+        <div class="field" style="grid-column:1/-1"><label for="ltEditRebound">Rebound outcome (how the save went)</label>
+          <select id="ltEditRebound"><option value="skip">Skip</option>
+            <option value="glove_caught">Glove — Caught</option><option value="glove_rebound">Glove — Rebound</option><option value="glove_goal">Glove — Goal</option><option value="blocker_good">Blocker — Good</option><option value="blocker_bad">Blocker — Bad</option><option value="blocker_goal">Blocker — Goal</option><option value="midsection_good">Midsection — Good</option><option value="midsection_bad">Midsection — Bad</option><option value="midsection_goal">Midsection — Goal</option><option value="pad_stick_good">Pad/Stick — Good</option><option value="pad_stick_bad">Pad/Stick — Bad</option><option value="pad_stick_goal">Pad/Stick — Goal</option></select></div>
+      </div>
+      <fieldset class="shot-edit-flags">
+        <legend>Situation</legend>
+        <label><input type="checkbox" data-ltflag="rush"> Rush</label>
+        <label><input type="checkbox" data-ltflag="rebound"> Rebound</label>
+        <label><input type="checkbox" data-ltflag="screened"> Screened</label>
+        <label><input type="checkbox" data-ltflag="breakaway"> Breakaway</label>
+        <label><input type="checkbox" data-ltflag="cross_ice"> Cross Ice</label>
+        <label><input type="checkbox" data-ltflag="deflection"> Deflection</label>
+      </fieldset>
+      <div class="field">
+        <span class="field-label">Release point</span>
+        <div id="ltEditMap" class="shotmap-wrap"></div>
+        <div id="ltEditMapReadout" class="shotmap-readout"></div>
+      </div>
+      <div class="giq-modal-actions">
+        <button type="button" class="btn-primary" onclick="saveLiveTagShotEdit()">Save shot</button>
+        <button type="button" class="btn-secondary" onclick="closeLiveTagShotEdit()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <div class="giq-modal-overlay" id="shotEditModalOverlay" style="z-index:220">
   <div class="giq-modal giq-modal-narrow" role="dialog" aria-modal="true" aria-labelledby="shotEditTitle">
@@ -21266,17 +21306,121 @@ function addLiveTagShot(){
 
 let ltBulkFrom = null;
 let ltBulkTo = "5v5";
+let ltEditState = null; // { index, loc_x, loc_y }
 
 function ltStrengthOptions(selected){
   const list = STRENGTH_ORDER.includes(selected) ? STRENGTH_ORDER : [selected].concat(STRENGTH_ORDER);
   return list.map(v => `<option value="${v}"${v === selected ? " selected" : ""}>${v}</option>`).join("");
 }
 
-function setLiveTagShotStrength(index, value){
+function openLiveTagShotEdit(index){
+
   const shot = liveTagState.shots[index];
   if(!shot){ return; }
-  shot.strength = value;
+
+  ltEditState = {
+    index,
+    loc_x: shotMapHasPin(shot) ? Number(shot.loc_x) : null,
+    loc_y: shotMapHasPin(shot) ? Number(shot.loc_y) : null
+  };
+
+  document.getElementById("ltEditOutcome").value = shot.outcome === "goal" ? "goal" : "save";
+  document.getElementById("ltEditPeriod").value = ["1","2","3","OT"].includes(String(shot.period)) ? String(shot.period) : "1";
+  document.getElementById("ltEditStrength").value = shot.strength || "";
+  document.getElementById("ltEditType").value = shot.shot_type || "";
+  document.getElementById("ltEditRelease").value = shot.release_type || "";
+  document.getElementById("ltEditRebound").value = shot.reboundTag || "skip";
+
+  document.querySelectorAll("#ltEditOverlay [data-ltflag]").forEach(box => {
+    box.checked = !!shot[box.dataset.ltflag];
+  });
+
+  document.getElementById("ltEditMap").innerHTML = shotMapSvg("ltemap", `<g id="ltemap-pin"></g>`, true);
+
+  const svg = document.getElementById("ltemap-svg");
+
+  svg.addEventListener("click", e => {
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const local = pt.matrixTransform(svg.getScreenCTM().inverse());
+    const spot = shotMapFromSvgPoint(local.x, local.y);
+    ltEditState.loc_x = spot.x;
+    ltEditState.loc_y = spot.y;
+    renderLiveTagEditPin();
+  });
+
+  renderLiveTagEditPin();
+
+  document.getElementById("ltEditOverlay").classList.add("open");
+
+}
+
+function closeLiveTagShotEdit(){
+  document.getElementById("ltEditOverlay").classList.remove("open");
+  ltEditState = null;
+}
+
+function clearLiveTagEditPin(){
+  ltEditState.loc_x = null;
+  ltEditState.loc_y = null;
+  renderLiveTagEditPin();
+}
+
+function renderLiveTagEditPin(){
+
+  const pin = document.getElementById("ltemap-pin");
+  const readout = document.getElementById("ltEditMapReadout");
+  const { loc_x: x, loc_y: y } = ltEditState;
+
+  if(shotMapHasPin({ loc_x: x, loc_y: y })){
+    pin.innerHTML = shotMapPinMarkup(x, y);
+    readout.innerHTML =
+      `<strong>${escapeHtml(shotZoneFromPin(x, y))}</strong> · ${shotMapDistanceFt(x, y)} ft from the net · ${shotMapAngleLabel(x, y)} ` +
+      `<button type="button" class="shotmap-clear" onclick="clearLiveTagEditPin()">Clear</button>`;
+  }
+  else{
+    pin.innerHTML = "";
+    readout.textContent = "Tap the rink to set where the shot came from.";
+  }
+
+}
+
+function saveLiveTagShotEdit(){
+
+  if(!ltEditState){ return; }
+
+  const shot = liveTagState.shots[ltEditState.index];
+  if(!shot){ closeLiveTagShotEdit(); return; }
+
+  const hasPin = shotMapHasPin({ loc_x: ltEditState.loc_x, loc_y: ltEditState.loc_y });
+  const oldTag = shot.reboundTag && shot.reboundTag !== "skip" ? shot.reboundTag : null;
+  const newRaw = document.getElementById("ltEditRebound").value || "skip";
+  const newTag = newRaw !== "skip" ? newRaw : null;
+
+  shot.outcome = document.getElementById("ltEditOutcome").value;
+  shot.period = document.getElementById("ltEditPeriod").value;
+  shot.strength = document.getElementById("ltEditStrength").value || null;
+  shot.shot_type = document.getElementById("ltEditType").value || null;
+  shot.release_type = document.getElementById("ltEditRelease").value || null;
+  shot.reboundTag = newRaw;
+  shot.loc_x = hasPin ? ltEditState.loc_x : null;
+  shot.loc_y = hasPin ? ltEditState.loc_y : null;
+  shot.location = hasPin ? classifyShotLocation(ltEditState.loc_x, ltEditState.loc_y) : shot.location;
+
+  document.querySelectorAll("#ltEditOverlay [data-ltflag]").forEach(box => {
+    shot[box.dataset.ltflag] = box.checked;
+  });
+
+  if(oldTag !== newTag){
+    if(oldTag){ liveTagState.reboundTally[oldTag] = Math.max(0, liveTagState.reboundTally[oldTag] - 1); }
+    if(newTag){ liveTagState.reboundTally[newTag] = (liveTagState.reboundTally[newTag] || 0) + 1; }
+  }
+
+  closeLiveTagShotEdit();
   renderLiveTagUI();
+  showToast("Shot updated.", "success");
+
 }
 
 function changeLiveTagStrengthBulk(){
@@ -21333,7 +21477,7 @@ function renderLiveTagPuckControls(){
 
   host.innerHTML =
     `<div class="rv-puck-group">${head("Rims", "Faced", "Stopped")}` +
-    PUCK_RIM_KINDS.map(k => row(k.label, "rims_faced_" + k.key, "rims faced", "rims_stopped_" + k.key, "rims stopped", k.high)).join("") +
+    PUCK_RIM_KINDS.filter(k => !k.high || ltHasHighRims(k)).map(k => row(k.label, "rims_faced_" + k.key, "rims faced", "rims_stopped_" + k.key, "rims stopped", false)).join("") +
     `</div><div class="rv-puck-group" style="margin-top:14px">${head("Passes", "Attempted", "Completed")}` +
     PUCK_PASS_KINDS.map(k => row(k.label, "pass_attempts_" + k.key, "passes attempted", "passes_completed_" + k.key, "passes completed", false)).join("") +
     `</div><div class="small-note" id="lt-puck-sum" style="margin-top:10px" aria-live="polite"></div>`;
@@ -21342,6 +21486,13 @@ function renderLiveTagPuckControls(){
 
   syncPuckHighVisibility();
 
+}
+
+// Up-high rims aren't offered while tagging, but counts already on the
+// tally (a restored draft) still show so nothing is hidden.
+function ltHasHighRims(k){
+  const t = liveTagState && liveTagState.puckTally;
+  return !!t && !!(num(t["rims_faced_" + k.key]) || num(t["rims_stopped_" + k.key]));
 }
 
 function refreshLiveTagPuckCounts(){
@@ -21431,6 +21582,7 @@ function renderLiveTagUI(){
     listEl.innerHTML = liveTagState.shots.map((shot, index) => {
 
       const bits = [
+        shot.strength || null,
         shot.location,
         shot.shot_type,
         shot.rush ? "Rush" : null,
@@ -21446,14 +21598,13 @@ function renderLiveTagUI(){
         : "";
 
       return `
-        <div class="shotlog-row">
+        <div class="shotlog-row lt-shot-click" role="button" tabindex="0" title="Tap to edit this shot" onclick="openLiveTagShotEdit(${index})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openLiveTagShotEdit(${index});}">
           <div class="shotlog-desc">
             <strong>P${escapeHtml(shot.period)} — ${shot.outcome === "goal" ? "Goal" : "Save"}</strong>
             ${bits ? " — " + escapeHtml(bits) : ""}
             ${aiBadge}
           </div>
-          <select class="lt-shot-strength" title="Strength" onchange="setLiveTagShotStrength(${index}, this.value)">${ltStrengthOptions(shot.strength || "5v5")}</select>
-          <button type="button" class="repeater-remove" onclick="removeLiveTagShot(${index})">Remove</button>
+          <button type="button" class="repeater-remove" onclick="event.stopPropagation();removeLiveTagShot(${index})">Remove</button>
         </div>
       `;
 
