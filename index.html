@@ -21318,34 +21318,46 @@ function renderLiveTagPuckControls(){
 
   if(!host){ return; }
 
-  const row = (key, label, high) => `
-    <div class="counter-row${high ? " lt-puck-high" : ""}"${high ? ` style="display:none"` : ""}>
-      <span class="counter-name">${label}</span>
-      <div class="counter-controls">
-        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','${key}',-1)">–</button>
-        <span class="counter-value" id="lt-count-${key}">0</span>
-        <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','${key}',1)">+</button>
-      </div>
+  const step = (key, name) => `
+    <div class="counter-controls">
+      <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','${key}',-1)" aria-label="One less: ${name}">–</button>
+      <span class="counter-value" id="lt-count-${key}">0</span>
+      <button type="button" class="counter-step-btn" onclick="stepLiveTagCounter('puck','${key}',1)" aria-label="One more: ${name}">+</button>
     </div>`;
 
-  const heading = text => `<div class="tag-group-label" style="margin:12px 0 4px">${text}</div>`;
+  const row = (label, a, aName, b, bName, high) =>
+    `<div class="rv-puck-row${high ? " lt-puck-high" : ""}"${high ? ` style="display:none"` : ""}><span class="counter-name">${label}</span>${step(a, label + ", " + aName)}${step(b, label + ", " + bName)}</div>`;
+
+  const head = (title, a, b) =>
+    `<div class="rv-puck-row rv-puck-cols"><span>${title}</span><span>${a}</span><span>${b}</span></div>`;
 
   host.innerHTML =
-    heading("Rims faced") +
-    PUCK_RIM_KINDS.map(k => row("rims_faced_" + k.key, k.label, k.high)).join("") +
-    heading("Rims stopped") +
-    PUCK_RIM_KINDS.map(k => row("rims_stopped_" + k.key, k.label, k.high)).join("") +
-    heading("Passes attempted") +
-    PUCK_PASS_KINDS.map(k => row("pass_attempts_" + k.key, k.label, false)).join("") +
-    heading("Passes completed") +
-    PUCK_PASS_KINDS.map(k => row("passes_completed_" + k.key, k.label, false)).join("");
+    `<div class="rv-puck-group">${head("Rims", "Faced", "Stopped")}` +
+    PUCK_RIM_KINDS.map(k => row(k.label, "rims_faced_" + k.key, "rims faced", "rims_stopped_" + k.key, "rims stopped", k.high)).join("") +
+    `</div><div class="rv-puck-group" style="margin-top:14px">${head("Passes", "Attempted", "Completed")}` +
+    PUCK_PASS_KINDS.map(k => row(k.label, "pass_attempts_" + k.key, "passes attempted", "passes_completed_" + k.key, "passes completed", false)).join("") +
+    `</div><div class="small-note" id="lt-puck-sum" style="margin-top:10px" aria-live="polite"></div>`;
+
+  refreshLiveTagPuckCounts();
+
+  syncPuckHighVisibility();
+
+}
+
+function refreshLiveTagPuckCounts(){
+
+  const t = liveTagState && liveTagState.puckTally;
+
+  if(!t){ return; }
 
   PUCK_FINE_KEYS.forEach(key => {
     const el = document.getElementById("lt-count-" + key);
-    if(el && liveTagState && liveTagState.puckTally){ el.textContent = liveTagState.puckTally[key] || 0; }
+    if(el){ el.textContent = t[key] || 0; }
   });
 
-  syncPuckHighVisibility();
+  const s = puckTallyForSave(t);
+  const sum = document.getElementById("lt-puck-sum");
+  if(sum){ sum.textContent = `Rims ${s.rims_stopped} of ${s.rims_faced} stopped · Passes ${s.passes_completed} of ${s.pass_attempts} completed`; }
 
 }
 
@@ -21379,12 +21391,17 @@ function stepLiveTagCounter(kind, field, delta){
 
   tally[field] = Math.max(0, (tally[field] || 0) + delta);
 
-  const el =
-    document.getElementById("lt-count-" + field);
+  // A stopped rim was also faced, and a completed pass also attempted.
+  [
+    ...PUCK_RIM_KINDS.map(k => ["rims_faced_" + k.key, "rims_stopped_" + k.key]),
+    ...PUCK_PASS_KINDS.map(k => ["pass_attempts_" + k.key, "passes_completed_" + k.key])
+  ].forEach(([whole, part]) => {
+    if((tally[part] || 0) > (tally[whole] || 0)){
+      if(field === part){ tally[whole] = tally[part]; } else { tally[part] = tally[whole]; }
+    }
+  });
 
-  if(el){
-    el.textContent = tally[field];
-  }
+  refreshLiveTagPuckCounts();
 
 }
 
