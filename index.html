@@ -931,6 +931,7 @@
             <th>Birth Year</th>
             <th>Games Tracked</th>
             <th>Coaches Assigned</th>
+            <th>Games Left</th>
             <th>Access</th>
             <th></th>
           </tr>
@@ -14302,9 +14303,9 @@ function accessBadgeHtml(goalieId){
   const live = accessIsActive(row);
   let label = ACCESS_LABELS[row.status] || row.status;
 
-  if(row.plan === "pay_per_game" && row.status === "active"){
+  if(row.plan === "pay_per_game" && (row.status === "active" || row.status === "comp")){
     const left = row.game_credits || 0;
-    label = `Pay per game · ${left} game${left === 1 ? "" : "s"} left`;
+    label = `${row.status === "comp" ? "Free" : "Pay per game"} · ${left} game${left === 1 ? "" : "s"} left`;
   }
   else if(row.stripe_subscription_id && row.status === "active"){
     const tierName = row.plan === "goalie_plus" ? "Goalie Plus" : row.plan === "goalie" ? "Goalie" : "Paid";
@@ -14461,15 +14462,63 @@ async function saveAdminAccess(button){
 }
 
 
+// Games left for a goalie on the Accounts page. Only pay-per-game
+// accounts hold game credits; everyone else shows a dash.
+function adminGamesLeft(goalieId){
+
+  const row = adminAccess.find(a => a.user_id === goalieId);
+  if(!row || row.plan !== "pay_per_game"){ return null; }
+  if(!["active","comp","trial"].includes(row.status)){ return null; }
+  return Math.max(0, parseInt(row.game_credits, 10) || 0);
+
+}
+
+function adminGamesLeftHtml(goalieId){
+
+  const left = adminGamesLeft(goalieId);
+  if(left === null){ return `<span style="opacity:.5">—</span>`; }
+
+  const tone = left === 0 ? "color:var(--danger,#b3261e)" : "";
+  return `<strong style="${tone}">${left}</strong>`;
+
+}
+
+// 0 = pay-per-game with games left, 1 = pay-per-game at 0, 2 = free /
+// trial / other live access, 3 = no access.
+function adminAccessSortKey(goalieId){
+
+  const row = adminAccess.find(a => a.user_id === goalieId);
+  const left = adminGamesLeft(goalieId);
+
+  if(left !== null && left > 0 && accessIsActive(row)){ return { group: 0, left }; }
+  if(left !== null && accessIsActive(row)){ return { group: 1, left: 0 }; }
+  if(row && accessIsActive(row)){ return { group: 2, left: 0 }; }
+  return { group: 3, left: 0 };
+
+}
+
+
 function renderAdminGoalies(){
 
-  const goalies = adminProfiles.filter(p => p.role === "goalie");
   const tbody = document.getElementById("adminGoaliesBody");
+
+  // Keeps itself organized: paying goalies with games left first (most
+  // games first), then pay-per-game goalies at 0 (the ones to follow up
+  // with), then free / trial, then everyone without access. Ties by name.
+  const goalies = adminProfiles
+    .filter(p => p.role === "goalie")
+    .sort((a, b) => {
+      const ra = adminAccessSortKey(a.id);
+      const rb = adminAccessSortKey(b.id);
+      if(ra.group !== rb.group){ return ra.group - rb.group; }
+      if(ra.left !== rb.left){ return rb.left - ra.left; }
+      return String(a.full_name || "").localeCompare(String(b.full_name || ""));
+    });
 
   if(!goalies.length){
 
     tbody.innerHTML =
-      `<tr><td colspan="7"><div class="empty-state">No goalie accounts yet.</div></td></tr>`;
+      `<tr><td colspan="8"><div class="empty-state">No goalie accounts yet.</div></td></tr>`;
 
     return;
 
@@ -14491,6 +14540,7 @@ function renderAdminGoalies(){
           <td>${g.birth_year || "—"}</td>
           <td>${gameCount}</td>
           <td>${coachCount}</td>
+          <td>${adminGamesLeftHtml(g.id)}</td>
           <td>${accessBadgeHtml(g.id)}</td>
           <td style="white-space:nowrap">
             <button type="button" class="btn-secondary" onclick="openAdminAccessModal('${g.id}')">Access</button>
