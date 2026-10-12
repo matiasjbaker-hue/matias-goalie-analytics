@@ -5403,3 +5403,9 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
 .lt-shot-click{cursor:pointer}
 .lt-shot-click:hover{background:var(--channel)}
 .lt-shot-click:focus-visible{outline:2px solid var(--pine-bright);outline-offset:2px}
+.lt-period-group{border-bottom:1px solid var(--seam-strong)}
+.lt-period-group:last-child{border-bottom:0}
+.lt-period-head{display:flex;align-items:center;gap:8px;width:100%;padding:10px 0;background:none;border:0;font:inherit;font-weight:700;color:var(--ink);cursor:pointer;text-align:left}
+.lt-period-caret{width:14px;color:var(--muted-ink)}
+.lt-period-count{margin-left:auto;font-weight:400;font-size:13px;color:var(--muted-ink)}
+.lt-period-body[hidden]{display:none}

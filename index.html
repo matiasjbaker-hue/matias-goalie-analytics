@@ -21306,7 +21306,13 @@ function addLiveTagShot(){
 
 let ltBulkFrom = null;
 let ltBulkTo = "5v5";
-let ltEditState = null; // { index, loc_x, loc_y }
+let ltEditState = null;
+let ltCollapsedPeriods = {};
+
+function toggleLiveTagPeriodGroup(per){
+  ltCollapsedPeriods[per] = !ltCollapsedPeriods[per];
+  renderLiveTagUI();
+} // { index, loc_x, loc_y }
 
 function ltStrengthOptions(selected){
   const list = STRENGTH_ORDER.includes(selected) ? STRENGTH_ORDER : [selected].concat(STRENGTH_ORDER);
@@ -21579,7 +21585,7 @@ function renderLiveTagUI(){
   }
   else{
 
-    listEl.innerHTML = liveTagState.shots.map((shot, index) => {
+    const rowHtml = liveTagState.shots.map((shot, index) => {
 
       const bits = [
         shot.strength || null,
@@ -21608,7 +21614,30 @@ function renderLiveTagUI(){
         </div>
       `;
 
+    });
+
+    // One collapsible block per period, in game order; the collapsed state
+    // survives re-renders.
+    const periodOrder = ["1", "2", "3", "OT"];
+    const periods = [...new Set(liveTagState.shots.map(sh => String(sh.period)))]
+      .sort((a, b) => (periodOrder.indexOf(a) + 1 || 99) - (periodOrder.indexOf(b) + 1 || 99));
+    const periodLabel = { "1": "1st period", "2": "2nd period", "3": "3rd period", "OT": "Overtime" };
+    const groupsHtml = periods.map(per => {
+      const idxs = liveTagState.shots.map((sh, i) => String(sh.period) === per ? i : -1).filter(i => i >= 0);
+      const goals = idxs.filter(i => liveTagState.shots[i].outcome === "goal").length;
+      const closed = !!ltCollapsedPeriods[per];
+      return `
+        <div class="lt-period-group">
+          <button type="button" class="lt-period-head" aria-expanded="${closed ? "false" : "true"}" onclick="toggleLiveTagPeriodGroup('${per}')">
+            <span class="lt-period-caret">${closed ? "▸" : "▾"}</span>
+            <span>${escapeHtml(periodLabel[per] || "Period " + per)}</span>
+            <span class="lt-period-count">${idxs.length} shot${idxs.length === 1 ? "" : "s"} · ${goals} goal${goals === 1 ? "" : "s"}</span>
+          </button>
+          <div class="lt-period-body"${closed ? " hidden" : ""}>${idxs.map(i => rowHtml[i]).join("")}</div>
+        </div>`;
     }).join("");
+
+    listEl.innerHTML = groupsHtml;
 
     const counts = {};
     liveTagState.shots.forEach(s => { const k = s.strength || "5v5"; counts[k] = (counts[k] || 0) + 1; });
@@ -21653,6 +21682,7 @@ function resetLiveTagSession(){
     }
   }
 
+  ltCollapsedPeriods = {};
   liveTagState = freshLiveTagState();
 
   const continueSelect = document.getElementById("lt-continue-select");
