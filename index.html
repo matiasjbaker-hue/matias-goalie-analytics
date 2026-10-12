@@ -14295,15 +14295,13 @@ async function confirmDeleteAccount(button){
 
 let adminAccessEditingId = null;
 
-// Paid = a recorded purchase, an active Stripe subscription, or a note
-// saying they paid (for e-transfers that never touch Stripe).
+// Paid = marked paid in Access settings, a recorded purchase, or an
+// active Stripe subscription.
 function adminIsPaid(goalieId, row){
 
+  if(row && row.paid){ return true; }
   if(adminPurchases.some(p => p.user_id === goalieId)){ return true; }
-  if(row && row.stripe_subscription_id && row.status === "active"){ return true; }
-
-  const note = String((row && row.note) || "");
-  return /\bpaid\b/i.test(note) && !/\b(not|un)\s?paid\b/i.test(note);
+  return !!(row && row.stripe_subscription_id && row.status === "active");
 
 }
 
@@ -14348,6 +14346,41 @@ function accessBadgeHtml(goalieId){
 
 }
 
+// Is the account being edited on pay-per-game (free first game, or paying)?
+function adminAccessEditingIsPayPerGame(){
+
+  const row = adminAccess.find(a => a.user_id === adminAccessEditingId);
+  const creditsRaw = (document.getElementById("adminAccessCredits").value || "").trim();
+  return !!(row && row.plan === "pay_per_game") || creditsRaw !== "";
+
+}
+
+// What the Access dropdown should show. Free-first-game goalies are stored
+// as status "active" but haven't paid, so they show as "Free trial" -- the
+// same word as the Accounts column.
+function adminAccessDropdownValue(goalieId, row){
+
+  if(!row){ return "none"; }
+  if(row.status === "active" && !adminIsPaid(goalieId, row)){ return "trial"; }
+  return row.status;
+
+}
+
+// Maps the dropdown choice to what gets saved.
+//   Paid       -> status "active", paid = true
+//   Free trial -> on pay-per-game: status "active", paid = false, no forced
+//                 end date (they use their free games); otherwise a timed
+//                 trial (status "trial") that needs an end date
+//   others     -> unchanged behaviour (paid left as it is)
+function adminAccessSaveShape(choice, payPerGame){
+
+  if(choice === "active"){ return { status: "active", paid: true, needsEndDate: false }; }
+  if(choice === "trial" && payPerGame){ return { status: "active", paid: false, needsEndDate: false }; }
+  if(choice === "trial"){ return { status: "trial", paid: false, needsEndDate: true }; }
+  return { status: choice, paid: undefined, needsEndDate: false };
+
+}
+
 function syncAdminAccessFields(){
 
   const status = document.getElementById("adminAccessStatus").value;
@@ -14357,7 +14390,7 @@ function syncAdminAccessFields(){
 
   untilField.style.display = status === "none" || status === "canceled" ? "none" : "";
 
-  if(status === "trial" && !until.value){
+  if(status === "trial" && !until.value && !adminAccessEditingIsPayPerGame()){
     const d = new Date(Date.now() + 30 * 86400000);
     until.value = d.toISOString().slice(0, 10);
   }
@@ -14371,7 +14404,9 @@ function syncAdminAccessFields(){
   help.textContent = ({
     none: "No access: they only see the request-access screen. Their saved data is kept.",
     comp: "Free with no end date, unless you set one. Use for founding goalies.",
-    trial: "Free until the end date, then locked automatically.",
+    trial: adminAccessEditingIsPayPerGame()
+      ? "Free trial on pay per game: no end date. They use their free games, then buy more."
+      : "Free until the end date, then locked automatically.",
     active: "Paying member. Leave the end date empty, or set it to the end of what they paid for.",
     canceled: "Locked. Their saved data is kept if they come back."
   }[status]) + stripeNote;
@@ -14388,7 +14423,7 @@ function openAdminAccessModal(goalieId){
   document.getElementById("adminAccessTitle").textContent =
     `Access · ${goalie ? (goalie.full_name || "Goalie") : "Goalie"}`;
 
-  document.getElementById("adminAccessStatus").value = row ? row.status : "none";
+  document.getElementById("adminAccessStatus").value = adminAccessDropdownValue(goalieId, row);
   document.getElementById("adminAccessUntil").value =
     row && row.access_until ? String(row.access_until).slice(0, 10) : "";
   document.getElementById("adminAccessNote").value = row && row.note ? row.note : "";
@@ -14411,12 +14446,14 @@ async function saveAdminAccess(button){
   const goalieId = adminAccessEditingId;
   if(!goalieId){ return; }
 
-  const status = document.getElementById("adminAccessStatus").value;
+  const choice = document.getElementById("adminAccessStatus").value;
   const untilRaw = document.getElementById("adminAccessUntil").value;
   const note = document.getElementById("adminAccessNote").value.trim() || null;
   const creditsRaw = document.getElementById("adminAccessCredits").value.trim();
+  const shape = adminAccessSaveShape(choice, adminAccessEditingIsPayPerGame());
+  const status = shape.status;
 
-  if(status === "trial" && !untilRaw){
+  if(shape.needsEndDate && !untilRaw){
     showToast("Pick an end date for the trial.", "error");
     return;
   }
@@ -14448,6 +14485,8 @@ async function saveAdminAccess(button){
         granted_by: currentSession.user.id,
         updated_at: new Date().toISOString()
       };
+
+      if(shape.paid !== undefined){ accessRow.paid = shape.paid; }
 
       // Setting "Games left" puts the goalie on pay-per-game with that balance.
       if(creditsRaw !== ""){
