@@ -23330,13 +23330,17 @@ function r2FileFingerprint(file, ownerId){
 // ownerId: the account the file belongs to when an admin uploads for a
 // goalie. The file is then stored in that goalie's folder, matching the
 // owner of its game_videos row (the server checks both line up).
-async function uploadFileToR2(file, onProgress, ownerId){
+async function uploadFileToR2(file, onProgress, ownerId, startFresh){
 
   const fingerprint =
     r2FileFingerprint(file, ownerId);
 
   let session = null;
   try{ session = JSON.parse(localStorage.getItem(fingerprint) || "null"); }catch(e){ session = null; }
+
+  if(startFresh){ session = null; }
+
+  const resumed = !!session;
 
   if(!session){
 
@@ -23393,8 +23397,21 @@ async function uploadFileToR2(file, onProgress, ownerId){
     const blob =
       file.slice(start, end);
 
-    const putRes =
-      await fetch(url, { method: "PUT", body: blob });
+    let putRes;
+
+    try{
+      putRes = await fetch(url, { method: "PUT", body: blob });
+    }
+    catch(networkError){
+      // "Failed to fetch": the browser couldn't complete the request to
+      // storage. A saved session from an earlier attempt may be dead
+      // (expired or aborted upload), so throw it away and start clean once.
+      try{ localStorage.removeItem(fingerprint); }catch(e){}
+      if(resumed && !startFresh){
+        return uploadFileToR2(file, onProgress, ownerId, true);
+      }
+      throw new Error("Couldn't reach video storage. Check your connection and try again. If it keeps happening, storage may be full or blocked.");
+    }
 
     if(!putRes.ok){
       throw new Error(`Part ${partNumber} of ${totalParts} failed to upload.`);
