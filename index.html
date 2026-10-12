@@ -7354,8 +7354,12 @@ function renderShotLogTable(){
 
       }
 
+      const rowAttrs = isAdmin
+        ? ` class="lt-shot-click" tabindex="0" title="Click to edit this shot" onclick="if(!event.target.closest('button,a,input,select'))openShotEditModal(${arg})" onkeydown="if((event.key==='Enter'||event.key===' ')&&event.target===this){event.preventDefault();openShotEditModal(${arg});}"`
+        : "";
+
       return `
-        <tr>
+        <tr${rowAttrs}>
           <td>${escapeHtml(s.period) || "—"}</td>
           <td>${escapeHtml(s.strength) || "—"}</td>
           <td>${escapeHtml(shotZoneDisplay(s)) || "—"}</td>
