@@ -115,6 +115,9 @@ export default async function handler(req, res) {
       return;
     }
 
+    const profs = await userSelect("profiles", "select=id,full_name&limit=5000", accessToken);
+    const nameOf = new Map(profs.map(p => [p.id, p.full_name || null]));
+
     const shots = await userSelect("Shots", "select=game_video_id&game_video_id=not.is.null&limit=20000", accessToken);
     const shotCount = new Map();
     for (const s of shots) shotCount.set(s.game_video_id, (shotCount.get(s.game_video_id) || 0) + 1);
@@ -122,9 +125,12 @@ export default async function handler(req, res) {
     const items = objects.map(o => {
       const rows = byPath.get(o.key) || [];
       const row = rows[0] || null;
+      const folder = o.key.split("/")[0];
       const kind = !row ? "orphan" : row.status === "clip" ? "clip" : "full";
       return {
         key: o.key, size: o.size, modified: o.modified, kind,
+        owner: nameOf.get(row ? row.user_id : folder) || (row ? "Unknown" : (UUID_RE.test(folder) ? "Unknown" : "—")),
+        owner_id: row ? row.user_id : (UUID_RE.test(folder) ? folder : null),
         video_id: row ? row.id : null,
         status: row ? row.status : null,
         review_status: row ? row.review_status : null,

@@ -27401,6 +27401,7 @@ async function deleteReviewClipFiles(clipIds){
 /* ---------- File storage (R2): what's using the space ---------- */
 
 let storageScan = null;
+let storageOwnerFilter = "";
 
 function fmtBytes(n){
   n = Number(n) || 0;
@@ -27445,9 +27446,14 @@ function renderStoragePanel(){
   document.getElementById("rv-storage-sum").textContent =
     `${fmtBytes(d.total)} in ${d.count} files — full games ${fmtBytes(k.full.bytes)} (${k.full.count}), clips ${fmtBytes(k.clip.bytes)} (${k.clip.count}), no matching record ${fmtBytes(k.orphan.bytes)} (${k.orphan.count}).`;
   const label = { full: "Full game", clip: "Clip", orphan: "No record" };
-  const rows = d.items.slice(0, 40).map(i => `
+  const only = storageOwnerFilter;
+  const shown = d.items.filter(i => !only || i.owner === only);
+  const owners = [...new Set(d.items.map(i => i.owner || "—"))].sort();
+  const ownerSel = `<select onchange="storageOwnerFilter=this.value;renderStoragePanel()"><option value="">Everyone</option>${owners.map(o => `<option value="${escapeHtml(o)}"${o === only ? " selected" : ""}>${escapeHtml(o)}</option>`).join("")}</select>`;
+  const rows = shown.slice(0, 60).map(i => `
     <tr>
       <td>${fmtBytes(i.size)}</td>
+      <td>${escapeHtml(i.owner || "—")}</td>
       <td>${label[i.kind]}${i.review_status ? ` · ${escapeHtml(i.review_status)}` : ""}</td>
       <td>${i.shots ? i.shots + " shot" + (i.shots === 1 ? "" : "s") + " use it" : "—"}</td>
       <td>${i.modified ? escapeHtml(i.modified.slice(0, 10)) : "—"}</td>
@@ -27459,12 +27465,12 @@ function renderStoragePanel(){
     ? `<button type="button" class="btn-secondary" onclick="deleteAllStorageOrphans()">Delete all ${k.orphan.count} files with no record (${fmtBytes(k.orphan.bytes)})</button>`
     : "";
   document.getElementById("rv-storage-body").innerHTML = `
-    <div style="margin:8px 0">${orphanBtn}</div>
+    <div style="margin:8px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span>Show:</span>${ownerSel}${orphanBtn}</div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Size</th><th>Type</th><th>Used by</th><th>Added</th><th></th></tr></thead>
+      <thead><tr><th>Size</th><th>Whose</th><th>Type</th><th>Used by</th><th>Added</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
-    <p class="small-note">Largest 40 files. Deleting a video removes it from storage and its record for good.</p>`;
+    <p class="small-note">Largest 60 files shown. Deleting a video removes it from storage and its record for good.</p>`;
 }
 
 async function deleteStorageVideo(videoId, shots){
