@@ -27469,16 +27469,11 @@ function renderStoragePanel(){
 
 async function deleteStorageVideo(videoId, shots){
   const warn = shots
-    ? `${shots} shot${shots === 1 ? "" : "s"} play their Watch clip from this file and will lose it. Delete anyway?`
+    ? `${shots} shot${shots === 1 ? "" : "s"} play their Watch clip from this file and will lose it (the shots and stats stay). Delete anyway?`
     : "Delete this video file for good?";
   if(!confirm(warn)){ return; }
   try{
-    const res = await fetch("/api/video/delete-video", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accessToken: currentSession.access_token, gameVideoId: videoId })
-    });
-    if(!res.ok){ throw new Error((await res.json().catch(() => ({}))).error || "Delete failed"); }
+    await storageCall({ op: "delete-video", videoId });
     showToast("Video deleted.", "success");
     loadStorageScan();
   }

@@ -8,11 +8,13 @@
 // Body: { accessToken, op: "delete-orphans", keys: [...] }
 //   -> deletes bucket files that no game_videos row points at. Only keys
 //      that are in the live listing AND unreferenced are removed.
-// Deleting a video that has a row goes through /api/video/delete-video.
+// Body: { accessToken, op: "delete-video", videoId }
+//   -> detaches any shots pointing at the video (the shots stay, they just
+//      lose their Watch clip), then deletes the record and the file.
 
 import { ListObjectsV2Command, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import {
-  verifyUser, userSelect, callerRole, r2Configured, r2Client, sendServerError,
+  verifyUser, userSelect, userUpdate, userDelete, callerRole, r2Configured, r2Client, sendServerError, UUID_RE,
 } from "./supabase.js";
 
 async function listAll() {
@@ -50,6 +52,39 @@ export default async function handler(req, res) {
     }
     if (!r2Configured()) {
       res.status(503).json({ error: "File storage isn't configured on the server." });
+      return;
+    }
+
+    if (op === "delete-video") {
+      const { videoId } = req.body || {};
+      if (typeof videoId !== "string" || !UUID_RE.test(videoId)) {
+        res.status(400).json({ error: "Missing video." });
+        return;
+      }
+      const filter = `id=eq.${encodeURIComponent(videoId)}`;
+      const rows = await userSelect("game_videos", `${filter}&select=id,storage_path`, accessToken);
+      if (!rows[0]) {
+        res.status(404).json({ error: "Video not found." });
+        return;
+      }
+      // Shots.game_video_id has no cascade, so detach first or the delete fails.
+      await userUpdate(
+        "Shots",
+        `game_video_id=eq.${encodeURIComponent(videoId)}`,
+        { game_video_id: null, clip_start_seconds: null, clip_end_seconds: null },
+        accessToken
+      );
+      const path = rows[0].storage_path;
+      const others = await userSelect("game_videos", `storage_path=eq.${encodeURIComponent(path)}&id=neq.${encodeURIComponent(videoId)}&select=id`, accessToken);
+      const gone = await userDelete("game_videos", filter, accessToken);
+      if (!gone || !gone.length) {
+        res.status(403).json({ error: "Nothing was deleted." });
+        return;
+      }
+      if (!others.length && path) {
+        await r2Client().send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: path }));
+      }
+      res.status(200).json({ deleted: true });
       return;
     }
 
