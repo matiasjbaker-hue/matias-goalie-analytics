@@ -3566,7 +3566,14 @@
       </div>
       <button type="button" class="btn-primary" onclick="openAddVideo()">Add a video</button>
       <button type="button" class="btn-secondary" onclick="clearFailedVideos(this)">Clear failed uploads</button>
+      <button type="button" class="btn-secondary" onclick="toggleStoragePanel()">Storage</button>
     </div>
+
+    <section class="card" id="rv-storage" hidden>
+      <h4 style="margin:0 0 4px">File storage</h4>
+      <p class="small-note" id="rv-storage-sum">Loading…</p>
+      <div id="rv-storage-body"></div>
+    </section>
 
     <section class="rv-add-video" id="rv-add-video" hidden aria-labelledby="rv-av-title">
       <h4 id="rv-av-title">Add a video for a goalie</h4>
@@ -27372,6 +27379,117 @@ async function deleteReviewClipFiles(clipIds){
     }
     catch(e){ console.error("Couldn't remove old clip", id, e); }
   }
+}
+
+/* ---------- File storage (R2): what's using the space ---------- */
+
+let storageScan = null;
+
+function fmtBytes(n){
+  n = Number(n) || 0;
+  if(n >= 1073741824){ return (n / 1073741824).toFixed(2) + " GB"; }
+  if(n >= 1048576){ return (n / 1048576).toFixed(1) + " MB"; }
+  return Math.max(1, Math.round(n / 1024)) + " KB";
+}
+
+function toggleStoragePanel(){
+  const panel = document.getElementById("rv-storage");
+  panel.hidden = !panel.hidden;
+  if(!panel.hidden){ loadStorageScan(); }
+}
+
+async function storageCall(body){
+  const res = await fetch("/api/admin/storage", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accessToken: currentSession.access_token, ...body })
+  });
+  const data = await res.json().catch(() => ({}));
+  if(!res.ok){ throw new Error(data.error || "Request failed"); }
+  return data;
+}
+
+async function loadStorageScan(){
+  const sum = document.getElementById("rv-storage-sum");
+  sum.textContent = "Reading the bucket…";
+  try{
+    storageScan = await storageCall({ op: "scan" });
+    renderStoragePanel();
+  }
+  catch(error){
+    sum.textContent = "Couldn't read storage: " + error.message;
+  }
+}
+
+function renderStoragePanel(){
+  const d = storageScan;
+  if(!d){ return; }
+  const k = d.by_kind;
+  document.getElementById("rv-storage-sum").textContent =
+    `${fmtBytes(d.total)} in ${d.count} files — full games ${fmtBytes(k.full.bytes)} (${k.full.count}), clips ${fmtBytes(k.clip.bytes)} (${k.clip.count}), no matching record ${fmtBytes(k.orphan.bytes)} (${k.orphan.count}).`;
+  const label = { full: "Full game", clip: "Clip", orphan: "No record" };
+  const rows = d.items.slice(0, 40).map(i => `
+    <tr>
+      <td>${fmtBytes(i.size)}</td>
+      <td>${label[i.kind]}${i.review_status ? ` · ${escapeHtml(i.review_status)}` : ""}</td>
+      <td>${i.shots ? i.shots + " shot" + (i.shots === 1 ? "" : "s") + " use it" : "—"}</td>
+      <td>${i.modified ? escapeHtml(i.modified.slice(0, 10)) : "—"}</td>
+      <td>${i.kind === "orphan"
+        ? `<button type="button" class="watch-btn watch-btn-danger" onclick="deleteStorageOrphan(${jsArg(i.key)})">Delete file</button>`
+        : `<button type="button" class="watch-btn watch-btn-danger" onclick="deleteStorageVideo(${jsArg(i.video_id)}, ${i.shots})">Delete</button>`}</td>
+    </tr>`).join("");
+  const orphanBtn = k.orphan.count
+    ? `<button type="button" class="btn-secondary" onclick="deleteAllStorageOrphans()">Delete all ${k.orphan.count} files with no record (${fmtBytes(k.orphan.bytes)})</button>`
+    : "";
+  document.getElementById("rv-storage-body").innerHTML = `
+    <div style="margin:8px 0">${orphanBtn}</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Size</th><th>Type</th><th>Used by</th><th>Added</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    <p class="small-note">Largest 40 files. Deleting a video removes it from storage and its record for good.</p>`;
+}
+
+async function deleteStorageVideo(videoId, shots){
+  const warn = shots
+    ? `${shots} shot${shots === 1 ? "" : "s"} play their Watch clip from this file and will lose it. Delete anyway?`
+    : "Delete this video file for good?";
+  if(!confirm(warn)){ return; }
+  try{
+    const res = await fetch("/api/video/delete-video", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessToken: currentSession.access_token, gameVideoId: videoId })
+    });
+    if(!res.ok){ throw new Error((await res.json().catch(() => ({}))).error || "Delete failed"); }
+    showToast("Video deleted.", "success");
+    loadStorageScan();
+  }
+  catch(error){ showToast(error.message, "error"); }
+}
+
+async function deleteStorageOrphan(key){
+  if(!confirm("Delete this file? Nothing in the app points to it.")){ return; }
+  try{
+    const r = await storageCall({ op: "delete-orphans", keys: [key] });
+    showToast(`Freed ${fmtBytes(r.freed)}.`, "success");
+    loadStorageScan();
+  }
+  catch(error){ showToast(error.message, "error"); }
+}
+
+async function deleteAllStorageOrphans(){
+  const keys = (storageScan ? storageScan.items : []).filter(i => i.kind === "orphan").map(i => i.key);
+  if(!keys.length || !confirm(`Delete ${keys.length} files that nothing in the app points to?`)){ return; }
+  try{
+    let freed = 0;
+    for(let i = 0; i < keys.length; i += 100){
+      freed += (await storageCall({ op: "delete-orphans", keys: keys.slice(i, i + 100) })).freed;
+    }
+    showToast(`Freed ${fmtBytes(freed)}.`, "success");
+    loadStorageScan();
+  }
+  catch(error){ showToast(error.message, "error"); }
 }
 
 /* ---------- puck playing while reviewing ----------
