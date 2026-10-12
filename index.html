@@ -14326,12 +14326,14 @@ function accessBadgeHtml(goalieId){
   }
 
   // Three labels only: Paid, Free trial, or Free.
+  //   Free       -> free access granted by you (comp), even with test purchases
   //   Paid       -> has paid (see adminIsPaid)
-  //   Free       -> free access granted by you (comp)
   //   Free trial -> trial, or a pay-per-game account that hasn't paid yet
+  // Free access you granted always reads "Free", even if that account has
+  // test purchases (e.g. Ghazi's staff test account).
   const label =
-    adminIsPaid(goalieId, row) ? "Paid" :
     row.status === "comp" ? "Free" :
+    adminIsPaid(goalieId, row) ? "Paid" :
     "Free trial";
 
   const details = [];
