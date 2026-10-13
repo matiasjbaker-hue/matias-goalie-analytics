@@ -21869,7 +21869,9 @@ async function appendLiveTagToGame(gameIdRaw, periodMinutes){
   if(gErr || !game){ throw gErr || new Error("Could not load that game."); }
 
   const userId = game.user_id;
-  const newShots = liveTagState.shots;
+  // The list is newest first; save oldest first so shot ids follow game
+  // order (Bulk Attach Clips and the Shot Log sort by id within a period).
+  const newShots = liveTagState.shots.slice().reverse();
   const newGoals = newShots.filter(s => s.outcome === "goal").length;
 
   const shotsAgainst = num(game.shots_against) + newShots.length;
@@ -22115,7 +22117,8 @@ async function finishLiveTagGame(){
 
     if(liveTagState.shots.length > 0){
 
-      const taggedShots = liveTagState.shots.slice();
+      // Newest first in the list; save oldest first so ids follow game order.
+      const taggedShots = liveTagState.shots.slice().reverse();
 
       const insertedShots =
         await insertLiveTagShots(taggedShots.map(shot => liveTagShotPayload(shot, gameId, userId)));
