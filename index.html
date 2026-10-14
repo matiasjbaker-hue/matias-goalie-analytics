@@ -8792,6 +8792,9 @@ function renderPeriodDetail(){
 
     const keys = PERIOD_DETAIL_KEYS.filter(k => k !== "OT" || byPeriod.OT.length);
 
+    // Three periods side by side; with OT, a 2x2 grid.
+    mapsHost.className = "grid " + (keys.length === 4 ? "grid-2" : "grid-3");
+
     mapsHost.innerHTML = keys.map(k => {
 
       const list = byPeriod[k];
@@ -18629,7 +18632,7 @@ function renderGameOverviewPeriodDetail(r){
     <div class="card section-space">
       <h3>Shot Maps by Period</h3>
       <p class="chart-caption">Where shots came from in each period, as seen from your net. Dashed ring = goal against.</p>
-      <div class="grid grid-2">${maps}</div>
+      <div class="grid ${pd.length === 4 ? "grid-2" : "grid-3"}">${maps}</div>
       <div class="shotmap-legend"><span class="lg-save">Save</span><span class="lg-goal">Goal</span></div>
     </div>
 
