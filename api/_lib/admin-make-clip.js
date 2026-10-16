@@ -20,7 +20,7 @@ import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import ffmpegPath from "ffmpeg-static";
 import { verifyUser, getProfile, serviceSelect, SUPABASE_URL } from "./billing.js";
-import { r2Configured, r2Client, storagePathIsTrusted } from "./supabase.js";
+import { r2Configured, r2Client, r2CapBlocks, storagePathIsTrusted } from "./supabase.js";
 import { ffmpegAvailable } from "./frames.js";
 
 const MAX_CLIP_SECONDS = 30;
@@ -108,6 +108,12 @@ export default async function handler(req, res) {
     const source = rows[0];
     if (!source || !(await storagePathIsTrusted(source))) {
       res.status(404).json({ error: "Video not found." });
+      return;
+    }
+
+    const capMessage = await r2CapBlocks(0);
+    if (capMessage) {
+      res.status(507).json({ error: capMessage });
       return;
     }
 

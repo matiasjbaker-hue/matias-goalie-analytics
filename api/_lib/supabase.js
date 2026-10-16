@@ -5,7 +5,7 @@
 // Every endpoint used to carry its own copy of these; one copy means
 // a security fix lands everywhere at once.
 
-import { S3Client } from "@aws-sdk/client-s3";
+import { S3Client, ListObjectsV2Command } from "@aws-sdk/client-s3";
 
 export const SUPABASE_URL = "https://iiuqxxrrruvwvfehrzic.supabase.co";
 // Publishable key: safe to ship, RLS is what protects the data.
@@ -112,6 +112,49 @@ export function r2Client() {
       secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
     },
   });
+}
+
+// ---- R2 spend cap ----
+// R2 has no hard spending limit, so the cap lives here: new uploads are
+// refused once the bucket's estimated storage bill reaches the cap.
+// Estimate = (stored GB - free GB) x price per GB-month. Cloudflare counts
+// 1 GB as 1,000,000,000 bytes. Operations fees are tiny next to storage, so
+// they're ignored. Change the cap with R2_SPEND_CAP_USD in Vercel (default 3.50).
+const R2_FREE_BYTES = 10 * 1e9;
+const R2_USD_PER_GB_MONTH = 0.015;
+const R2_CAP_USD = Number(process.env.R2_SPEND_CAP_USD) > 0 ? Number(process.env.R2_SPEND_CAP_USD) : 3.5;
+const R2_CAP_BYTES = R2_FREE_BYTES + (R2_CAP_USD / R2_USD_PER_GB_MONTH) * 1e9;
+
+let r2SizeCache = { at: 0, bytes: 0 };
+
+async function r2BucketBytes() {
+  if (Date.now() - r2SizeCache.at < 60 * 1000) return r2SizeCache.bytes;
+  let bytes = 0;
+  let token;
+  do {
+    const page = await r2Client().send(new ListObjectsV2Command({
+      Bucket: process.env.R2_BUCKET_NAME, ContinuationToken: token,
+    }));
+    for (const o of page.Contents || []) bytes += Number(o.Size) || 0;
+    token = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (token);
+  r2SizeCache = { at: Date.now(), bytes };
+  return bytes;
+}
+
+// Returns an error message when this upload would push storage past the
+// cap, otherwise null. If the bucket can't be measured, uploads are
+// allowed (a failed check shouldn't take uploads down) and it's logged.
+export async function r2CapBlocks(incomingBytes) {
+  try {
+    const used = await r2BucketBytes();
+    if (used + (Number(incomingBytes) || 0) > R2_CAP_BYTES) {
+      return "Video storage is full right now, so new uploads are paused. Please contact GoalieIQ and we'll sort it out.";
+    }
+  } catch (error) {
+    console.error("R2 cap check failed; allowing the upload:", error);
+  }
+  return null;
 }
 
 // Every new object lives under "<owner user id>/". game_videos rows are

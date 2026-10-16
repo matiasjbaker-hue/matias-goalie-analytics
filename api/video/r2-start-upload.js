@@ -18,7 +18,7 @@
 import { CreateMultipartUploadCommand, UploadPartCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import {
-  verifyUser, callerHasAccess, callerRole, r2Configured, r2Client, sendServerError, UUID_RE,
+  verifyUser, callerHasAccess, callerRole, r2Configured, r2Client, r2CapBlocks, sendServerError, UUID_RE,
 } from "../_lib/supabase.js";
 
 // 25MB per part -- keeps the request count reasonable for a multi-GB
@@ -87,6 +87,12 @@ export default async function handler(req, res) {
     }
     if (!(await callerHasAccess(accessToken))) {
       res.status(402).json({ error: "Your GoalieIQ access isn't active." });
+      return;
+    }
+
+    const capMessage = await r2CapBlocks(size);
+    if (capMessage) {
+      res.status(507).json({ error: capMessage });
       return;
     }
 
