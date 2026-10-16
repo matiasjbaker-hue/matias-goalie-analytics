@@ -4433,7 +4433,7 @@
 
     <div class="giq-modal-body">
       <div id="watchModalStatus" class="empty-state">Loading clip…</div>
-      <video id="watchModalVideo" controls style="display:none"></video>
+      <video id="watchModalVideo" controls muted onvolumechange="if(!this.muted){this.muted=true}" style="display:none"></video>
     </div>
 
   </div>
