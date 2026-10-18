@@ -15580,6 +15580,37 @@ function recapErrorText(res){
 
 }
 
+// Games left for the recap email, read fresh from the database. A
+// credit is used when the game row is inserted (consume_game_credit
+// trigger), which usually happens after adminAccess was loaded, so the
+// cached number would still count the game being recapped.
+async function recapCreditsLeft(userId, cachedAccess){
+
+  try{
+    const { data, error } =
+      await supabaseClient
+        .from("goalie_access")
+        .select("plan,status,game_credits")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+    if(error){ throw error; }
+
+    if(data){
+      const row = adminAccess.find(a => a.user_id === userId);
+      if(row){ row.game_credits = data.game_credits; }
+    }
+
+    return data && data.plan === "pay_per_game" ? data.game_credits : null;
+  }
+  catch(err){
+    console.error("Could not refresh games left:", err);
+    return cachedAccess && cachedAccess.plan === "pay_per_game" ? cachedAccess.game_credits : null;
+  }
+
+}
+
+
 async function openRecapEmailModal(gameId){
 
   if(!currentSession || !currentSession.access_token){
@@ -15611,7 +15642,7 @@ async function openRecapEmailModal(gameId){
       shots: allShots.filter(s => String(s.game_id) === String(game.id)),
       rebound: (allReboundControls || []).filter(r => String(r.game_id) === String(game.id)),
       goalieName: goalie && goalie.full_name,
-      creditsLeft: access && access.plan === "pay_per_game" ? access.game_credits : null,
+      creditsLeft: await recapCreditsLeft(game.user_id, access),
       others
     });
 
@@ -27832,7 +27863,7 @@ async function emailPublishedStats(v, gameId, republish){
       shots: allShots.filter(s => String(s.game_id) === String(game.id)),
       rebound: (allReboundControls || []).filter(r => String(r.game_id) === String(game.id)),
       goalieName: goalie && goalie.full_name,
-      creditsLeft: access && access.plan === "pay_per_game" ? access.game_credits : null,
+      creditsLeft: await recapCreditsLeft(game.user_id, access),
       others
     });
     if(!draft){ throw new Error("There was nothing to put in the recap."); }
