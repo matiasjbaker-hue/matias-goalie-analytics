@@ -7295,6 +7295,14 @@ function renderShotLogTable(){
       gameShotsList.filter(s => strengthCategory(s.strength) === strengthFilter);
   }
 
+  // Game order: period (1st, 2nd, 3rd, OT), then the order shots were
+  // entered. Same order Bulk Attach Clips uses, so clip N = row N.
+  gameShotsList =
+    [...gameShotsList].sort((a, b) =>
+      bulkPeriodRank(a.period) - bulkPeriodRank(b.period) ||
+      Number(a.shot_id ?? a.id) - Number(b.shot_id ?? b.id)
+    );
+
   if(!gameShotsList.length){
     tbody.innerHTML =
       `<tr><td colspan="8"><div class="empty-state">No shots match these filters.</div></td></tr>`;
