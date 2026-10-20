@@ -18349,6 +18349,8 @@ function renderGameOverviewHero(game, m){
         ` : ""}
         ${currentRole === "goalie" ? `
           <button type="button" class="btn-secondary" onclick="editGameFromOverview(${Number(game.id)})">Edit</button>
+        ` : ""}
+        ${currentRole === "goalie" || currentRole === "admin" ? `
           <button type="button" class="btn-danger" onclick="deleteGame(${Number(game.id)})">Delete</button>
         ` : ""}
       </div>
