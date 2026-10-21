@@ -4474,6 +4474,18 @@ let CURRENT_SEASON =
 // the viewed goalie actually has games in that season.
 let SELECTED_SEASON = null;
 
+// Dropdown value meaning "every season together".
+const ALL_SEASONS = "__all__";
+
+function isAllSeasons(value){
+  return value === ALL_SEASONS;
+}
+
+// Human label for a season value (handles the "all games" sentinel).
+function seasonLabel(value){
+  return isAllSeasons(value) ? "All games" : String(value ?? "");
+}
+
 const supabaseClient =
   window.supabase.createClient(
     SUPABASE_URL,
@@ -4612,6 +4624,8 @@ function normalizeSeason(value){
 
 function isCurrentSeason(value){
 
+  if(isAllSeasons(CURRENT_SEASON)){ return true; }
+
   return normalizeSeason(value) === normalizeSeason(CURRENT_SEASON);
 
 }
@@ -4636,7 +4650,11 @@ function seasonRank(value){
 
   // Regular season ranks above preseason within the same year;
   // year is the primary sort key.
-  return (year * 10) + (isPreseason ? 0 : 1);
+  // A "2026-27" style label is the full season starting that year, so it
+  // outranks any other same-year label (e.g. a stray "2026 AYHL Game").
+  const isRange = /\d{4}\s*[-\u2013\/]\s*\d{2,4}/.test(s);
+
+  return (year * 10) + (isPreseason ? 0 : 1) + (isRange && !isPreseason ? 2 : 0);
 
 }
 
@@ -4645,6 +4663,11 @@ function computeCurrentSeason(gameList, ignoreSelection){
 
   if(!gameList || !gameList.length){
     return CURRENT_SEASON;
+  }
+
+  // "All games" pick: keep it as long as there are any games at all.
+  if(!ignoreSelection && isAllSeasons(SELECTED_SEASON)){
+    return ALL_SEASONS;
   }
 
   // Honor the dropdown pick, but only if this goalie has games in it.
@@ -4711,6 +4734,10 @@ function seasonGameIdsFor(goalieId, season){
   const target =
     season || computeCurrentSeason(goalieGames, true);
 
+  if(isAllSeasons(target)){
+    return new Set(goalieGames.map(g => String(g.id ?? g.game_id)));
+  }
+
   return new Set(
     goalieGames
       .filter(g => normalizeSeason(g.season) === normalizeSeason(target))
@@ -4753,14 +4780,16 @@ function updateSeasonBadge(){
   select.id = "season-select";
   select.setAttribute("aria-label", "Switch season");
 
-  seasons.forEach(label => {
+  seasons.concat([ALL_SEASONS]).forEach(label => {
 
     const option = document.createElement("option");
 
     option.value = label;
-    option.textContent = label.toUpperCase();
+    option.textContent = seasonLabel(label).toUpperCase();
     option.selected =
-      normalizeSeason(label) === normalizeSeason(CURRENT_SEASON);
+      isAllSeasons(label)
+        ? isAllSeasons(CURRENT_SEASON)
+        : normalizeSeason(label) === normalizeSeason(CURRENT_SEASON);
 
     select.appendChild(option);
 
@@ -10908,7 +10937,13 @@ async function renderPeerComparison(){
     return;
   }
 
-  const season = SELECTED_SEASON || CURRENT_SEASON;
+  let season = SELECTED_SEASON || CURRENT_SEASON;
+
+  // Peer benchmarks are per real season; for "all games" compare on the newest one.
+  if(isAllSeasons(season)){
+    season = computeCurrentSeason(allGames.filter(g => g.user_id === goalieId), true);
+  }
+
   const key = `${goalieId}|${season}`;
   peerRequestKey = key;
 
@@ -13096,7 +13131,7 @@ function renderCoachHome(){
           <div class="goalie-card-top">
             <div>
               <div class="goalie-name">${escapeHtml(profile.full_name || "Unnamed Goalie")}</div>
-              <div class="goalie-meta">${escapeHtml(profile.team || "No team set")} · ${escapeHtml(profile.season || CURRENT_SEASON)}</div>
+              <div class="goalie-meta">${escapeHtml(profile.team || "No team set")} · ${escapeHtml(profile.season || seasonLabel(CURRENT_SEASON))}</div>
             </div>
             ${trendBadge(summary.trend)}
           </div>
@@ -13231,7 +13266,7 @@ function renderGoalieProfile(goalieId){
     profile.full_name || "Unnamed Goalie";
 
   document.getElementById("goalieProfileMeta").textContent =
-    [profile.team || "No team set", profile.season || CURRENT_SEASON, profile.level, profile.league,
+    [profile.team || "No team set", profile.season || seasonLabel(CURRENT_SEASON), profile.level, profile.league,
      profile.catches ? `Catches ${profile.catches === "L" ? "left" : "right"}` : null,
      profile.height_in || profile.weight_lbs ? profileSizeText(profile) : null,
      profile.birthplace].filter(Boolean).join(" · ");
@@ -16257,7 +16292,7 @@ function getReportGoalieDisplayInfo(){
     return {
       name: (profile && profile.full_name) || "Unknown Goalie",
       team: (profile && profile.team) || "",
-      season: (profile && profile.season) || CURRENT_SEASON
+      season: (profile && profile.season) || seasonLabel(CURRENT_SEASON)
     };
 
   }
@@ -16271,7 +16306,7 @@ function getReportGoalieDisplayInfo(){
     return {
       name: (profile && profile.full_name) || "Goalie",
       team: (profile && profile.team) || "",
-      season: (profile && profile.season) || CURRENT_SEASON
+      season: (profile && profile.season) || seasonLabel(CURRENT_SEASON)
     };
 
   }
@@ -16279,7 +16314,7 @@ function getReportGoalieDisplayInfo(){
   return {
     name: (currentProfile && currentProfile.full_name) || "Goalie",
     team: (currentProfile && currentProfile.team) || "",
-    season: (currentProfile && currentProfile.season) || CURRENT_SEASON
+    season: (currentProfile && currentProfile.season) || seasonLabel(CURRENT_SEASON)
   };
 
 }
@@ -16904,7 +16939,7 @@ async function generateGameReportPDF(gameId, buttonEl, options = {}){
   doc.setFont("helvetica","normal");
   doc.setFontSize(10);
   doc.setTextColor(90,90,90);
-  doc.text(`Result: ${gameResult(game) || "—"}    Season: ${game.season || CURRENT_SEASON}`, 42, y);
+  doc.text(`Result: ${gameResult(game) || "—"}    Season: ${game.season || seasonLabel(CURRENT_SEASON)}`, 42, y);
   y += 26;
 
   // Performance Summary
@@ -18286,7 +18321,7 @@ function renderGameOverviewSelector(list, idx){
   document.getElementById("goNextBtn").disabled = idx >= list.length - 1;
 
   document.getElementById("goPosition").textContent =
-    `Game ${idx + 1} of ${list.length} · ${CURRENT_SEASON}`;
+    `Game ${idx + 1} of ${list.length} · ${seasonLabel(CURRENT_SEASON)}`;
 
 }
 
@@ -27318,7 +27353,7 @@ function readReviewGameDetails(){
   return {
     date: textOrNull(document.getElementById("rv-gd-date").value),
     opponent: textOrNull(document.getElementById("rv-gd-opponent").value) || "Unknown",
-    season: textOrNull(document.getElementById("rv-gd-season").value) || CURRENT_SEASON,
+    season: textOrNull(document.getElementById("rv-gd-season").value) || (isAllSeasons(CURRENT_SEASON) ? computeCurrentSeason(allGames.filter(g => g.user_id === activeGoalieId), true) : CURRENT_SEASON),
     home_away: textOrNull(document.getElementById("rv-gd-homeaway").value),
     result: textOrNull(document.getElementById("rv-gd-result").value),
     team_goals: numOrNull(document.getElementById("rv-gd-teamgoals").value),
