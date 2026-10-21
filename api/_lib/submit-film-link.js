@@ -59,7 +59,7 @@ export default async function handler(req, res) {
     email = await import("./email.js");
   } catch (err) {
     console.error(err);
-    res.status(503).json({ error: "Sending links isn't available right now. Please email the link to goalieiqanalytics@gmail.com." });
+    res.status(503).json({ error: "Sending links isn't available right now. Please email the link to matias@goalieiqanalytics.com." });
     return;
   }
 
@@ -71,7 +71,7 @@ export default async function handler(req, res) {
     }
 
     if (!email.emailConfigured()) {
-      res.status(503).json({ error: "Sending links isn't available right now. Please email the link to goalieiqanalytics@gmail.com." });
+      res.status(503).json({ error: "Sending links isn't available right now. Please email the link to matias@goalieiqanalytics.com." });
       return;
     }
 
@@ -127,6 +127,6 @@ export default async function handler(req, res) {
     res.status(200).json({ sent: true });
   } catch (error) {
     console.error(error);
-    res.status(502).json({ error: "Couldn't send your link. Please email it to goalieiqanalytics@gmail.com instead." });
+    res.status(502).json({ error: "Couldn't send your link. Please email it to matias@goalieiqanalytics.com instead." });
   }
 }
