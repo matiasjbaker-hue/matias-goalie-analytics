@@ -41,7 +41,7 @@ Built only for goaltending, not adapted from a generic team-stats app. The mecha
 ## Brand Commitments
 
 - Name: **GoalieIQ Analytics** (short form GoalieIQ). Operated by Matias Baker, Ontario, Canada.
-- Contact: matias@goalieiqanalytics.com; Instagram @goalieiqanalytics.
+- Contact: goalieiqanalytics@gmail.com; Instagram @goalieiqanalytics.
 - The public landing page opens on a full-bleed hero photograph of a goalie making a save, spanning edge to edge, with the headline set over the photo (user requirement, 2026-10-06).
 - The redesign must avoid generic AI-generated looks and layouts (user requirement, 2026-10-06).
 
