@@ -3287,6 +3287,15 @@
       Upload
     </button>
 
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(128,128,128,0.25)">
+      <div style="font-weight:600;margin-bottom:6px">Upload not working? Send a link instead</div>
+      <div class="empty-state" style="margin-bottom:8px;text-align:left">
+        Paste a link to your game film (Google Drive, Dropbox, Hudl, YouTube). Make sure it's shared so anyone with the link can view. We'll add it to your account and email you when the recap is ready. Uses the game and jersey color fields above.
+      </div>
+      <input type="url" id="video-link-input" placeholder="https://..." autocomplete="off" style="width:100%;margin-bottom:8px">
+      <button type="button" class="btn-secondary" id="video-link-btn" onclick="sendFilmLink()">Send link</button>
+    </div>
+
   </div>
 
   <div class="section-heading">
@@ -23513,7 +23522,84 @@ async function uploadFileToR2(file, onProgress, ownerId, startFresh){
 }
 
 
+async function sendFilmLink(){
+
+  if(!currentSession || !currentSession.user){
+    showToast("You need to be signed in to send a link.", "error");
+    return;
+  }
+
+  const input = document.getElementById("video-link-input");
+  const btn = document.getElementById("video-link-btn");
+  const url = (input.value || "").trim();
+
+  if(!/^https?:\/\/\S+\.\S+$/i.test(url)){
+    showToast("Paste the full link to your film (starting with https://).", "error");
+    return;
+  }
+
+  const jerseyColor = textOrNull(document.getElementById("video-jersey-color").value);
+
+  if(!jerseyColor){
+    showToast("Enter your goalie's team jersey color for this game.", "error");
+    return;
+  }
+
+  let game = "";
+
+  if(document.getElementById("video-new-game-toggle").checked){
+    const opponent = textOrNull(document.getElementById("video-new-game-opponent").value);
+    const date = textOrNull(document.getElementById("video-new-game-date").value);
+    const homeAway = document.getElementById("video-new-game-homeaway").value;
+    if(!opponent){
+      showToast("Enter an opponent for the new game.", "error");
+      return;
+    }
+    game = "New game vs " + opponent + (date ? " on " + date : "") + (homeAway ? " (" + homeAway + ")" : "");
+  }
+  else{
+    const sel = document.getElementById("video-game-select");
+    if(!sel.value){
+      showToast("Pick a game, or check \"This is a new game\" above.", "error");
+      return;
+    }
+    game = "Existing game: " + (sel.selectedOptions[0] ? sel.selectedOptions[0].textContent.trim() : sel.value);
+  }
+
+  btn.disabled = true;
+  const oldLabel = btn.textContent;
+  btn.textContent = "Sending...";
+
+  try{
+    const res = await fetch("/api/admin/film-link", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        accessToken: currentSession.access_token,
+        url: url,
+        game: game,
+        jerseyColor: jerseyColor
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok){
+      throw new Error(data.error || "Couldn't send your link.");
+    }
+    input.value = "";
+    showToast("Link sent! We'll add your film and email you when your recap is ready.", "success");
+  }
+  catch(err){
+    showToast(err.message || "Couldn't send your link.", "error");
+  }
+  finally{
+    btn.disabled = false;
+    btn.textContent = oldLabel;
+  }
+
+}
+
 async function uploadGameVideo(){
+
 
   if(!currentSession || !currentSession.user){
     showToast("You need to be signed in to upload video.", "error");

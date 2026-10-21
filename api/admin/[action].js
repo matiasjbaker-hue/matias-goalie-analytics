@@ -20,6 +20,8 @@ const ROUTES = {
   "create-request": () => import("../_lib/admin-create-request.js"),
   storage: () => import("../_lib/admin-storage.js"),
   twelvelabs: () => import("../_lib/admin-twelvelabs.js"),
+  // not admin-only: any signed-in goalie may send a film link (verified in the handler)
+  "film-link": () => import("../_lib/submit-film-link.js"),
 };
 
 export default async function handler(req, res) {
