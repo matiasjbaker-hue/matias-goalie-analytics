@@ -3659,6 +3659,25 @@
       </div>
     </div>
 
+    <section class="rv-parts" id="rv-parts" aria-label="Film files for this game">
+      <div class="rv-parts-row">
+        <span class="rv-parts-label">Film files</span>
+        <div class="go-trend-controls" id="rv-parts-tabs" role="group" aria-label="Film files"></div>
+        <button type="button" class="btn-secondary" id="rv-part-add-toggle" onclick="toggleAddReviewPart()">Add another file</button>
+        <button type="button" class="btn-secondary" id="rv-part-remove" onclick="removeReviewPart()" hidden>Remove this file</button>
+      </div>
+      <p class="small-note rv-parts-note" id="rv-parts-note"></p>
+      <div class="rv-part-add" id="rv-part-add" hidden>
+        <p class="small-note">Attach the game's other file to this same review. Shots from every file go to one game and publish together. You can keep tagging while it uploads.</p>
+        <div class="rv-av-foot">
+          <input type="file" id="rv-part-file" accept="video/*,.mov,.mp4,.m4v">
+          <span class="small-note" id="rv-part-status" aria-live="polite"></span>
+          <button type="button" class="btn-secondary" onclick="toggleAddReviewPart(false)">Cancel</button>
+          <button type="button" class="btn-primary" id="rv-part-btn" onclick="submitReviewPart()">Upload file</button>
+        </div>
+      </div>
+    </section>
+
     <div class="rv-scanbar" id="rv-scanbar" hidden>
       <div class="rv-scanbar-track"><i id="rv-scanbar-fill"></i></div>
       <span id="rv-scan-text" aria-live="polite"></span>
@@ -18041,6 +18060,15 @@ function renderGameOverview(){
 let goFilmToken = 0;
 const goFilmVideoCache = {};
 let goFilmShots = [];
+// A game whose film came as more than one file shows a Part switch;
+// this remembers which part each game was last showing.
+const goFilmPartPick = {};
+let goFilmGame = null;
+
+function goFilmPickPart(gameId, videoId){
+  goFilmPartPick[gameId] = String(videoId);
+  if(goFilmGame && String(goFilmGame.id) === String(gameId)){ renderGameFilm(goFilmGame); }
+}
 
 function goFilmShotTime(shot, fullVideo, clipsById){
 
@@ -18071,6 +18099,7 @@ async function renderGameFilm(game){
   const box = document.getElementById("goFilm");
   if(!box){ return; }
 
+  goFilmGame = game;
   const token = ++goFilmToken;
 
   let videos = goFilmVideoCache[game.id];
@@ -18114,7 +18143,22 @@ async function renderGameFilm(game){
     const list = placed(video);
     if(list.length > shots.length){ full = video; shots = list; }
   });
-  const unplaced = gameShots.length - shots.length;
+
+  // A request whose film came as more than one file (Part 1, Part 2): the
+  // game shows one part at a time, with a switch, instead of guessing.
+  const partVideos = fulls
+    .filter(v => v.parent_video_id || fulls.some(x => String(x.parent_video_id) === String(v.id)))
+    .sort(videoPartSort);
+  const hasParts = partVideos.length > 1;
+  let partNumber = 0;
+  if(hasParts){
+    full = partVideos.find(v => String(v.id) === goFilmPartPick[game.id]) || partVideos[0];
+    shots = placed(full);
+    partNumber = partVideos.findIndex(v => String(v.id) === String(full.id)) + 1;
+  }
+  const unplaced = hasParts
+    ? gameShots.filter(s => !fulls.some(v => goFilmShotTime(s, v, clipsById) !== null)).length
+    : gameShots.length - shots.length;
 
   const goals = shots.filter(x => isGoal(x.s)).length;
   goFilmShots = shots;
@@ -18123,8 +18167,11 @@ async function renderGameFilm(game){
   box.innerHTML = `
     <div class="go-film-head">
       <h3>Game film</h3>
+      ${hasParts ? `<div class="go-trend-controls go-film-parts" role="group" aria-label="Game film files">${partVideos.map((video, i) =>
+        `<button type="button" class="${String(video.id) === String(full.id) ? "active" : ""}" onclick="goFilmPickPart(${jsArg(game.id)}, ${jsArg(video.id)})">Part ${i + 1} · ${placed(video).length} shot${placed(video).length === 1 ? "" : "s"}</button>`
+      ).join("")}</div>` : ""}
       <p>${shots.length
-        ? `${shots.length} tagged shot${shots.length === 1 ? "" : "s"} on the timeline (${shots.length - goals} saves, ${goals} goal${goals === 1 ? "" : "s"}). Click a tick or a shot to watch it.`
+        ? `${hasParts ? `Part ${partNumber} of ${partVideos.length}: ` : ""}${shots.length} tagged shot${shots.length === 1 ? "" : "s"} on the timeline (${shots.length - goals} saves, ${goals} goal${goals === 1 ? "" : "s"}). Click a tick or a shot to watch it.`
         : "The full game. Tagged shots appear on the timeline once they're linked to this video."}${unplaced > 0
           ? ` ${unplaced} shot${unplaced === 1 ? " isn't" : "s aren't"} linked to the film${currentRole === "admin" ? ": republish the review to link them" : ""}.`
           : ""}</p>
@@ -23357,8 +23404,9 @@ async function renderCustomerVideoList(){
     return;
   }
 
-  // Clip files attached to shots aren't requests the goalie sent.
-  const requests = videos.filter(v => v.status !== "clip");
+  // Clip files attached to shots aren't requests the goalie sent, and a
+  // request's extra files are part of that request.
+  const requests = videos.filter(v => v.status !== "clip" && !v.parent_video_id);
 
   if(!requests.length){
     container.innerHTML = `<div class="empty-state">No videos uploaded yet.</div>`;
@@ -23369,7 +23417,9 @@ async function renderCustomerVideoList(){
     requests
       .map(v => {
 
-        const st = v.review_status || "received";
+        const parts = videoPartsOf(v, videos);
+        const st = videoGroupStatus(parts);
+        const noted = parts.find(p => (p.review_status || "received") === "needs_attention" && p.admin_note) || v;
         const g = v.game_id ? games.find(x => String(x.id) === String(v.game_id)) : null;
         const rg = v.requested_game || {};
         const label = g
@@ -23378,15 +23428,15 @@ async function renderCustomerVideoList(){
         const sent = v.created_at ? new Date(v.created_at).toLocaleDateString([], { month: "short", day: "numeric" }) : "";
 
         const status =
-          v.status === "failed" ? "We hit a snag with this upload. We've been notified and will follow up." :
+          parts.some(p => p.status === "failed") ? "We hit a snag with this upload. We've been notified and will follow up." :
           st === "approved" ? "Stats ready" :
-          st === "needs_attention" ? `Needs your attention${v.admin_note ? ": " + v.admin_note : "."}` :
+          st === "needs_attention" ? `Needs your attention${noted.admin_note ? ": " + noted.admin_note : "."}` :
           st === "in_review" ? "In review. Your stats appear here once they're checked and approved." :
           "Received. Waiting for review.";
 
         const pill =
           st === "approved" ? "result-win" :
-          st === "needs_attention" || v.status === "failed" ? "result-loss" :
+          st === "needs_attention" || parts.some(p => p.status === "failed") ? "result-loss" :
           st === "in_review" ? "result-otl" : "result-neutral";
 
         return `
@@ -23890,8 +23940,8 @@ const REVIEW_STATUS_LABEL = {
   approved: "Approved"
 };
 
-function reviewStatusPill(v){
-  const st = reviewStatusOf(v);
+function reviewStatusPill(v, status){
+  const st = status || reviewStatusOf(v);
   const cls =
     st === "approved" ? "result-win" :
     st === "needs_attention" ? "result-loss" :
@@ -23918,6 +23968,56 @@ function reviewGameLabel(v){
 function reviewOwnerName(v){
   const p = (adminProfiles || []).find(x => x.id === v.user_id);
   return (p && p.full_name) || "Unknown goalie";
+}
+
+/* ---------- a request's files (Part 1, Part 2 …) ----------
+   A game's film can come as more than one file. Each extra file is its
+   own game_videos row (own shots, period marks, AI results and clips)
+   whose parent_video_id is the first file's id (supabase/migrations/
+   20261024_video_parts.sql). The queue shows them as one request, the
+   workspace has a Part switch, and Approve & publish sends every part
+   to the same game. Before that migration runs nothing has a parent, so
+   every request is a single file exactly as before. */
+
+function videoPartSort(a, b){
+  const at = String(a.created_at || ""), bt = String(b.created_at || "");
+  if(at !== bt){ return at < bt ? -1 : 1; }
+  return Number(a.id) - Number(b.id);
+}
+
+// The request's first file, given any one of its files.
+function videoRootOf(v, list){
+  if(!v || !v.parent_video_id){ return v; }
+  return list.find(x => String(x.id) === String(v.parent_video_id)) || v;
+}
+
+// [Part 1, Part 2 …] for the request this file belongs to.
+function videoPartsOf(v, list){
+  const root = videoRootOf(v, list);
+  if(!root){ return []; }
+  const extra = list
+    .filter(x => x.status !== "clip" && x.parent_video_id && String(x.parent_video_id) === String(root.id))
+    .sort(videoPartSort);
+  return [root, ...extra];
+}
+
+// One status for the whole request: approved only once every file is.
+function videoGroupStatus(parts){
+  const sts = parts.map(p => p.review_status || "received");
+  if(sts.every(s => s === "approved")){ return "approved"; }
+  if(sts.includes("needs_attention")){ return "needs_attention"; }
+  if(sts.includes("in_review") || sts.includes("approved")){ return "in_review"; }
+  return "received";
+}
+
+function reviewPartsOf(v){ return videoPartsOf(v, reviewQueueCache); }
+
+function reviewPartNumber(v){
+  return reviewPartsOf(v).findIndex(p => String(p.id) === String(v.id)) + 1;
+}
+
+function reviewFileName(v){
+  return String((v && v.storage_path) || "").split("/").pop().replace(/^\d{10,}_/, "");
 }
 
 async function loadAdminVideoReviewData(){
@@ -23962,11 +24062,12 @@ function renderReviewQueueRows(){
   const container = document.getElementById("admin-video-list-container");
   if(!container){ return; }
 
-  // Per-shot clip files are attachments, not requests.
-  const requests = reviewQueueCache.filter(v => v.status !== "clip");
+  // Per-shot clip files are attachments, not requests, and a request's
+  // extra files are listed under the request itself.
+  const requests = reviewQueueCache.filter(v => v.status !== "clip" && !v.parent_video_id);
 
   const shown = requests.filter(v => {
-    const st = reviewStatusOf(v);
+    const st = videoGroupStatus(reviewPartsOf(v));
     if(reviewFilter === "open"){ return st !== "approved"; }
     if(reviewFilter === "approved"){ return st === "approved"; }
     return true;
@@ -23979,21 +24080,25 @@ function renderReviewQueueRows(){
 
   container.innerHTML = shown.map(v => {
 
+    const parts = reviewPartsOf(v);
     const uploaded = v.created_at ? new Date(v.created_at).toLocaleDateString([], { month: "short", day: "numeric" }) : "";
-    const count = reviewDraftCounts[v.id] || 0;
-    const progress = Number(v.scan_progress) > 0 && Number(v.scan_progress) < 1
+    const count = parts.reduce((sum, p) => sum + (reviewDraftCounts[p.id] || 0), 0);
+    const progress = parts.length === 1 && Number(v.scan_progress) > 0 && Number(v.scan_progress) < 1
       ? ` · AI ${Math.round(Number(v.scan_progress) * 100)}% scanned` : "";
-    const spent = reviewSpend.byVideo[v.id] ? ` · AI cost ${formatUsd(reviewSpend.byVideo[v.id])}` : "";
+    const spentTotal = parts.reduce((sum, p) => sum + (reviewSpend.byVideo[p.id] || 0), 0);
+    const spent = spentTotal ? ` · AI cost ${formatUsd(spentTotal)}` : "";
+    const files = parts.length > 1 ? ` · ${parts.length} files` : "";
+    const failed = parts.some(p => p.status === "failed");
 
     return `
       <div class="rv-row">
         <div class="rv-row-main">
           <strong>${escapeHtml(reviewOwnerName(v))}</strong>
           <span>${escapeHtml(reviewGameLabel(v))}</span>
-          <span class="small-note">Sent ${escapeHtml(uploaded)} · ${count} shot${count === 1 ? "" : "s"} drafted${progress}${spent}${v.status === "failed" ? " · upload failed" : ""}</span>
+          <span class="small-note">Sent ${escapeHtml(uploaded)}${files} · ${count} shot${count === 1 ? "" : "s"} drafted${progress}${spent}${failed ? " · upload failed" : ""}</span>
         </div>
         <div class="rv-row-side">
-          ${reviewStatusPill(v)}
+          ${reviewStatusPill(v, videoGroupStatus(parts))}
           <button type="button" class="btn-primary" onclick="openReview(${jsArg(v.id)})">Open</button>
           <button type="button" class="btn-danger" onclick="deleteGameVideo(${jsArg(v.id)}, this)">Delete</button>
         </div>
@@ -24130,10 +24235,10 @@ async function openReview(videoId){
   document.getElementById("rv-workspace").hidden = false;
 
   document.getElementById("rv-title").textContent = reviewOwnerName(v);
-  document.getElementById("rv-sub").textContent =
-    `${reviewGameLabel(v)} · jersey: ${v.team_jersey_color || "not given"} · file: ${String(v.storage_path || "").split("/").pop()}`;
+  renderReviewSub();
 
   renderReviewHeader();
+  renderReviewParts();
   fillReviewGameDetails();
   document.getElementById("rv-puck-high").checked = false;
   renderReviewPuck();
@@ -24163,6 +24268,17 @@ async function openReview(videoId){
 
 }
 
+// "Game · jersey · file", with which part when the request has several.
+function renderReviewSub(){
+  const v = review.video;
+  const el = document.getElementById("rv-sub");
+  if(!v || !el){ return; }
+  const parts = reviewPartsOf(v);
+  const which = parts.length > 1 ? `Part ${reviewPartNumber(v)} of ${parts.length} · ` : "";
+  el.textContent =
+    `${reviewGameLabel(v)} · jersey: ${v.team_jersey_color || "not given"} · ${which}file: ${String(v.storage_path || "").split("/").pop()}`;
+}
+
 function closeReview(){
 
   review.scanning = false;
@@ -24189,10 +24305,12 @@ function renderReviewHeader(){
   document.getElementById("rv-status").innerHTML = reviewStatusPill(v);
   renderReviewAiCost();
 
-  const approved = reviewStatusOf(v) === "approved";
+  // With several files the whole request publishes together.
+  const files = reviewLiveParts(v);
+  const approved = files.every(p => reviewStatusOf(p) === "approved");
   const approveBtn = document.getElementById("rv-approve-btn");
   approveBtn.disabled = false;
-  approveBtn.textContent = approved ? "Republish changes" : "Approve & publish";
+  approveBtn.textContent = approved ? "Republish changes" : (files.length > 1 ? `Approve & publish (${files.length} files)` : "Approve & publish");
 
   const scanBtn = document.getElementById("rv-scan-btn");
   scanBtn.disabled = !!review.testing;
@@ -24281,8 +24399,8 @@ function reviewDuration(){
     : (Number(review.video && review.video.duration_seconds) || 0);
 }
 
-function reviewPeriodAt(t){
-  const m = (review.video && review.video.period_marks) || {};
+function reviewPeriodAt(t, video = review.video){
+  const m = (video && video.period_marks) || {};
   let p = "1";
   ["2", "3", "OT"].forEach(k => {
     if(m[k] !== undefined && m[k] !== null && t >= Number(m[k])){ p = k; }
@@ -24408,8 +24526,8 @@ function enforceReviewActionOnly(){
   else{ video.pause(); showToast("End of the action stretches."); }
 }
 
-function reviewEffectivePeriod(d){
-  return d.period || reviewPeriodAt(Number(d.t_seconds));
+function reviewEffectivePeriod(d, video = review.video){
+  return d.period || reviewPeriodAt(Number(d.t_seconds), video);
 }
 
 function renderReviewTimeline(){
@@ -27326,7 +27444,7 @@ function goalieGameOptions(goalieId, selectedId, newLabel){
 function fillReviewGameDetails(){
   const v = review.video;
   if(!v){ return; }
-  const approved = reviewStatusOf(v) === "approved";
+  const approved = reviewLiveParts(v).some(p => reviewStatusOf(p) === "approved");
   const gameSel = document.getElementById("rv-gd-game");
   gameSel.innerHTML = goalieGameOptions(v.user_id, v.game_id, "New game (details below)");
   gameSel.value = v.game_id ? String(v.game_id) : "";
@@ -27392,8 +27510,12 @@ async function saveReviewSubmission(){
   const jersey = textOrNull(document.getElementById("rv-gd-jersey").value);
   if(!jersey){ showToast("Enter the goalie's jersey colour.", "error"); return; }
 
-  const approved = reviewStatusOf(v) === "approved";
-  const gameId = approved ? v.game_id : (document.getElementById("rv-gd-game").value || null);
+  // Every file of the request shares one game and one set of details.
+  const parts = reviewLiveParts(v);
+  const approved = parts.some(p => reviewStatusOf(p) === "approved");
+  const gameId = approved
+    ? (v.game_id || (parts.find(p => p.game_id) || {}).game_id || null)
+    : (document.getElementById("rv-gd-game").value || null);
   const details = readReviewGameDetails();
   const requested = {
     ...(v.requested_game || {}),
@@ -27408,7 +27530,7 @@ async function saveReviewSubmission(){
       team_jersey_color: jersey,
       game_id: gameId ? Number(gameId) : null,
       requested_game: requested
-    }).eq("id", v.id);
+    }).in("id", parts.map(p => p.id));
     if(error){ throw error; }
 
     if(gameId){
@@ -27418,11 +27540,14 @@ async function saveReviewSubmission(){
       if(g){ Object.assign(g, details); }
     }
 
-    Object.assign(v, { team_jersey_color: jersey, game_id: gameId ? Number(gameId) : null, requested_game: requested });
-    const cached = reviewQueueCache.find(x => String(x.id) === String(v.id));
-    if(cached){ Object.assign(cached, { team_jersey_color: jersey, game_id: v.game_id, requested_game: requested }); }
-    document.getElementById("rv-sub").textContent =
-      `${reviewGameLabel(v)} · jersey: ${v.team_jersey_color || "not given"} · file: ${String(v.storage_path || "").split("/").pop()}`;
+    const saved = { team_jersey_color: jersey, game_id: gameId ? Number(gameId) : null, requested_game: requested };
+    Object.assign(v, saved);
+    parts.forEach(p => {
+      Object.assign(p, saved);
+      const cached = reviewQueueCache.find(x => String(x.id) === String(p.id));
+      if(cached){ Object.assign(cached, saved); }
+    });
+    renderReviewSub();
     status.textContent = `Saved ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`;
   }
   catch(error){
@@ -27435,6 +27560,232 @@ async function saveReviewSubmission(){
   }
 }
 
+
+/* ---------- a request's film files in the workspace ----------
+   Part 1 is the request itself; Add another file attaches Part 2 (and
+   on) to the same review while it's still being edited. Each part keeps
+   its own shots, period marks and AI results; switching parts opens that
+   file in this same workspace, and Approve & publish sends every part to
+   the one game. */
+
+// Reloads rows from the database into the queue's copy, so a file opened
+// next starts from what's saved.
+async function refreshReviewRows(ids){
+  const list = (Array.isArray(ids) ? ids : [ids]).filter(id => id !== null && id !== undefined);
+  if(!list.length){ return; }
+  const rows = await qFiltered("game_videos", `id=in.(${list.map(id => encodeURIComponent(id)).join(",")})`);
+  rows.forEach(row => {
+    const i = reviewQueueCache.findIndex(x => String(x.id) === String(row.id));
+    if(i >= 0){ reviewQueueCache[i] = row; }
+    else{ reviewQueueCache.push(row); }
+  });
+}
+
+function renderReviewParts(){
+
+  const v = review.video;
+  const tabs = document.getElementById("rv-parts-tabs");
+  if(!v || !tabs){ return; }
+
+  const parts = reviewLiveParts(v);
+  const multi = parts.length > 1;
+  const number = parts.findIndex(p => String(p.id) === String(v.id)) + 1;
+
+  tabs.hidden = !multi;
+  tabs.innerHTML = multi
+    ? parts.map((p, i) => {
+        const done = reviewStatusOf(p) === "approved";
+        return `<button type="button" class="${String(p.id) === String(v.id) ? "active" : ""}" onclick="switchReviewPart(${jsArg(p.id)})" title="${escapeHtml(reviewFileName(p))}">Part ${i + 1}${done ? " · approved" : ""}</button>`;
+      }).join("")
+    : "";
+
+  document.getElementById("rv-part-remove").hidden = !v.parent_video_id;
+  document.getElementById("rv-part-btn").textContent = `Upload as Part ${parts.length + 1}`;
+
+  document.getElementById("rv-parts-note").textContent = multi
+    ? `Part ${number} of ${parts.length} is open. Shots, period marks and the AI work on each part are kept separately; Approve & publish sends every part to the same game.`
+    : "";
+
+}
+
+function toggleAddReviewPart(show){
+  const box = document.getElementById("rv-part-add");
+  if(!box){ return; }
+  const next = typeof show === "boolean" ? show : box.hidden;
+  box.hidden = !next;
+}
+
+// Opens another file of this request in the workspace. What's open is
+// saved first, and an AI scan has to be paused (it belongs to one file).
+async function switchReviewPart(id){
+
+  const v = review.video;
+  if(!v || String(v.id) === String(id)){ return; }
+
+  if(review.publishing){
+    showToast("Wait for the publish to finish.", "error");
+    return;
+  }
+  if(review.scanning || review.collecting || review.testing){
+    showToast("Pause the AI first: it works on one file at a time.", "error");
+    return;
+  }
+
+  try{
+    await flushReviewSaves();
+    await flushReviewPuck();
+    await refreshReviewRows(reviewPartsOf(v).map(p => p.id));
+  }
+  catch(error){
+    console.error(error);
+    showToast(`Couldn't switch files: ${error.message || error}`, "error");
+    return;
+  }
+
+  await openReview(id);
+
+}
+
+let reviewPartUploading = false;
+
+// Uploads another file straight into this review. It's stored in the
+// goalie's folder and added as a part of the open request (so it takes
+// the request's game and jersey colour). The open file stays open: you
+// can keep tagging while it uploads, and switch to it from the tabs.
+async function submitReviewPart(){
+
+  const v = review.video;
+  if(!v || reviewPartUploading){ return; }
+
+  const fileInput = document.getElementById("rv-part-file");
+  const status = document.getElementById("rv-part-status");
+  const btn = document.getElementById("rv-part-btn");
+  const file = fileInput.files[0];
+
+  if(!file){ showToast("Choose the video file first.", "error"); return; }
+
+  const root = reviewPartsOf(v)[0] || v;
+  const goalieId = root.user_id;
+
+  reviewPartUploading = true;
+  btn.disabled = true;
+  fileInput.disabled = true;
+
+  try{
+
+    status.textContent = "Uploading… 0%";
+    const storagePath = await uploadFileToR2(file, (done, total) => {
+      status.textContent = `Uploading… ${total ? Math.floor(done / total * 100) : 0}%`;
+    }, goalieId);
+
+    status.textContent = "Adding it to this review…";
+    const res = await fetch("/api/admin/create-request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        accessToken: currentSession.access_token,
+        goalieId,
+        storagePath,
+        parentVideoId: root.id
+      })
+    });
+    let data = {};
+    try{ data = await res.json(); }catch(e){ data = {}; }
+    if(!res.ok){ throw new Error(data.detail || data.error || "Couldn't add the file."); }
+
+    await refreshReviewRows([root.id, data.gameVideoId]);
+
+    fileInput.value = "";
+    status.textContent = "";
+    toggleAddReviewPart(false);
+
+    let number = 0;
+    const added = reviewQueueCache.find(x => String(x.id) === String(data.gameVideoId));
+    if(added){ number = reviewPartsOf(added).findIndex(p => String(p.id) === String(added.id)) + 1; }
+
+    if(review.video && String(reviewPartsOf(review.video)[0].id) === String(root.id)){
+      renderReviewParts();
+      renderReviewHeader();
+      renderReviewSub();
+    }
+
+    showToast(number
+      ? `Added as Part ${number}. Open it from the Part tabs when you're ready.`
+      : "File added. Open it from the Part tabs when you're ready.", "success");
+
+  }
+  catch(error){
+    console.error(error);
+    status.textContent = "";
+    showToast(error.message || "The upload failed.", "error");
+  }
+  finally{
+    reviewPartUploading = false;
+    btn.disabled = false;
+    fileInput.disabled = false;
+  }
+
+}
+
+// Takes an extra file (never the first) out of the request: the file in
+// storage and its drafted shots. Shots already published from it stay in
+// the game.
+async function removeReviewPart(){
+
+  const v = review.video;
+  if(!v || !v.parent_video_id){ return; }
+
+  if(review.publishing){
+    showToast("Wait for the publish to finish.", "error");
+    return;
+  }
+  if(review.scanning || review.collecting || review.testing){
+    showToast("Pause the AI first.", "error");
+    return;
+  }
+
+  const number = reviewPartNumber(v);
+  const published = reviewStatusOf(v) === "approved";
+  if(!confirm(`Remove Part ${number} (${reviewFileName(v)}) from this review? This deletes the file from storage and the shots drafted on it.${published ? " Stats already published from it stay in the game." : ""} This cannot be undone.`)){
+    return;
+  }
+
+  const rootId = v.parent_video_id;
+  const btn = document.getElementById("rv-part-remove");
+  btn.disabled = true;
+
+  try{
+
+    const res = await fetch("/api/video/delete-video", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessToken: currentSession.access_token, gameVideoId: v.id })
+    });
+    let data = {};
+    try{ data = await res.json(); }catch(e){ data = {}; }
+    if(!res.ok){ throw new Error(data.error || "Could not remove this file."); }
+
+    Object.values(review.saveTimers).forEach(entry => clearTimeout(entry.timer));
+    review.saveTimers = {};
+    if(reviewPuckSaveTimer){ clearTimeout(reviewPuckSaveTimer); reviewPuckSaveTimer = null; }
+
+    detachShotsFromVideo(v.id);
+    reviewQueueCache = reviewQueueCache.filter(x => String(x.id) !== String(v.id));
+    delete goFilmVideoCache[v.game_id];
+
+    showToast(`Part ${number} removed.`, "success");
+    await openReview(rootId);
+
+  }
+  catch(error){
+    console.error(error);
+    showToast(error.message || "Something went wrong removing this file.", "error");
+  }
+  finally{
+    btn.disabled = false;
+  }
+
+}
 
 /* ---------- admin: add a video for a goalie ---------- */
 
@@ -27778,157 +28129,273 @@ async function saveReviewSnapshot(v, snapshot){
   if(error){ console.error("Couldn't save the publish record", error); }
 }
 
+// The open request's files with the open one swapped for the live copy,
+// whose status and marks are newer than the queue's.
+function reviewLiveParts(v){
+  return reviewPartsOf(v).map(p => (review.video && String(p.id) === String(review.video.id)) ? review.video : p);
+}
+
+// Copies what a publish changed on a file back into the queue's copy, so
+// switching files or reopening the request starts from what was saved.
+function syncReviewCache(video){
+  const cached = reviewQueueCache.find(x => String(x.id) === String(video.id));
+  if(!cached || cached === video){ return; }
+  ["review_status", "approved_at", "reviewed_by", "admin_note", "period_marks", "requested_game", "game_id", "team_jersey_color", "duration_seconds", "scan_cursor", "scan_progress"]
+    .forEach(k => { if(video[k] !== undefined){ cached[k] = video[k]; } });
+}
+
+// Is this file's progress what the open review should be showing? True
+// for the open file, and for the request's other files while a publish
+// is working through them.
+function reviewIsShowing(v){
+  if(!review.video || !v){ return false; }
+  if(String(review.video.id) === String(v.id)){ return true; }
+  return !!review.publishing && reviewPartsOf(review.video).some(p => String(p.id) === String(v.id));
+}
+
+// Puts one file's shots, rims and passes into the game and marks the file
+// approved. A republish first takes out exactly what its last publish put
+// in. The MP4 clips are made afterwards (makeShotClips), once every file
+// of the request is in.
+async function publishReviewFile(item, gameId, details){
+
+  const v = item.video;
+  const drafts = item.drafts;
+
+  if(item.republish){
+    const old = reviewPublishedSnapshot(v);
+    if(old.shotIds.length){
+      const { error } = await supabaseClient.from("Shots").delete().in(old.idColumn || "id", old.shotIds);
+      if(error){ throw error; }
+      await applyShotsToGameTotals(gameId, v.user_id, old.shots, -1);
+    }
+    if(old.puck){ await addReviewPuckToGame(gameId, v.user_id, old.puck, -1); }
+    await deleteReviewClipFiles(old.clipIds);
+  }
+
+  const now = new Date().toISOString();
+
+  const shots = drafts.map(d => ({
+    period: reviewEffectivePeriod(d, v),
+    outcome: d.outcome,
+    strength: d.strength || null,
+    location: d.location || null,
+    loc_x: d.loc_x,
+    loc_y: d.loc_y,
+    shot_type: d.shot_type || null,
+    release_type: d.release_type || null,
+    rush: !!d.rush,
+    rebound: !!d.rebound,
+    screened: !!d.screened,
+    breakaway: !!d.breakaway,
+    cross_ice: !!d.cross_ice,
+    deflection: !!d.deflection,
+    reboundTag: d.rebound_tag || "skip",
+    ai: d.source === "ai" ? { confidence: d.ai_confidence, model: d.ai_model, notes: d.ai_notes } : null,
+    t: Number(d.t_seconds),
+    clip: reviewClipWindow(d)
+  }));
+
+  const insertedShots = await insertLiveTagShots(shots.map(s => ({
+    ...liveTagShotPayload(s, gameId, v.user_id),
+    ...(s.ai ? { ai_reviewed_at: now } : {}),
+    game_video_id: v.id,
+    clip_start_seconds: s.clip ? s.clip.start : Math.max(0, Math.round((s.t - 4) * 10) / 10),
+    clip_end_seconds: s.clip ? s.clip.end : Math.round((s.t + 3) * 10) / 10
+  })));
+
+  await applyShotsToGameTotals(gameId, v.user_id, shots, 1);
+
+  const puck = reviewPuckTally(v);
+  await addReviewPuckToGame(gameId, v.user_id, puck, 1);
+
+  const snapshot = {
+    shotIds: insertedShots.map(r => r.shot_id ?? r.id),
+    idColumn: insertedShots[0] ? shotIdColumn(insertedShots[0]) : "id",
+    shots: shots.map(s => ({ period: s.period, outcome: s.outcome, reboundTag: s.reboundTag })),
+    // Where each published shot is in this video, by shot id: the game
+    // film reads this, so it never depends on the MP4 clips.
+    times: Object.fromEntries(insertedShots.map((r, i) => [String(r.shot_id ?? r.id), shots[i] ? shots[i].t : null]).filter(e => Number.isFinite(e[1]))),
+    clipIds: [],
+    // Rims and passes this publish added, taken out again on a republish.
+    puck,
+    at: now
+  };
+  await saveReviewSnapshot(v, snapshot);
+
+  const requested = { ...(v.requested_game || {}), ...details, opponent_goals: details["opponent goals"], minutes: details.minutes_played };
+  const { error: doneErr } = await supabaseClient.from("game_videos").update({
+    review_status: "approved",
+    approved_at: now,
+    reviewed_by: currentSession.user.id,
+    admin_note: null,
+    requested_game: requested
+  }).eq("id", v.id);
+  if(doneErr){ throw doneErr; }
+
+  v.review_status = "approved";
+  v.approved_at = now;
+  v.admin_note = null;
+  v.requested_game = requested;
+  syncReviewCache(v);
+
+  return { video: v, shots, insertedShots, snapshot };
+
+}
+
 async function approveReview(){
 
-  const v = review.video;
-  if(!v){ return; }
-
-  const republish = reviewStatusOf(v) === "approved";
+  const current = review.video;
+  if(!current){ return; }
 
   if(review.scanning){
     showToast("Pause the AI scan first.", "error");
     return;
   }
 
-  const drafts = review.drafts.slice();
-  const goals = drafts.filter(d => d.outcome === "goal").length;
+  if(review.publishing){ return; }
 
-  if(!drafts.length){
+  // Every file of the request publishes together, into one game. The
+  // open file's shots are in memory; the others are read from the
+  // database (everything on them was saved as it was edited).
+  let parts = reviewLiveParts(current);
+  const plan = [];
+
+  try{
+    const others = parts.filter(p => String(p.id) !== String(current.id));
+    if(others.length){
+      await refreshReviewRows(others.map(p => p.id));
+      parts = reviewLiveParts(current);
+    }
+
+    for(let i = 0; i < parts.length; i++){
+      const part = parts[i];
+      const open = String(part.id) === String(current.id);
+      let drafts;
+      if(open){
+        drafts = review.drafts.slice();
+      }
+      else{
+        const { data, error } = await supabaseClient.from("video_shot_drafts").select("*").eq("game_video_id", part.id).order("t_seconds");
+        if(error){ throw error; }
+        drafts = data || [];
+      }
+      if(!drafts.length){ continue; }
+      plan.push({
+        video: open ? part : { ...part, period_marks: part.period_marks || {} },
+        drafts,
+        republish: reviewStatusOf(part) === "approved",
+        number: i + 1
+      });
+    }
+  }
+  catch(error){
+    console.error(error);
+    showToast(`Couldn't read the shots to publish: ${error.message || error}`, "error");
+    return;
+  }
+
+  if(!plan.length){
     showToast("There are no shots to publish yet.", "error");
     return;
   }
 
-  const basicCount = drafts.filter(reviewDraftIsBasic).length;
+  const allDrafts = plan.flatMap(item => item.drafts);
+  const goals = allDrafts.filter(d => d.outcome === "goal").length;
+
+  const basicCount = allDrafts.filter(reviewDraftIsBasic).length;
   if(basicCount && !confirm(`${basicCount} shot${basicCount === 1 ? " has" : "s have"} only the basics (time, save or goal), with no location or shot type. Publish anyway?\n\nPress Cancel, then AI fill all, to fill them in first.`)){
     return;
   }
 
   const details = readReviewGameDetails();
-  const puckNow = puckTallyForSave(reviewPuckTally(v));
+
+  const totalPuck = puckEmptyTally();
+  plan.forEach(item => {
+    const t = reviewPuckTally(item.video);
+    PUCK_FINE_KEYS.forEach(k => { totalPuck[k] += t[k]; });
+  });
+  const puckNow = puckTallyForSave(totalPuck);
   const puckText = puckNow.rims_faced || puckNow.pass_attempts
     ? `, plus ${puckNow.rims_faced} rim${puckNow.rims_faced === 1 ? "" : "s"} and ${puckNow.pass_attempts} pass${puckNow.pass_attempts === 1 ? "" : "es"}`
     : "";
 
-  if(!confirm(republish
-    ? `Republish ${drafts.length} shots (${drafts.length - goals} saves, ${goals} goal${goals === 1 ? "" : "s"})${puckText} to ${reviewOwnerName(v)}? This replaces what was published before with the list as it is now.`
-    : `Publish ${drafts.length} shots (${drafts.length - goals} saves, ${goals} goal${goals === 1 ? "" : "s"})${puckText} to ${reviewOwnerName(v)}? They'll see the stats right away.`)){
+  const allRepublish = plan.every(item => item.republish);
+  const anyRepublish = plan.some(item => item.republish);
+  const several = plan.length > 1;
+  const fromFiles = several ? ` from ${plan.length} files` : "";
+  const countText = `${allDrafts.length} shots (${allDrafts.length - goals} saves, ${goals} goal${goals === 1 ? "" : "s"})${puckText}${fromFiles}`;
+
+  if(!confirm(allRepublish
+    ? `Republish ${countText} to ${reviewOwnerName(current)}? This replaces what was published before with the ${several ? "lists as they are" : "list as it is"} now.`
+    : `Publish ${countText} to ${reviewOwnerName(current)}? ${anyRepublish ? "Files published before are replaced with their lists as they are now. " : ""}They'll see the stats right away.`)){
     return;
   }
 
   const btn = document.getElementById("rv-approve-btn");
   btn.disabled = true;
-  btn.textContent = republish ? "Republishing…" : "Publishing…";
+  btn.textContent = allRepublish ? "Republishing…" : "Publishing…";
+  review.publishing = true;
 
   try{
 
     await flushReviewSaves();
     await flushReviewPuck();
 
-    let gameId = v.game_id;
+    let gameId = current.game_id || (parts.find(p => p.game_id) || {}).game_id || null;
 
     if(!gameId){
-      const { data: newGame, error } = await supabaseClient.from("Games").insert({ user_id: v.user_id, ...details }).select().single();
+      const { data: newGame, error } = await supabaseClient.from("Games").insert({ user_id: current.user_id, ...details }).select().single();
       if(error){ throw error; }
       gameId = newGame.id;
-      // Link it straight away so a retry can't create a second game.
-      const { error: linkErr } = await supabaseClient.from("game_videos").update({ game_id: gameId }).eq("id", v.id);
+      // Link every file straight away so a retry can't create a second game.
+      const { error: linkErr } = await supabaseClient.from("game_videos").update({ game_id: gameId }).in("id", parts.map(p => p.id));
       if(linkErr){ throw linkErr; }
-      v.game_id = gameId;
+      parts.forEach(p => { p.game_id = gameId; });
+      plan.forEach(item => { item.video.game_id = gameId; });
     }
     else{
       // Game details always come from the panel, so the season, score
       // and length are right on every dashboard.
       const { error } = await supabaseClient.from("Games").update(details).eq("id", gameId);
       if(error){ throw error; }
-    }
-
-    // Republish: take out exactly what the last publish put in.
-    if(republish){
-      const old = reviewPublishedSnapshot(v);
-      if(old.shotIds.length){
-        const { error } = await supabaseClient.from("Shots").delete().in(old.idColumn || "id", old.shotIds);
-        if(error){ throw error; }
-        await applyShotsToGameTotals(gameId, v.user_id, old.shots, -1);
+      // Every file has to point at this game.
+      const loose = parts.filter(p => String(p.game_id || "") !== String(gameId));
+      if(loose.length){
+        const { error: linkErr } = await supabaseClient.from("game_videos").update({ game_id: gameId }).in("id", loose.map(p => p.id));
+        if(linkErr){ throw linkErr; }
+        loose.forEach(p => { p.game_id = gameId; });
+        plan.forEach(item => { item.video.game_id = gameId; });
       }
-      if(old.puck){ await addReviewPuckToGame(gameId, v.user_id, old.puck, -1); }
-      await deleteReviewClipFiles(old.clipIds);
     }
 
-    const now = new Date().toISOString();
+    // Every file goes in before any clips are made, so the goalie never
+    // sees half the game while the slow part (the MP4 clips) runs.
+    const published = [];
+    for(const item of plan){
+      published.push(await publishReviewFile(item, gameId, details));
+    }
 
-    const shots = drafts.map(d => ({
-      period: reviewEffectivePeriod(d),
-      outcome: d.outcome,
-      strength: d.strength || null,
-      location: d.location || null,
-      loc_x: d.loc_x,
-      loc_y: d.loc_y,
-      shot_type: d.shot_type || null,
-      release_type: d.release_type || null,
-      rush: !!d.rush,
-      rebound: !!d.rebound,
-      screened: !!d.screened,
-      breakaway: !!d.breakaway,
-      cross_ice: !!d.cross_ice,
-      deflection: !!d.deflection,
-      reboundTag: d.rebound_tag || "skip",
-      ai: d.source === "ai" ? { confidence: d.ai_confidence, model: d.ai_model, notes: d.ai_notes } : null,
-      t: Number(d.t_seconds),
-      clip: reviewClipWindow(d)
-    }));
-
-    const insertedShots = await insertLiveTagShots(shots.map(s => ({
-      ...liveTagShotPayload(s, gameId, v.user_id),
-      ...(s.ai ? { ai_reviewed_at: now } : {}),
-      game_video_id: v.id,
-      clip_start_seconds: s.clip ? s.clip.start : Math.max(0, Math.round((s.t - 4) * 10) / 10),
-      clip_end_seconds: s.clip ? s.clip.end : Math.round((s.t + 3) * 10) / 10
-    })));
-
-    await applyShotsToGameTotals(gameId, v.user_id, shots, 1);
-
-    const puck = reviewPuckTally(v);
-    await addReviewPuckToGame(gameId, v.user_id, puck, 1);
-
-    const snapshot = {
-      shotIds: insertedShots.map(r => r.shot_id ?? r.id),
-      idColumn: insertedShots[0] ? shotIdColumn(insertedShots[0]) : "id",
-      shots: shots.map(s => ({ period: s.period, outcome: s.outcome, reboundTag: s.reboundTag })),
-      // Where each published shot is in this video, by shot id: the game
-      // film reads this, so it never depends on the MP4 clips.
-      times: Object.fromEntries(insertedShots.map((r, i) => [String(r.shot_id ?? r.id), shots[i] ? shots[i].t : null]).filter(e => Number.isFinite(e[1]))),
-      clipIds: [],
-      // Rims and passes this publish added, taken out again on a republish.
-      puck,
-      at: now
-    };
-    await saveReviewSnapshot(v, snapshot);
-
-    const { error: doneErr } = await supabaseClient.from("game_videos").update({
-      review_status: "approved",
-      approved_at: now,
-      reviewed_by: currentSession.user.id,
-      admin_note: null,
-      requested_game: { ...(v.requested_game || {}), ...details, opponent_goals: details["opponent goals"], minutes: details.minutes_played }
-    }).eq("id", v.id);
-    if(doneErr){ throw doneErr; }
-
-    v.review_status = "approved";
     delete goFilmVideoCache[gameId];
     renderReviewHeader();
-    showToast(`${republish ? "Republished" : "Published"} to ${reviewOwnerName(v)}. Making MP4 clips for each shot…`, "success");
+    renderReviewParts();
+    showToast(`${allRepublish ? "Republished" : "Published"} to ${reviewOwnerName(current)}. Making MP4 clips for each shot…`, "success");
 
-    const clipIds = await makeShotClips(v, shots, insertedShots);
-    snapshot.clipIds = clipIds;
-    await saveReviewSnapshot(v, snapshot);
+    for(const result of published){
+      const clipIds = await makeShotClips(result.video, result.shots, result.insertedShots);
+      result.snapshot.clipIds = clipIds;
+      await saveReviewSnapshot(result.video, result.snapshot);
+      syncReviewCache(result.video);
+    }
     delete goFilmVideoCache[gameId];
 
     await loadDashboard().catch(err => console.error(err));
     renderReviewHeader();
+    renderReviewParts();
 
     const autoEmail = document.getElementById("rv-auto-email");
     if(autoEmail && autoEmail.checked){
-      await emailPublishedStats(v, gameId, republish);
+      await emailPublishedStats(current, gameId, allRepublish);
     }
 
   }
@@ -27937,6 +28404,12 @@ async function approveReview(){
     console.error(error);
     showToast(`Publishing stopped: ${error.message || error}. Check the game before trying again.`, "error");
     renderReviewHeader();
+    renderReviewParts();
+
+  }
+  finally{
+
+    review.publishing = false;
 
   }
 
@@ -28066,7 +28539,7 @@ async function makeShotClips(v, shots, insertedRows){
   let firstError = "";
 
   const show = () => {
-    if(!bar || !review.video || review.video.id !== v.id){ return; }
+    if(!bar || !reviewIsShowing(v)){ return; }
     bar.hidden = false;
     fill.style.width = `${Math.round((done + failed) / jobs.length * 100)}%`;
     status.textContent = `Making MP4 clips: ${done + failed} of ${jobs.length}${failed ? ` (${failed} failed${firstError ? ": " + firstError : ""})` : ""}. Keep this tab open.`;
@@ -28111,7 +28584,7 @@ async function makeShotClips(v, shots, insertedRows){
 
   await Promise.all([worker(), worker(), worker()]);
 
-  if(bar && review.video && review.video.id === v.id){ bar.hidden = true; }
+  if(bar && reviewIsShowing(v)){ bar.hidden = true; }
 
   if(unavailable){
     showToast("Published. MP4 clips couldn't be made on this server, so shots link into the full game video.", "error");
@@ -28411,6 +28884,32 @@ async function downloadGameVideo(gameVideoId, button){
 }
 
 
+// A deleted video's shots keep their stats but lose the link to it.
+function detachShotsFromVideo(videoId){
+
+  allShots.forEach(s => {
+    if(String(s.game_video_id) === String(videoId)){
+      s.game_video_id = null;
+      s.clip_start_seconds = null;
+      s.clip_end_seconds = null;
+    }
+  });
+
+  supabaseClient
+    .from("Shots")
+    .update({
+      game_video_id: null,
+      clip_start_seconds: null,
+      clip_end_seconds: null
+    })
+    .eq("game_video_id", videoId)
+    .then(({ error: detachError }) => {
+      if(detachError){ console.error("Could not detach shots:", detachError); }
+    });
+
+}
+
+
 async function deleteGameVideo(gameVideoId, button){
 
   if(!currentSession || !currentSession.access_token){
@@ -28418,7 +28917,11 @@ async function deleteGameVideo(gameVideoId, button){
     return;
   }
 
-  if(!confirm("Delete this uploaded video? This also deletes any drafted shots tied to it, and removes the actual file from storage. This cannot be undone.")){
+  const extraFiles = reviewQueueCache.filter(x => x.status !== "clip" && String(x.parent_video_id) === String(gameVideoId)).length;
+
+  if(!confirm(extraFiles
+    ? `Delete this request and its ${extraFiles} other file${extraFiles === 1 ? "" : "s"}? This also deletes any drafted shots tied to them, and removes the actual files from storage. This cannot be undone.`
+    : "Delete this uploaded video? This also deletes any drafted shots tied to it, and removes the actual file from storage. This cannot be undone.")){
     return;
   }
 
@@ -28451,27 +28954,11 @@ async function deleteGameVideo(gameVideoId, button){
       return;
     }
 
-    // Any shots that pointed at this video would now have a dead
-    // link (Watch would 404). Detach them locally and in the DB.
-    allShots.forEach(s => {
-      if(String(s.game_video_id) === String(gameVideoId)){
-        s.game_video_id = null;
-        s.clip_start_seconds = null;
-        s.clip_end_seconds = null;
-      }
-    });
-
-    supabaseClient
-      .from("Shots")
-      .update({
-        game_video_id: null,
-        clip_start_seconds: null,
-        clip_end_seconds: null
-      })
-      .eq("game_video_id", gameVideoId)
-      .then(({ error: detachError }) => {
-        if(detachError){ console.error("Could not detach shots:", detachError); }
-      });
+    // Any shots that pointed at this video (or at one of its extra
+    // files, which went with it) would now have a dead link (Watch would
+    // 404). Detach them locally and in the DB.
+    detachShotsFromVideo(gameVideoId);
+    (Array.isArray(data.partIds) ? data.partIds : []).forEach(id => detachShotsFromVideo(id));
 
     await renderAdminVideoList();
 

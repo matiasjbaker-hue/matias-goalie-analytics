@@ -4679,6 +4679,13 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
   max-width:75ch;
 }
 
+/* Part 1 / Part 2 switch when a game's film came as more than one file */
+.go-film-parts{
+  margin:0 0 10px;
+  max-width:100%;
+  flex-wrap:wrap;
+}
+
 .go-film-grid{
   display:grid;
   grid-template-columns:minmax(0,1.7fr) minmax(260px,1fr);
@@ -5229,6 +5236,37 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
 }
 .rv-av-foot .small-note{ margin:0 auto 0 0; }
 .rv-details .rv-av-foot{ padding:0 16px 14px; }
+
+/* Admin: a request's film files (Part 1 / Part 2 switch + add a file) */
+.rv-parts{
+  margin:0 0 12px;
+  padding:10px 12px;
+  background:var(--face);
+  border:1.5px solid var(--seam-strong);
+  border-radius:var(--radius);
+}
+.rv-parts-row{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:10px;
+}
+.rv-parts-label{
+  font-size:13px;
+  font-weight:800;
+  color:var(--ink-2);
+}
+.rv-parts-note{ margin:6px 0 0; }
+.rv-parts-note:empty{ display:none; }
+.rv-part-add{
+  margin-top:10px;
+  padding-top:10px;
+  border-top:1px dashed var(--seam-strong);
+}
+.rv-part-add > .small-note{ margin:0 0 6px; }
+.rv-part-add .rv-av-foot{ margin-top:6px; justify-content:flex-start; }
+.rv-part-add .rv-av-foot .small-note{ margin:0 auto 0 0; }
+.rv-parts-tabs-wide button{ white-space:nowrap; }
 
 
 /* To check list (review side panel) */

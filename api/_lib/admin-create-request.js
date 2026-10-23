@@ -3,7 +3,13 @@
 // (served through api/admin/[action].js)
 // ============================================================
 // Body: { accessToken, goalieId, storagePath, jerseyColor,
-//         gameId?, requestedGame?: { date, opponent, home_away, season } }
+//         gameId?, requestedGame?: { date, opponent, home_away, season },
+//         parentVideoId? }
+//
+// parentVideoId adds the file as an extra part of a request that already
+// exists (needs supabase/migrations/20261024_video_parts.sql): it takes
+// the request's game, game details and jersey colour, so gameId,
+// requestedGame and jerseyColor aren't needed.
 //
 // The browser has already uploaded the file into the goalie's own
 // folder (r2-start-upload with ownerId). This creates the request row
@@ -49,7 +55,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { accessToken, goalieId, storagePath, jerseyColor, gameId, requestedGame } = req.body || {};
+  const { accessToken, goalieId, storagePath, jerseyColor, gameId, requestedGame, parentVideoId } = req.body || {};
 
   if (!UUID_RE.test(String(goalieId || ""))) {
     res.status(400).json({ error: "Pick a goalie." });
@@ -60,8 +66,18 @@ export default async function handler(req, res) {
     res.status(400).json({ error: "The video wasn't uploaded into that goalie's folder." });
     return;
   }
-  const jersey = text(jerseyColor, 40);
-  if (!jersey) {
+  const isPart = parentVideoId !== null && parentVideoId !== undefined && parentVideoId !== "";
+  let parentId = null;
+  if (isPart) {
+    parentId = Number(parentVideoId);
+    if (!Number.isInteger(parentId) || parentId <= 0) {
+      res.status(400).json({ error: "That request isn't valid." });
+      return;
+    }
+  }
+  // An extra file borrows the request's jersey colour unless one is given.
+  const jerseyGiven = text(jerseyColor, 40);
+  if (!jerseyGiven && !isPart) {
     res.status(400).json({ error: "Enter the goalie's team jersey colour." });
     return;
   }
@@ -86,8 +102,40 @@ export default async function handler(req, res) {
 
     let game = null;
     let requested = null;
+    let jersey = jerseyGiven;
 
-    if (gameId !== null && gameId !== undefined && gameId !== "") {
+    if (isPart) {
+      let parents;
+      try {
+        parents = await serviceSelect(
+          "game_videos",
+          `select=id,user_id,game_id,requested_game,team_jersey_color,parent_video_id,status&id=eq.${parentId}`
+        );
+      } catch (error) {
+        console.error(error);
+        res.status(409).json({
+          error: "Extra files aren't set up yet.",
+          detail: "Run supabase/migrations/20261024_video_parts.sql in Supabase (SQL Editor), then try again.",
+        });
+        return;
+      }
+      const parent = parents[0];
+      if (!parent || parent.user_id !== goalieId || parent.status === "clip") {
+        res.status(400).json({ error: "That request doesn't belong to this goalie." });
+        return;
+      }
+      if (parent.parent_video_id) {
+        res.status(400).json({ error: "Add the file to the request itself, not to one of its extra files." });
+        return;
+      }
+      game = parent.game_id || null;
+      requested = parent.game_id ? null : parent.requested_game || null;
+      jersey = jerseyGiven || text(parent.team_jersey_color, 40);
+      if (!jersey) {
+        res.status(400).json({ error: "Enter the goalie's team jersey colour." });
+        return;
+      }
+    } else if (gameId !== null && gameId !== undefined && gameId !== "") {
       const gid = Number(gameId);
       if (!Number.isInteger(gid) || gid <= 0) {
         res.status(400).json({ error: "That game isn't valid." });
@@ -128,6 +176,7 @@ export default async function handler(req, res) {
       team_jersey_color: jersey,
       status: "uploaded",
       review_status: "received",
+      ...(isPart ? { parent_video_id: parentId } : {}),
     });
 
     res.status(200).json({ gameVideoId: row.id });
