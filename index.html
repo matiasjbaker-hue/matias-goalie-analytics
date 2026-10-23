@@ -27477,7 +27477,10 @@ function readReviewGameDetails(){
     team_goals: numOrNull(document.getElementById("rv-gd-teamgoals").value),
     "opponent goals": numOrNull(document.getElementById("rv-gd-oppgoals").value),
     minutes_played: minutes && minutes > 0 ? minutes : null,
-    game_length: minutes && minutes > 0 ? minutes : null
+    // game_length is the regulation length used to scale GAA, and the
+    // database only accepts 10-90. Minutes played can be outside that
+    // (two files, overtime), so it's left out then instead of failing.
+    ...(minutes && minutes >= 10 && minutes <= 90 ? { game_length: minutes } : {})
   };
 }
 
