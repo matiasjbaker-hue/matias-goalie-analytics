@@ -765,6 +765,62 @@ header{
 }
 
 
+/* Feedback drawn on a shot's video (Mark up) */
+.watch-stage{ position:relative; }
+.watch-mark-canvas{
+  position:absolute; left:0; top:0;
+  pointer-events:none;
+  touch-action:none;
+  border-radius:var(--radius);
+}
+.watch-mark-canvas.marking{ pointer-events:auto; cursor:crosshair; }
+.watch-mark-text{
+  position:absolute;
+  min-width:140px; max-width:60%;
+  background:rgba(0,0,0,.65);
+  border:1.5px dashed #fff;
+  border-radius:4px;
+  padding:3px 6px;
+  font:700 18px/1.2 system-ui,sans-serif;
+  resize:none; outline:none; overflow:hidden;
+  z-index:3;
+}
+.watch-mark-bar{
+  display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center;
+  margin-top:10px; padding:10px 12px;
+  background:var(--field); border:1.5px solid var(--seam-strong); border-radius:var(--radius);
+}
+.watch-mark-bar[hidden], .watch-ann[hidden]{ display:none; }
+.watch-mark-bar button{
+  font:inherit; font-size:13px; font-weight:700; cursor:pointer;
+  padding:6px 12px; border-radius:var(--radius);
+  background:transparent; color:var(--ink); border:1.5px solid var(--seam-strong);
+}
+.watch-mark-tools, .watch-mark-actions, .watch-mark-colors{ display:flex; gap:6px; align-items:center; }
+.watch-mark-actions{ margin-left:auto; }
+.watch-mark-tools button.active{ background:var(--pine); color:var(--on-pine); border-color:var(--pine); }
+.watch-mark-colors button{ width:24px; height:24px; padding:0; border-radius:50%; border:2px solid var(--seam-strong); }
+.watch-mark-colors button.active{ outline:2px solid var(--ink); outline-offset:2px; }
+.watch-mark-bar button.primary{ background:var(--pine); color:var(--on-pine); border-color:var(--pine); }
+.watch-mark-bar button:disabled{ opacity:.6; cursor:default; }
+.watch-ann{ margin-top:12px; }
+.watch-ann-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; font-weight:800; font-size:13px; text-transform:uppercase; letter-spacing:.05em; }
+.watch-ann-head button{
+  font:inherit; font-size:13px; font-weight:700; text-transform:none; letter-spacing:0; cursor:pointer;
+  padding:6px 12px; border-radius:var(--radius);
+  background:var(--pine); color:var(--on-pine); border:1.5px solid var(--pine);
+}
+.watch-ann-head button[hidden]{ display:none; }
+.watch-ann-list{ display:flex; flex-direction:column; gap:6px; }
+.watch-ann-chip{ display:flex; align-items:stretch; border:1.5px solid var(--seam-strong); border-radius:var(--radius); overflow:hidden; background:var(--field); }
+.watch-ann-chip.active{ border-color:var(--pine); box-shadow:inset 3px 0 0 var(--pine); }
+.watch-ann-open{ flex:1; display:flex; gap:10px; align-items:baseline; text-align:left; font:inherit; font-size:13px; color:var(--ink); background:none; border:none; padding:8px 10px; cursor:pointer; min-width:0; }
+.watch-ann-open span{ color:var(--muted-ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.watch-ann-del{ background:none; border:none; border-left:1.5px solid var(--seam-strong); color:var(--muted-ink); font-size:18px; padding:0 12px; cursor:pointer; }
+.watch-ann-del:hover{ color:#b42318; }
+.watch-ann-empty{ font-size:13px; color:var(--muted-ink); }
+
+
 /* =========================================================
    TABLES
 ========================================================= */

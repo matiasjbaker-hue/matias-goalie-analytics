@@ -4461,7 +4461,39 @@
 
     <div class="giq-modal-body">
       <div id="watchModalStatus" class="empty-state">Loading clip…</div>
-      <video id="watchModalVideo" controls muted onvolumechange="if(!this.muted){this.muted=true}" style="display:none"></video>
+      <div class="watch-stage" id="watchStage">
+        <video id="watchModalVideo" controls muted onvolumechange="if(!this.muted){this.muted=true}" style="display:none"></video>
+        <canvas id="watchMarkCanvas" class="watch-mark-canvas"></canvas>
+      </div>
+
+      <div class="watch-mark-bar" id="watchMarkBar" hidden>
+        <div class="watch-mark-tools" id="watchMarkTools">
+          <button type="button" data-tool="pen" class="active" onclick="watchMarkTool('pen')">Pen</button>
+          <button type="button" data-tool="circle" onclick="watchMarkTool('circle')">Circle</button>
+          <button type="button" data-tool="arrow" onclick="watchMarkTool('arrow')">Arrow</button>
+          <button type="button" data-tool="text" onclick="watchMarkTool('text')">Text</button>
+        </div>
+        <div class="watch-mark-colors" id="watchMarkColors">
+          <button type="button" data-color="#ff3b30" class="active" style="background:#ff3b30" aria-label="Red" onclick="watchMarkColor('#ff3b30')"></button>
+          <button type="button" data-color="#ffd60a" style="background:#ffd60a" aria-label="Yellow" onclick="watchMarkColor('#ffd60a')"></button>
+          <button type="button" data-color="#30d158" style="background:#30d158" aria-label="Green" onclick="watchMarkColor('#30d158')"></button>
+          <button type="button" data-color="#ffffff" style="background:#ffffff" aria-label="White" onclick="watchMarkColor('#ffffff')"></button>
+        </div>
+        <div class="watch-mark-actions">
+          <button type="button" onclick="watchMarkUndo()">Undo</button>
+          <button type="button" onclick="watchMarkClear()">Clear</button>
+          <button type="button" onclick="watchMarkCancel()">Cancel</button>
+          <button type="button" class="primary" id="watchMarkSave" onclick="watchMarkSave()">Save feedback</button>
+        </div>
+      </div>
+
+      <div class="watch-ann" id="watchAnnBox" hidden>
+        <div class="watch-ann-head">
+          <span id="watchAnnTitle">Feedback</span>
+          <button type="button" id="watchMarkStart" onclick="watchMarkBegin()" hidden>Mark up this frame</button>
+        </div>
+        <div id="watchAnnList" class="watch-ann-list"></div>
+      </div>
     </div>
 
   </div>
@@ -8178,6 +8210,8 @@ async function watchShotClip(shotId, keepQueue){
 
   overlay.classList.add("open");
 
+  watchAnnLoad(shot);
+
   try{
 
     const accessToken =
@@ -8254,9 +8288,393 @@ async function watchShotClip(shotId, keepQueue){
 }
 
 
+/* ---------- Feedback drawn on a shot's video ("Mark up") ----------
+   Pause the clip, draw or write on the frame, save. Each markup is a
+   row in shot_annotations (the video time + the drawing as JSON, every
+   position stored as 0-1 of the video frame so it lines up at any
+   size). Admins and the goalie's coaches add them; the goalie sees them
+   as chips under the video, and the clip pauses on the frame when it
+   reaches one. */
+
+let watchAnnShot = null;
+let watchAnns = [];
+let watchAnnShown = null;
+let watchAnnSeen = new Set();
+let watchMark = null;   // { tool, color, items, draft } while marking up
+let watchAnnHooked = false;
+
+function watchCanMark(){
+  return currentRole === "admin" || currentRole === "coach";
+}
+
+// Where the picture sits inside the video element (letterboxed).
+function watchFrameRect(){
+  const v = document.getElementById("watchModalVideo");
+  const w = v.clientWidth, h = v.clientHeight;
+  const vw = v.videoWidth, vh = v.videoHeight;
+  if(!vw || !vh || !w || !h){ return { x:0, y:0, w:w || 1, h:h || 1 }; }
+  const scale = Math.min(w / vw, h / vh);
+  const cw = vw * scale, ch = vh * scale;
+  return { x:(w - cw) / 2, y:(h - ch) / 2, w:cw, h:ch };
+}
+
+function watchSizeCanvas(){
+  const v = document.getElementById("watchModalVideo");
+  const c = document.getElementById("watchMarkCanvas");
+  const dpr = window.devicePixelRatio || 1;
+  const w = v.clientWidth, h = v.clientHeight;
+  c.style.width = w + "px";
+  c.style.height = h + "px";
+  c.width = Math.max(1, Math.round(w * dpr));
+  c.height = Math.max(1, Math.round(h * dpr));
+  return dpr;
+}
+
+function watchPaint(items){
+  const c = document.getElementById("watchMarkCanvas");
+  const dpr = watchSizeCanvas();
+  const ctx = c.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, c.width, c.height);
+  const r = watchFrameRect();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  (items || []).forEach(it => {
+    const px = (x) => r.x + x * r.w;
+    const py = (y) => r.y + y * r.h;
+    ctx.strokeStyle = it.c;
+    ctx.fillStyle = it.c;
+    ctx.lineWidth = Math.max(2, (it.w || 0.006) * r.h);
+    if(it.t === "pen" && it.p && it.p.length){
+      ctx.beginPath();
+      ctx.moveTo(px(it.p[0][0]), py(it.p[0][1]));
+      if(it.p.length === 1){ ctx.lineTo(px(it.p[0][0]) + 0.1, py(it.p[0][1])); }
+      it.p.slice(1).forEach(pt => ctx.lineTo(px(pt[0]), py(pt[1])));
+      ctx.stroke();
+    }
+    else if(it.t === "circle"){
+      const cx = (it.x1 + it.x2) / 2, cy = (it.y1 + it.y2) / 2;
+      const rx = Math.abs(it.x2 - it.x1) / 2 * r.w, ry = Math.abs(it.y2 - it.y1) / 2 * r.h;
+      ctx.beginPath();
+      ctx.ellipse(px(cx), py(cy), Math.max(1, rx), Math.max(1, ry), 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    else if(it.t === "arrow"){
+      const x1 = px(it.x1), y1 = py(it.y1), x2 = px(it.x2), y2 = py(it.y2);
+      const ang = Math.atan2(y2 - y1, x2 - x1);
+      const head = Math.max(10, ctx.lineWidth * 4);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - head * Math.cos(ang - 0.45), y2 - head * Math.sin(ang - 0.45));
+      ctx.lineTo(x2 - head * Math.cos(ang + 0.45), y2 - head * Math.sin(ang + 0.45));
+      ctx.closePath();
+      ctx.fill();
+    }
+    else if(it.t === "text" && it.s){
+      const size = Math.max(12, (it.fs || 0.05) * r.h);
+      ctx.font = `700 ${size}px system-ui, -apple-system, Segoe UI, sans-serif`;
+      ctx.textBaseline = "top";
+      const lines = String(it.s).split("\n");
+      const lh = size * 1.2;
+      const wMax = Math.max(...lines.map(l => ctx.measureText(l).width));
+      const x = px(it.x), y = py(it.y);
+      ctx.fillStyle = "rgba(0,0,0,.6)";
+      ctx.fillRect(x - 5, y - 3, wMax + 10, lh * lines.length + 6);
+      ctx.fillStyle = it.c;
+      lines.forEach((l, i) => ctx.fillText(l, x, y + i * lh));
+    }
+  });
+}
+
+function watchAnnClear(){
+  watchAnnShown = null;
+  if(!watchMark){ watchPaint([]); }
+}
+
+// Hooks that live as long as the page: playing hides the drawing, and
+// reaching a saved feedback pauses on it.
+function watchAnnHook(){
+  if(watchAnnHooked){ return; }
+  watchAnnHooked = true;
+  const v = document.getElementById("watchModalVideo");
+  v.addEventListener("play", () => { if(!watchMark){ watchAnnClear(); } });
+  v.addEventListener("timeupdate", () => {
+    if(watchMark || !watchAnns.length || v.paused){ return; }
+    const t = v.currentTime;
+    for(const a of watchAnns){
+      if(watchAnnSeen.has(a.id)){ continue; }
+      if(t >= Number(a.video_time) && t < Number(a.video_time) + 0.7){
+        watchAnnSeen.add(a.id);
+        watchAnnShow(a.id, false);
+        break;
+      }
+    }
+  });
+  v.addEventListener("loadedmetadata", () => { watchRepaint(); });
+  window.addEventListener("resize", () => { watchRepaint(); });
+}
+
+function watchRepaint(){
+  if(watchMark){ watchPaint(watchMark.draft ? [...watchMark.items, watchMark.draft] : watchMark.items); }
+  else if(watchAnnShown){
+    const a = watchAnns.find(x => x.id === watchAnnShown);
+    watchPaint(a ? a.items : []);
+  }
+  else{ watchPaint([]); }
+}
+
+function watchAnnFmt(sec){
+  const s = Math.max(0, Math.floor(Number(sec) || 0));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+  return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(r).padStart(2, "0");
+}
+
+function watchAnnShow(id, seek){
+  const a = watchAnns.find(x => x.id === id);
+  if(!a){ return; }
+  const v = document.getElementById("watchModalVideo");
+  v.pause();
+  if(seek !== false){ v.currentTime = Number(a.video_time); }
+  watchAnnShown = id;
+  watchPaint(a.items);
+  renderWatchAnnList();
+}
+
+function renderWatchAnnList(){
+  const box = document.getElementById("watchAnnBox");
+  const list = document.getElementById("watchAnnList");
+  const can = watchCanMark();
+  box.hidden = !can && !watchAnns.length;
+  document.getElementById("watchMarkStart").hidden = !can || !!watchMark;
+  document.getElementById("watchAnnTitle").textContent =
+    watchAnns.length ? `Feedback (${watchAnns.length})` : "Feedback";
+  list.innerHTML = watchAnns.length
+    ? watchAnns.map(a => {
+        const mine = currentSession && a.author_id === currentSession.user.id;
+        const canDel = mine || currentRole === "admin";
+        const notes = (a.items || []).filter(i => i.t === "text").map(i => i.s).join(" · ");
+        return `<div class="watch-ann-chip${watchAnnShown === a.id ? " active" : ""}">
+          <button type="button" class="watch-ann-open" onclick="watchAnnShow(${a.id})">
+            <b>${watchAnnFmt(a.video_time)}</b>
+            <span>${escapeHtml(a.author_name || "Coach")}${notes ? " — " + escapeHtml(notes.length > 70 ? notes.slice(0, 70) + "…" : notes) : ""}</span>
+          </button>
+          ${canDel ? `<button type="button" class="watch-ann-del" aria-label="Delete feedback" onclick="watchAnnDelete(${a.id})">&times;</button>` : ""}
+        </div>`;
+      }).join("")
+    : (can ? `<div class="watch-ann-empty">Pause the video on the frame you want to point out, then tap Mark up this frame.</div>` : "");
+}
+
+async function watchAnnLoad(shot){
+  watchAnnShot = shot;
+  watchAnns = [];
+  watchAnnShown = null;
+  watchAnnSeen = new Set();
+  watchMarkExit();
+  watchAnnHook();
+  watchPaint([]);
+  renderWatchAnnList();
+  const shotId = shot.shot_id ?? shot.id;
+  try{
+    const { data, error } = await supabaseClient
+      .from("shot_annotations").select("*").eq("shot_id", shotId).order("video_time");
+    if(error){ throw error; }
+    if(watchAnnShot !== shot){ return; }
+    watchAnns = data || [];
+  }
+  catch(error){
+    // The table isn't there until the migration is run; the viewer works
+    // without it.
+    console.error("Feedback not available:", error);
+    watchAnns = [];
+  }
+  renderWatchAnnList();
+}
+
+async function watchAnnDelete(id){
+  if(!confirm("Delete this feedback?")){ return; }
+  const { error } = await supabaseClient.from("shot_annotations").delete().eq("id", id);
+  if(error){ showToast("Couldn't delete: " + error.message, "error"); return; }
+  watchAnns = watchAnns.filter(a => a.id !== id);
+  if(watchAnnShown === id){ watchAnnShown = null; watchPaint([]); }
+  renderWatchAnnList();
+}
+
+/* ----- drawing ----- */
+
+function watchMarkBegin(){
+  if(!watchCanMark() || !watchAnnShot){ return; }
+  const v = document.getElementById("watchModalVideo");
+  v.pause();
+  v.controls = false;
+  watchMark = { tool:"pen", color:"#ff3b30", items:[], draft:null, time:v.currentTime };
+  watchAnnShown = null;
+  document.getElementById("watchMarkBar").hidden = false;
+  document.getElementById("watchMarkCanvas").classList.add("marking");
+  watchMarkSyncUi();
+  watchBindDraw();
+  renderWatchAnnList();
+  watchRepaint();
+}
+
+function watchMarkExit(){
+  watchMark = null;
+  const v = document.getElementById("watchModalVideo");
+  v.controls = true;
+  document.getElementById("watchMarkBar").hidden = true;
+  document.getElementById("watchMarkCanvas").classList.remove("marking");
+  document.querySelectorAll("#watchStage .watch-mark-text").forEach(el => el.remove());
+}
+
+function watchMarkCancel(){
+  watchMarkExit();
+  watchPaint([]);
+  renderWatchAnnList();
+}
+
+function watchMarkSyncUi(){
+  if(!watchMark){ return; }
+  document.querySelectorAll("#watchMarkTools button").forEach(b => b.classList.toggle("active", b.dataset.tool === watchMark.tool));
+  document.querySelectorAll("#watchMarkColors button").forEach(b => b.classList.toggle("active", b.dataset.color === watchMark.color));
+}
+
+function watchMarkTool(t){ if(watchMark){ watchMark.tool = t; watchMarkSyncUi(); } }
+function watchMarkColor(c){ if(watchMark){ watchMark.color = c; watchMarkSyncUi(); } }
+function watchMarkUndo(){ if(watchMark){ watchMark.items.pop(); watchRepaint(); } }
+function watchMarkClear(){ if(watchMark){ watchMark.items = []; watchRepaint(); } }
+
+function watchPoint(ev){
+  const c = document.getElementById("watchMarkCanvas");
+  const b = c.getBoundingClientRect();
+  const r = watchFrameRect();
+  const x = (ev.clientX - b.left - r.x) / r.w;
+  const y = (ev.clientY - b.top - r.y) / r.h;
+  return [Math.min(1, Math.max(0, x)), Math.min(1, Math.max(0, y))];
+}
+
+let watchDrawBound = false;
+function watchBindDraw(){
+  if(watchDrawBound){ return; }
+  watchDrawBound = true;
+  const c = document.getElementById("watchMarkCanvas");
+
+  c.addEventListener("pointerdown", ev => {
+    if(!watchMark){ return; }
+    ev.preventDefault();
+    const [x, y] = watchPoint(ev);
+    const m = watchMark;
+    if(m.tool === "text"){ watchTextAt(x, y, ev); return; }
+    c.setPointerCapture(ev.pointerId);
+    if(m.tool === "pen"){ m.draft = { t:"pen", c:m.color, w:0.006, p:[[x, y]] }; }
+    else{ m.draft = { t:m.tool, c:m.color, w:0.006, x1:x, y1:y, x2:x, y2:y }; }
+    watchRepaint();
+  });
+
+  c.addEventListener("pointermove", ev => {
+    if(!watchMark || !watchMark.draft){ return; }
+    const [x, y] = watchPoint(ev);
+    const d = watchMark.draft;
+    if(d.t === "pen"){ d.p.push([x, y]); }
+    else{ d.x2 = x; d.y2 = y; }
+    watchRepaint();
+  });
+
+  const end = () => {
+    if(!watchMark || !watchMark.draft){ return; }
+    const d = watchMark.draft;
+    watchMark.draft = null;
+    const tiny = d.t === "pen" ? false : (Math.abs(d.x2 - d.x1) < 0.005 && Math.abs(d.y2 - d.y1) < 0.005);
+    if(!tiny){ watchMark.items.push(d); }
+    watchRepaint();
+  };
+  c.addEventListener("pointerup", end);
+  c.addEventListener("pointercancel", end);
+}
+
+// A text box: click where it goes, type, Enter (or click away) to place
+// it. Shift+Enter adds a new line.
+function watchTextAt(x, y){
+  const stage = document.getElementById("watchStage");
+  const r = watchFrameRect();
+  stage.querySelectorAll(".watch-mark-text").forEach(el => el.blur());
+  const color = watchMark.color;
+  const input = document.createElement("textarea");
+  input.className = "watch-mark-text";
+  input.rows = 1;
+  input.placeholder = "Type, then Enter";
+  input.style.left = (r.x + x * r.w) + "px";
+  input.style.top = (r.y + y * r.h) + "px";
+  input.style.color = color;
+  input.style.fontSize = Math.max(12, 0.05 * r.h) + "px";
+  let done = false;
+  const commit = () => {
+    if(done){ return; }
+    done = true;
+    const text = input.value.trim();
+    input.remove();
+    if(text && watchMark){ watchMark.items.push({ t:"text", c:color, x, y, s:text, fs:0.05 }); }
+    watchRepaint();
+  };
+  input.addEventListener("keydown", ev => {
+    if(ev.key === "Enter" && !ev.shiftKey){ ev.preventDefault(); commit(); }
+    if(ev.key === "Escape"){ done = true; input.remove(); }
+  });
+  input.addEventListener("blur", commit);
+  stage.appendChild(input);
+  input.focus();
+  setTimeout(() => input.focus(), 0);
+}
+
+async function watchMarkSave(){
+  const m = watchMark;
+  if(!m || !watchAnnShot){ return; }
+  document.querySelectorAll("#watchStage .watch-mark-text").forEach(el => el.blur());
+  if(!m.items.length){ showToast("Draw or write something first.", "error"); return; }
+
+  const btn = document.getElementById("watchMarkSave");
+  btn.disabled = true;
+  try{
+    const shot = watchAnnShot;
+    const { data, error } = await supabaseClient.from("shot_annotations").insert({
+      shot_id: shot.shot_id ?? shot.id,
+      goalie_id: shot.user_id,
+      author_id: currentSession.user.id,
+      author_name: (currentProfile && (currentProfile.full_name || currentProfile.email)) || (currentRole === "admin" ? "GoalieIQ" : "Coach"),
+      video_time: Math.round(m.time * 100) / 100,
+      items: m.items
+    }).select().single();
+    if(error){ throw error; }
+    watchAnns = [...watchAnns, data].sort((a, b) => Number(a.video_time) - Number(b.video_time));
+    watchAnnSeen.add(data.id);
+    watchMarkExit();
+    watchAnnShown = data.id;
+    watchPaint(data.items);
+    renderWatchAnnList();
+    showToast("Feedback saved.", "success");
+  }
+  catch(error){
+    console.error(error);
+    const missing = /relation|does not exist|schema cache/i.test(error.message || "");
+    showToast(missing
+      ? "Feedback isn't set up yet: run supabase/migrations/20261024_shot_annotations.sql in Supabase."
+      : "Couldn't save: " + (error.message || error), "error");
+  }
+  finally{
+    btn.disabled = false;
+  }
+}
+
+
 function closeWatchModal(){
 
   watchQueue = null;
+
+  watchAnnShot = null;
+  watchAnnShown = null;
+  watchMarkExit();
 
   const videoEl =
     document.getElementById("watchModalVideo");
