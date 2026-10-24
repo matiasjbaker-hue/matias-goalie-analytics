@@ -4584,26 +4584,48 @@ async function q(table){
     (currentSession && currentSession.access_token) ||
     SUPABASE_KEY;
 
-  const response =
-    await fetch(
-      `${SUPABASE_URL}/rest/v1/${encodeURIComponent(table)}?select=*`,
-      {
-        headers:{
-          apikey:SUPABASE_KEY,
-          Authorization:`Bearer ${accessToken}`
+  // The API returns at most 1000 rows per request, so a table that has
+  // grown past that was silently cut off (the Shot Log showed 8 of a
+  // game's 25 shots). Read it in pages until a short page comes back.
+  // Shots and Games are ordered so the pages line up.
+  const PAGE = 1000;
+  const order = table === "Shots" ? "&order=shot_id.asc" : table === "Games" ? "&order=id.asc" : "";
+  const rows = [];
+
+  for(let from = 0; ; from += PAGE){
+
+    const response =
+      await fetch(
+        `${SUPABASE_URL}/rest/v1/${encodeURIComponent(table)}?select=*${order}`,
+        {
+          headers:{
+            apikey:SUPABASE_KEY,
+            Authorization:`Bearer ${accessToken}`,
+            "Range-Unit":"items",
+            Range:`${from}-${from + PAGE - 1}`
+          }
         }
-      }
-    );
+      );
 
-  if(!response.ok){
+    if(!response.ok){
 
-    throw new Error(
-      `Supabase error ${response.status}: ${table}`
-    );
+      throw new Error(
+        `Supabase error ${response.status}: ${table}`
+      );
+
+    }
+
+    const page = await response.json();
+
+    if(!Array.isArray(page)){ return page; }
+
+    rows.push(...page);
+
+    if(page.length < PAGE){ break; }
 
   }
 
-  return await response.json();
+  return rows;
 
 }
 
