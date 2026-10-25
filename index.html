@@ -403,6 +403,20 @@
           <label for="signup-password">Password</label>
           <input type="password" id="signup-password" required autocomplete="new-password" minlength="6">
 
+          <label for="signup-heard">How did you hear about us?</label>
+          <select id="signup-heard" required onchange="onSignupHeardChange()">
+            <option value="">Choose one…</option>
+            <option>Instagram</option>
+            <option>A coach or goalie trainer</option>
+            <option>A teammate or friend</option>
+            <option>Elite Ice Analytics</option>
+            <option>Google or web search</option>
+            <option>LinkedIn</option>
+            <option>An email from GoalieIQ</option>
+            <option>Other</option>
+          </select>
+          <input type="text" id="signup-heard-other" maxlength="120" placeholder="Where did you hear about us?" style="display:none">
+
           <label class="consent-row">
             <input type="checkbox" id="signup-terms" required>
             <span>I agree to the <a href="terms.html" target="_blank" rel="noopener">Terms of Service</a> and <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</span>
@@ -474,6 +488,7 @@
 
     <div class="header-right">
 
+      <span id="header-avatar" class="avatar avatar-sm" hidden></span>
       <span id="user-email-badge" class="user-badge"></span>
 
       <button type="button" class="theme-toggle" data-theme-toggle onclick="toggleTheme()" aria-label="Switch to dark mode"></button>
@@ -634,6 +649,7 @@
 
 <div class="goalie-switcher" id="goalie-switcher" style="display:none">
   <label for="goalieSwitcherSelect">Viewing goalie</label>
+  <span id="goalie-switcher-avatar" class="avatar avatar-sm"></span>
   <select id="goalieSwitcherSelect" onchange="switchViewedGoalie(this.value)"></select>
 </div>
 
@@ -752,8 +768,13 @@
 
   <div class="page-title">
     <a href="#" class="back-link" onclick="showTab('coachhome', document.getElementById('coach-nav-myGoalies')); return false;">← Back to My Goalies</a>
-    <h2 id="goalieProfileName">Goalie</h2>
-    <p id="goalieProfileMeta">—</p>
+    <div class="page-title-row">
+      <span id="goalieProfileAvatar" class="avatar avatar-lg"></span>
+      <div>
+        <h2 id="goalieProfileName">Goalie</h2>
+        <p id="goalieProfileMeta">—</p>
+      </div>
+    </div>
   </div>
 
   <div class="grid grid-4">
@@ -1181,6 +1202,17 @@
     </div>
 
     <div class="giq-modal-body">
+      <div class="avatar-row">
+        <span id="adminProfileAvatar" class="avatar avatar-lg"></span>
+        <div class="avatar-actions">
+          <label class="btn-secondary avatar-upload">Change photo
+            <input type="file" id="adminProfileAvatarFile" accept="image/*" hidden onchange="uploadProfileAvatar('admin', this)">
+          </label>
+          <button type="button" class="rv-linkbtn" id="adminProfileAvatarRemove" onclick="removeProfileAvatar('admin')" hidden>Remove</button>
+        </div>
+      </div>
+      <p class="small-note" id="adminProfileHeard" hidden></p>
+
       <div class="field-grid">
         <div class="field">
           <label for="adminProfileName">Name</label>
@@ -4072,6 +4104,16 @@
   <div class="grid grid-2">
 
     <div class="card">
+
+      <div class="avatar-row">
+        <span id="about-avatar" class="avatar avatar-lg"></span>
+        <div class="avatar-actions">
+          <label class="btn-secondary avatar-upload">Change photo
+            <input type="file" id="about-avatar-file" accept="image/*" hidden onchange="uploadProfileAvatar('self', this)">
+          </label>
+          <button type="button" class="rv-linkbtn" id="about-avatar-remove" onclick="removeProfileAvatar('self')" hidden>Remove</button>
+        </div>
+      </div>
 
       <h3 id="about-player-name">Player</h3>
 
@@ -12932,6 +12974,151 @@ function showAuthScreen(){
 }
 
 
+/* ---------- profile pictures ----------
+   A small square photo, resized in the browser (about 200px) and stored
+   on the profile as a data URL, so it needs no file storage. */
+
+function onSignupHeardChange(){
+  const other = document.getElementById("signup-heard-other");
+  const isOther = document.getElementById("signup-heard").value === "Other";
+  other.style.display = isOther ? "" : "none";
+  if(isOther){ other.focus(); }
+}
+
+function avatarInitials(name){
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if(!parts.length){ return "?"; }
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+}
+
+function avatarHtml(profile){
+  const url = profile && profile.avatar_url;
+  if(url && /^data:image\//.test(url)){
+    return `<img src="${escapeHtml(url)}" alt="">`;
+  }
+  return `<span aria-hidden="true">${escapeHtml(avatarInitials(profile && profile.full_name))}</span>`;
+}
+
+function setAvatarEl(id, profile){
+  const el = document.getElementById(id);
+  if(!el){ return; }
+  el.innerHTML = avatarHtml(profile);
+  el.hidden = false;
+}
+
+function refreshAvatars(){
+
+  if(currentProfile){
+    setAvatarEl("header-avatar", currentProfile);
+    setAvatarEl("about-avatar", currentProfile);
+    const rm = document.getElementById("about-avatar-remove");
+    if(rm){ rm.hidden = !currentProfile.avatar_url; }
+  }
+
+  const viewed = (typeof viewableGoalieProfiles === "function" && activeGoalieId)
+    ? viewableGoalieProfiles().find(p => p.id === activeGoalieId) : null;
+  const sw = document.getElementById("goalie-switcher-avatar");
+  if(sw){
+    sw.hidden = !viewed;
+    if(viewed){ sw.innerHTML = avatarHtml(viewed); }
+  }
+
+  if(typeof coachGoalieProfiles !== "undefined"){
+    const gp = document.getElementById("goalieProfileName");
+    const open = gp && coachGoalieProfiles.find(p => p.full_name === gp.textContent && p.id === activeGoalieId);
+    if(open){ setAvatarEl("goalieProfileAvatar", open); }
+  }
+
+  if(adminEditingProfileId){
+    const ap = adminProfiles.find(p => p.id === adminEditingProfileId);
+    if(ap){
+      setAvatarEl("adminProfileAvatar", ap);
+      document.getElementById("adminProfileAvatarRemove").hidden = !ap.avatar_url;
+    }
+  }
+
+}
+
+// Crops the middle square of the picture and shrinks it to a small JPEG.
+function avatarFromFile(file){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      try{
+        const size = 200;
+        const side = Math.min(img.naturalWidth, img.naturalHeight);
+        const sx = (img.naturalWidth - side) / 2, sy = (img.naturalHeight - side) / 2;
+        const c = document.createElement("canvas");
+        c.width = size; c.height = size;
+        const ctx = c.getContext("2d");
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, size, size);
+        ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+        resolve(c.toDataURL("image/jpeg", 0.8));
+      }
+      catch(e){ reject(e); }
+      finally{ URL.revokeObjectURL(url); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("That file isn't a picture we can read.")); };
+    img.src = url;
+  });
+}
+
+function avatarTargetId(target){
+  return target === "admin" ? adminEditingProfileId : (currentSession && currentSession.user && currentSession.user.id);
+}
+
+async function saveProfileAvatar(target, dataUrl){
+
+  const id = avatarTargetId(target);
+  if(!id){ return; }
+
+  const { data, error } = await supabaseClient
+    .from("profiles").update({ avatar_url: dataUrl }).eq("id", id).select("id");
+
+  if(error){
+    const missing = /avatar_url|column|schema cache/i.test(error.message || "");
+    throw new Error(missing
+      ? "Profile pictures aren't set up yet: run supabase/migrations/20261025_profile_avatar_heard_from.sql in Supabase."
+      : error.message);
+  }
+  if(!data || !data.length){ throw new Error("Nothing was updated."); }
+
+  const patch = list => { const p = list && list.find(x => x.id === id); if(p){ p.avatar_url = dataUrl; } };
+  if(currentProfile && currentProfile.id === id){ currentProfile.avatar_url = dataUrl; }
+  patch(typeof adminProfiles !== "undefined" ? adminProfiles : null);
+  patch(typeof coachGoalieProfiles !== "undefined" ? coachGoalieProfiles : null);
+  refreshAvatars();
+
+}
+
+async function uploadProfileAvatar(target, input){
+  const file = input.files && input.files[0];
+  input.value = "";
+  if(!file){ return; }
+  try{
+    const dataUrl = await avatarFromFile(file);
+    await saveProfileAvatar(target, dataUrl);
+    showToast("Photo saved.", "success");
+  }
+  catch(error){
+    console.error(error);
+    showToast(error.message || "Couldn't save the photo.", "error");
+  }
+}
+
+async function removeProfileAvatar(target){
+  try{
+    await saveProfileAvatar(target, null);
+    showToast("Photo removed.", "success");
+  }
+  catch(error){
+    console.error(error);
+    showToast(error.message || "Couldn't remove the photo.", "error");
+  }
+}
+
 function refreshUserBadge(){
 
   const badge = document.getElementById("user-email-badge");
@@ -12994,6 +13181,14 @@ document.getElementById("signup-form")
     const password =
       document.getElementById("signup-password").value;
 
+    const heard = document.getElementById("signup-heard").value;
+    const heardOther = document.getElementById("signup-heard-other").value.trim();
+
+    if(!heard){
+      showAuthError("Please tell us how you heard about us.");
+      return;
+    }
+
     if(!document.getElementById("signup-terms").checked || !document.getElementById("signup-age").checked){
       showAuthError("Please agree to the Terms and Privacy Policy, and confirm your age or guardian permission.");
       return;
@@ -13010,6 +13205,8 @@ document.getElementById("signup-form")
           // Consent record kept with the account (auth user metadata).
           data:{
             name,
+            heard_from: heard,
+            heard_from_other: heard === "Other" ? heardOther : "",
             terms_accepted_at: new Date().toISOString(),
             terms_version: "2026-10",
             age_or_guardian_confirmed: true
@@ -13285,6 +13482,8 @@ async function applyRoleAndLoad(){
   currentRole = (currentProfile && currentProfile.role) || "goalie";
 
   setNavForRole();
+
+  refreshAvatars();
 
   // Paywall: a goalie without active access sees only the access screen.
   // The database enforces this too (restrictive RLS on all stat tables),
@@ -13800,6 +13999,8 @@ function renderGoalieProfile(goalieId){
 
   document.getElementById("goalieProfileName").textContent =
     profile.full_name || "Unnamed Goalie";
+
+  setAvatarEl("goalieProfileAvatar", profile);
 
   document.getElementById("goalieProfileMeta").textContent =
     [profile.team || "No team set", profile.season || seasonLabel(CURRENT_SEASON), profile.level, profile.league,
@@ -16452,6 +16653,13 @@ function openAdminProfileModal(profileId){
   document.getElementById("adminProfileGameLength").value = profile.game_length_minutes || "";
   fillProfileExtra("adm", profile);
 
+  refreshAvatars();
+  const heard = document.getElementById("adminProfileHeard");
+  heard.hidden = !profile.heard_from;
+  heard.textContent = profile.heard_from
+    ? `Heard about us: ${profile.heard_from}${profile.heard_from_other ? " (" + profile.heard_from_other + ")" : ""}`
+    : "";
+
   const roleSelect = document.getElementById("adminProfileRole");
   roleSelect.value = profile.role || "goalie";
 
@@ -18105,6 +18313,7 @@ function renderGoalieSwitcher(){
   }
 
   bar.style.display = "";
+  refreshAvatars();
 
 }
 
@@ -18122,6 +18331,7 @@ function switchViewedGoalie(goalieId){
   selectedGameId = null;
   SELECTED_SEASON = null;
 
+  refreshAvatars();
   applyActiveGoalieFilter();
 
   if(currentRole === "coach"){
@@ -20334,6 +20544,8 @@ function renderAboutCard(){
   if(!currentProfile){
     return;
   }
+
+  refreshAvatars();
 
   document.getElementById("about-player-name").textContent =
     currentProfile.full_name || "Add your name";
