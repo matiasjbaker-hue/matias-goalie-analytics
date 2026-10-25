@@ -5262,6 +5262,55 @@ function isHighDanger(shot){
 const XG_MODEL_VERSION = "v1.5-calibrated";
 
 
+/* ---------- xG v2 (shadow model, NOT shown anywhere yet) ----------
+   Logistic model fitted on 814 pinned shots (80 goals), checked by
+   holding out whole games: log loss 0.271 vs 0.285 for v1.5, AUC
+   0.785 vs 0.756. The gain comes from deflection, screen, one-timer,
+   cross-ice and rebound tags. Pinned shots only (needs loc_x/loc_y).
+   Nothing in the UI or database uses this. To compare against v1.5 on
+   new games, run  xgV2Report()  in the browser console while signed in
+   as admin. Refit before switching it on. */
+const XG_V2 = {
+  version: "v2-shadow",
+  intercept: 0.1997,
+  b: { logDist: -0.981, angle: -0.325, rush: 0.460, rebound: 1.245,
+       screened: 1.250, breakaway: 0.770, cross_ice: 0.701,
+       deflection: 1.823, one_timer: 0.876 }
+};
+
+function calculateShotXGv2(shot){
+  if(!shotMapHasPin(shot)){ return null; }
+  const x = Number(shot.loc_x), y = Number(shot.loc_y);
+  const dist = Math.hypot(x, y);
+  const angle = Math.atan2(Math.abs(x), Math.max(y, 0.5)) * 180 / Math.PI;
+  const m = XG_V2.b;
+  const z = XG_V2.intercept
+    + m.logDist * Math.log(dist + 1)
+    + m.angle * (angle / 45)
+    + m.rush * (shot.rush ? 1 : 0)
+    + m.rebound * (shot.rebound ? 1 : 0)
+    + m.screened * (shot.screened ? 1 : 0)
+    + m.breakaway * (shot.breakaway ? 1 : 0)
+    + m.cross_ice * (shot.cross_ice ? 1 : 0)
+    + m.deflection * (shot.deflection ? 1 : 0)
+    + m.one_timer * (shot.release_type === "one_timer" ? 1 : 0);
+  return 1 / (1 + Math.exp(-z));
+}
+
+// Console helper: v1.5 vs v2 on the shots loaded in the app.
+function xgV2Report(){
+  const rows = (typeof allShots !== "undefined" ? allShots : (window.shots || []))
+    .map(s => ({ goal: s.outcome === "goal" ? 1 : 0, v1: Number(s.xg), v2: calculateShotXGv2(s) }))
+    .filter(r => r.v2 !== null && Number.isFinite(r.v1));
+  const ll = k => -rows.reduce((t, r) => t + (r.goal ? Math.log(r[k]) : Math.log(1 - r[k])), 0) / rows.length;
+  const out = { shots: rows.length, goals: rows.reduce((t, r) => t + r.goal, 0),
+    logLossV1: +ll("v1").toFixed(4), logLossV2: +ll("v2").toFixed(4),
+    xgV1: +rows.reduce((t, r) => t + r.v1, 0).toFixed(1), xgV2: +rows.reduce((t, r) => t + r.v2, 0).toFixed(1) };
+  console.table(out);
+  return out;
+}
+
+
 function imputeDistanceFromLocation(location){
 
   if(location.includes("crease")) return 2.2;
