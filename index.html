@@ -3711,8 +3711,9 @@
 
       <div class="rv-player-col">
 
-        <div class="rv-player">
+        <div class="rv-player" id="rv-player-stage">
           <video id="rv-video" controls playsinline preload="metadata"></video>
+          <canvas id="rvMarkCanvas" class="watch-mark-canvas"></canvas>
           <div class="rv-player-msg" id="rv-player-msg" hidden></div>
         </div>
 
@@ -3961,6 +3962,35 @@
               <button type="button" class="btn-secondary" onclick="setReviewClipEdge('start')" title="Pause where the clip should begin, then press this">Start clip here</button>
               <button type="button" class="btn-secondary" onclick="setReviewClipEdge('end')" title="Pause where the clip should stop, then press this">End clip here</button>
               <button type="button" class="btn-secondary" id="rv-ed-clip-reset" onclick="resetReviewClip()">Reset</button>
+            </div>
+          </div>
+
+          <div class="field rv-ed-fb" id="rv-ed-fb">
+            <span class="field-label">Feedback for the goalie</span>
+            <p class="small-note">Pause on the frame, then draw or write on it. It shows in the goalie's shot log once you publish.</p>
+            <div id="rv-ed-ann" class="watch-ann-list"></div>
+            <div class="rv-editor-actions">
+              <button type="button" class="btn-secondary" id="rvMarkStart" onclick="reviewMarkBegin()">Mark up this frame</button>
+            </div>
+            <div class="watch-mark-bar" id="rvMarkBar" hidden>
+              <div class="watch-mark-tools">
+                <button type="button" data-tool="pen" class="active" onclick="watchMarkTool('pen')">Pen</button>
+                <button type="button" data-tool="circle" onclick="watchMarkTool('circle')">Circle</button>
+                <button type="button" data-tool="arrow" onclick="watchMarkTool('arrow')">Arrow</button>
+                <button type="button" data-tool="text" onclick="watchMarkTool('text')">Text</button>
+              </div>
+              <div class="watch-mark-colors">
+                <button type="button" data-color="#ff3b30" class="active" style="background:#ff3b30" aria-label="Red" onclick="watchMarkColor('#ff3b30')"></button>
+                <button type="button" data-color="#ffd60a" style="background:#ffd60a" aria-label="Yellow" onclick="watchMarkColor('#ffd60a')"></button>
+                <button type="button" data-color="#30d158" style="background:#30d158" aria-label="Green" onclick="watchMarkColor('#30d158')"></button>
+                <button type="button" data-color="#ffffff" style="background:#ffffff" aria-label="White" onclick="watchMarkColor('#ffffff')"></button>
+              </div>
+              <div class="watch-mark-actions">
+                <button type="button" onclick="watchMarkUndo()">Undo</button>
+                <button type="button" onclick="watchMarkClear()">Clear</button>
+                <button type="button" onclick="watchMarkCancel()">Cancel</button>
+                <button type="button" class="primary" id="rvMarkSave" onclick="watchMarkSave()">Save feedback</button>
+              </div>
             </div>
           </div>
 
@@ -8303,13 +8333,38 @@ let watchAnnSeen = new Set();
 let watchMark = null;   // { tool, color, items, draft } while marking up
 let watchAnnHooked = false;
 
+// Where the drawing happens: the clip viewer, or the Review player. The
+// drawing code works on whichever one is current (mk).
+function watchCtx(){
+  return {
+    video: document.getElementById("watchModalVideo"),
+    canvas: document.getElementById("watchMarkCanvas"),
+    stage: document.getElementById("watchStage"),
+    bar: document.getElementById("watchMarkBar"),
+    saveBtn: document.getElementById("watchMarkSave"),
+    save: () => watchMarkSaveWatch()
+  };
+}
+function reviewMarkCtx(){
+  return {
+    video: document.getElementById("rv-video"),
+    canvas: document.getElementById("rvMarkCanvas"),
+    stage: document.getElementById("rv-player-stage"),
+    bar: document.getElementById("rvMarkBar"),
+    saveBtn: document.getElementById("rvMarkSave"),
+    save: () => reviewMarkSave()
+  };
+}
+let mk = null;
+function mkc(){ if(!mk){ mk = watchCtx(); } return mk; }
+
 function watchCanMark(){
   return currentRole === "admin" || currentRole === "coach";
 }
 
 // Where the picture sits inside the video element (letterboxed).
 function watchFrameRect(){
-  const v = document.getElementById("watchModalVideo");
+  const v = mkc().video;
   const w = v.clientWidth, h = v.clientHeight;
   const vw = v.videoWidth, vh = v.videoHeight;
   if(!vw || !vh || !w || !h){ return { x:0, y:0, w:w || 1, h:h || 1 }; }
@@ -8319,8 +8374,8 @@ function watchFrameRect(){
 }
 
 function watchSizeCanvas(){
-  const v = document.getElementById("watchModalVideo");
-  const c = document.getElementById("watchMarkCanvas");
+  const v = mkc().video;
+  const c = mkc().canvas;
   const dpr = window.devicePixelRatio || 1;
   const w = v.clientWidth, h = v.clientHeight;
   c.style.width = w + "px";
@@ -8331,7 +8386,7 @@ function watchSizeCanvas(){
 }
 
 function watchPaint(items){
-  const c = document.getElementById("watchMarkCanvas");
+  const c = mkc().canvas;
   const dpr = watchSizeCanvas();
   const ctx = c.getContext("2d");
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -8436,7 +8491,8 @@ function watchAnnFmt(sec){
 function watchAnnShow(id, seek){
   const a = watchAnns.find(x => x.id === id);
   if(!a){ return; }
-  const v = document.getElementById("watchModalVideo");
+  mk = watchCtx();
+  const v = mk.video;
   v.pause();
   if(seek !== false){ v.currentTime = Number(a.video_time); }
   watchAnnShown = id;
@@ -8469,6 +8525,7 @@ function renderWatchAnnList(){
 }
 
 async function watchAnnLoad(shot){
+  mk = watchCtx();
   watchAnnShot = shot;
   watchAnns = [];
   watchAnnShown = null;
@@ -8507,38 +8564,47 @@ async function watchAnnDelete(id){
 
 function watchMarkBegin(){
   if(!watchCanMark() || !watchAnnShot){ return; }
-  const v = document.getElementById("watchModalVideo");
-  v.pause();
-  v.controls = false;
-  watchMark = { tool:"pen", color:"#ff3b30", items:[], draft:null, time:v.currentTime };
+  mk = watchCtx();
+  watchMarkStartDrawing();
   watchAnnShown = null;
-  document.getElementById("watchMarkBar").hidden = false;
-  document.getElementById("watchMarkCanvas").classList.add("marking");
-  watchMarkSyncUi();
-  watchBindDraw();
   renderWatchAnnList();
   watchRepaint();
 }
 
+// Starts drawing on the current context's paused frame.
+function watchMarkStartDrawing(){
+  const v = mkc().video;
+  v.pause();
+  v.controls = false;
+  watchMark = { tool:"pen", color:"#ff3b30", items:[], draft:null, time:v.currentTime };
+  mk.bar.hidden = false;
+  mk.canvas.classList.add("marking");
+  watchMarkSyncUi();
+  watchBindDraw(mk.canvas);
+}
+
 function watchMarkExit(){
   watchMark = null;
-  const v = document.getElementById("watchModalVideo");
-  v.controls = true;
-  document.getElementById("watchMarkBar").hidden = true;
-  document.getElementById("watchMarkCanvas").classList.remove("marking");
-  document.querySelectorAll("#watchStage .watch-mark-text").forEach(el => el.remove());
+  [watchCtx(), reviewMarkCtx()].forEach(x => {
+    if(x.video){ x.video.controls = true; }
+    if(x.bar){ x.bar.hidden = true; }
+    if(x.canvas){ x.canvas.classList.remove("marking"); }
+    if(x.stage){ x.stage.querySelectorAll(".watch-mark-text").forEach(el => el.remove()); }
+  });
 }
 
 function watchMarkCancel(){
+  const wasReview = mkc() === mk && mk.bar && mk.bar.id === "rvMarkBar";
   watchMarkExit();
   watchPaint([]);
-  renderWatchAnnList();
+  if(wasReview){ renderReviewAnn(); }
+  else{ renderWatchAnnList(); }
 }
 
 function watchMarkSyncUi(){
   if(!watchMark){ return; }
-  document.querySelectorAll("#watchMarkTools button").forEach(b => b.classList.toggle("active", b.dataset.tool === watchMark.tool));
-  document.querySelectorAll("#watchMarkColors button").forEach(b => b.classList.toggle("active", b.dataset.color === watchMark.color));
+  mkc().bar.querySelectorAll(".watch-mark-tools button").forEach(b => b.classList.toggle("active", b.dataset.tool === watchMark.tool));
+  mkc().bar.querySelectorAll(".watch-mark-colors button").forEach(b => b.classList.toggle("active", b.dataset.color === watchMark.color));
 }
 
 function watchMarkTool(t){ if(watchMark){ watchMark.tool = t; watchMarkSyncUi(); } }
@@ -8547,7 +8613,7 @@ function watchMarkUndo(){ if(watchMark){ watchMark.items.pop(); watchRepaint(); 
 function watchMarkClear(){ if(watchMark){ watchMark.items = []; watchRepaint(); } }
 
 function watchPoint(ev){
-  const c = document.getElementById("watchMarkCanvas");
+  const c = mkc().canvas;
   const b = c.getBoundingClientRect();
   const r = watchFrameRect();
   const x = (ev.clientX - b.left - r.x) / r.w;
@@ -8555,11 +8621,9 @@ function watchPoint(ev){
   return [Math.min(1, Math.max(0, x)), Math.min(1, Math.max(0, y))];
 }
 
-let watchDrawBound = false;
-function watchBindDraw(){
-  if(watchDrawBound){ return; }
-  watchDrawBound = true;
-  const c = document.getElementById("watchMarkCanvas");
+function watchBindDraw(c){
+  if(!c || c.dataset.markBound){ return; }
+  c.dataset.markBound = "1";
 
   c.addEventListener("pointerdown", ev => {
     if(!watchMark){ return; }
@@ -8597,7 +8661,7 @@ function watchBindDraw(){
 // A text box: click where it goes, type, Enter (or click away) to place
 // it. Shift+Enter adds a new line.
 function watchTextAt(x, y){
-  const stage = document.getElementById("watchStage");
+  const stage = mkc().stage;
   const r = watchFrameRect();
   stage.querySelectorAll(".watch-mark-text").forEach(el => el.blur());
   const color = watchMark.color;
@@ -8628,11 +8692,25 @@ function watchTextAt(x, y){
   setTimeout(() => input.focus(), 0);
 }
 
-async function watchMarkSave(){
+function watchMarkSave(){
+  const m = watchMark;
+  if(!m){ return; }
+  mkc().stage.querySelectorAll(".watch-mark-text").forEach(el => el.blur());
+  if(!m.items.length){ showToast("Draw or write something first.", "error"); return; }
+  return mkc().save();
+}
+
+function watchMarkAuthor(){
+  return (currentProfile && (currentProfile.full_name || currentProfile.email)) || (currentRole === "admin" ? "GoalieIQ" : "Coach");
+}
+
+function watchMarkMissingTable(error){
+  return /relation|does not exist|schema cache|column/i.test((error && error.message) || "");
+}
+
+async function watchMarkSaveWatch(){
   const m = watchMark;
   if(!m || !watchAnnShot){ return; }
-  document.querySelectorAll("#watchStage .watch-mark-text").forEach(el => el.blur());
-  if(!m.items.length){ showToast("Draw or write something first.", "error"); return; }
 
   const btn = document.getElementById("watchMarkSave");
   btn.disabled = true;
@@ -8642,7 +8720,7 @@ async function watchMarkSave(){
       shot_id: shot.shot_id ?? shot.id,
       goalie_id: shot.user_id,
       author_id: currentSession.user.id,
-      author_name: (currentProfile && (currentProfile.full_name || currentProfile.email)) || (currentRole === "admin" ? "GoalieIQ" : "Coach"),
+      author_name: watchMarkAuthor(),
       video_time: Math.round(m.time * 100) / 100,
       items: m.items
     }).select().single();
@@ -8657,8 +8735,7 @@ async function watchMarkSave(){
   }
   catch(error){
     console.error(error);
-    const missing = /relation|does not exist|schema cache/i.test(error.message || "");
-    showToast(missing
+    showToast(watchMarkMissingTable(error)
       ? "Feedback isn't set up yet: run supabase/migrations/20261024_shot_annotations.sql in Supabase."
       : "Couldn't save: " + (error.message || error), "error");
   }
@@ -24661,6 +24738,10 @@ async function openReview(videoId){
     .filter(c => Number.isFinite(c.t));
   review.checkT = null;
   review.selectedId = null;
+  review.ann = {};
+  reviewAnnFor = null;
+  reviewAnnShown = null;
+  if(watchMark){ watchMarkExit(); }
   try{
     const m = localStorage.getItem("giq-ai-model-v2");
     if(m && REVIEW_MODELS[m]){ document.getElementById("rv-ai-model").value = m; }
@@ -25115,6 +25196,146 @@ function selectReviewShot(id, seek){
 
 }
 
+/* ---------- feedback drawn on a drafted shot ----------
+   Saved against the draft (draft_id). Approve & publish gives each one
+   its shot's id, so it shows in the goalie's shot log. */
+
+let reviewAnnShown = null;
+let reviewAnnFor = null;
+let reviewAnnHooked = false;
+
+function reviewSelectedDraft(){
+  return review.drafts.find(x => String(x.id) === String(review.selectedId));
+}
+
+// The published shot that matches a draft (a republish keeps its time),
+// so feedback on an already-published shot shows right away.
+function reviewPublishedShotIdFor(d){
+  const snap = review.video && review.video.period_marks && review.video.period_marks._published;
+  const times = snap && snap.times;
+  if(!times){ return null; }
+  const hit = Object.entries(times).find(([id, t]) => Math.abs(Number(t) - Number(d.t_seconds)) < 0.01);
+  return hit ? hit[0] : null;
+}
+
+async function reviewAnnLoad(d){
+  if(!review.ann){ review.ann = {}; }
+  try{
+    const { data, error } = await supabaseClient
+      .from("shot_annotations").select("*").eq("draft_id", d.id).order("video_time");
+    if(error){ throw error; }
+    review.ann[d.id] = data || [];
+  }
+  catch(error){
+    console.error("Feedback not available:", error);
+    review.ann[d.id] = [];
+  }
+  const cur = reviewSelectedDraft();
+  if(cur && String(cur.id) === String(d.id)){ renderReviewAnn(); }
+}
+
+function renderReviewAnn(){
+  const host = document.getElementById("rv-ed-ann");
+  const d = reviewSelectedDraft();
+  if(!host || !d){ return; }
+  const rows = (review.ann && review.ann[d.id]) || [];
+  document.getElementById("rvMarkStart").hidden = !!watchMark;
+  host.innerHTML = rows.map(a => {
+    const notes = (a.items || []).filter(i => i.t === "text").map(i => i.s).join(" · ");
+    return `<div class="watch-ann-chip${reviewAnnShown === a.id ? " active" : ""}">
+      <button type="button" class="watch-ann-open" onclick="reviewAnnShow(${a.id})">
+        <b>${watchAnnFmt(a.video_time)}</b>
+        <span>${escapeHtml(a.author_name || "Coach")}${notes ? " — " + escapeHtml(notes.length > 60 ? notes.slice(0, 60) + "…" : notes) : ""}</span>
+      </button>
+      <button type="button" class="watch-ann-del" aria-label="Delete feedback" onclick="reviewAnnDelete(${a.id})">&times;</button>
+    </div>`;
+  }).join("");
+}
+
+function reviewAnnHook(){
+  if(reviewAnnHooked){ return; }
+  reviewAnnHooked = true;
+  const v = document.getElementById("rv-video");
+  v.addEventListener("play", () => {
+    if(watchMark || !reviewAnnShown){ return; }
+    reviewAnnShown = null;
+    mk = reviewMarkCtx();
+    watchPaint([]);
+    renderReviewAnn();
+  });
+  v.addEventListener("loadedmetadata", () => { if(mk && mk.bar && mk.bar.id === "rvMarkBar"){ watchRepaint(); } });
+}
+
+function reviewAnnShow(id){
+  const d = reviewSelectedDraft();
+  const a = d && ((review.ann && review.ann[d.id]) || []).find(x => x.id === id);
+  if(!a){ return; }
+  mk = reviewMarkCtx();
+  reviewAnnHook();
+  mk.video.pause();
+  mk.video.currentTime = Number(a.video_time);
+  reviewAnnShown = a.id;
+  watchPaint(a.items);
+  renderReviewAnn();
+}
+
+async function reviewAnnDelete(id){
+  const d = reviewSelectedDraft();
+  if(!d || !confirm("Delete this feedback?")){ return; }
+  const { error } = await supabaseClient.from("shot_annotations").delete().eq("id", id);
+  if(error){ showToast("Couldn't delete: " + error.message, "error"); return; }
+  review.ann[d.id] = (review.ann[d.id] || []).filter(a => a.id !== id);
+  if(reviewAnnShown === id){ reviewAnnShown = null; mk = reviewMarkCtx(); watchPaint([]); }
+  renderReviewAnn();
+}
+
+function reviewMarkBegin(){
+  const d = reviewSelectedDraft();
+  if(!d){ return; }
+  reviewAnnHook();
+  mk = reviewMarkCtx();
+  reviewAnnShown = null;
+  watchMarkStartDrawing();
+  renderReviewAnn();
+  watchRepaint();
+}
+
+async function reviewMarkSave(){
+  const m = watchMark;
+  const d = reviewSelectedDraft();
+  if(!m || !d){ return; }
+  const btn = document.getElementById("rvMarkSave");
+  btn.disabled = true;
+  try{
+    const { data, error } = await supabaseClient.from("shot_annotations").insert({
+      draft_id: d.id,
+      shot_id: reviewPublishedShotIdFor(d),
+      goalie_id: review.video.user_id,
+      author_id: currentSession.user.id,
+      author_name: watchMarkAuthor(),
+      video_time: Math.round(m.time * 100) / 100,
+      items: m.items
+    }).select().single();
+    if(error){ throw error; }
+    if(!review.ann){ review.ann = {}; }
+    review.ann[d.id] = [...(review.ann[d.id] || []), data].sort((a, b) => Number(a.video_time) - Number(b.video_time));
+    watchMarkExit();
+    reviewAnnShown = data.id;
+    watchPaint(data.items);
+    renderReviewAnn();
+    showToast("Feedback saved. It shows in the goalie's shot log once you publish.", "success");
+  }
+  catch(error){
+    console.error(error);
+    showToast(watchMarkMissingTable(error)
+      ? "Feedback isn't set up for the Review page yet: run supabase/migrations/20261025_annotation_drafts.sql in Supabase."
+      : "Couldn't save: " + (error.message || error), "error");
+  }
+  finally{
+    btn.disabled = false;
+  }
+}
+
 function renderReviewEditor(){
 
   const d = review.drafts.find(x => String(x.id) === String(review.selectedId));
@@ -25161,6 +25382,17 @@ function renderReviewEditor(){
 
   renderReviewEditorPin(d);
   renderReviewClip(d);
+
+  if(reviewAnnFor !== d.id){
+    reviewAnnFor = d.id;
+    if(watchMark){ watchMarkExit(); }
+    reviewAnnShown = null;
+    mk = reviewMarkCtx();
+    watchPaint([]);
+    if(review.ann && review.ann[d.id]){ renderReviewAnn(); }
+    else{ document.getElementById("rv-ed-ann").innerHTML = ""; reviewAnnLoad(d); }
+  }
+  else{ renderReviewAnn(); }
 
 }
 
@@ -28605,9 +28837,18 @@ async function publishReviewFile(item, gameId, details){
   const v = item.video;
   const drafts = item.drafts;
 
+  // Feedback drawn on the goalie's shot log (not in Review) stays with its
+  // shot across a republish: matched to the new shot at the same time.
+  let carry = [];
+
   if(item.republish){
     const old = reviewPublishedSnapshot(v);
     if(old.shotIds.length){
+      try{
+        const { data: loose } = await supabaseClient.from("shot_annotations").select("id,shot_id").in("shot_id", old.shotIds).is("draft_id", null);
+        carry = (loose || []).map(a => ({ id: a.id, t: Number(old.times && old.times[String(a.shot_id)]) })).filter(a => Number.isFinite(a.t));
+      }
+      catch(e){ console.error("Feedback not carried over:", e); }
       const { error } = await supabaseClient.from("Shots").delete().in(old.idColumn || "id", old.shotIds);
       if(error){ throw error; }
       await applyShotsToGameTotals(gameId, v.user_id, old.shots, -1);
@@ -28646,6 +28887,21 @@ async function publishReviewFile(item, gameId, details){
     clip_start_seconds: s.clip ? s.clip.start : Math.max(0, Math.round((s.t - 4) * 10) / 10),
     clip_end_seconds: s.clip ? s.clip.end : Math.round((s.t + 3) * 10) / 10
   })));
+
+  // Give feedback drawn in Review its shot, so the goalie's shot log shows it.
+  try{
+    const newId = i => insertedShots[i] ? (insertedShots[i].shot_id ?? insertedShots[i].id) : null;
+    const { data: marked } = await supabaseClient.from("shot_annotations").select("draft_id").in("draft_id", drafts.map(d => d.id));
+    for(const draftId of new Set((marked || []).map(r => String(r.draft_id)))){
+      const i = drafts.findIndex(d => String(d.id) === draftId);
+      if(i >= 0 && newId(i) !== null){ await supabaseClient.from("shot_annotations").update({ shot_id: newId(i) }).eq("draft_id", drafts[i].id); }
+    }
+    for(const c of carry){
+      const i = shots.findIndex(sh => Math.abs(sh.t - c.t) < 0.5);
+      if(i >= 0 && newId(i) !== null){ await supabaseClient.from("shot_annotations").update({ shot_id: newId(i) }).eq("id", c.id); }
+    }
+  }
+  catch(e){ console.error("Feedback not linked to its shots:", e); }
 
   await applyShotsToGameTotals(gameId, v.user_id, shots, 1);
 
@@ -29157,6 +29413,7 @@ async function loadReviewUser(userId){
     const ws = document.getElementById("rv-workspace");
     if(!ws || ws.hidden || !review.video){ return; }
     if(!document.getElementById("adminvideoreview").classList.contains("active")){ return; }
+    if(watchMark){ return; }
     if(e.target && /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(e.target.tagName) && e.key !== "Escape"){ return; }
     if(e.metaKey || e.ctrlKey || e.altKey){ return; }
 
