@@ -8513,21 +8513,60 @@ function watchAnnHook(){
   if(watchAnnHooked){ return; }
   watchAnnHooked = true;
   const v = document.getElementById("watchModalVideo");
-  v.addEventListener("play", () => { if(!watchMark){ watchAnnClear(); } });
-  v.addEventListener("timeupdate", () => {
-    if(watchMark || !watchAnns.length || v.paused){ return; }
-    const t = v.currentTime;
-    for(const a of watchAnns){
-      if(watchAnnSeen.has(a.id)){ continue; }
-      if(t >= Number(a.video_time) && t < Number(a.video_time) + 0.7){
-        watchAnnSeen.add(a.id);
-        watchAnnShow(a.id, false);
-        break;
-      }
+  // Pause on the exact frame a feedback was drawn on: checked every
+  // video frame (timeupdate only fires ~4 times a second, so the clip
+  // would stop a few frames late).
+  const hit = mediaTime => watchAnns.find(a => !watchAnnSeen.has(a.id) &&
+    mediaTime >= Number(a.video_time) - 0.0005 && mediaTime < Number(a.video_time) + 0.7);
+  const stopOn = a => { watchAnnSeen.add(a.id); watchAnnShow(a.id, true); };
+
+  v.addEventListener("play", () => {
+    if(watchMark){ return; }
+    watchAnnClear();
+    if(v.requestVideoFrameCallback){
+      const step = (now, meta) => {
+        if(v.paused || watchMark){ return; }
+        const a = hit(meta.mediaTime);
+        if(a){ stopOn(a); return; }
+        v.requestVideoFrameCallback(step);
+      };
+      v.requestVideoFrameCallback(step);
     }
   });
+  if(!v.requestVideoFrameCallback){
+    v.addEventListener("timeupdate", () => {
+      if(watchMark || !watchAnns.length || v.paused){ return; }
+      const a = hit(v.currentTime);
+      if(a){ stopOn(a); }
+    });
+  }
   v.addEventListener("loadedmetadata", () => { watchRepaint(); });
   window.addEventListener("resize", () => { watchRepaint(); });
+}
+
+// The exact time of the frame on screen. A paused video's currentTime can
+// sit between frames, and rounding it can land on the frame before, so
+// ask the player which frame it is showing.
+function watchFrameTime(v){
+  return new Promise(resolve => {
+    const fallback = v.currentTime;
+    if(!v.requestVideoFrameCallback){ resolve(fallback); return; }
+    let done = false;
+    const timer = setTimeout(() => { if(!done){ done = true; resolve(fallback); } }, 500);
+    v.requestVideoFrameCallback((now, meta) => {
+      if(done){ return; }
+      done = true;
+      clearTimeout(timer);
+      resolve(meta.mediaTime);
+    });
+    try{ v.currentTime = v.currentTime; }catch(e){}
+  });
+}
+
+// Seek so the frame with this exact time is the one showing (a hair past
+// it, so rounding can't land on the frame before).
+function watchSeekExact(v, t){
+  v.currentTime = Number(t) + 0.002;
 }
 
 function watchRepaint(){
@@ -8551,7 +8590,7 @@ function watchAnnShow(id, seek){
   mk = watchCtx();
   const v = mk.video;
   v.pause();
-  if(seek !== false){ v.currentTime = Number(a.video_time); }
+  if(seek !== false){ watchSeekExact(v, a.video_time); }
   watchAnnShown = id;
   watchPaint(a.items);
   renderWatchAnnList();
@@ -8633,11 +8672,14 @@ function watchMarkStartDrawing(){
   const v = mkc().video;
   v.pause();
   v.controls = false;
-  watchMark = { tool:"pen", color:"#ff3b30", items:[], draft:null, time:v.currentTime };
+  const m = { tool:"pen", color:"#ff3b30", items:[], draft:null, time:null };
+  watchMark = m;
   mk.bar.hidden = false;
   mk.canvas.classList.add("marking");
   watchMarkSyncUi();
   watchBindDraw(mk.canvas);
+  // Lock in the exact frame being drawn on.
+  watchFrameTime(v).then(t => { if(watchMark === m){ m.time = t; } });
 }
 
 function watchMarkExit(){
@@ -8788,7 +8830,7 @@ async function watchMarkSaveWatch(){
       goalie_id: shot.user_id,
       author_id: currentSession.user.id,
       author_name: watchMarkAuthor(),
-      video_time: Math.round(m.time * 100) / 100,
+      video_time: Math.round((m.time ?? mk.video.currentTime) * 10000) / 10000,
       items: m.items
     }).select().single();
     if(error){ throw error; }
@@ -25515,7 +25557,7 @@ function reviewAnnShow(id){
   mk = reviewMarkCtx();
   reviewAnnHook();
   mk.video.pause();
-  mk.video.currentTime = Number(a.video_time);
+  watchSeekExact(mk.video, a.video_time);
   reviewAnnShown = a.id;
   watchPaint(a.items);
   renderReviewAnn();
@@ -25555,7 +25597,7 @@ async function reviewMarkSave(){
       goalie_id: review.video.user_id,
       author_id: currentSession.user.id,
       author_name: watchMarkAuthor(),
-      video_time: Math.round(m.time * 100) / 100,
+      video_time: Math.round((m.time ?? mk.video.currentTime) * 10000) / 10000,
       items: m.items
     }).select().single();
     if(error){ throw error; }
