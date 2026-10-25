@@ -8475,10 +8475,25 @@ function watchPaint(items){
       const size = Math.max(12, (it.fs || 0.05) * r.h);
       ctx.font = `700 ${size}px system-ui, -apple-system, Segoe UI, sans-serif`;
       ctx.textBaseline = "top";
-      const lines = String(it.s).split("\n");
+      // Wrap to the box's width (the box can be dragged bigger), keeping
+      // the line breaks that were typed.
+      const maxW = it.w ? Math.max(40, it.w * r.w - 12) : Infinity;
+      const lines = [];
+      String(it.s).split("\n").forEach(para => {
+        if(maxW === Infinity || !para){ lines.push(para); return; }
+        let line = "";
+        para.split(/(\s+)/).forEach(tok => {
+          const test = line + tok;
+          if(line && ctx.measureText(test.trimEnd()).width > maxW){ lines.push(line.trimEnd()); line = tok.trimStart(); }
+          else{ line = test; }
+        });
+        lines.push(line.trimEnd());
+      });
       const lh = size * 1.2;
-      const wMax = Math.max(...lines.map(l => ctx.measureText(l).width));
-      const x = px(it.x), y = py(it.y);
+      const wMax = maxW === Infinity ? Math.max(...lines.map(l => ctx.measureText(l).width)) : Math.min(maxW, Math.max(...lines.map(l => ctx.measureText(l).width)));
+      const x = px(it.x);
+      // Keep a long note inside the picture.
+      const y = Math.max(r.y, Math.min(py(it.y), r.y + r.h - (lh * lines.length + 6)));
       ctx.fillStyle = "rgba(0,0,0,.6)";
       ctx.fillRect(x - 5, y - 3, wMax + 10, lh * lines.length + 6);
       ctx.fillStyle = it.c;
@@ -8709,26 +8724,36 @@ function watchTextAt(x, y){
   const color = watchMark.color;
   const input = document.createElement("textarea");
   input.className = "watch-mark-text";
-  input.rows = 1;
-  input.placeholder = "Type, then Enter";
+  input.rows = 3;
+  input.placeholder = "Type here. Drag the corner to make it bigger. Ctrl+Enter to place it.";
   input.style.left = (r.x + x * r.w) + "px";
   input.style.top = (r.y + y * r.h) + "px";
   input.style.color = color;
   input.style.fontSize = Math.max(12, 0.05 * r.h) + "px";
+  input.style.maxWidth = Math.max(120, (1 - x) * r.w) + "px";
+  input.style.width = Math.min(Math.max(220, 0.35 * r.w), Math.max(120, (1 - x) * r.w)) + "px";
+  input.style.maxHeight = Math.max(60, (1 - y) * r.h) + "px";
   let done = false;
   const commit = () => {
     if(done){ return; }
     done = true;
     const text = input.value.trim();
     input.remove();
-    if(text && watchMark){ watchMark.items.push({ t:"text", c:color, x, y, s:text, fs:0.05 }); }
+    if(text && watchMark){ watchMark.items.push({ t:"text", c:color, x, y, s:text, fs:0.05, w:Math.min(1 - x, width / r.w) }); }
     watchRepaint();
   };
+  let width = input.offsetWidth;
   input.addEventListener("keydown", ev => {
-    if(ev.key === "Enter" && !ev.shiftKey){ ev.preventDefault(); commit(); }
+    // Enter makes a new line so a long note is easy to write; Ctrl/Cmd+Enter places it.
+    if(ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)){ ev.preventDefault(); width = input.offsetWidth; commit(); }
     if(ev.key === "Escape"){ done = true; input.remove(); }
   });
-  input.addEventListener("blur", commit);
+  input.addEventListener("input", () => {
+    // Grows with what's typed, until it reaches the bottom of the picture.
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight + 2, Math.max(60, (1 - y) * r.h)) + "px";
+  });
+  input.addEventListener("blur", () => { width = input.offsetWidth || width; commit(); });
   stage.appendChild(input);
   input.focus();
   setTimeout(() => input.focus(), 0);
