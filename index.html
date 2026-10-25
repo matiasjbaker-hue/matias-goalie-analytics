@@ -1736,35 +1736,6 @@
 
   <div class="card section-space">
 
-    <h3>Where Shots Came From, by Period</h3>
-
-    <p class="chart-caption">Shots (goals against) from each zone. Shots without a map pin are split between left and right.</p>
-
-    <div class="table-wrap">
-
-      <table>
-
-        <thead>
-          <tr>
-            <th>Zone</th>
-            <th>1st</th>
-            <th>2nd</th>
-            <th>3rd</th>
-            <th>OT</th>
-          </tr>
-        </thead>
-
-        <tbody id="periodZoneBody"></tbody>
-
-      </table>
-
-    </div>
-
-  </div>
-
-
-  <div class="card section-space">
-
     <h3>Expected Goals by Period</h3>
 
     <p class="chart-caption">Built from tagged shots only. GSAx is goals saved above expected: positive means you stopped more than the shots were expected to allow.</p>
@@ -1893,41 +1864,6 @@
     <div id="situ-shotmap-caption" class="shotmap-caption"></div>
 
     <div id="situ-shotmap-note" class="small-note"></div>
-
-  </div>
-
-
-  <div class="grid grid-2">
-
-    <div class="card chart-card">
-
-      <h3>Shots by Location</h3>
-
-      <div class="chart-wrap">
-        <canvas id="locationChart"></canvas>
-      </div>
-
-      <div class="insight">
-        High volume alone is not necessarily bad. Compare this with the goal chart
-        to identify locations where you are allowing a disproportionate number of goals.
-      </div>
-
-    </div>
-
-
-    <div class="card chart-card">
-
-      <h3>Goals by Location</h3>
-
-      <div class="chart-wrap">
-        <canvas id="goalLocationChart"></canvas>
-      </div>
-
-      <div class="insight" id="locationInsight">
-        —
-      </div>
-
-    </div>
 
   </div>
 
@@ -9525,45 +9461,6 @@ function renderPeriodDetail(){
 
   }
 
-  /* ---------- zones by period ---------- */
-
-  const zoneBody = document.getElementById("periodZoneBody");
-
-  if(zoneBody){
-
-    const grouped = {};
-    const labels = new Set();
-
-    PERIOD_DETAIL_KEYS.forEach(k => {
-
-      grouped[k] = {};
-
-      groupShotsBySidedZone(byPeriod[k]).forEach(z => {
-        grouped[k][z.label] = z;
-        labels.add(z.label);
-      });
-
-    });
-
-    const rank = label => {
-      const i = SHOT_ZONE_ORDER.indexOf(label);
-      return i === -1 ? SHOT_ZONE_ORDER.length : i;
-    };
-
-    const rows = [...labels].sort((a, b) => rank(a) - rank(b)).map(label => `
-      <tr>
-        <td>${escapeHtml(label)}</td>
-        ${PERIOD_DETAIL_KEYS.map(k => {
-          const z = grouped[k][label];
-          return `<td>${z ? `${z.shots} (${z.goals})` : "—"}</td>`;
-        }).join("")}
-      </tr>
-    `);
-
-    zoneBody.innerHTML = rows.length ? rows.join("") : empty(5);
-
-  }
-
   /* ---------- expected goals + shot quality ---------- */
 
   const advBody = document.getElementById("periodAdvBody");
@@ -9806,158 +9703,6 @@ function renderSituational(){
 
   renderShotMapDisplay();
   renderStrengthBreakdown();
-
-  // Sided zones (Left top of circle, Right point, ...). Pinned shots go
-  // to their side; unpinned shots alternate left/right (whole numbers).
-  const zoneRows = groupShotsBySidedZone(seasonShots);
-
-  const locationCounts = {};
-  const locationGoals = {};
-
-  zoneRows.forEach(z => {
-    locationCounts[z.label] = z.shots;
-    locationGoals[z.label] = z.goals;
-  });
-
-
-  const locations =
-    zoneRows.map(z => z.label);
-
-
-  destroyChart(
-    "locationChart"
-  );
-
-
-  charts.locationChart =
-    new Chart(
-      document.getElementById(
-        "locationChart"
-      ),
-      {
-        type:"bar",
-
-        data:{
-          labels:locations,
-
-          datasets:[{
-
-            label:"Shots",
-
-            data:
-              locations.map(
-                l => locationCounts[l]
-              )
-
-          }]
-
-        },
-
-        options:{
-
-          ...chartOptions(),
-
-          scales:{
-            x:chartOptions().scales.x,
-            y:distributionScale()
-          }
-
-        }
-
-      }
-
-    );
-
-
-  destroyChart(
-    "goalLocationChart"
-  );
-
-
-  charts.goalLocationChart =
-    new Chart(
-      document.getElementById(
-        "goalLocationChart"
-      ),
-      {
-        type:"bar",
-
-        data:{
-          labels:locations,
-
-          datasets:[{
-
-            label:"Goals",
-
-            data:
-              locations.map(
-                l =>
-                  locationGoals[l] || 0
-              )
-
-          }]
-
-        },
-
-        options:{
-
-          ...chartOptions(),
-
-          scales:{
-            x:chartOptions().scales.x,
-            y:distributionScale()
-          }
-
-        }
-
-      }
-
-    );
-
-
-  let worstLocation = null;
-  let worstRate = -1;
-
-
-  locations.forEach(location => {
-
-    const shotsCount =
-      locationCounts[location];
-
-
-    const goals =
-      locationGoals[location] || 0;
-
-
-    if(shotsCount >= 3){
-
-      const rate =
-        goals / shotsCount;
-
-
-      if(rate > worstRate){
-
-        worstRate = rate;
-
-        worstLocation = location;
-
-      }
-
-    }
-
-  });
-
-
-  document.getElementById(
-    "locationInsight"
-  ).innerHTML =
-    worstLocation
-      ? `<strong>Potential development area:</strong>
-         ${worstLocation} has the highest goal rate
-         among locations with at least 3 tracked shots
-         (${(worstRate*100).toFixed(1)}%).`
-      : "More shot data is required to identify a meaningful location trend.";
-
 
   const rush =
     subsetStats(
@@ -17929,32 +17674,6 @@ async function generateGameReportPDF(gameId, buttonEl, options = {}){
 
     y += 10;
 
-    const zoneLabels = [...new Set(pd.flatMap(d => d.zones.map(z => z.label)))]
-      .sort((a, b) => {
-        const ra = SHOT_ZONE_ORDER.indexOf(a), rb = SHOT_ZONE_ORDER.indexOf(b);
-        return (ra === -1 ? 99 : ra) - (rb === -1 ? 99 : rb);
-      });
-
-    if(zoneLabels.length){
-
-      y = pdfSectionHeading(doc, y, "Where Shots Came From, by Period (shots / GA)");
-      y = pdfTableRow(doc, y, ["Zone","1st","2nd","3rd","OT"], [160,80,80,80,80], true);
-
-      zoneLabels.forEach(label => {
-        y = pdfTableRow(doc, y,
-          [label].concat(PERIOD_DETAIL_KEYS.map(k => {
-            const d = pd.find(x => x.key === k);
-            const z = d && d.zones.find(zz => zz.label === label);
-            return z ? `${z.shots} / ${z.goals}` : "-";
-          })),
-          [160,80,80,80,80]
-        );
-      });
-
-      y += 10;
-
-    }
-
   }
 
   // Situational Breakdown
@@ -19542,23 +19261,6 @@ function renderGameOverviewPeriodDetail(r){
 
   const strCell = c => c.shots ? `${c.shots} · ${pct(c.sv)}` : "—";
 
-  const zoneLabels = [...new Set(pd.flatMap(d => d.zones.map(z => z.label)))]
-    .sort((a, b) => {
-      const ra = SHOT_ZONE_ORDER.indexOf(a), rb = SHOT_ZONE_ORDER.indexOf(b);
-      return (ra === -1 ? 99 : ra) - (rb === -1 ? 99 : rb);
-    });
-
-  const zoneRows = zoneLabels.map(label => `
-    <tr>
-      <td>${escapeHtml(label)}</td>
-      ${PERIOD_DETAIL_KEYS.map(k => {
-        const d = pd.find(x => x.key === k);
-        const z = d && d.zones.find(zz => zz.label === label);
-        return `<td>${z ? `${z.shots} (${z.goals})` : "—"}</td>`;
-      }).join("")}
-    </tr>
-  `);
-
   host.innerHTML = `
     <div class="card section-space">
       <h3>Shot Maps by Period</h3>
@@ -19594,11 +19296,6 @@ function renderGameOverviewPeriodDetail(r){
         )}
       </div>
 
-      <div class="card">
-        <h3>Where Shots Came From, by Period</h3>
-        ${goRowsTable(["Zone","1st","2nd","3rd","OT"], zoneRows)}
-        <div class="small-note">Shots (goals against). Shots without a map pin are split between left and right.</div>
-      </div>
     </div>
   `;
 
