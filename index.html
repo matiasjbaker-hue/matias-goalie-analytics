@@ -8805,6 +8805,11 @@ async function watchMarkSaveWatch(){
     showToast(watchMarkMissingTable(error)
       ? "Feedback isn't set up yet: run supabase/migrations/20261024_shot_annotations.sql in Supabase."
       : "Couldn't save: " + (error.message || error), "error");
+    // Nothing was saved, so don't leave the unsaved drawing on the video.
+    watchMarkExit();
+    watchAnnShown = null;
+    watchPaint([]);
+    renderWatchAnnList();
   }
   finally{
     btn.disabled = false;
@@ -25567,6 +25572,12 @@ async function reviewMarkSave(){
     showToast(watchMarkMissingTable(error)
       ? "Feedback isn't set up for the Review page yet: run supabase/migrations/20261025_annotation_drafts.sql in Supabase."
       : "Couldn't save: " + (error.message || error), "error");
+    // Nothing was saved, so don't leave the unsaved drawing on the video.
+    watchMarkExit();
+    reviewAnnShown = null;
+    mk = reviewMarkCtx();
+    watchPaint([]);
+    renderReviewAnn();
   }
   finally{
     btn.disabled = false;
