@@ -3310,9 +3310,9 @@
           <input type="text" id="ag-season" value="2026 preseason">
         </div>
 
-        <div class="field">
+        <div class="field" style="display:none">
           <label for="ag-team">Team</label>
-          <input type="text" id="ag-team">
+          <input type="text" id="ag-team" tabindex="-1">
         </div>
 
         <div class="field">
@@ -18947,7 +18947,7 @@ function renderGameOverviewHero(game, m){
   const og = game["opponent goals"];
   const hasScore = tg !== null && tg !== undefined && og !== null && og !== undefined;
 
-  const teamName = escapeHtml(game.team || "Team");
+  const teamName = escapeHtml(getReportGoalieDisplayInfo().team || game.team || "Team");
   const oppName = escapeHtml(gameOpponent(game));
 
   const scoreBlock = hasScore
@@ -23414,7 +23414,8 @@ document.getElementById("addgame-form")
         user_id: userId,
         date: textOrNull(document.getElementById("ag-date").value),
         season: textOrNull(document.getElementById("ag-season").value),
-        team: textOrNull(document.getElementById("ag-team").value),
+        // The team always comes from the goalie's profile (the Team box is hidden).
+        team: textOrNull(getReportGoalieDisplayInfo().team) || textOrNull(document.getElementById("ag-team").value),
         opponent: opponent,
         home_away: textOrNull(document.getElementById("ag-home-away").value),
         result: textOrNull(document.getElementById("ag-result").value),
