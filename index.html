@@ -24934,7 +24934,18 @@ async function loadReviewVideo(){
       renderReviewTimeline();
     };
 
-    video.onerror = () => showReviewPlayerMessage("This video couldn't be played in the browser. The file may be in a format browsers don't support (try MP4/H.264), or the link expired: reopen the request.");
+    video.onerror = () => {
+      // MediaError codes: 2 = network (link expired or connection dropped),
+      // 3 = decode failed mid-file, 4 = format or codec not supported.
+      const code = video.error ? video.error.code : 0;
+      const why = {
+        2: "The connection dropped or the link expired. Reload the page and reopen the request.",
+        3: "The browser hit a part of the file it can't decode. Re-export the video as H.264 MP4 and upload it again.",
+        4: "The browser doesn't support this file's video format (often H.265/HEVC or an odd container). Re-export as H.264 MP4 with AAC audio and upload it again."
+      }[code] || "The browser couldn't play this file. Reload the page and reopen the request; if it still fails, re-export as H.264 MP4.";
+      console.error("Review video error", { code, message: video.error && video.error.message, videoId: v.id });
+      showReviewPlayerMessage("This video couldn't be played (error " + code + "). " + why);
+    };
 
   }
   catch(error){
