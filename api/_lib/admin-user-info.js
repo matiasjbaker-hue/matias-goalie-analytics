@@ -84,7 +84,33 @@ export default async function handler(req, res) {
       serviceSelect("Games", `select=id&user_id=eq.${encodeURIComponent(targetId)}`),
     ]);
 
-    const { payments, error: paymentsError } = await stripePayments(access && access.stripe_customer_id);
+    const { payments: stripeList, error: paymentsError } = await stripePayments(access && access.stripe_customer_id);
+
+    // E-transfers and other payments added by hand are logged in
+    // game_credit_purchases with a "manual_" session id. Stripe never sees
+    // them, so add them here or the totals read $0 for people who paid.
+    let manualList = [];
+    try {
+      const rows = await serviceSelect(
+        "game_credit_purchases",
+        `select=stripe_session_id,amount_total,currency,created_at&user_id=eq.${encodeURIComponent(targetId)}&stripe_session_id=like.manual_*`,
+      );
+      manualList = (rows || []).map(r => ({
+        id: r.stripe_session_id,
+        created: r.created_at ? new Date(r.created_at).toISOString() : null,
+        amount: Number(r.amount_total) || 0,
+        amount_refunded: 0,
+        currency: String(r.currency || "cad").toLowerCase(),
+        status: "succeeded",
+        paid: true,
+        description: "E-transfer / manual",
+        receipt_url: null,
+      }));
+    } catch (e) {
+      console.error("Manual purchases lookup failed", e);
+    }
+
+    const payments = [...stripeList, ...manualList].sort((a, b) => String(b.created || "").localeCompare(String(a.created || "")));
 
     // Totals per currency, net of refunds, successful charges only.
     const totals = {};
