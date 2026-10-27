@@ -25673,7 +25673,7 @@ async function addReviewShotAt(t, outcome = "save", quick = false){
   }
 
   try{
-    const row = await insertReviewDraft({ game_video_id: review.video.id, t_seconds: Math.round(t * 10) / 10, source: "admin", outcome });
+    const row = await insertReviewDraft({ game_video_id: review.video.id, t_seconds: Math.round(t * 10) / 10, source: "admin", outcome, strength: "5v5", shot_type: "Snap" });
     renderReviewShots();
     if(quick){
       review.lastQuickId = row.id;
