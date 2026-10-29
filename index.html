@@ -28325,7 +28325,9 @@ function renderReviewParts(){
       }).join("")
     : "";
 
-  document.getElementById("rv-part-remove").hidden = !v.parent_video_id;
+  const removeBtn = document.getElementById("rv-part-remove");
+  removeBtn.hidden = false;
+  removeBtn.textContent = !v.parent_video_id && !multi ? "Delete this file" : "Remove this file";
   document.getElementById("rv-part-btn").textContent = `Upload as Part ${parts.length + 1}`;
 
   document.getElementById("rv-parts-note").textContent = multi
@@ -28453,13 +28455,15 @@ async function submitReviewPart(){
 
 }
 
-// Takes an extra file (never the first) out of the request: the file in
-// storage and its drafted shots. Shots already published from it stay in
-// the game.
+// Takes a file out of the request: the file in storage and its drafted
+// shots. Shots already published from it stay in the game. Any part can
+// go, Part 1 included: removing Part 1 while other parts exist promotes
+// the next part to be the request's first file; removing the only file
+// deletes the request.
 async function removeReviewPart(){
 
   const v = review.video;
-  if(!v || !v.parent_video_id){ return; }
+  if(!v){ return; }
 
   if(review.publishing){
     showToast("Wait for the publish to finish.", "error");
@@ -28470,17 +28474,54 @@ async function removeReviewPart(){
     return;
   }
 
+  const parts = reviewLiveParts(v);
   const number = reviewPartNumber(v);
+  const isRoot = !v.parent_video_id;
+  const onlyFile = isRoot && parts.length <= 1;
   const published = reviewStatusOf(v) === "approved";
-  if(!confirm(`Remove Part ${number} (${reviewFileName(v)}) from this review? This deletes the file from storage and the shots drafted on it.${published ? " Stats already published from it stay in the game." : ""} This cannot be undone.`)){
-    return;
-  }
+  const label = `Part ${number} (${reviewFileName(v)})`;
 
-  const rootId = v.parent_video_id;
+  const msg = onlyFile
+    ? `Delete this file (${reviewFileName(v)}) and the whole request? This deletes the file from storage and the shots drafted on it.${published ? " Stats already published from it stay in the game." : ""} This cannot be undone.`
+    : `Remove ${label} from this review? This deletes the file from storage and the shots drafted on it.${isRoot ? " The next part becomes Part 1." : ""}${published ? " Stats already published from it stay in the game." : ""} This cannot be undone.`;
+  if(!confirm(msg)){ return; }
+
   const btn = document.getElementById("rv-part-remove");
   btn.disabled = true;
 
+  // Removing Part 1 while others exist: hand the request to the next part
+  // first, so the database's cascade (a root takes its parts with it)
+  // can't touch them.
+  let nextRoot = null;
+  let movedParts = [];
+  if(isRoot && !onlyFile){
+    nextRoot = parts.find(p => String(p.id) !== String(v.id));
+    movedParts = parts.filter(p => String(p.id) !== String(v.id) && String(p.id) !== String(nextRoot.id));
+  }
+
+  const undoPromote = async () => {
+    if(!nextRoot){ return; }
+    try{
+      await supabaseClient.from("game_videos").update({ parent_video_id: v.id }).eq("id", nextRoot.id);
+      if(movedParts.length){
+        await supabaseClient.from("game_videos").update({ parent_video_id: v.id }).in("id", movedParts.map(p => p.id));
+      }
+    }catch(e){ console.error(e); }
+  };
+
   try{
+
+    if(nextRoot){
+      const { error: promoteErr } = await supabaseClient.from("game_videos").update({ parent_video_id: null }).eq("id", nextRoot.id);
+      if(promoteErr){ throw new Error(promoteErr.message || "Could not move the next part up."); }
+      if(movedParts.length){
+        const { error: moveErr } = await supabaseClient.from("game_videos").update({ parent_video_id: nextRoot.id }).in("id", movedParts.map(p => p.id));
+        if(moveErr){
+          await undoPromote();
+          throw new Error(moveErr.message || "Could not re-link the other parts.");
+        }
+      }
+    }
 
     const res = await fetch("/api/video/delete-video", {
       method: "POST",
@@ -28489,7 +28530,10 @@ async function removeReviewPart(){
     });
     let data = {};
     try{ data = await res.json(); }catch(e){ data = {}; }
-    if(!res.ok){ throw new Error(data.error || "Could not remove this file."); }
+    if(!res.ok){
+      await undoPromote();
+      throw new Error(data.error || "Could not remove this file.");
+    }
 
     Object.values(review.saveTimers).forEach(entry => clearTimeout(entry.timer));
     review.saveTimers = {};
@@ -28499,8 +28543,23 @@ async function removeReviewPart(){
     reviewQueueCache = reviewQueueCache.filter(x => String(x.id) !== String(v.id));
     delete goFilmVideoCache[v.game_id];
 
-    showToast(`Part ${number} removed.`, "success");
-    await openReview(rootId);
+    if(nextRoot){
+      const cachedNext = reviewQueueCache.find(x => String(x.id) === String(nextRoot.id));
+      if(cachedNext){ cachedNext.parent_video_id = null; }
+      reviewQueueCache.forEach(x => {
+        if(movedParts.some(m => String(m.id) === String(x.id))){ x.parent_video_id = nextRoot.id; }
+      });
+      showToast(`${label} removed. The next part is now Part 1.`, "success");
+      await openReview(nextRoot.id);
+    }
+    else if(isRoot){
+      showToast("File deleted.", "success");
+      closeReview();
+    }
+    else{
+      showToast(`Part ${number} removed.`, "success");
+      await openReview(v.parent_video_id);
+    }
 
   }
   catch(error){
