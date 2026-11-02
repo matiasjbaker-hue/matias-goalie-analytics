@@ -7508,6 +7508,11 @@ function renderShotLogTable(){
           ? `<button type="button" class="watch-btn" onclick="openShotEditModal(${arg})">Edit</button>`
           : "";
 
+      const deleteShotBtn =
+        isAdmin
+          ? `<button type="button" class="watch-btn watch-btn-danger" onclick="deleteLoggedShot(${arg}, this)">Delete shot</button>`
+          : "";
+
       if(canWatch){
 
         // Watch is for everyone who can see the shot. Replace/Delete
@@ -7520,7 +7525,8 @@ function renderShotLogTable(){
             ${
               isAdmin
                 ? `<button type="button" class="watch-btn" onclick="promptReplaceClip(${arg})">Replace</button>
-                   <button type="button" class="watch-btn watch-btn-danger" onclick="deleteShotClip(${arg}, this)">Delete</button>`
+                   <button type="button" class="watch-btn watch-btn-danger" onclick="deleteShotClip(${arg}, this)">Delete clip</button>
+                   ${deleteShotBtn}`
                 : ""
             }
           </div>
@@ -7530,7 +7536,7 @@ function renderShotLogTable(){
       else if(isAdmin){
 
         actionCell =
-          `<div class="clip-actions"><button type="button" class="watch-btn" onclick="promptAttachClip(${arg})">+ Attach Clip</button>${editBtn}</div>`;
+          `<div class="clip-actions"><button type="button" class="watch-btn" onclick="promptAttachClip(${arg})">+ Attach Clip</button>${editBtn}${deleteShotBtn}</div>`;
 
       }
       else{
@@ -8120,6 +8126,126 @@ async function attachClipToShot(shotId, file){
 }
 
 
+
+/* ------------------------------------------------------------
+   ADMIN: DELETE ONE SHOT (works on published games)
+   Removes the shot and takes it back out of the game's and period's
+   saved totals (shots against, goals against, saves, shutout) and out
+   of the rebound-control tally, so SV% / GAA stay in step with the
+   shot list. A single-shot clip attached to it is removed too.
+------------------------------------------------------------ */
+
+async function deleteLoggedShot(shotId, button){
+
+  if(currentRole !== "admin"){ return; }
+
+  const shot = findShotById(shotId);
+
+  if(!shot){
+    showToast("That shot isn't loaded anymore. Refresh and try again.", "error");
+    return;
+  }
+
+  if(clipOperationInFlight){
+    showToast("Another clip operation is still running.", "error");
+    return;
+  }
+
+  const wasGoal = isGoal(shot) ? 1 : 0;
+
+  if(!confirm(`Delete this ${wasGoal ? "goal" : "save"} (period ${shot.period || "?"})? The game's totals will be adjusted to match. This cannot be undone.`)){
+    return;
+  }
+
+  clipOperationInFlight = true;
+
+  const originalLabel = button ? button.textContent : "";
+
+  if(button){
+    button.disabled = true;
+    button.textContent = "Deleting...";
+  }
+
+  try{
+
+    const idCol = shotIdColumn(shot);
+    const idVal = shot.shot_id ?? shot.id;
+    const videoId = shot.game_video_id || null;
+
+    const { data: removed, error: delErr } =
+      await supabaseClient.from("Shots").delete().eq(idCol, idVal).select();
+
+    if(delErr){ throw delErr; }
+
+    if(!removed || !removed.length){
+      throw new Error("Nothing was deleted -- you may not have permission.");
+    }
+
+    // The shot is gone; bring the saved totals back in line.
+    if(shot.game_id !== null && shot.game_id !== undefined){
+
+      const { data: game, error: gErr } =
+        await supabaseClient.from("Games").select("*").eq("id", shot.game_id).single();
+
+      if(gErr){ throw gErr; }
+
+      const sa = Math.max(0, num(game.shots_against) - 1);
+      const ga = Math.max(0, Math.min(sa, num(game.goals_against) - wasGoal));
+
+      const { error: upErr } =
+        await supabaseClient.from("Games").update({
+          shots_against: sa,
+          goals_against: ga,
+          saves: sa - ga,
+          shutout: sa > 0 && ga === 0
+        }).eq("id", shot.game_id);
+
+      if(upErr){ throw upErr; }
+
+      const period = String(shot.period || "");
+
+      if(period){ await adjustPeriodTotals(shot.game_id, shot.user_id, period, -1, -wasGoal); }
+
+      if(shot.rebound_tag){ await adjustReboundTotals(shot.game_id, shot.rebound_tag, null); }
+
+    }
+
+    allShots = allShots.filter(s => String(s.shot_id ?? s.id) !== String(idVal));
+
+    renderShotLogTable();
+    showToast("Shot deleted and totals updated.", "success");
+
+    if(videoId){
+      try{ await removeClipVideoIfUnused(videoId); }
+      catch(cleanupError){
+        console.error(cleanupError);
+        showToast("Shot deleted, but its clip file couldn't be removed -- delete it from Video Review.", "error");
+      }
+    }
+
+    loadDashboard().catch(err => console.error(err));
+
+  }
+  catch(error){
+
+    console.error(error);
+    showToast(`Could not delete this shot: ${error.message || error}`, "error");
+
+    if(button){
+      button.disabled = false;
+      button.textContent = originalLabel || "Delete shot";
+    }
+
+  }
+  finally{
+
+    clipOperationInFlight = false;
+
+  }
+
+}
+
+
 async function deleteShotClip(shotId, button){
 
   if(currentRole !== "admin"){ return; }
@@ -8208,7 +8334,7 @@ async function deleteShotClip(shotId, button){
 
     if(button){
       button.disabled = false;
-      button.textContent = "Delete";
+      button.textContent = "Delete clip";
     }
 
   }
