@@ -8249,7 +8249,19 @@ async function loadRevenueTab(){
 
   try{
 
-    const [purchases, profiles] = await Promise.all([q("game_credit_purchases"), q("profiles")]);
+    // The purchases table can only be read by the server (no browser access),
+    // so this goes through the admin endpoint.
+    const listRes = await fetch("/api/admin/payment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessToken: currentSession.access_token, op: "list" })
+    });
+    let listData = {};
+    try{ listData = await listRes.json(); }catch(e){ listData = {}; }
+    if(!listRes.ok){ throw new Error(listData.error || "Could not read payments."); }
+
+    const purchases = listData.purchases || [];
+    const profiles = await q("profiles");
 
     revenueRows = (purchases || []).slice().sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
     revenueNames = {};

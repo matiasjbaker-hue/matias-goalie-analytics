@@ -10,6 +10,7 @@
 //     method      "etransfer" (default) or "cash" / "other"
 //     addCredits  true = also add `credits` to the goalie's games left and
 //                 mark the account paid. Leave false if you already did that.
+// Body for reading the list: { accessToken, op: "list" }
 // Body for removing a mistake:
 //   { accessToken, op: "delete", sessionId }   (only "manual_..." rows)
 //
@@ -18,7 +19,7 @@
 // read one list. The service key is used server-side only.
 
 import crypto from "crypto";
-import { verifyUser, getProfile, getAccessRow, SUPABASE_URL } from "./billing.js";
+import { verifyUser, getProfile, getAccessRow, serviceSelect, SUPABASE_URL } from "./billing.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -50,6 +51,16 @@ export default async function handler(req, res) {
     const callerProfile = await getProfile(caller.id);
     if (!callerProfile || callerProfile.role !== "admin") {
       res.status(403).json({ error: "Only an admin can log payments." });
+      return;
+    }
+
+    // ---- list every logged payment (the table isn't readable from the browser) ----
+    if (body.op === "list") {
+      const rows = await serviceSelect(
+        "game_credit_purchases",
+        "select=stripe_session_id,user_id,credits,amount_total,currency,created_at&order=created_at.desc&limit=5000",
+      );
+      res.status(200).json({ purchases: rows });
       return;
     }
 
