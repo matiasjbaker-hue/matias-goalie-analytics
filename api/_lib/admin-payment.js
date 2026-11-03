@@ -7,10 +7,16 @@
 //     amount      dollars (CAD), e.g. 90 or 45.5
 //     credits     games in the pack (1 or more)
 //     date        YYYY-MM-DD the money arrived (defaults to now)
-//     method      "etransfer" (default) or "cash" / "other"
+//     method      "etransfer" (default), "stripe" (a Stripe payment that didn't
+//                 link to the account), "cash" or "other"
 //     addCredits  true = also add `credits` to the goalie's games left and
 //                 mark the account paid. Leave false if you already did that.
 // Body for reading the list: { accessToken, op: "list" }
+// Body for editing a row:
+//   { accessToken, op: "update", sessionId, userId?, amount?, credits?, date?, method? }
+//     only fields that changed need to be sent. `method` only applies to
+//     manual rows; a real Stripe row keeps its id. Editing never changes the
+//     goalie's games left; fix that from the account's edit screen.
 // Body for removing a mistake:
 //   { accessToken, op: "delete", sessionId }   (only "manual_..." rows)
 //
@@ -64,6 +70,93 @@ export default async function handler(req, res) {
       return;
     }
 
+    // ---- edit a logged payment ----
+    if (body.op === "update") {
+      const sessionId = String(body.sessionId || "");
+      if (!sessionId) {
+        res.status(400).json({ error: "Missing payment." });
+        return;
+      }
+      const existing = (await serviceSelect(
+        "game_credit_purchases",
+        `select=stripe_session_id,created_at&stripe_session_id=eq.${encodeURIComponent(sessionId)}`,
+      ))[0];
+      if (!existing) {
+        res.status(404).json({ error: "That payment no longer exists." });
+        return;
+      }
+
+      const patch = {};
+
+      if (body.userId !== undefined) {
+        if (!UUID.test(String(body.userId))) {
+          res.status(400).json({ error: "Pick the goalie who paid." });
+          return;
+        }
+        if (!(await getProfile(String(body.userId)))) {
+          res.status(404).json({ error: "That account doesn't exist." });
+          return;
+        }
+        patch.user_id = String(body.userId);
+      }
+
+      if (body.amount !== undefined) {
+        const amount = Number(body.amount);
+        if (!Number.isFinite(amount) || amount <= 0 || amount > 100000) {
+          res.status(400).json({ error: "Enter the amount paid in dollars, like 90." });
+          return;
+        }
+        patch.amount_total = Math.round(amount * 100);
+      }
+
+      if (body.credits !== undefined) {
+        const credits = Math.floor(Number(body.credits));
+        if (!Number.isFinite(credits) || credits < 1 || credits > 1000) {
+          res.status(400).json({ error: "Enter how many games they bought (1 or more)." });
+          return;
+        }
+        patch.credits = credits;
+      }
+
+      let newDate = null;
+      if (body.date !== undefined && body.date !== "") {
+        if (!DATE.test(String(body.date))) {
+          res.status(400).json({ error: "Date should look like 2026-11-02." });
+          return;
+        }
+        newDate = String(body.date);
+        patch.created_at = `${newDate}T17:00:00Z`;
+      }
+
+      // A manual row records its method in its id. Rewriting the id is how
+      // the method is changed (real Stripe rows keep theirs).
+      if (body.method !== undefined && sessionId.startsWith("manual_")) {
+        if (!["etransfer", "stripe", "cash", "other"].includes(body.method)) {
+          res.status(400).json({ error: "Unknown payment method." });
+          return;
+        }
+        const day = newDate || String(existing.created_at || "").slice(0, 10) || new Date().toISOString().slice(0, 10);
+        patch.stripe_session_id = `manual_${day}_${body.method}_${crypto.randomBytes(3).toString("hex")}`;
+      }
+
+      if (!Object.keys(patch).length) {
+        res.status(200).json({ updated: false });
+        return;
+      }
+
+      const up = await fetch(
+        `${SUPABASE_URL}/rest/v1/game_credit_purchases?stripe_session_id=eq.${encodeURIComponent(sessionId)}`,
+        {
+          method: "PATCH",
+          headers: serviceHeaders({ "Content-Type": "application/json", Prefer: "return=minimal" }),
+          body: JSON.stringify(patch),
+        },
+      );
+      if (!up.ok) throw new Error(`Supabase ${up.status} updating payment: ${await up.text()}`);
+      res.status(200).json({ updated: true });
+      return;
+    }
+
     // ---- remove a manual entry ----
     if (body.op === "delete") {
       const sessionId = String(body.sessionId || "");
@@ -106,7 +199,7 @@ export default async function handler(req, res) {
       return;
     }
 
-    const method = ["etransfer", "cash", "other"].includes(body.method) ? body.method : "etransfer";
+    const method = ["etransfer", "stripe", "cash", "other"].includes(body.method) ? body.method : "etransfer";
 
     const profile = await getProfile(userId);
     if (!profile) {

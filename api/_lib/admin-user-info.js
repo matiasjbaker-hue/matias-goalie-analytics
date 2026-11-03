@@ -103,7 +103,7 @@ export default async function handler(req, res) {
         currency: String(r.currency || "cad").toLowerCase(),
         status: "succeeded",
         paid: true,
-        description: "E-transfer / manual",
+        description: String(r.stripe_session_id || "").split("_")[2] === "stripe" ? "Stripe (logged by hand)" : "E-transfer / manual",
         receipt_url: null,
       }));
     } catch (e) {

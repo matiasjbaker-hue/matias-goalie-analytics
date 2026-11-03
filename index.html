@@ -917,7 +917,7 @@
 
   <div class="page-title">
     <h2>Revenue</h2>
-    <p>Every game pack that's been paid for, Stripe and e-transfers together, in CAD. Log an e-transfer below and it lands here and on the goalie's account.</p>
+    <p>Every game pack that's been paid for, Stripe and e-transfers together, in CAD. Log a payment below and it lands here and on the goalie's account. Use Edit on any row to fix it.</p>
   </div>
 
   <div class="grid grid-4" id="rev-kpis"></div>
@@ -928,7 +928,7 @@
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>Month</th><th>Payments</th><th>Games sold</th><th>Stripe</th><th>E-transfer / manual</th><th>Total</th></tr>
+          <tr><th>Month</th><th>Payments</th><th>Games sold</th><th>Stripe</th><th>E-transfer / other</th><th>Total</th></tr>
         </thead>
         <tbody id="rev-month-body"></tbody>
       </table>
@@ -936,7 +936,7 @@
     <p class="small-note" style="margin-top:10px">Stripe fees aren't taken off. Subscription plans that don't go through game packs aren't in this list, so check Stripe for those.</p>
   </div>
 
-  <div class="section-heading section-space"><h3>Log an e-transfer</h3></div>
+  <div class="section-heading section-space"><h3 id="rev-form-title">Log a payment</h3></div>
   <div class="card">
     <div class="field-grid">
       <div class="field" style="grid-column:1/-1">
@@ -957,15 +957,16 @@
       </div>
       <div class="field">
         <label for="rev-add-method">Method</label>
-        <select id="rev-add-method"><option value="etransfer">E-transfer</option><option value="cash">Cash</option><option value="other">Other</option></select>
+        <select id="rev-add-method"><option value="etransfer">E-transfer</option><option value="stripe">Stripe</option><option value="cash">Cash</option><option value="other">Other</option></select>
       </div>
     </div>
-    <label class="consent-row" style="margin-top:10px">
+    <label class="consent-row" id="rev-credit-row" style="margin-top:10px">
       <input type="checkbox" id="rev-add-credit-box" checked>
       <span>Also add these games to their account and mark it paid (turn off if you've already added them).</span>
     </label>
     <div style="margin-top:12px">
       <button type="button" class="btn-primary" id="rev-add-btn" onclick="submitManualPayment(this)">Log payment</button>
+      <button type="button" class="btn-secondary" id="rev-cancel-btn" style="display:none;margin-left:8px" onclick="cancelPaymentEdit()">Cancel</button>
     </div>
   </div>
 
@@ -8238,6 +8239,25 @@ function revIsManual(r){
   return String(r.stripe_session_id || "").startsWith("manual_");
 }
 
+// A manual row remembers how it was paid in its id: manual_<date>_<method>_<code>.
+// Older rows have a name there instead, which counts as an e-transfer.
+function revMethod(r){
+  const id = String(r.stripe_session_id || "");
+  if(!id.startsWith("manual_")){ return "stripe"; }
+  const token = id.split("_")[2];
+  return ["stripe", "cash", "other", "etransfer"].includes(token) ? token : "etransfer";
+}
+
+function revIsStripe(r){
+  return revMethod(r) === "stripe";
+}
+
+function revSourceLabel(r){
+  const m = revMethod(r);
+  const manual = revIsManual(r);
+  return m === "stripe" ? (manual ? "Stripe (logged by hand)" : "Stripe") : m === "cash" ? "Cash" : m === "other" ? "Other" : "E-transfer";
+}
+
 async function loadRevenueTab(){
 
   if(currentRole !== "admin"){ return; }
@@ -8311,7 +8331,7 @@ function renderRevenueTab(){
     const b = by[k] || (by[k] = { n: 0, games: 0, stripe: 0, manual: 0 });
     const c = Number(r.amount_total) || 0;
     b.n++; b.games += Number(r.credits) || 0;
-    if(revIsManual(r)){ b.manual += c; } else { b.stripe += c; }
+    if(revIsStripe(r)){ b.stripe += c; } else { b.manual += c; }
   });
   const keys = Object.keys(by).sort();
 
@@ -8327,7 +8347,7 @@ function renderRevenueTab(){
           <div class="rev-bar"><span class="rev-seg rev-seg-manual" style="height:${mh}%"></span><span class="rev-seg rev-seg-stripe" style="height:${sh}%"></span></div>
           <div class="rev-lab">${escapeHtml(revMonthLabel(k))}</div>
         </div>`;
-      }).join("") + `<div class="rev-legend"><span><i class="rev-dot rev-seg-stripe"></i> Stripe</span><span><i class="rev-dot rev-seg-manual"></i> E-transfer / manual</span></div>`
+      }).join("") + `<div class="rev-legend"><span><i class="rev-dot rev-seg-stripe"></i> Stripe</span><span><i class="rev-dot rev-seg-manual"></i> E-transfer / cash / other</span></div>`
     : `<p class="small-note">No payments yet.</p>`;
 
   document.getElementById("rev-month-body").innerHTML = keys.slice().reverse().map(k => {
@@ -8341,10 +8361,10 @@ function renderRevenueTab(){
     return `<tr>
       <td>${escapeHtml(d)}</td>
       <td>${escapeHtml(revenueNames[r.user_id] || "Unknown")}</td>
-      <td>${manual ? "E-transfer / manual" : "Stripe"}</td>
+      <td>${escapeHtml(revSourceLabel(r))}</td>
       <td>${Number(r.credits) || 0}</td>
       <td>${escapeHtml(formatMoney(r.amount_total, r.currency))}</td>
-      <td>${manual ? `<button type="button" class="watch-btn watch-btn-danger" onclick="deleteManualPayment(${jsArg(r.stripe_session_id)}, this)">Remove</button>` : ""}</td>
+      <td><div class="clip-actions"><button type="button" class="watch-btn" onclick="startPaymentEdit(${jsArg(r.stripe_session_id)})">Edit</button>${manual ? `<button type="button" class="watch-btn watch-btn-danger" onclick="deleteManualPayment(${jsArg(r.stripe_session_id)}, this)">Remove</button>` : ""}</div></td>
     </tr>`;
   }).join("") || `<tr><td colspan="6">No payments yet.</td></tr>`;
 
@@ -8364,6 +8384,8 @@ async function submitManualPayment(button){
   if(!(Number(credits) >= 1)){ showToast("Enter how many games they bought.", "error"); return; }
 
   const who = revenueNames[userId] || "this goalie";
+
+  if(revEditing){ await savePaymentEdit(button); return; }
 
   if(!confirm(`Log ${formatMoney(Math.round(Number(amount) * 100), "cad")} from ${who} for ${Math.floor(Number(credits))} games${addCredits ? " and add the games to their account" : " (games not added)"}?`)){
     return;
@@ -8406,6 +8428,125 @@ async function submitManualPayment(button){
   finally{
     button.disabled = false;
     button.textContent = label;
+  }
+
+}
+
+// ---- editing a row ----
+let revEditing = null; // { row, method }
+
+function revTorontoDate(iso){
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto" }).format(new Date(iso));
+}
+
+function startPaymentEdit(sessionId){
+
+  const row = revenueRows.find(r => r.stripe_session_id === sessionId);
+  if(!row){ return; }
+
+  const sel = document.getElementById("rev-add-goalie");
+  if(!Array.from(sel.options).some(o => o.value === row.user_id)){
+    const opt = document.createElement("option");
+    opt.value = row.user_id;
+    opt.textContent = revenueNames[row.user_id] || "Unknown";
+    sel.appendChild(opt);
+  }
+
+  revEditing = { row, method: revMethod(row), date: revTorontoDate(row.created_at) };
+
+  sel.value = row.user_id;
+  document.getElementById("rev-add-amount").value = ((Number(row.amount_total) || 0) / 100).toFixed(2);
+  document.getElementById("rev-add-credits").value = row.credits;
+  document.getElementById("rev-add-date").value = revEditing.date;
+
+  const methodSel = document.getElementById("rev-add-method");
+  methodSel.value = revEditing.method;
+  // a real Stripe payment keeps its method; only hand-logged ones can change
+  methodSel.disabled = !revIsManual(row);
+
+  document.getElementById("rev-credit-row").style.display = "none";
+  document.getElementById("rev-form-title").textContent = "Edit payment";
+  document.getElementById("rev-add-btn").textContent = "Save changes";
+  document.getElementById("rev-cancel-btn").style.display = "";
+
+  document.getElementById("rev-form-title").scrollIntoView({ behavior: "smooth", block: "start" });
+
+}
+
+function cancelPaymentEdit(){
+
+  revEditing = null;
+
+  document.getElementById("rev-add-goalie").value = "";
+  document.getElementById("rev-add-amount").value = "";
+  document.getElementById("rev-add-credits").value = "";
+  document.getElementById("rev-add-method").value = "etransfer";
+  document.getElementById("rev-add-method").disabled = false;
+  document.getElementById("rev-add-date").value = revTorontoDate(new Date().toISOString());
+  document.getElementById("rev-credit-row").style.display = "";
+  document.getElementById("rev-form-title").textContent = "Log a payment";
+  document.getElementById("rev-add-btn").textContent = "Log payment";
+  document.getElementById("rev-cancel-btn").style.display = "none";
+
+}
+
+async function savePaymentEdit(button){
+
+  const row = revEditing.row;
+  const body = { accessToken: currentSession.access_token, op: "update", sessionId: row.stripe_session_id };
+
+  const userId = document.getElementById("rev-add-goalie").value;
+  const amount = Number(document.getElementById("rev-add-amount").value);
+  const credits = Math.floor(Number(document.getElementById("rev-add-credits").value));
+  const date = document.getElementById("rev-add-date").value;
+  const method = document.getElementById("rev-add-method").value;
+
+  if(userId !== row.user_id){ body.userId = userId; }
+  if(Math.round(amount * 100) !== Number(row.amount_total)){ body.amount = amount; }
+  if(credits !== Number(row.credits)){ body.credits = credits; }
+  if(date && date !== revEditing.date){ body.date = date; }
+  if(revIsManual(row) && method !== revEditing.method){ body.method = method; }
+
+  if(Object.keys(body).length === 3){
+    showToast("Nothing was changed.");
+    cancelPaymentEdit();
+    return;
+  }
+
+  if(!confirm("Save these changes? This updates the revenue list only. It does not change the goalie's games left.")){ return; }
+
+  button.disabled = true;
+  const label = button.textContent;
+  button.textContent = "Saving...";
+
+  try{
+
+    const res = await fetch("/api/admin/payment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+
+    let data = {};
+    try{ data = await res.json(); }catch(e){ data = {}; }
+
+    if(!res.ok){
+      showToast(data.error || "Could not save the changes.", "error");
+      return;
+    }
+
+    showToast("Payment updated.", "success");
+    cancelPaymentEdit();
+    await loadRevenueTab();
+
+  }
+  catch(error){
+    console.error(error);
+    showToast("Something went wrong saving the changes.", "error");
+  }
+  finally{
+    button.disabled = false;
+    button.textContent = revEditing ? label : "Log payment";
   }
 
 }
