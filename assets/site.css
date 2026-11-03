@@ -5524,3 +5524,15 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
 .lt-period-caret{width:14px;color:var(--muted-ink)}
 .lt-period-count{margin-left:auto;font-weight:400;font-size:13px;color:var(--muted-ink)}
 .lt-period-body[hidden]{display:none}
+
+/* ---------- Admin: Revenue tab ---------- */
+.rev-chart{ display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap; padding:6px 4px 14px; min-height:170px; }
+.rev-col{ display:flex; flex-direction:column; align-items:center; gap:6px; min-width:64px; }
+.rev-val{ font-size:.8rem; font-weight:600; color:var(--ink); }
+.rev-bar{ width:44px; height:110px; display:flex; flex-direction:column-reverse; background:var(--channel); border-radius:var(--radius); overflow:hidden; }
+.rev-seg{ display:block; width:100%; }
+.rev-seg-stripe{ background:var(--pine-bright); }
+.rev-seg-manual{ background:var(--gold); }
+.rev-lab{ font-size:.78rem; color:var(--muted-ink); }
+.rev-legend{ display:flex; gap:16px; flex-basis:100%; font-size:.8rem; color:var(--muted-ink); }
+.rev-dot{ display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; }

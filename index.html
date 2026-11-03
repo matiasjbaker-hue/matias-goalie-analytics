@@ -594,6 +594,10 @@
       Accounts
     </button>
 
+    <button id="admin-nav-revenue" onclick="showTab('adminrevenue',this)">
+      Revenue
+    </button>
+
     <button type="button" class="nav-dropdown-toggle" id="admin-stats-toggle-btn" onclick="toggleNavDropdown(event)">
       Goalie Analytics
     </button>
@@ -900,6 +904,81 @@
       <div class="metric-label">Active Assignments</div>
     </div>
 
+  </div>
+
+</section>
+
+
+<!-- ========================================================= -->
+<!-- ADMIN: REVENUE -->
+<!-- ========================================================= -->
+
+<section id="adminrevenue" class="tab">
+
+  <div class="page-title">
+    <h2>Revenue</h2>
+    <p>Every game pack that's been paid for, Stripe and e-transfers together, in CAD. Log an e-transfer below and it lands here and on the goalie's account.</p>
+  </div>
+
+  <div class="grid grid-4" id="rev-kpis"></div>
+
+  <div class="section-heading section-space"><h3>By month</h3></div>
+  <div class="card">
+    <div id="rev-chart" class="rev-chart"></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Month</th><th>Payments</th><th>Games sold</th><th>Stripe</th><th>E-transfer / manual</th><th>Total</th></tr>
+        </thead>
+        <tbody id="rev-month-body"></tbody>
+      </table>
+    </div>
+    <p class="small-note" style="margin-top:10px">Stripe fees aren't taken off. Subscription plans that don't go through game packs aren't in this list, so check Stripe for those.</p>
+  </div>
+
+  <div class="section-heading section-space"><h3>Log an e-transfer</h3></div>
+  <div class="card">
+    <div class="field-grid">
+      <div class="field" style="grid-column:1/-1">
+        <label for="rev-add-goalie">Who paid</label>
+        <select id="rev-add-goalie"></select>
+      </div>
+      <div class="field">
+        <label for="rev-add-amount">Amount paid (CAD $)</label>
+        <input type="number" id="rev-add-amount" min="1" step="0.01" placeholder="90">
+      </div>
+      <div class="field">
+        <label for="rev-add-credits">Games in the pack</label>
+        <input type="number" id="rev-add-credits" min="1" step="1" placeholder="10">
+      </div>
+      <div class="field">
+        <label for="rev-add-date">Date received</label>
+        <input type="date" id="rev-add-date">
+      </div>
+      <div class="field">
+        <label for="rev-add-method">Method</label>
+        <select id="rev-add-method"><option value="etransfer">E-transfer</option><option value="cash">Cash</option><option value="other">Other</option></select>
+      </div>
+    </div>
+    <label class="consent-row" style="margin-top:10px">
+      <input type="checkbox" id="rev-add-credit-box" checked>
+      <span>Also add these games to their account and mark it paid (turn off if you've already added them).</span>
+    </label>
+    <div style="margin-top:12px">
+      <button type="button" class="btn-primary" id="rev-add-btn" onclick="submitManualPayment(this)">Log payment</button>
+    </div>
+  </div>
+
+  <div class="section-heading section-space"><h3>All payments</h3></div>
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Goalie</th><th>Source</th><th>Games</th><th>Amount</th><th></th></tr>
+        </thead>
+        <tbody id="rev-pay-body"></tbody>
+      </table>
+    </div>
   </div>
 
 </section>
@@ -6060,6 +6139,10 @@ function showTab(id,button){
     loadAdminVideoReviewData();
   }
 
+  if(id === "adminrevenue"){
+    loadRevenueTab();
+  }
+
   if(id === "livetag"){
     renderLiveTagContinueOptions();
   }
@@ -8125,6 +8208,230 @@ async function attachClipToShot(shotId, file){
 
 }
 
+
+
+/* ------------------------------------------------------------
+   ADMIN: REVENUE TAB
+   Reads public.game_credit_purchases (Stripe packs and the manual
+   e-transfer rows share it), so one list gives the all-time total and
+   the month-by-month view. Manual payments are added and removed through
+   /api/admin/payment, which also adds the games to the account.
+------------------------------------------------------------ */
+
+let revenueRows = [];
+let revenueNames = {};
+
+function revMonthKey(iso){
+  // Calendar month in Ontario, so a late-night payment lands in the right month.
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric", month: "2-digit" }).formatToParts(new Date(iso));
+  const y = (parts.find(x => x.type === "year") || {}).value;
+  const m = (parts.find(x => x.type === "month") || {}).value;
+  return `${y}-${m}`;
+}
+
+function revMonthLabel(key){
+  const [y, m] = key.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString([], { month: "short", year: "numeric" });
+}
+
+function revIsManual(r){
+  return String(r.stripe_session_id || "").startsWith("manual_");
+}
+
+async function loadRevenueTab(){
+
+  if(currentRole !== "admin"){ return; }
+
+  const dateEl = document.getElementById("rev-add-date");
+  if(dateEl && !dateEl.value){
+    dateEl.value = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto" }).format(new Date());
+  }
+
+  try{
+
+    const [purchases, profiles] = await Promise.all([q("game_credit_purchases"), q("profiles")]);
+
+    revenueRows = (purchases || []).slice().sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+    revenueNames = {};
+    (profiles || []).forEach(p => { revenueNames[p.id] = p.full_name || "Unnamed"; });
+
+    const sel = document.getElementById("rev-add-goalie");
+    if(sel){
+      const keep = sel.value;
+      sel.innerHTML =
+        `<option value="">Choose a goalie…</option>` +
+        (profiles || [])
+          .filter(p => p.role !== "admin" && p.role !== "coach")
+          .slice().sort((a, b) => String(a.full_name || "").localeCompare(String(b.full_name || "")))
+          .map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.full_name || "Unnamed goalie")}</option>`).join("");
+      sel.value = keep;
+    }
+
+    renderRevenueTab();
+
+  }
+  catch(error){
+    console.error(error);
+    showToast("Could not load revenue: " + (error.message || error), "error");
+  }
+
+}
+
+function renderRevenueTab(){
+
+  const rows = revenueRows;
+  const total = rows.reduce((n, r) => n + (Number(r.amount_total) || 0), 0);
+  const thisMonth = revMonthKey(new Date().toISOString());
+  const monthTotal = rows.filter(r => revMonthKey(r.created_at) === thisMonth).reduce((n, r) => n + (Number(r.amount_total) || 0), 0);
+  const games = rows.reduce((n, r) => n + (Number(r.credits) || 0), 0);
+  const customers = new Set(rows.map(r => r.user_id)).size;
+
+  document.getElementById("rev-kpis").innerHTML = `
+    <div class="card metric-card"><div class="metric">${escapeHtml(formatMoney(total, "cad"))}</div><div class="metric-label">All-time revenue</div></div>
+    <div class="card metric-card"><div class="metric">${escapeHtml(formatMoney(monthTotal, "cad"))}</div><div class="metric-label">This month</div></div>
+    <div class="card metric-card"><div class="metric">${games}</div><div class="metric-label">Games sold</div></div>
+    <div class="card metric-card"><div class="metric">${customers}</div><div class="metric-label">Paying customers</div></div>`;
+
+  // month buckets
+  const by = {};
+  rows.forEach(r => {
+    const k = revMonthKey(r.created_at);
+    const b = by[k] || (by[k] = { n: 0, games: 0, stripe: 0, manual: 0 });
+    const c = Number(r.amount_total) || 0;
+    b.n++; b.games += Number(r.credits) || 0;
+    if(revIsManual(r)){ b.manual += c; } else { b.stripe += c; }
+  });
+  const keys = Object.keys(by).sort();
+
+  const max = Math.max(1, ...keys.map(k => by[k].stripe + by[k].manual));
+
+  document.getElementById("rev-chart").innerHTML = keys.length
+    ? keys.map(k => {
+        const b = by[k];
+        const sh = Math.round(b.stripe / max * 100);
+        const mh = Math.round(b.manual / max * 100);
+        return `<div class="rev-col" title="${escapeHtml(revMonthLabel(k))}: ${escapeHtml(formatMoney(b.stripe + b.manual, "cad"))}">
+          <div class="rev-val">${escapeHtml(formatMoney(b.stripe + b.manual, "cad"))}</div>
+          <div class="rev-bar"><span class="rev-seg rev-seg-manual" style="height:${mh}%"></span><span class="rev-seg rev-seg-stripe" style="height:${sh}%"></span></div>
+          <div class="rev-lab">${escapeHtml(revMonthLabel(k))}</div>
+        </div>`;
+      }).join("") + `<div class="rev-legend"><span><i class="rev-dot rev-seg-stripe"></i> Stripe</span><span><i class="rev-dot rev-seg-manual"></i> E-transfer / manual</span></div>`
+    : `<p class="small-note">No payments yet.</p>`;
+
+  document.getElementById("rev-month-body").innerHTML = keys.slice().reverse().map(k => {
+    const b = by[k];
+    return `<tr><td>${escapeHtml(revMonthLabel(k))}</td><td>${b.n}</td><td>${b.games}</td><td>${escapeHtml(formatMoney(b.stripe, "cad"))}</td><td>${escapeHtml(formatMoney(b.manual, "cad"))}</td><td><strong>${escapeHtml(formatMoney(b.stripe + b.manual, "cad"))}</strong></td></tr>`;
+  }).join("") || `<tr><td colspan="6">No payments yet.</td></tr>`;
+
+  document.getElementById("rev-pay-body").innerHTML = rows.map(r => {
+    const manual = revIsManual(r);
+    const d = new Date(r.created_at).toLocaleDateString([], { timeZone: "America/Toronto", year: "numeric", month: "short", day: "numeric" });
+    return `<tr>
+      <td>${escapeHtml(d)}</td>
+      <td>${escapeHtml(revenueNames[r.user_id] || "Unknown")}</td>
+      <td>${manual ? "E-transfer / manual" : "Stripe"}</td>
+      <td>${Number(r.credits) || 0}</td>
+      <td>${escapeHtml(formatMoney(r.amount_total, r.currency))}</td>
+      <td>${manual ? `<button type="button" class="watch-btn watch-btn-danger" onclick="deleteManualPayment(${jsArg(r.stripe_session_id)}, this)">Remove</button>` : ""}</td>
+    </tr>`;
+  }).join("") || `<tr><td colspan="6">No payments yet.</td></tr>`;
+
+}
+
+async function submitManualPayment(button){
+
+  const userId = document.getElementById("rev-add-goalie").value;
+  const amount = document.getElementById("rev-add-amount").value;
+  const credits = document.getElementById("rev-add-credits").value;
+  const date = document.getElementById("rev-add-date").value;
+  const method = document.getElementById("rev-add-method").value;
+  const addCredits = document.getElementById("rev-add-credit-box").checked;
+
+  if(!userId){ showToast("Choose who paid.", "error"); return; }
+  if(!(Number(amount) > 0)){ showToast("Enter the amount they paid.", "error"); return; }
+  if(!(Number(credits) >= 1)){ showToast("Enter how many games they bought.", "error"); return; }
+
+  const who = revenueNames[userId] || "this goalie";
+
+  if(!confirm(`Log ${formatMoney(Math.round(Number(amount) * 100), "cad")} from ${who} for ${Math.floor(Number(credits))} games${addCredits ? " and add the games to their account" : " (games not added)"}?`)){
+    return;
+  }
+
+  button.disabled = true;
+  const label = button.textContent;
+  button.textContent = "Saving...";
+
+  try{
+
+    const res = await fetch("/api/admin/payment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessToken: currentSession.access_token, op: "add", userId, amount: Number(amount), credits: Number(credits), date, method, addCredits })
+    });
+
+    let data = {};
+    try{ data = await res.json(); }catch(e){ data = {}; }
+
+    if(!res.ok){
+      showToast(data.error || "Could not save the payment.", "error");
+      if(data.logged){ await loadRevenueTab(); }
+      return;
+    }
+
+    showToast(`Logged. ${data.name || who} now has ${data.gamesLeft !== null && data.gamesLeft !== undefined ? data.gamesLeft + " games left." : "the payment on record."}`, "success");
+
+    document.getElementById("rev-add-amount").value = "";
+    document.getElementById("rev-add-credits").value = "";
+    document.getElementById("rev-add-goalie").value = "";
+
+    await loadRevenueTab();
+
+  }
+  catch(error){
+    console.error(error);
+    showToast("Something went wrong saving the payment.", "error");
+  }
+  finally{
+    button.disabled = false;
+    button.textContent = label;
+  }
+
+}
+
+async function deleteManualPayment(sessionId, button){
+
+  if(!confirm("Remove this logged payment? This only removes it from the revenue list. It does not take games off the goalie's account.")){ return; }
+
+  button.disabled = true;
+
+  try{
+
+    const res = await fetch("/api/admin/payment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessToken: currentSession.access_token, op: "delete", sessionId })
+    });
+
+    let data = {};
+    try{ data = await res.json(); }catch(e){ data = {}; }
+
+    if(!res.ok){
+      showToast(data.error || "Could not remove it.", "error");
+      button.disabled = false;
+      return;
+    }
+
+    showToast("Payment removed.", "success");
+    await loadRevenueTab();
+
+  }
+  catch(error){
+    console.error(error);
+    showToast("Something went wrong removing it.", "error");
+    button.disabled = false;
+  }
+
+}
 
 
 /* ------------------------------------------------------------
