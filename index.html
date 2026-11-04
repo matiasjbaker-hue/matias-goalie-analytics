@@ -18078,6 +18078,15 @@ async function generateGameReportPDF(gameId, buttonEl, options = {}){
 
   const goalieInfo = getReportGoalieDisplayInfo();
 
+  // The profile team only applies to the profile's current season; an
+  // older season's report keeps the team the game was logged with, and
+  // shows that game's own season.
+  if(data.game && data.game.season && goalieInfo.season &&
+     String(data.game.season).trim().toLowerCase() !== String(goalieInfo.season).trim().toLowerCase()){
+    goalieInfo.season = data.game.season;
+    if(data.game.team) goalieInfo.team = data.game.team;
+  }
+
   // Grounded narrative: the same real, already-computed numbers going
   // into the tables below are all the model is given -- it's asked
   // not to invent anything beyond them. Best-effort: if this fails
