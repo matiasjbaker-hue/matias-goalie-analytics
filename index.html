@@ -19536,7 +19536,12 @@ function renderGameOverviewHero(game, m){
   const og = game["opponent goals"];
   const hasScore = tg !== null && tg !== undefined && og !== null && og !== undefined;
 
-  const teamName = escapeHtml(getReportGoalieDisplayInfo().team || game.team || "Team");
+  // The profile team is only right for the profile's current season. An
+  // older season's game keeps the team it was logged with.
+  const _gi = getReportGoalieDisplayInfo();
+  const _sameSeason = !game.season || !_gi.season ||
+    String(game.season).trim().toLowerCase() === String(_gi.season).trim().toLowerCase();
+  const teamName = escapeHtml((_sameSeason ? (_gi.team || game.team) : (game.team || _gi.team)) || "Team");
   const oppName = escapeHtml(gameOpponent(game));
 
   const scoreBlock = hasScore
