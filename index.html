@@ -1230,6 +1230,13 @@
           <label for="adminAccessCredits">Games left (pay per game)</label>
           <input id="adminAccessCredits" type="number" step="1" placeholder="Leave empty to keep">
         </div>
+        <div class="field">
+          <label for="adminAccessRole">Account type</label>
+          <select id="adminAccessRole">
+            <option value="goalie">Goalie</option>
+            <option value="coach">Coach</option>
+          </select>
+        </div>
         <div class="field" style="grid-column:1/-1">
           <label for="adminAccessNote">Note (only you see this)</label>
           <input id="adminAccessNote" type="text" autocomplete="off" placeholder="e.g. 3 free games, then paid">
@@ -15728,6 +15735,18 @@ function openAdminAccessModal(goalieId){
   document.getElementById("adminAccessCredits").value =
     row && row.plan === "pay_per_game" ? String(row.game_credits || 0) : "";
 
+  // Account type: goalie or coach. Admins can't be changed from here.
+  const roleSel = document.getElementById("adminAccessRole");
+  const currentRole = goalie && goalie.role ? goalie.role : "goalie";
+  Array.from(roleSel.querySelectorAll("option[data-extra]")).forEach(o => o.remove());
+  if(currentRole !== "goalie" && currentRole !== "coach"){
+    const o = document.createElement("option");
+    o.value = currentRole; o.textContent = currentRole; o.setAttribute("data-extra", "1");
+    roleSel.appendChild(o);
+  }
+  roleSel.value = currentRole;
+  roleSel.disabled = currentRole !== "goalie" && currentRole !== "coach";
+
   syncAdminAccessFields();
 
   document.getElementById("adminAccessModalOverlay").classList.add("open");
@@ -15759,6 +15778,19 @@ async function saveAdminAccess(button){
   button.disabled = true;
 
   try{
+
+    // Account type change (goalie <-> coach). Runs as the signed-in admin,
+    // so the database's role guards and the admin update policy both apply.
+    const roleSel = document.getElementById("adminAccessRole");
+    const goalieNow = adminProfiles.find(p => p.id === goalieId);
+    const newRole = roleSel && !roleSel.disabled ? roleSel.value : null;
+    if(newRole && goalieNow && goalieNow.role !== newRole && (newRole === "goalie" || newRole === "coach")){
+      const { data: roleRows, error: roleError } =
+        await supabaseClient.from("profiles").update({ role: newRole }).eq("id", goalieId).select("id,role");
+      if(roleError){ throw roleError; }
+      if(!roleRows || !roleRows.length){ throw new Error("The account type didn't change. Check that you're signed in as admin."); }
+      adminProfiles = adminProfiles.map(p => p.id === goalieId ? { ...p, role: newRole } : p);
+    }
 
     if(status === "none"){
 
