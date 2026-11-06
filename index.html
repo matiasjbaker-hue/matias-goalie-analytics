@@ -333,6 +333,11 @@
         </details>
 
         <details>
+          <summary>Is there a bring-a-teammate offer?</summary>
+          <p>Yes. When a teammate signs up and puts your name under "How did you hear about us?", you get one free game once their first game is done. They get their first game free too. There's no limit on how many teammates you can bring.</p>
+        </details>
+
+        <details>
           <summary>What film do I need?</summary>
           <p>The game video you already have, filmed on a phone or a camera. Full games are fine: uploads go up in parts and pick up where they left off if your connection drops, up to 20&nbsp;GB per video.</p>
         </details>
@@ -13442,9 +13447,14 @@ function showAuthScreen(){
 
 function onSignupHeardChange(){
   const other = document.getElementById("signup-heard-other");
-  const isOther = document.getElementById("signup-heard").value === "Other";
-  other.style.display = isOther ? "" : "none";
-  if(isOther){ other.focus(); }
+  const choice = document.getElementById("signup-heard").value;
+  const isOther = choice === "Other";
+  const isTeammate = choice === "A teammate or friend";
+  other.placeholder = isTeammate
+    ? "Who told you? Type their name so they get a free game"
+    : "Where did you hear about us?";
+  other.style.display = (isOther || isTeammate) ? "" : "none";
+  if(isOther || isTeammate){ other.focus(); }
 }
 
 function avatarInitials(name){
@@ -13668,7 +13678,8 @@ document.getElementById("signup-form")
           data:{
             name,
             heard_from: heard,
-            heard_from_other: heard === "Other" ? heardOther : "",
+            // "Other" text, or the name of the teammate who sent them.
+            heard_from_other: (heard === "Other" || heard === "A teammate or friend") ? heardOther : "",
             terms_accepted_at: new Date().toISOString(),
             terms_version: "2026-10",
             age_or_guardian_confirmed: true
