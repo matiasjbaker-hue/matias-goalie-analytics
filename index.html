@@ -1194,7 +1194,7 @@
       <button type="button" class="giq-modal-close" onclick="closeGameDetailsModal()">&times;</button>
     </div>
     <div class="giq-modal-body">
-      <p class="small-note" style="margin:0 0 12px">Changes the game info only. Shots, stats and clips stay exactly as they are.</p>
+      <p class="small-note" style="margin:0 0 12px">Fix the game info and the totals here. To change individual shots (result, period, where it came from), open the Shot Log: its totals update automatically.</p>
       <div class="field-grid">
         <div class="field"><label for="gd-date">Date</label><input type="date" id="gd-date"></div>
         <div class="field"><label for="gd-season">Season</label><input type="text" id="gd-season" list="gd-season-options"><datalist id="gd-season-options"></datalist></div>
@@ -1206,6 +1206,10 @@
           <select id="gd-result"><option value="">—</option><option>W</option><option>L</option><option>OTL</option><option>SOL</option><option>T</option></select></div>
         <div class="field"><label for="gd-team-goals">Team goals</label><input type="number" min="0" id="gd-team-goals"></div>
         <div class="field"><label for="gd-opponent-goals">Opponent goals</label><input type="number" min="0" id="gd-opponent-goals"></div>
+        <div class="field"><label for="gd-shots-against">Shots against</label><input type="number" min="0" id="gd-shots-against"></div>
+        <div class="field"><label for="gd-goals-against">Goals against</label><input type="number" min="0" id="gd-goals-against"></div>
+        <div class="field"><label for="gd-minutes">Minutes played</label><input type="number" min="0" step="0.1" id="gd-minutes"></div>
+        <div class="field" style="grid-column:1/-1"><div class="small-note" id="gd-saves-note">Saves = shots against minus goals against.</div></div>
       </div>
       <div style="display:flex;gap:8px;margin-top:14px">
         <button type="button" class="btn-primary" id="gd-save" onclick="saveGameDetails(this)">Save</button>
@@ -4320,7 +4324,9 @@
           <option value="unknown">Untagged</option>
         </select>
 
-        <button type="button" class="btn-primary" id="shotLogBulkClipsBtn" style="display:none;margin-left:auto" onclick="openBulkClipsModal()">Bulk Attach Clips</button>
+        <button type="button" class="btn-primary" id="shotLogAddShotBtn" style="display:none;margin-left:auto" onclick="openAddShotModal()">+ Add shot</button>
+
+        <button type="button" class="btn-primary" id="shotLogBulkClipsBtn" style="display:none" onclick="openBulkClipsModal()">Bulk Attach Clips</button>
 
       </div>
 
@@ -7172,6 +7178,10 @@ function openShotLogModal(gameId){
   document.getElementById("shotLogBulkClipsBtn").style.display =
     currentRole === "admin" ? "" : "none";
 
+  // Goalies (and admin) can fix, add and remove shots right here.
+  document.getElementById("shotLogAddShotBtn").style.display =
+    canEditShots() ? "" : "none";
+
   document.getElementById("shotLogModalOverlay").classList.add("open");
 
 }
@@ -7593,6 +7603,11 @@ function renderShotLogTable(){
   const isAdmin =
     currentRole === "admin";
 
+  // Goalies can edit and delete their own shots too (the database only
+  // allows a goalie to change their own rows).
+  const canEdit =
+    canEditShots();
+
   tbody.innerHTML =
     gameShotsList.map(s => {
 
@@ -7608,12 +7623,12 @@ function renderShotLogTable(){
       let actionCell;
 
       const editBtn =
-        isAdmin
+        canEdit
           ? `<button type="button" class="watch-btn" onclick="openShotEditModal(${arg})">Edit</button>`
           : "";
 
       const deleteShotBtn =
-        isAdmin
+        canEdit
           ? `<button type="button" class="watch-btn watch-btn-danger" onclick="deleteLoggedShot(${arg}, this)">Delete shot</button>`
           : "";
 
@@ -7629,10 +7644,10 @@ function renderShotLogTable(){
             ${
               isAdmin
                 ? `<button type="button" class="watch-btn" onclick="promptReplaceClip(${arg})">Replace</button>
-                   <button type="button" class="watch-btn watch-btn-danger" onclick="deleteShotClip(${arg}, this)">Delete clip</button>
-                   ${deleteShotBtn}`
+                   <button type="button" class="watch-btn watch-btn-danger" onclick="deleteShotClip(${arg}, this)">Delete clip</button>`
                 : ""
             }
+            ${deleteShotBtn}
           </div>
         `;
 
@@ -7643,6 +7658,12 @@ function renderShotLogTable(){
           `<div class="clip-actions"><button type="button" class="watch-btn" onclick="promptAttachClip(${arg})">+ Attach Clip</button>${editBtn}${deleteShotBtn}</div>`;
 
       }
+      else if(canEdit){
+
+        actionCell =
+          `<div class="clip-actions"><button type="button" class="watch-btn" disabled>No clip</button>${editBtn}${deleteShotBtn}</div>`;
+
+      }
       else{
 
         actionCell =
@@ -7650,7 +7671,7 @@ function renderShotLogTable(){
 
       }
 
-      const rowAttrs = isAdmin
+      const rowAttrs = canEdit
         ? ` class="lt-shot-click" tabindex="0" title="Click to edit this shot" onclick="if(!event.target.closest('button,a,input,select'))openShotEditModal(${arg})" onkeydown="if((event.key==='Enter'||event.key===' ')&&event.target===this){event.preventDefault();openShotEditModal(${arg});}"`
         : "";
 
@@ -7683,9 +7704,35 @@ function renderShotLogTable(){
 
 let shotEditState = null; // { shotId, original, loc_x, loc_y }
 
+// Admins and goalies can fix shots (a goalie only ever has their own
+// loaded, and the database refuses anything else).
+function canEditShots(){
+  return currentRole === "admin" || currentRole === "goalie";
+}
+
+function openAddShotModal(){
+
+  if(!canEditShots()){ return; }
+
+  const game =
+    allGames.find(g => String(g.id ?? g.game_id) === String(shotLogModalGameId));
+
+  if(!game){
+    showToast("Open a game first, then add the shot.", "error");
+    return;
+  }
+
+  openShotEditModalFor(
+    { game_id: game.id ?? game.game_id, user_id: game.user_id, period: "1", outcome: "save" },
+    null,
+    true
+  );
+
+}
+
 function openShotEditModal(shotId){
 
-  if(currentRole !== "admin"){ return; }
+  if(!canEditShots()){ return; }
 
   const shot = findShotById(shotId);
 
@@ -7694,8 +7741,18 @@ function openShotEditModal(shotId){
     return;
   }
 
+  openShotEditModalFor(shot, shotId, false);
+
+}
+
+function openShotEditModalFor(shot, shotId, isNew){
+
+  document.getElementById("shotEditTitle").textContent = isNew ? "Add a shot" : "Edit shot";
+  document.getElementById("shotEditSaveBtn").textContent = isNew ? "Add shot" : "Save shot";
+
   shotEditState = {
     shotId,
+    isNew: !!isNew,
     original: shot,
     loc_x: shotMapHasPin(shot) ? Number(shot.loc_x) : null,
     loc_y: shotMapHasPin(shot) ? Number(shot.loc_y) : null
@@ -7839,6 +7896,48 @@ async function adjustReboundTotals(gameId, oldTag, newTag){
 
 }
 
+// Adds one hand-logged shot and moves the game's, period's and rebound
+// totals by the same amount, so SV% and GAA stay consistent.
+async function addLoggedShot(base, patch){
+
+  const nowGoal = patch.outcome === "goal" ? 1 : 0;
+
+  const { data, error } =
+    await supabaseClient.from("Shots").insert({
+      ...patch,
+      game_id: base.game_id,
+      user_id: base.user_id
+    }).select();
+
+  if(error){ throw error; }
+  if(!data || !data.length){ throw new Error("The shot wasn't saved."); }
+
+  const { data: game, error: gErr } =
+    await supabaseClient.from("Games").select("*").eq("id", base.game_id).single();
+
+  if(gErr){ throw gErr; }
+
+  const sa = num(game.shots_against) + 1;
+  const ga = Math.min(sa, num(game.goals_against) + nowGoal);
+
+  const { error: upErr } =
+    await supabaseClient.from("Games").update({
+      shots_against: sa,
+      goals_against: ga,
+      saves: sa - ga,
+      shutout: ga === 0
+    }).eq("id", base.game_id);
+
+  if(upErr){ throw upErr; }
+
+  if(patch.period){ await adjustPeriodTotals(base.game_id, base.user_id, patch.period, 1, nowGoal); }
+
+  if(patch.rebound_tag){ await adjustReboundTotals(base.game_id, null, patch.rebound_tag); }
+
+  allShots.push(data[0]);
+
+}
+
 async function saveShotEdit(){
 
   if(!shotEditState){ return; }
@@ -7868,7 +7967,29 @@ async function saveShotEdit(){
   }
 
   btn.disabled = true;
-  btn.textContent = "Saving…";
+  btn.textContent = shotEditState.isNew ? "Adding…" : "Saving…";
+
+  if(shotEditState.isNew){
+
+    try{
+      await addLoggedShot(shot, patch);
+      closeShotEditModal();
+      renderShotLogTable();
+      showToast("Shot added and totals updated.", "success");
+      loadDashboard().catch(err => console.error(err));
+    }
+    catch(error){
+      console.error(error);
+      showToast(`Could not add this shot: ${error.message || error}`, "error");
+    }
+    finally{
+      btn.disabled = false;
+      btn.textContent = "Add shot";
+    }
+
+    return;
+
+  }
 
   try{
 
@@ -8617,7 +8738,7 @@ async function deleteManualPayment(sessionId, button){
 
 async function deleteLoggedShot(shotId, button){
 
-  if(currentRole !== "admin"){ return; }
+  if(!canEditShots()){ return; }
 
   const shot = findShotById(shotId);
 
@@ -8695,7 +8816,7 @@ async function deleteLoggedShot(shotId, button){
     renderShotLogTable();
     showToast("Shot deleted and totals updated.", "success");
 
-    if(videoId){
+    if(videoId && currentRole === "admin"){
       try{ await removeClipVideoIfUnused(videoId); }
       catch(cleanupError){
         console.error(cleanupError);
@@ -15414,6 +15535,13 @@ function openGameDetailsModal(gameId){
   set("gd-date", g.date); set("gd-season", g.season); set("gd-team", g.team);
   set("gd-opponent", g.opponent); set("gd-home-away", g.home_away); set("gd-result", g.result);
   set("gd-team-goals", g.team_goals); set("gd-opponent-goals", g["opponent goals"]);
+  set("gd-shots-against", g.shots_against); set("gd-goals-against", g.goals_against); set("gd-minutes", g.minutes_played);
+
+  const loggedShots = allShots.filter(x => String(x.game_id) === String(gameId)).length;
+  document.getElementById("gd-saves-note").textContent =
+    loggedShots
+      ? `Saves = shots against minus goals against. This game has ${loggedShots} shots in its Shot Log, so changing the totals here does not add or remove shots there.`
+      : "Saves = shots against minus goals against.";
 
   // Suggest this goalie's existing season labels, so seasons don't split.
   const seasons = [...new Set(allGames.filter(x => x.user_id === g.user_id && x.season).map(x => x.season))];
@@ -15445,7 +15573,16 @@ async function saveGameDetails(button){
 
   try{
 
-    const { error } = await supabaseClient.from("Games").update({
+    const shotsAgainst = numOrNull(v("gd-shots-against"));
+    const goalsAgainst = numOrNull(v("gd-goals-against"));
+
+    if(shotsAgainst !== null && goalsAgainst !== null && goalsAgainst > shotsAgainst){
+      showToast("Goals against can't be more than shots against.", "error");
+      button.disabled = false;
+      return;
+    }
+
+    const details = {
       date: textOrNull(v("gd-date")),
       season: textOrNull(v("gd-season")),
       team: textOrNull(v("gd-team")),
@@ -15453,8 +15590,18 @@ async function saveGameDetails(button){
       home_away: textOrNull(v("gd-home-away")),
       result: textOrNull(v("gd-result")),
       team_goals: numOrNull(v("gd-team-goals")),
-      "opponent goals": numOrNull(v("gd-opponent-goals"))
-    }).eq("id", id);
+      "opponent goals": numOrNull(v("gd-opponent-goals")),
+      shots_against: shotsAgainst,
+      goals_against: goalsAgainst,
+      minutes_played: numOrNull(v("gd-minutes"))
+    };
+
+    if(shotsAgainst !== null && goalsAgainst !== null){
+      details.saves = shotsAgainst - goalsAgainst;
+      details.shutout = shotsAgainst > 0 && goalsAgainst === 0;
+    }
+
+    const { error } = await supabaseClient.from("Games").update(details).eq("id", id);
 
     if(error){ throw error; }
 
@@ -19708,13 +19855,13 @@ function renderGameOverviewHero(game, m){
       </div>
       <div class="go-actions">
         <button type="button" class="btn-secondary" onclick="generateGameReportPDF(${Number(game.id)}, this)">Download PDF Report</button>
-        <button type="button" class="btn-secondary" onclick="openShotLogModal(${Number(game.id)})">Shot Log</button>
+        <button type="button" class="btn-secondary" onclick="openShotLogModal(${Number(game.id)})">${currentRole === "goalie" || currentRole === "admin" ? "Shot Log · edit shots" : "Shot Log"}</button>
         ${currentRole === "admin" ? `<button type="button" class="btn-secondary" onclick="openRecapEmailModal(${Number(game.id)})">Email recap</button>` : ""}
-        ${currentRole === "admin" ? `
-          <button type="button" class="btn-secondary" onclick="openGameDetailsModal(${Number(game.id)})">Edit details</button>
+        ${currentRole === "admin" || currentRole === "goalie" ? `
+          <button type="button" class="btn-primary" onclick="openGameDetailsModal(${Number(game.id)})">Edit game</button>
         ` : ""}
         ${currentRole === "goalie" ? `
-          <button type="button" class="btn-secondary" onclick="editGameFromOverview(${Number(game.id)})">Edit</button>
+          <button type="button" class="btn-secondary" onclick="if(confirm('Re-enter this whole game?\n\nThis replaces every shot, period and rebound row with what you type into the full form. For small fixes use Edit game or the Shot Log instead.'))editGameFromOverview(${Number(game.id)})">Re-enter all</button>
         ` : ""}
         ${currentRole === "goalie" || currentRole === "admin" ? `
           <button type="button" class="btn-danger" onclick="deleteGame(${Number(game.id)})">Delete</button>
