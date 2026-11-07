@@ -1017,6 +1017,8 @@
             <th>Name</th>
             <th>Team</th>
             <th>Assigned Goalies</th>
+            <th>Games Left</th>
+            <th>Access</th>
             <th>Created</th>
             <th></th>
           </tr>
@@ -14886,7 +14888,7 @@ function renderAdminCoaches(){
   if(!coaches.length){
 
     tbody.innerHTML =
-      `<tr><td colspan="5"><div class="empty-state">No coach accounts yet.</div></td></tr>`;
+      `<tr><td colspan="7"><div class="empty-state">No coach accounts yet.</div></td></tr>`;
 
     return;
 
@@ -14906,8 +14908,11 @@ function renderAdminCoaches(){
           <td>${escapeHtml(c.full_name || "Unnamed")}</td>
           <td>${escapeHtml(c.team || "—")}</td>
           <td>${assignedCount}</td>
+          <td>${adminGamesLeftHtml(c.id)}</td>
+          <td>${adminAccess.some(a => a.user_id === c.id) ? accessBadgeHtml(c.id) : `<span style="opacity:.5">—</span>`}</td>
           <td>${created}</td>
           <td style="white-space:nowrap">
+            <button type="button" class="btn-secondary" onclick="openAdminAccessModal('${c.id}')">Access</button>
             <button type="button" class="btn-secondary" onclick="openAdminProfileModal('${c.id}')">Edit</button>
             <button type="button" class="btn-danger" onclick="openDeleteAccountModal('${c.id}')">Delete</button>
           </td>
@@ -15759,7 +15764,7 @@ function openAdminAccessModal(goalieId){
   const row = adminAccess.find(a => a.user_id === goalieId);
 
   document.getElementById("adminAccessTitle").textContent =
-    `Access · ${goalie ? (goalie.full_name || "Goalie") : "Goalie"}`;
+    `Access · ${goalie ? (goalie.full_name || (goalie.role === "coach" ? "Coach" : "Goalie")) : "Goalie"}`;
 
   document.getElementById("adminAccessStatus").value = adminAccessDropdownValue(goalieId, row);
   document.getElementById("adminAccessUntil").value =
@@ -15868,6 +15873,7 @@ async function saveAdminAccess(button){
 
     adminAccess = await q("goalie_access");
     renderAdminGoalies();
+    renderAdminCoaches();
     closeAdminAccessModal();
     showToast("Access updated.");
 
