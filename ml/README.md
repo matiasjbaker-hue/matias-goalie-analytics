@@ -8,6 +8,93 @@ Status (2026-11-07): dataset built, first model tried and **not good enough**,
 next step is a video model trained on a GPU PC. Everything in `ml/data/` and
 `ml/models/` is git-ignored (goalies' film and stats).
 
+**Starting on the PC?** Follow [section 0](#0-setting-up-the-pc-start-here) first.
+
+## 0. Setting up the PC (start here)
+
+The PC: Windows 11/10, AMD Radeon RX 6750 XT (12 GB). The work moved here from
+a MacBook (M2, 8 GB) that can't train video models.
+
+### Step 1: copy two files from the Mac
+
+On the Mac, run in Terminal:
+
+```bash
+cp ~/matias-goalie-analytics/.env ~/Desktop/goalieiq.env
+cp ~/matias-goalie-analytics/ml/data/csv-export.zip ~/Desktop/
+```
+
+- `csv-export.zip` (150 KB): the four Supabase tables the dataset is built
+  from (games, shots, videos, Video Review drafts).
+- `goalieiq.env`: the R2 keys for reading game film. **It contains secrets.**
+
+Move both to the PC by USB stick or a *private* Google Drive / OneDrive folder.
+Don't send `goalieiq.env` by email or chat, and never commit it. After it's on
+the PC, delete the Desktop copy on the Mac and any uploaded copy.
+
+(Alternative to copying the keys: make a separate read-only token for the PC,
+see "R2 keys" below.)
+
+### Step 2: install the tools on the PC
+
+- **Claude desktop app** (Code tab), signed in
+- **Git**: https://git-scm.com/download/win
+- **Node.js 20 or newer** (LTS): https://nodejs.org
+- **Python 3.12** (64-bit, tick "Add to PATH"): https://www.python.org/downloads/windows/
+  (3.12 rather than the newest Python, because the AMD PyTorch builds lag behind)
+- **AMD Adrenalin driver**, latest: https://www.amd.com/en/support
+
+### Step 3: start a Claude Code session and paste this
+
+Open a Claude Code session on a folder such as `C:\Users\<you>\code` and say:
+
+> Clone https://github.com/matiasjbaker-hue/matias-goalie-analytics and check
+> out branch `ml/dataset-export` and run `npm install`. Unzip my `csv-export.zip` (in Downloads) into
+> `ml/data/csv/` and rebuild the dataset with
+> `node ml/export-dataset.mjs --from-csv ml/data/csv`. Then read `ml/README.md`
+> and start on round 2, beginning with the GPU check in section 3a.
+
+Then move `goalieiq.env` into the project folder yourself and rename it to
+exactly `.env`. In File Explorer, turn on View → Show → File name extensions so
+Windows doesn't keep it as `.env.txt`. It's git-ignored.
+
+### Step 4: what "working" looks like
+
+1. `npm install` runs in the repo (it brings in ffmpeg and the R2 client).
+2. The dataset rebuild prints **49 games, 1479 shots, 29 games usable for
+   detection**.
+3. The GPU check in section 3a prints `ok` (it actually trains a step, not just
+   detects the card).
+4. Only then cut clips and train (section 3b).
+
+### R2 keys
+
+`.env` needs these four lines, with no quotes and no spaces around `=`:
+
+    R2_ACCOUNT_ID=dd84d45f3ed7e915a1bc634ef02f2e02
+    R2_BUCKET_NAME=goalie-game-footage
+    R2_ACCESS_KEY_ID=<from goalieiq.env, or a new token>
+    R2_SECRET_ACCESS_KEY=<from goalieiq.env, or a new token>
+
+The account ID and bucket name aren't secret. The two keys are. To make a
+separate key for the PC, go to Cloudflare dashboard → R2 Object Storage →
+Manage API tokens → **Create Account API token**, with Permissions **Object
+Read only** on bucket `goalie-game-footage` only. The values show once.
+Leave the existing token named "token" alone (read & write, the live site
+probably uses it). A Supabase key isn't needed: the CSV route covers the data.
+
+### Things to know
+
+- The Mac-only parts (`ml/detect/featurize.swift`, Apple Vision) don't run on
+  Windows and aren't needed for round 2. `train.py`'s evaluation functions
+  (`pick_peaks`, `match`, `evaluate`) are plain numpy and should be reused.
+- Film is streamed from R2 with ffmpeg range requests, so full games are never
+  downloaded. Clips for training are small; keep them under `ml/data/`.
+- The Mac ran low on disk and memory. The PC shouldn't, but
+  `extract-features.mjs` has the pause-on-low-disk logic to copy if needed.
+- One game is dated 2026-12-11 (probably a typo for 2025). Shot type is 83%
+  "Snap", likely the tagging default, so don't train a shot-type head on it yet.
+
 ## 1. Data
 
 Source of truth is Supabase + R2 (bucket `goalie-game-footage`).
@@ -134,7 +221,6 @@ loss = m(x).float().mean(); loss.backward(); print("ok", loss.item())
 
 ### Data on the PC
 
-`ml/data/` isn't in git. Either copy `ml/data/csv-export.zip` from the Mac
-(unzip into `ml/data/csv/`) and run the CSV rebuild above, or re-export from
-the Supabase SQL editor. Create `.env` with the R2 lines (make a new read-only
-token in Cloudflare → R2 → Manage API tokens if needed).
+See [section 0](#0-setting-up-the-pc-start-here). `ml/data/` isn't in git:
+unzip `csv-export.zip` into `ml/data/csv/` and run the CSV rebuild, or
+re-export from the Supabase SQL editor (section 1).
