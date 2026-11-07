@@ -96,6 +96,19 @@ export async function callerRole(userId, accessToken) {
   return rows[0] ? rows[0].role : null;
 }
 
+// True when this coach has an active assignment to the goalie. Read with
+// the caller's own token, so RLS ("Coaches can view their own
+// assignments") means a coach can only ever see their own rows here.
+export async function callerCoachesGoalie(userId, goalieId, accessToken) {
+  if (!UUID_RE.test(String(goalieId || ""))) return false;
+  const rows = await userSelect(
+    "coach_goalie_assignments",
+    `select=id&coach_id=eq.${encodeURIComponent(userId)}&goalie_id=eq.${encodeURIComponent(goalieId)}&active=eq.true&limit=1`,
+    accessToken
+  );
+  return Array.isArray(rows) && rows.length > 0;
+}
+
 // ---- R2 ----
 
 export function r2Configured() {

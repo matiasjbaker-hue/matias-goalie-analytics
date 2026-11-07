@@ -5,7 +5,7 @@
 // successfully. Stitches the parts into one object in R2.
 
 import { CompleteMultipartUploadCommand, AbortMultipartUploadCommand } from "@aws-sdk/client-s3";
-import { verifyUser, callerRole, r2Configured, r2Client, sendServerError, UUID_RE } from "../_lib/supabase.js";
+import { verifyUser, callerRole, callerCoachesGoalie, r2Configured, r2Client, sendServerError, UUID_RE } from "../_lib/supabase.js";
 
 // Matches the 20 GB / 25 MB limits in r2-start-upload.js, with headroom.
 const MAX_PARTS = 1000;
@@ -48,12 +48,18 @@ export default async function handler(req, res) {
     }
 
     // Only the user whose folder this key lives under can complete (or
-    // abort) an upload into it; an admin may finish uploads they started
-    // into a goalie's folder (see ownerId in r2-start-upload.js).
+    // abort) an upload into it; an admin, or the goalie's assigned coach, may
+    // finish uploads they started into that goalie's folder (see ownerId in r2-start-upload.js).
     const folder = key.split("/")[0];
     const ownsFolder = folder === user.id;
-    const adminForOwner = !ownsFolder && UUID_RE.test(folder) && (await callerRole(user.id, accessToken)) === "admin";
-    if (key.includes("..") || !(ownsFolder || adminForOwner)) {
+    let staffForOwner = false;
+    if (!ownsFolder && UUID_RE.test(folder)) {
+      const role = await callerRole(user.id, accessToken);
+      staffForOwner =
+        role === "admin" ||
+        (role === "coach" && (await callerCoachesGoalie(user.id, folder, accessToken)));
+    }
+    if (key.includes("..") || !(ownsFolder || staffForOwner)) {
       res.status(403).json({ error: "This upload does not belong to you." });
       return;
     }

@@ -18,7 +18,7 @@
 import { CreateMultipartUploadCommand, UploadPartCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import {
-  verifyUser, callerHasAccess, callerRole, r2Configured, r2Client, r2CapBlocks, sendServerError, UUID_RE,
+  verifyUser, callerHasAccess, callerRole, callerCoachesGoalie, r2Configured, r2Client, r2CapBlocks, sendServerError, UUID_RE,
 } from "../_lib/supabase.js";
 
 // 25MB per part -- keeps the request count reasonable for a multi-GB
@@ -59,8 +59,8 @@ export default async function handler(req, res) {
     return;
   }
 
-  // ownerId: an admin uploading a clip for a goalie stores it in that
-  // goalie's folder, so the file and its game_videos row match owners.
+  // ownerId: an admin (or a coach assigned to the goalie) uploading for a
+  // goalie stores it in that goalie's folder, so the file and its game_videos row match owners.
   const { accessToken, fileName, fileSizeBytes, contentType, ownerId } = req.body || {};
   const size = Number(fileSizeBytes);
 
@@ -98,8 +98,12 @@ export default async function handler(req, res) {
 
     let folder = user.id;
     if (ownerId && ownerId !== user.id) {
-      if (typeof ownerId !== "string" || !UUID_RE.test(ownerId) || (await callerRole(user.id, accessToken)) !== "admin") {
-        res.status(403).json({ error: "Only an admin can upload on behalf of another account." });
+      const role = typeof ownerId === "string" && UUID_RE.test(ownerId) ? await callerRole(user.id, accessToken) : null;
+      const allowed =
+        role === "admin" ||
+        (role === "coach" && (await callerCoachesGoalie(user.id, ownerId, accessToken)));
+      if (!allowed) {
+        res.status(403).json({ error: "You can only upload for a goalie you coach." });
         return;
       }
       folder = ownerId;

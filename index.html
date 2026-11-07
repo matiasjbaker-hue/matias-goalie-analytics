@@ -571,6 +571,10 @@
       Stats
     </button>
 
+    <button id="coach-nav-addgame" onclick="openAddGame('upload')">
+      Add Game
+    </button>
+
     <button id="coach-nav-notes" onclick="showTab('coachnotes',this)">
       Notes
     </button>
@@ -3348,7 +3352,7 @@
       Upload
     </button>
 
-    <div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(128,128,128,0.25)">
+    <div id="video-link-block" style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(128,128,128,0.25)">
       <div style="font-weight:600;margin-bottom:6px">Upload not working? Send a link instead</div>
       <div class="empty-state" style="margin-bottom:8px;text-align:left">
         Paste a link to your game film (Google Drive, Dropbox, Hudl, YouTube). Make sure it's shared so anyone with the link can view. We'll add it to your account and email you when the recap is ready. Uses the game and jersey color fields above.
@@ -19130,7 +19134,13 @@ let addGameMode = "upload";
 
 function setAddGameMode(mode){
 
-  addGameMode = mode === "manual" ? "manual" : "upload";
+  addGameMode = mode === "manual" && currentRole !== "coach" ? "manual" : "upload";
+
+  const modeToggle = document.getElementById("addModeToggle");
+  if(modeToggle){ modeToggle.style.display = currentRole === "coach" ? "none" : ""; }
+
+  const filmLinkBlock = document.getElementById("video-link-block");
+  if(filmLinkBlock){ filmLinkBlock.style.display = currentRole === "coach" ? "none" : ""; }
 
   const upload = document.getElementById("addUploadPanel");
   const manual = document.getElementById("addManualPanel");
@@ -19150,7 +19160,13 @@ function setAddGameMode(mode){
 
 function openAddGame(mode){
 
-  showTab("addgame", document.getElementById("goalie-nav-addgame"));
+  // Coaches can only upload film for their goalies (no manual entry).
+  if(currentRole === "coach"){ mode = "upload"; }
+
+  showTab(
+    "addgame",
+    document.getElementById(currentRole === "coach" ? "coach-nav-addgame" : "goalie-nav-addgame")
+  );
 
   setAddGameMode(mode || addGameMode);
 
@@ -24484,7 +24500,7 @@ function toggleVideoNewGameFields(){
   const goalieField =
     document.getElementById("video-new-game-goalie-field");
 
-  if(isNew && currentRole === "admin"){
+  if(isNew && (currentRole === "admin" || currentRole === "coach")){
 
     goalieField.style.display = "";
 
@@ -24492,7 +24508,9 @@ function toggleVideoNewGameFields(){
       document.getElementById("video-new-game-goalie-select");
 
     const goalies =
-      adminProfiles.filter(p => p.role === "goalie");
+      currentRole === "coach"
+        ? coachGoalieProfiles
+        : adminProfiles.filter(p => p.role === "goalie");
 
     goalieSelect.innerHTML =
       goalies.length
@@ -24549,6 +24567,26 @@ async function loadVideoPipelineData(){
         `<option value="">No games exist yet for any goalie</option>`;
 
     }
+
+  }
+  else if(select && currentRole === "coach"){
+
+    // A coach picks from their assigned goalies' games; allGames is what
+    // RLS lets them see (their goalies' games), labeled with the goalie.
+    const coachGames =
+      (allGames || []).filter(g => coachGoalieProfiles.some(p => p.id === g.user_id));
+
+    select.innerHTML =
+      coachGames.length
+        ? coachGames.map(g => {
+
+            const owner = coachGoalieProfiles.find(p => p.id === g.user_id);
+            const ownerName = (owner && owner.full_name) || "Goalie";
+
+            return `<option value="${g.id}" data-user-id="${g.user_id}">${escapeHtml(ownerName)} — ${escapeHtml(gameDate(g))} vs ${escapeHtml(gameOpponent(g))}</option>`;
+
+          }).join("")
+        : `<option value="">No games yet for your goalies -- check "This is a new game" below</option>`;
 
   }
   else if(select && games && games.length){
@@ -24913,7 +24951,7 @@ async function uploadGameVideo(){
   let ownerId = null;
   let ownerProfile = null;
 
-  if(currentRole === "admin"){
+  if(currentRole === "admin" || currentRole === "coach"){
 
     if(isNewGame){
       ownerId = document.getElementById("video-new-game-goalie-select").value;
@@ -24928,7 +24966,15 @@ async function uploadGameVideo(){
       return;
     }
 
-    ownerProfile = adminProfiles.find(p => p.id === ownerId) || null;
+    ownerProfile =
+      (currentRole === "coach" ? coachGoalieProfiles : adminProfiles).find(p => p.id === ownerId) || null;
+
+    // A coach can only upload for a goalie they coach (the server and the
+    // database check this too).
+    if(currentRole === "coach" && !ownerProfile){
+      showToast("You can only upload film for a goalie you coach.", "error");
+      return;
+    }
 
   }
 
@@ -25041,7 +25087,9 @@ async function uploadGameVideo(){
     }
 
     statusEl.textContent = forName
-      ? `Uploaded for ${forName}. It's in the video review queue now, and it shows in their account as a request.`
+      ? (currentRole === "coach"
+          ? `Uploaded for ${forName}. We'll tag it and the stats will appear in their account once it's approved.`
+          : `Uploaded for ${forName}. It's in the video review queue now, and it shows in their account as a request.`)
       : "Sent! We'll review your game and you'll see the stats here once they're approved.";
     fileInput.value = "";
     document.getElementById("video-jersey-color").value = "";
