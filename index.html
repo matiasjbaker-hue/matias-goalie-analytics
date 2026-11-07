@@ -3283,6 +3283,8 @@
 
     <h3>Upload game film</h3>
 
+    <p id="coach-credits-line" class="empty-state" style="display:none;padding:0 0 12px;text-align:left"></p>
+
     <div class="field-grid">
 
       <div class="field">
@@ -14012,6 +14014,10 @@ async function applyRoleAndLoad(){
 
   if(currentRole === "coach"){
 
+    // A coach's own games balance pays for film they upload for goalies.
+    myAccess = await fetchMyAccess();
+    renderAccessPill(myAccess);
+
     await loadCoachExtras();
     // No single goalie selected yet -- "My Goalies" is the landing
     // tab; applyActiveGoalieFilter() runs when a card is clicked
@@ -14962,6 +14968,13 @@ function renderAccessPill(row){
   const pill = document.getElementById("access-pill");
   if(!pill){ return; }
 
+  if(row && row.plan === "pay_per_game" && accessIsActive(row) && currentRole === "coach"){
+    const left = row.game_credits || 0;
+    pill.textContent = `${left} game${left === 1 ? "" : "s"} left`;
+    pill.style.display = "";
+    return;
+  }
+
   if(row && row.plan === "pay_per_game" && accessIsActive(row)){
     const left = row.game_credits || 0;
     pill.textContent = left > 0
@@ -15087,6 +15100,11 @@ async function requestGoalieAccess(button){
 
 
 async function openPlansModal(){
+
+  if(currentRole === "coach"){
+    showToast("Need more games? Message Matias and he'll add them to your balance.");
+    return;
+  }
 
   if(!myAccess || !(myAccess.status === "trial" || myAccess.plan === "pay_per_game")){ return; }
 
@@ -19132,7 +19150,29 @@ function viewGoalieAnalytics(goalieId){
 
 let addGameMode = "upload";
 
+// Coach: how many games they have left, and what an upload costs.
+function renderCoachCreditsLine(){
+
+  const el = document.getElementById("coach-credits-line");
+  if(!el){ return; }
+
+  if(currentRole !== "coach"){ el.style.display = "none"; return; }
+
+  const counted = myAccess && myAccess.plan === "pay_per_game" && accessIsActive(myAccess);
+  const left = counted ? (myAccess.game_credits || 0) : null;
+
+  el.style.display = "";
+  el.innerHTML =
+    (counted
+      ? `<strong>You have ${left} game${left === 1 ? "" : "s"} left.</strong> `
+      : "") +
+    `Pick which of your goalies the film is for. A new game uses one of your games${counted ? "" : " (not limited on your plan)"}. Adding film to a game that's already in their account is free.`;
+
+}
+
 function setAddGameMode(mode){
+
+  renderCoachCreditsLine();
 
   addGameMode = mode === "manual" && currentRole !== "coach" ? "manual" : "upload";
 
@@ -24976,6 +25016,12 @@ async function uploadGameVideo(){
       return;
     }
 
+    // A new game uses one of the coach's games; stop before the slow upload.
+    if(currentRole === "coach" && isNewGame && myAccess && myAccess.plan === "pay_per_game" && accessIsActive(myAccess) && (myAccess.game_credits || 0) <= 0){
+      showToast("You have no games left. Message Matias to add more.", "error");
+      return;
+    }
+
   }
 
   let gameId = null;
@@ -25095,6 +25141,12 @@ async function uploadGameVideo(){
     document.getElementById("video-jersey-color").value = "";
     document.getElementById("video-new-game-toggle").checked = false;
     toggleVideoNewGameFields();
+
+    if(currentRole === "coach"){
+      myAccess = await fetchMyAccess();
+      renderAccessPill(myAccess);
+      renderCoachCreditsLine();
+    }
 
     await renderCustomerVideoList();
 
@@ -29786,7 +29838,8 @@ async function approveReview(){
     let gameId = current.game_id || (parts.find(p => p.game_id) || {}).game_id || null;
 
     if(!gameId){
-      const { data: newGame, error } = await supabaseClient.from("Games").insert({ user_id: current.user_id, ...details }).select().single();
+      const paidByCoach = (parts.find(p => p.paid_by_coach) || current).paid_by_coach || null;
+      const { data: newGame, error } = await supabaseClient.from("Games").insert({ user_id: current.user_id, ...(paidByCoach ? { billed_to: paidByCoach } : {}), ...details }).select().single();
       if(error){ throw error; }
       gameId = newGame.id;
       // Link every file straight away so a retry can't create a second game.
