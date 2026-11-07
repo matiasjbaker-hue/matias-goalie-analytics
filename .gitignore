@@ -10,3 +10,9 @@ node_modules/
 .impeccable/live/
 .claude/settings.local.json
 .impeccable/questions/
+
+# ML training data (goalies' film and stats; never commit)
+ml/data/
+ml/.venv/
+ml/detect/featurize
+ml/models/
