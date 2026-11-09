@@ -3726,6 +3726,8 @@
         <span class="rv-parts-label">Film files</span>
         <div class="go-trend-controls" id="rv-parts-tabs" role="group" aria-label="Film files"></div>
         <button type="button" class="btn-secondary" id="rv-part-add-toggle" onclick="toggleAddReviewPart()">Add another file</button>
+        <button type="button" class="btn-secondary" id="rv-part-up" onclick="moveReviewPart(-1)" hidden title="Make this file earlier in the game">Move earlier</button>
+        <button type="button" class="btn-secondary" id="rv-part-down" onclick="moveReviewPart(1)" hidden title="Make this file later in the game">Move later</button>
         <button type="button" class="btn-secondary" id="rv-part-remove" onclick="removeReviewPart()" hidden>Remove this file</button>
       </div>
       <p class="small-note rv-parts-note" id="rv-parts-note"></p>
@@ -25552,6 +25554,11 @@ function reviewOwnerName(v){
    every request is a single file exactly as before. */
 
 function videoPartSort(a, b){
+  // An admin can reorder extra files (part_order); otherwise upload order.
+  const ao = a.part_order, bo = b.part_order;
+  if(ao !== null && ao !== undefined && bo !== null && bo !== undefined && Number(ao) !== Number(bo)){
+    return Number(ao) - Number(bo);
+  }
   const at = String(a.created_at || ""), bt = String(b.created_at || "");
   if(at !== bt){ return at < bt ? -1 : 1; }
   return Number(a.id) - Number(b.id);
@@ -29397,6 +29404,17 @@ function renderReviewParts(){
     : "";
 
   document.getElementById("rv-part-remove").hidden = !v.parent_video_id;
+
+  // Extra files can be moved among themselves; Part 1 is the request and stays first.
+  const extraIdx = parts.slice(1).findIndex(p => String(p.id) === String(v.id));
+  const canMove = !!v.parent_video_id && parts.length > 2;
+  const upBtn = document.getElementById("rv-part-up");
+  const downBtn = document.getElementById("rv-part-down");
+  upBtn.hidden = !canMove;
+  downBtn.hidden = !canMove;
+  upBtn.disabled = extraIdx <= 0;
+  downBtn.disabled = extraIdx < 0 || extraIdx >= parts.length - 2;
+
   document.getElementById("rv-part-btn").textContent = `Upload as Part ${parts.length + 1}`;
 
   document.getElementById("rv-parts-note").textContent = multi
@@ -29520,6 +29538,60 @@ async function submitReviewPart(){
     reviewPartUploading = false;
     btn.disabled = false;
     fileInput.disabled = false;
+  }
+
+}
+
+// Moves the open extra file one place earlier (-1) or later (+1) among the
+// request's extra files. Part 1 is the request itself and can't move.
+async function moveReviewPart(dir){
+
+  const v = review.video;
+  if(!v || !v.parent_video_id){ return; }
+
+  if(review.publishing){ showToast("Wait for the publish to finish.", "error"); return; }
+
+  const parts = reviewLiveParts(v);
+  const extras = parts.slice(1);
+  const i = extras.findIndex(p => String(p.id) === String(v.id));
+  const j = i + dir;
+  if(i < 0 || j < 0 || j >= extras.length){ return; }
+
+  const order = extras.slice();
+  [order[i], order[j]] = [order[j], order[i]];
+
+  const upBtn = document.getElementById("rv-part-up");
+  const downBtn = document.getElementById("rv-part-down");
+  upBtn.disabled = true;
+  downBtn.disabled = true;
+
+  try{
+
+    for(let k = 0; k < order.length; k++){
+      if(Number(order[k].part_order) === k && order[k].part_order !== null && order[k].part_order !== undefined){ continue; }
+      const { error } = await supabaseClient.from("game_videos").update({ part_order: k }).eq("id", order[k].id);
+      if(error){ throw error; }
+    }
+
+    order.forEach((p, k) => {
+      p.part_order = k;
+      const cached = reviewQueueCache.find(x => String(x.id) === String(p.id));
+      if(cached){ cached.part_order = k; }
+    });
+    review.video.part_order = order.findIndex(p => String(p.id) === String(v.id));
+
+    renderReviewParts();
+    renderReviewSub();
+    renderReviewHeader();
+    renderReviewShots();
+
+    showToast(`Now Part ${reviewPartNumber(review.video)}.`, "success");
+
+  }
+  catch(error){
+    console.error(error);
+    showToast("Couldn't reorder: " + (error.message || error), "error");
+    renderReviewParts();
   }
 
 }
