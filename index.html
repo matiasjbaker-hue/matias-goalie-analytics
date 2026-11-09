@@ -509,7 +509,7 @@
       <button type="button" class="access-pill" id="access-pill" style="display:none" onclick="openPlansModal()" title="See plans"></button>
 
       <div class="season-badge" id="season-badge">
-        2026 PRESEASON
+        2026-27 SEASON
       </div>
 
     </div>
@@ -2957,7 +2957,7 @@
 
       <div class="field">
         <label for="lt-season">Season</label>
-        <input type="text" id="lt-season" value="2026 preseason">
+        <input type="text" id="lt-season" value="2026-27 Season">
       </div>
 
       <div class="field">
@@ -3401,7 +3401,7 @@
 
         <div class="field">
           <label for="ag-season">Season</label>
-          <input type="text" id="ag-season" value="2026 preseason">
+          <input type="text" id="ag-season" value="2026-27 Season">
         </div>
 
         <div class="field" style="display:none">
@@ -3758,7 +3758,7 @@
         <div class="field rv-gd-game-field"><label for="rv-gd-game">Game</label><select id="rv-gd-game" onchange="onReviewGameLinkChange()"></select></div>
         <div class="field"><label for="rv-gd-date">Date</label><input type="date" id="rv-gd-date"></div>
         <div class="field"><label for="rv-gd-opponent">Opponent</label><input type="text" id="rv-gd-opponent" autocomplete="off"></div>
-        <div class="field"><label for="rv-gd-season">Season</label><input type="text" id="rv-gd-season" placeholder="2026 preseason" autocomplete="off"></div>
+        <div class="field"><label for="rv-gd-season">Season</label><input type="text" id="rv-gd-season" placeholder="2026-27 Season" autocomplete="off"></div>
         <div class="field"><label for="rv-gd-homeaway">Home / Away</label><select id="rv-gd-homeaway"><option value="">—</option><option>Home</option><option>Away</option></select></div>
         <div class="field"><label for="rv-gd-result">Result</label><select id="rv-gd-result"><option value="">—</option><option value="W">Win</option><option value="L">Loss</option><option value="OTL">OT loss</option><option value="ND">No decision</option><option value="T">Tie</option></select></div>
         <div class="field"><label for="rv-gd-teamgoals">Team goals</label><input type="number" id="rv-gd-teamgoals" min="0"></div>
@@ -4626,7 +4626,7 @@ const SUPABASE_KEY =
   "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
 
 let CURRENT_SEASON =
-  "2026 preseason";
+  "2026-27 Season";
 
 // The season a goalie/coach picked in the header dropdown. null means
 // "auto" (the newest season that has games). It's only honored while
@@ -23297,7 +23297,7 @@ function resetLiveTagSession(){
   if(continueNote){ continueNote.textContent = ""; }
 
   document.getElementById("lt-date").value = "";
-  document.getElementById("lt-season").value = "2026 preseason";
+  document.getElementById("lt-season").value = "2026-27 Season";
   document.getElementById("lt-team").value = "";
   document.getElementById("lt-opponent").value = "";
   document.getElementById("lt-home-away").value = "";
