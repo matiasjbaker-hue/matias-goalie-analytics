@@ -13977,6 +13977,7 @@ supabaseClient.auth.onAuthStateChange(function(event, session){
 let currentRole = "goalie";
 let currentProfile = null;
 let coachGoalieProfiles = [];
+let coachAssignmentRows = [];
 let coachNotesData = [];
 
 // Only used while there's a single assigned goalie (see note below).
@@ -14377,6 +14378,10 @@ async function loadCoachExtras(){
       coachGoalieProfiles.length === 1
         ? coachGoalieProfiles[0].id
         : null;
+
+    // Goalies flagged "pays own" use their own games, not the coach's.
+    try{ coachAssignmentRows = await q("coach_goalie_assignments"); }
+    catch(e){ coachAssignmentRows = []; }
 
   }
   catch(err){
@@ -17590,10 +17595,11 @@ function renderAdminAssignments(){
             return `
               <tr>
                 <td>${escapeHtml(nameOf(a.goalie_id))}</td>
-                <td>${statusPill}${a.coach_managed ? ` <span class="small-note" title="Hidden from the overall Goalies table">coach-managed</span>` : ""}</td>
+                <td>${statusPill}${a.coach_managed ? ` <span class="small-note" title="Hidden from the overall Goalies table">coach-managed</span>` : ""}${a.goalie_pays_own ? ` <span class="small-note" title="Bought games for themselves: the coach's games are not used for them">pays own games</span>` : ""}</td>
                 <td>${adminGamesLeftHtml(a.goalie_id)}</td>
                 <td>
-                  <button class="btn-secondary" onclick="adminMovePrefill(${jsArg(a.coach_id)}, ${jsArg(a.goalie_id)})">Give games</button>
+                  ${a.goalie_pays_own ? "" : `<button class="btn-secondary" onclick="adminMovePrefill(${jsArg(a.coach_id)}, ${jsArg(a.goalie_id)})">Give games</button>`}
+                  <button class="btn-secondary" onclick="toggleGoaliePaysOwn(${a.id}, ${!a.goalie_pays_own}, this)" title="${a.goalie_pays_own ? "Use the coach's games for this goalie again" : "This goalie bought games for themselves: don't use the coach's games for them"}">${a.goalie_pays_own ? "Coach pays" : "Goalie pays own"}</button>
                   <button class="btn-secondary" onclick="toggleCoachManaged(${a.id}, ${!a.coach_managed}, this)" title="${a.coach_managed ? "Show this goalie in the overall Goalies table again" : "Hide this goalie from the overall Goalies table (the coach's games pay for them)"}">${a.coach_managed ? "Show in overview" : "Hide from overview"}</button>
                   <button class="btn-secondary" onclick="toggleAssignment(${a.id}, ${!a.active}, this)">
                     ${a.active ? "Deactivate" : "Reactivate"}
@@ -17714,6 +17720,32 @@ async function moveGamesBetweenAccounts(button){
   }
   finally{
     button.disabled = false;
+  }
+
+}
+
+async function toggleGoaliePaysOwn(id, value, button){
+
+  if(button){ button.disabled = true; }
+
+  try{
+
+    const patch = value ? { goalie_pays_own: true, coach_managed: false } : { goalie_pays_own: false };
+    const { error } = await supabaseClient.from("coach_goalie_assignments").update(patch).eq("id", id);
+    if(error){ throw error; }
+
+    await loadAdminExtras();
+    showToast(value
+      ? "This goalie now uses their own games when the coach uploads for them."
+      : "The coach's games are used for this goalie again.", "success");
+
+  }
+  catch(err){
+
+    console.error(err);
+    showToast("Could not update: " + (err.message || "unknown error"), "error");
+    if(button){ button.disabled = false; }
+
   }
 
 }
@@ -19528,7 +19560,7 @@ function renderCoachCreditsLine(){
     (counted
       ? `<strong>You have ${left} game${left === 1 ? "" : "s"} left.</strong> `
       : "") +
-    `Pick which of your goalies the film is for. A new game uses one of your games${counted ? "" : " (not limited on your plan)"}. Adding film to a game that's already in their account is free.`;
+    `Pick which of your goalies the film is for. A new game uses one of your games${counted ? "" : " (not limited on your plan)"}. Adding film to a game that's already in their account is free. A goalie who bought games for themselves uses their own, not yours.`;
 
 }
 
@@ -25403,7 +25435,8 @@ async function uploadGameVideo(){
     }
 
     // A new game uses one of the coach's games; stop before the slow upload.
-    if(currentRole === "coach" && isNewGame && myAccess && myAccess.plan === "pay_per_game" && accessIsActive(myAccess) && (myAccess.game_credits || 0) <= 0){
+    const ownPays = currentRole === "coach" && coachAssignmentRows.some(a => a.active && a.goalie_id === ownerId && a.goalie_pays_own);
+    if(currentRole === "coach" && isNewGame && !ownPays && myAccess && myAccess.plan === "pay_per_game" && accessIsActive(myAccess) && (myAccess.game_credits || 0) <= 0){
       showToast("You have no games left. Message Matias to add more.", "error");
       return;
     }
