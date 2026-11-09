@@ -3334,8 +3334,9 @@
       </div>
 
       <div class="field">
-        <label for="video-file-input">Video file</label>
+        <label for="video-file-input" id="video-file-label">Video file</label>
         <input type="file" id="video-file-input" accept="video/*,.mov,.mp4,.m4v">
+        <p class="small-note" id="video-multi-note" style="display:none;margin:6px 0 0">Film in more than one file? Select them all at once (hold Ctrl or Shift, or Cmd on Mac). They go in as Part 1, Part 2 and so on, and count as one game. Pick them in play order.</p>
       </div>
 
     </div>
@@ -19381,6 +19382,15 @@ function setAddGameMode(mode){
   const filmLinkBlock = document.getElementById("video-link-block");
   if(filmLinkBlock){ filmLinkBlock.style.display = currentRole === "coach" ? "none" : ""; }
 
+  // Coaches and admins can send one game's film as several files at once.
+  const multiOk = currentRole === "coach" || currentRole === "admin";
+  const fileEl = document.getElementById("video-file-input");
+  if(fileEl){ fileEl.multiple = multiOk; }
+  const fileLabel = document.getElementById("video-file-label");
+  if(fileLabel){ fileLabel.textContent = multiOk ? "Video file(s)" : "Video file"; }
+  const multiNote = document.getElementById("video-multi-note");
+  if(multiNote){ multiNote.style.display = multiOk ? "" : "none"; }
+
   const upload = document.getElementById("addUploadPanel");
   const manual = document.getElementById("addManualPanel");
 
@@ -25181,8 +25191,10 @@ async function uploadGameVideo(){
   const fileInput =
     document.getElementById("video-file-input");
 
-  const file =
-    fileInput.files[0];
+  const allFiles = Array.from(fileInput.files || []);
+  const file = allFiles[0];
+  const multiOk = currentRole === "coach" || currentRole === "admin";
+  const files = multiOk ? allFiles : allFiles.slice(0, 1);
 
   const jerseyColor =
     textOrNull(document.getElementById("video-jersey-color").value);
@@ -25292,17 +25304,19 @@ async function uploadGameVideo(){
 
     let storagePath;
 
+    const fileTag = i => files.length > 1 ? ` (file ${i + 1} of ${files.length})` : "";
+
     try{
       storagePath = await uploadFileToR2(file, (uploaded, total) => {
         const pct = total ? Math.floor((uploaded / total) * 100) : 0;
-        statusEl.textContent = forName ? `Uploading for ${forName}... ${pct}%` : `Uploading... ${pct}%`;
+        statusEl.textContent = (forName ? `Uploading for ${forName}... ${pct}%` : `Uploading... ${pct}%`) + fileTag(0);
       }, ownerId || undefined);
     }
     catch(uploadErr){
       throw new Error(uploadErr.message || String(uploadErr));
     }
 
-    let { error: insertError } =
+    let { data: rootRows, error: insertError } =
       await supabaseClient
         .from("game_videos")
         .insert({
@@ -25329,7 +25343,7 @@ async function uploadGameVideo(){
 
       if(newGameError){ throw new Error(newGameError.message); }
 
-      ({ error: insertError } =
+      ({ data: rootRows, error: insertError } =
         await supabaseClient.from("game_videos").insert({
           user_id: userId,
           game_id: newGame[0].id,
@@ -25344,11 +25358,63 @@ async function uploadGameVideo(){
       throw new Error(insertError.message);
     }
 
+    // Extra files of the same game: each is a Part of the first file's
+    // request. They never cost a game (only the first file does).
+    let partsDone = 0;
+    const rootId = rootRows && rootRows[0] ? rootRows[0].id : null;
+
+    if(files.length > 1 && !rootId){
+      throw new Error("File 1 uploaded, but the other files couldn't be linked to it. Don't upload this game again; tell Matias and he'll attach the rest.");
+    }
+
+    for(let i = 1; i < files.length; i++){
+
+      if(!rootId){ break; }
+
+      try{
+
+        const partPath = await uploadFileToR2(files[i], (uploaded, total) => {
+          const pct = total ? Math.floor((uploaded / total) * 100) : 0;
+          statusEl.textContent = (forName ? `Uploading for ${forName}... ${pct}%` : `Uploading... ${pct}%`) + fileTag(i);
+        }, ownerId || undefined);
+
+        const { error: partError } =
+          await supabaseClient.from("game_videos").insert({
+            user_id: userId,
+            game_id: gameId,
+            parent_video_id: rootId,
+            storage_path: partPath,
+            team_jersey_color: jerseyColor,
+            status: "uploaded"
+          });
+
+        if(partError){ throw new Error(partError.message); }
+
+        partsDone++;
+
+      }
+      catch(partErr){
+
+        console.error(partErr);
+        await renderCustomerVideoList();
+        throw new Error(
+          `File ${i + 1} of ${files.length} failed (${partErr.message || partErr}). ` +
+          `${partsDone + 1} of ${files.length} files did upload and are in the review. ` +
+          `Don't upload this game again from the start: send just the files that are missing, from the review screen or ask Matias.`
+        );
+
+      }
+
+    }
+
     statusEl.textContent = forName
       ? (currentRole === "coach"
           ? `Uploaded for ${forName}. We'll tag it and the stats will appear in their account once it's approved.`
           : `Uploaded for ${forName}. It's in the video review queue now, and it shows in their account as a request.`)
       : "Sent! We'll review your game and you'll see the stats here once they're approved.";
+    if(files.length > 1){
+      statusEl.textContent += ` All ${files.length} files went in as one game.`;
+    }
     fileInput.value = "";
     document.getElementById("video-jersey-color").value = "";
     document.getElementById("video-new-game-toggle").checked = (currentRole === "coach");
