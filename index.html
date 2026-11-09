@@ -4076,6 +4076,7 @@
             <span class="field-label">Feedback for the goalie</span>
             <p class="small-note">Pause on the frame, then draw or write on it. It shows in the goalie's shot log once you publish.</p>
             <div id="rv-ed-ann" class="watch-ann-list"></div>
+            <div id="rvAnnAudioBox" class="watch-ann-audio"></div>
             <div class="rv-editor-actions">
               <button type="button" class="btn-secondary" id="rvMarkStart" onclick="reviewMarkBegin()">Mark up this frame</button>
             </div>
@@ -4091,6 +4092,12 @@
                 <button type="button" data-color="#ffd60a" style="background:#ffd60a" aria-label="Yellow" onclick="watchMarkColor('#ffd60a')"></button>
                 <button type="button" data-color="#30d158" style="background:#30d158" aria-label="Green" onclick="watchMarkColor('#30d158')"></button>
                 <button type="button" data-color="#ffffff" style="background:#ffffff" aria-label="White" onclick="watchMarkColor('#ffffff')"></button>
+              </div>
+              <div class="watch-mark-voice">
+                <button type="button" class="wv-rec" onclick="watchVoiceToggle()">&#9679; Record voice note</button>
+                <span class="wv-time" aria-live="polite"></span>
+                <audio class="wv-preview" controls hidden></audio>
+                <button type="button" class="wv-clear" onclick="watchVoiceClear()" hidden>Remove voice</button>
               </div>
               <div class="watch-mark-actions">
                 <button type="button" onclick="watchMarkUndo()">Undo</button>
@@ -4628,6 +4635,12 @@
           <button type="button" data-color="#30d158" style="background:#30d158" aria-label="Green" onclick="watchMarkColor('#30d158')"></button>
           <button type="button" data-color="#ffffff" style="background:#ffffff" aria-label="White" onclick="watchMarkColor('#ffffff')"></button>
         </div>
+        <div class="watch-mark-voice">
+          <button type="button" class="wv-rec" onclick="watchVoiceToggle()">&#9679; Record voice note</button>
+          <span class="wv-time" aria-live="polite"></span>
+          <audio class="wv-preview" controls hidden></audio>
+          <button type="button" class="wv-clear" onclick="watchVoiceClear()" hidden>Remove voice</button>
+        </div>
         <div class="watch-mark-actions">
           <button type="button" onclick="watchMarkUndo()">Undo</button>
           <button type="button" onclick="watchMarkClear()">Clear</button>
@@ -4642,6 +4655,7 @@
           <button type="button" id="watchMarkStart" onclick="watchMarkBegin()" hidden>Mark up this frame</button>
         </div>
         <div id="watchAnnList" class="watch-ann-list"></div>
+        <div id="watchAnnAudioBox" class="watch-ann-audio"></div>
       </div>
     </div>
 
@@ -9345,12 +9359,14 @@ function watchAnnShow(id, seek){
   watchAnnShown = id;
   watchPaint(a.items);
   renderWatchAnnList();
+  watchVoicePlay(a, "watchAnnAudioBox", true);
 }
 
 function renderWatchAnnList(){
   const box = document.getElementById("watchAnnBox");
   const list = document.getElementById("watchAnnList");
   const can = watchCanMark();
+  if(!watchAnnShown){ watchVoiceStopPlayback("watchAnnAudioBox"); }
   box.hidden = !can && !watchAnns.length;
   document.getElementById("watchMarkStart").hidden = !can || !!watchMark;
   document.getElementById("watchAnnTitle").textContent =
@@ -9363,7 +9379,7 @@ function renderWatchAnnList(){
         return `<div class="watch-ann-chip${watchAnnShown === a.id ? " active" : ""}">
           <button type="button" class="watch-ann-open" onclick="watchAnnShow(${a.id})">
             <b>${watchAnnFmt(a.video_time)}</b>
-            <span>${escapeHtml(a.author_name || "Coach")}${notes ? " — " + escapeHtml(notes.length > 70 ? notes.slice(0, 70) + "…" : notes) : ""}</span>
+            <span>${a.audio_path ? "&#127908; " : ""}${escapeHtml(a.author_name || "Coach")}${notes ? " — " + escapeHtml(notes.length > 70 ? notes.slice(0, 70) + "…" : notes) : ""}</span>
           </button>
           ${canDel ? `<button type="button" class="watch-ann-del" aria-label="Delete feedback" onclick="watchAnnDelete(${a.id})">&times;</button>` : ""}
         </div>`;
@@ -9400,8 +9416,10 @@ async function watchAnnLoad(shot){
 
 async function watchAnnDelete(id){
   if(!confirm("Delete this feedback?")){ return; }
+  const gone = watchAnns.find(a => a.id === id);
   const { error } = await supabaseClient.from("shot_annotations").delete().eq("id", id);
   if(error){ showToast("Couldn't delete: " + error.message, "error"); return; }
+  if(gone && gone.audio_path){ watchVoiceRemoveFile(gone.audio_path); }
   watchAnns = watchAnns.filter(a => a.id !== id);
   if(watchAnnShown === id){ watchAnnShown = null; watchPaint([]); }
   renderWatchAnnList();
@@ -9435,6 +9453,7 @@ function watchMarkStartDrawing(){
 
 function watchMarkExit(){
   watchMark = null;
+  watchVoiceClear();
   [watchCtx(), reviewMarkCtx()].forEach(x => {
     if(x.video){ x.video.controls = true; }
     if(x.bar){ x.bar.hidden = true; }
@@ -9552,11 +9571,172 @@ function watchTextAt(x, y){
   setTimeout(() => input.focus(), 0);
 }
 
+/* ---------- voice note recorded while marking up ----------
+   Press Record, talk over the paused frame, Stop, check it, Save. The
+   audio is recorded in the browser (MediaRecorder), uploaded to the
+   private voice-notes bucket in the goalie's folder when the feedback is
+   saved, and plays under the clip for the goalie, their coaches and
+   admins. At most 3 minutes. */
+
+let watchVoice = null; // { recorder, stream, chunks, blob, url, mime, ext, startedAt, timer, finishing }
+const WATCH_VOICE_MAX_SECONDS = 180;
+
+function watchVoiceUi(){
+  const bar = mkc().bar;
+  if(!bar){ return; }
+  const rec = bar.querySelector(".wv-rec");
+  const time = bar.querySelector(".wv-time");
+  const prev = bar.querySelector(".wv-preview");
+  const clear = bar.querySelector(".wv-clear");
+  if(!rec){ return; }
+  const recording = !!(watchVoice && watchVoice.recorder && watchVoice.recorder.state === "recording");
+  const ready = !!(watchVoice && watchVoice.blob);
+  rec.innerHTML = recording ? "&#9632; Stop" : ready ? "&#9679; Record again" : "&#9679; Record voice note";
+  if(time){
+    const secs = watchVoice && watchVoice.startedAt ? Math.floor((Date.now() - watchVoice.startedAt) / 1000) : 0;
+    time.textContent = recording ? `Recording… ${watchAnnFmt(secs)}` : "";
+  }
+  if(prev){
+    if(ready){ if(prev.src !== watchVoice.url){ prev.src = watchVoice.url; } prev.hidden = false; }
+    else{ prev.removeAttribute("src"); prev.hidden = true; }
+  }
+  if(clear){ clear.hidden = !ready; }
+}
+
+function watchVoiceStopTracks(){
+  if(watchVoice && watchVoice.stream){ watchVoice.stream.getTracks().forEach(t => t.stop()); }
+}
+
+async function watchVoiceToggle(){
+  if(!watchMark){ return; }
+
+  if(watchVoice && watchVoice.recorder && watchVoice.recorder.state === "recording"){
+    watchVoice.recorder.stop();
+    return;
+  }
+
+  if(!navigator.mediaDevices || !window.MediaRecorder){
+    showToast("This browser can't record audio. Try Chrome, Edge or Safari.", "error");
+    return;
+  }
+
+  let stream;
+  try{ stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch(error){
+    showToast("Couldn't use the microphone. Allow microphone access for this site in your browser, then try again.", "error");
+    return;
+  }
+
+  // Replacing an earlier take.
+  if(watchVoice && watchVoice.url){ URL.revokeObjectURL(watchVoice.url); }
+  const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"].find(t => MediaRecorder.isTypeSupported(t)) || "";
+  const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+  const v = { recorder, stream, chunks: [], blob: null, url: null, mime: recorder.mimeType || mime || "audio/webm", ext: "webm", startedAt: Date.now(), timer: null };
+  v.ext = /mp4/.test(v.mime) ? "m4a" : /ogg/.test(v.mime) ? "ogg" : "webm";
+  watchVoice = v;
+
+  recorder.ondataavailable = e => { if(e.data && e.data.size){ v.chunks.push(e.data); } };
+  recorder.onstop = () => {
+    clearInterval(v.timer);
+    v.stream.getTracks().forEach(t => t.stop());
+    if(watchVoice !== v){ return; }
+    v.blob = v.chunks.length ? new Blob(v.chunks, { type: v.mime }) : null;
+    v.startedAt = null;
+    if(v.blob){ v.url = URL.createObjectURL(v.blob); }
+    else{ watchVoice = null; }
+    watchVoiceUi();
+    if(v.onFinished){ v.onFinished(); }
+  };
+
+  recorder.start();
+  v.timer = setInterval(() => {
+    if(watchVoice !== v){ clearInterval(v.timer); return; }
+    if(Date.now() - v.startedAt >= WATCH_VOICE_MAX_SECONDS * 1000 && recorder.state === "recording"){ recorder.stop(); }
+    watchVoiceUi();
+  }, 500);
+  watchVoiceUi();
+}
+
+// Discards the take (Remove voice, Cancel, or after saving).
+function watchVoiceClear(){
+  const v = watchVoice;
+  watchVoice = null;
+  if(v){
+    clearInterval(v.timer);
+    v.onFinished = null;
+    try{ if(v.recorder && v.recorder.state === "recording"){ v.recorder.onstop = null; v.recorder.stop(); } }catch(e){}
+    if(v.stream){ v.stream.getTracks().forEach(t => t.stop()); }
+    if(v.url){ URL.revokeObjectURL(v.url); }
+  }
+  [watchCtx(), reviewMarkCtx()].forEach(x => {
+    if(!x.bar){ return; }
+    const prev = x.bar.querySelector(".wv-preview");
+    if(prev){ prev.pause(); prev.removeAttribute("src"); prev.hidden = true; }
+    const clr = x.bar.querySelector(".wv-clear"); if(clr){ clr.hidden = true; }
+    const rec = x.bar.querySelector(".wv-rec"); if(rec){ rec.innerHTML = "&#9679; Record voice note"; }
+    const t = x.bar.querySelector(".wv-time"); if(t){ t.textContent = ""; }
+  });
+}
+
+// The take as a blob, stopping the recorder first if it's still going.
+async function watchVoiceFinish(){
+  const v = watchVoice;
+  if(!v){ return null; }
+  if(v.recorder && v.recorder.state === "recording"){
+    await new Promise(resolve => { v.onFinished = resolve; v.recorder.stop(); });
+  }
+  return watchVoice === v ? v.blob : null;
+}
+
+// Uploads the take to the goalie's folder. Returns the storage path or null.
+async function watchVoiceUpload(goalieId){
+  const blob = await watchVoiceFinish();
+  if(!blob){ return null; }
+  const ext = (watchVoice && watchVoice.ext) || "webm";
+  const path = `${goalieId}/${currentSession.user.id}-${Date.now()}.${ext}`;
+  const { error } = await supabaseClient.storage.from("voice-notes").upload(path, blob, { contentType: blob.type || "audio/webm", upsert: false });
+  if(error){ throw new Error("Couldn't upload the voice note: " + (error.message || error)); }
+  return path;
+}
+
+function watchVoiceRemoveFile(path){
+  if(!path){ return; }
+  supabaseClient.storage.from("voice-notes").remove([path]).catch(() => {});
+}
+
+function watchVoiceStopPlayback(boxId){
+  const box = document.getElementById(boxId);
+  if(!box || !box.firstChild){ return; }
+  const a = box.querySelector("audio");
+  if(a){ a.pause(); }
+  box.innerHTML = "";
+}
+
+// Shows the voice note for a feedback row under the clip (and plays it).
+async function watchVoicePlay(a, boxId, autoplay){
+  const box = document.getElementById(boxId);
+  if(!box){ return; }
+  if(!a || !a.audio_path){ box.innerHTML = ""; return; }
+  box.dataset.for = String(a.id);
+  box.innerHTML = `<span class="watch-ann-empty">Loading voice note…</span>`;
+  try{
+    const { data, error } = await supabaseClient.storage.from("voice-notes").createSignedUrl(a.audio_path, 3600);
+    if(error){ throw error; }
+    if(box.dataset.for !== String(a.id)){ return; }
+    box.innerHTML = `<audio controls preload="auto" src="${escapeHtml(data.signedUrl)}"></audio>`;
+    if(autoplay){ const el = box.querySelector("audio"); el.play().catch(() => {}); }
+  }
+  catch(error){
+    console.error(error);
+    if(box.dataset.for === String(a.id)){ box.innerHTML = `<span class="watch-ann-empty">Couldn't load the voice note.</span>`; }
+  }
+}
+
 function watchMarkSave(){
   const m = watchMark;
   if(!m){ return; }
   mkc().stage.querySelectorAll(".watch-mark-text").forEach(el => el.blur());
-  if(!m.items.length){ showToast("Draw or write something first.", "error"); return; }
+  if(!m.items.length && !watchVoice){ showToast("Draw, write or record something first.", "error"); return; }
   return mkc().save();
 }
 
@@ -9576,21 +9756,24 @@ async function watchMarkSaveWatch(){
   btn.disabled = true;
   try{
     const shot = watchAnnShot;
+    const audioPath = await watchVoiceUpload(shot.user_id);
     const { data, error } = await supabaseClient.from("shot_annotations").insert({
       shot_id: shot.shot_id ?? shot.id,
       goalie_id: shot.user_id,
       author_id: currentSession.user.id,
       author_name: watchMarkAuthor(),
       video_time: Math.round((m.time ?? mk.video.currentTime) * 10000) / 10000,
-      items: m.items
+      items: m.items,
+      ...(audioPath ? { audio_path: audioPath } : {})
     }).select().single();
-    if(error){ throw error; }
+    if(error){ watchVoiceRemoveFile(audioPath); throw error; }
     watchAnns = [...watchAnns, data].sort((a, b) => Number(a.video_time) - Number(b.video_time));
     watchAnnSeen.add(data.id);
     watchMarkExit();
     watchAnnShown = data.id;
     watchPaint(data.items);
     renderWatchAnnList();
+    watchVoicePlay(data, "watchAnnAudioBox", false);
     showToast("Feedback saved.", "success");
   }
   catch(error){
@@ -26568,13 +26751,14 @@ function renderReviewAnn(){
   const d = reviewSelectedDraft();
   if(!host || !d){ return; }
   const rows = (review.ann && review.ann[d.id]) || [];
+  if(!reviewAnnShown){ watchVoiceStopPlayback("rvAnnAudioBox"); }
   document.getElementById("rvMarkStart").hidden = !!watchMark;
   host.innerHTML = rows.map(a => {
     const notes = (a.items || []).filter(i => i.t === "text").map(i => i.s).join(" · ");
     return `<div class="watch-ann-chip${reviewAnnShown === a.id ? " active" : ""}">
       <button type="button" class="watch-ann-open" onclick="reviewAnnShow(${a.id})">
         <b>${watchAnnFmt(a.video_time)}</b>
-        <span>${escapeHtml(a.author_name || "Coach")}${notes ? " — " + escapeHtml(notes.length > 60 ? notes.slice(0, 60) + "…" : notes) : ""}</span>
+        <span>${a.audio_path ? "&#127908; " : ""}${escapeHtml(a.author_name || "Coach")}${notes ? " — " + escapeHtml(notes.length > 60 ? notes.slice(0, 60) + "…" : notes) : ""}</span>
       </button>
       <button type="button" class="watch-ann-del" aria-label="Delete feedback" onclick="reviewAnnDelete(${a.id})">&times;</button>
     </div>`;
@@ -26606,13 +26790,16 @@ function reviewAnnShow(id){
   reviewAnnShown = a.id;
   watchPaint(a.items);
   renderReviewAnn();
+  watchVoicePlay(a, "rvAnnAudioBox", true);
 }
 
 async function reviewAnnDelete(id){
   const d = reviewSelectedDraft();
   if(!d || !confirm("Delete this feedback?")){ return; }
+  const gone = (review.ann[d.id] || []).find(a => a.id === id);
   const { error } = await supabaseClient.from("shot_annotations").delete().eq("id", id);
   if(error){ showToast("Couldn't delete: " + error.message, "error"); return; }
+  if(gone && gone.audio_path){ watchVoiceRemoveFile(gone.audio_path); }
   review.ann[d.id] = (review.ann[d.id] || []).filter(a => a.id !== id);
   if(reviewAnnShown === id){ reviewAnnShown = null; mk = reviewMarkCtx(); watchPaint([]); }
   renderReviewAnn();
@@ -26636,6 +26823,7 @@ async function reviewMarkSave(){
   const btn = document.getElementById("rvMarkSave");
   btn.disabled = true;
   try{
+    const audioPath = await watchVoiceUpload(review.video.user_id);
     const { data, error } = await supabaseClient.from("shot_annotations").insert({
       draft_id: d.id,
       shot_id: reviewPublishedShotIdFor(d),
@@ -26643,15 +26831,17 @@ async function reviewMarkSave(){
       author_id: currentSession.user.id,
       author_name: watchMarkAuthor(),
       video_time: Math.round((m.time ?? mk.video.currentTime) * 10000) / 10000,
-      items: m.items
+      items: m.items,
+      ...(audioPath ? { audio_path: audioPath } : {})
     }).select().single();
-    if(error){ throw error; }
+    if(error){ watchVoiceRemoveFile(audioPath); throw error; }
     if(!review.ann){ review.ann = {}; }
     review.ann[d.id] = [...(review.ann[d.id] || []), data].sort((a, b) => Number(a.video_time) - Number(b.video_time));
     watchMarkExit();
     reviewAnnShown = data.id;
     watchPaint(data.items);
     renderReviewAnn();
+    watchVoicePlay(data, "rvAnnAudioBox", false);
     showToast("Feedback saved. It shows in the goalie's shot log once you publish.", "success");
   }
   catch(error){

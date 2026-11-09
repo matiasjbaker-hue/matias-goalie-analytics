@@ -819,6 +819,13 @@ header{
 .watch-ann-del{ background:none; border:none; border-left:1.5px solid var(--seam-strong); color:var(--muted-ink); font-size:18px; padding:0 12px; cursor:pointer; }
 .watch-ann-del:hover{ color:#b42318; }
 .watch-ann-empty{ font-size:13px; color:var(--muted-ink); }
+.watch-mark-voice{ display:flex; flex-wrap:wrap; gap:8px 10px; align-items:center; }
+.watch-mark-voice .wv-rec{ border-color:#b42318; color:#b42318; }
+.watch-mark-voice .wv-time{ font-size:13px; font-weight:700; color:#b42318; }
+.watch-mark-voice .wv-preview{ height:34px; max-width:260px; }
+.watch-mark-voice [hidden]{ display:none; }
+.watch-ann-audio{ margin-top:8px; }
+.watch-ann-audio audio{ width:100%; max-width:420px; height:36px; }
 
 
 /* Profile pictures */
