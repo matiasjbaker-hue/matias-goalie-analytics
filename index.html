@@ -3851,6 +3851,15 @@
         </div>
 
         <div class="rv-periods">
+          <label class="rv-density rv-net" title="Which period the very start of THIS file is in. Use it when a part begins partway through the game, e.g. Part 4 is all 3rd period. Period marks below still override it.">
+            <span>This file starts in</span>
+            <select id="rv-start-period" onchange="setReviewStartPeriod(this.value)">
+              <option value="1">1st</option>
+              <option value="2">2nd</option>
+              <option value="3">3rd</option>
+              <option value="OT">OT</option>
+            </select>
+          </label>
           <span class="rv-periods-label">Mark where each period starts:</span>
           <button type="button" class="btn-secondary" onclick="markReviewPeriod('2')">2nd starts here</button>
           <button type="button" class="btn-secondary" onclick="markReviewPeriod('3')">3rd starts here</button>
@@ -26120,7 +26129,10 @@ function renderReviewHeader(){
   const marks = v.period_marks || {};
   const parts = ["2", "3", "OT"].filter(p => marks[p] !== undefined && marks[p] !== null)
     .map(p => `${p === "OT" ? "OT" : p === "2" ? "2nd" : "3rd"} at ${formatClock(marks[p])}`);
-  document.getElementById("rv-period-note").textContent = parts.length ? parts.join(" · ") : "Until marked, every shot counts as 1st period.";
+  const startP = ["2", "3", "OT"].includes(marks._start) ? marks._start : null;
+  const startLabel = startP ? `Starts in ${startP === "OT" ? "OT" : startP === "2" ? "2nd" : "3rd"}` : null;
+  document.getElementById("rv-period-note").textContent =
+    [startLabel, ...parts].filter(Boolean).join(" · ") || "Until marked, every shot counts as 1st period.";
 
 }
 
@@ -26199,7 +26211,8 @@ function reviewDuration(){
 
 function reviewPeriodAt(t, video = review.video){
   const m = (video && video.period_marks) || {};
-  let p = "1";
+  // A file can start partway through the game (e.g. Part 4 is all 3rd period).
+  let p = ["1", "2", "3", "OT"].includes(m._start) ? m._start : "1";
   ["2", "3", "OT"].forEach(k => {
     if(m[k] !== undefined && m[k] !== null && t >= Number(m[k])){ p = k; }
   });
@@ -27000,6 +27013,25 @@ function reviewTogglePlay(){
   if(video.paused){ video.play().catch(() => {}); } else { video.pause(); }
 }
 
+async function setReviewStartPeriod(value){
+  const v = review.video;
+  if(!v){ return; }
+  const before = v.period_marks;
+  const marks = { ...(v.period_marks || {}) };
+  if(value && value !== "1"){ marks._start = value; } else{ delete marks._start; }
+  v.period_marks = marks;
+  try{ await saveReviewMarks(v); }
+  catch(error){
+    v.period_marks = before;
+    refreshReviewNetSelects();
+    showToast(`Could not save: ${error.message}`, "error");
+    return;
+  }
+  renderReviewHeader();
+  renderReviewShots();
+  showToast(`This file now starts in the ${value === "OT" ? "OT" : value === "2" ? "2nd" : value === "3" ? "3rd" : "1st"} period.`, "success");
+}
+
 async function markReviewPeriod(period){
   const v = review.video;
   if(!v){ return; }
@@ -27575,6 +27607,8 @@ function reviewNetSideAt(t){
 function refreshReviewNetSelects(){
   const m = (review.video && review.video.period_marks) || {};
   const ok = x => x === "left" || x === "right";
+  const startSel = document.getElementById("rv-start-period");
+  if(startSel){ startSel.value = ["2", "3", "OT"].includes(m._start) ? m._start : "1"; }
   const first = document.getElementById("rv-net-side");
   if(first){ first.value = ok(m._net) ? m._net : ""; }
   [["2", "rv-net-side-2"], ["3", "rv-net-side-3"], ["OT", "rv-net-side-ot"]].forEach(([p, id]) => {
