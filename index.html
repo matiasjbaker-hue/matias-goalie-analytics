@@ -25788,6 +25788,7 @@ async function openReview(videoId){
   review.markOut = null;
   review.cutHistory = [];
   review.drafts = [];
+  review.otherDrafts = [];
   review.candidates = ((v.period_marks && Array.isArray(v.period_marks._candidates)) ? v.period_marks._candidates : [])
     .map(c => ({ t: Number(c.t), confidence: Number(c.c) || 0, goal: !!c.g, ...(Number.isFinite(Number(c.s)) && Number.isFinite(Number(c.e)) ? { s: Number(c.s), e: Number(c.e) } : {}), ...(c.src ? { src: String(c.src) } : {}) }))
     .filter(c => Number.isFinite(c.t));
@@ -25830,6 +25831,16 @@ async function openReview(videoId){
   }
   else{
     review.drafts = data || [];
+  }
+
+  // The shot list shows every file's shots together, so also load the
+  // drafts of this request's other files (display + jump only: editing
+  // still happens on the open file).
+  const siblingIds = reviewPartsOf(v).filter(p => String(p.id) !== String(v.id)).map(p => p.id);
+  if(siblingIds.length && !error){
+    const sib = await supabaseClient.from("video_shot_drafts").select("*").in("game_video_id", siblingIds).order("t_seconds");
+    if(!sib.error){ review.otherDrafts = sib.data || []; }
+    else{ console.error(sib.error); }
   }
 
   renderReviewShots();
@@ -26195,32 +26206,52 @@ function renderReviewShots(){
   const list = document.getElementById("rv-shotlist");
   const drafts = review.drafts;
 
-  document.getElementById("rv-count").textContent = drafts.length ? `(${drafts.length})` : "";
+  // Every file's shots in one list, ordered Part 1, Part 2 ... then by time.
+  const cur = review.video;
+  const parts = cur ? reviewPartsOf(cur) : [];
+  const multi = parts.length > 1;
+  const partIndex = id => parts.findIndex(p => String(p.id) === String(id));
+  const others = multi ? (review.otherDrafts || []) : [];
 
-  const goals = drafts.filter(d => d.outcome === "goal").length;
+  const allRows = [
+    ...drafts.map(d => ({ d, own: true, part: cur ? partIndex(cur.id) : 0, video: cur })),
+    ...others.map(d => {
+      const vi = partIndex(d.game_video_id);
+      return { d, own: false, part: vi, video: parts[vi] || null };
+    })
+  ].sort((x, y) => (x.part - y.part) || (Number(x.d.t_seconds) - Number(y.d.t_seconds)));
+
+  const total = allRows.length;
+  const goals = allRows.filter(r => r.d.outcome === "goal").length;
+
+  document.getElementById("rv-count").textContent = total ? `(${total})` : "";
   document.getElementById("rv-tally").textContent =
-    drafts.length ? `${drafts.length - goals} saves · ${goals} goal${goals === 1 ? "" : "s"}` : "";
+    total ? `${total - goals} saves · ${goals} goal${goals === 1 ? "" : "s"}${multi ? ` · all ${parts.length} files` : ""}` : "";
 
-  if(!drafts.length){
+  if(!total){
     list.innerHTML = `<li class="rv-empty">No shots yet. Run AI, or play the video and press <strong>Add shot here</strong> (or S) at each shot.</li>`;
   }
   else{
-    list.innerHTML = drafts.map(d => {
-      const sel = String(d.id) === String(review.selectedId);
+    list.innerHTML = allRows.map(({ d, own, part, video: pv }) => {
+      const sel = own && String(d.id) === String(review.selectedId);
       const pct = Math.round((Number(d.ai_confidence) || 0) * 100);
       const who =
         d.source === "admin" ? `<span class="rv-src">Added by you</span>` :
         d.edited ? `<span class="rv-src">AI · edited</span>` :
-        reviewDraftIsBasic(d) ? `<span class="ai-badge is-basic" title="Only the basics: press AI fill all to fill it in">AI ${pct}% · basics</span>` :
+        (own && reviewDraftIsBasic(d)) ? `<span class="ai-badge is-basic" title="Only the basics: press AI fill all to fill it in">AI ${pct}% · basics</span>` :
         `<span class="ai-badge">AI ${pct}%</span>`;
+      const partTag = multi ? `<span class="rv-src" title="${escapeHtml(pv ? reviewFileName(pv) : "")}">File ${part + 1}</span>` : "";
+      const click = own
+        ? `selectReviewShot(${jsArg(d.id)}, true)`
+        : `selectReviewShotInPart(${jsArg(d.game_video_id)}, ${jsArg(d.id)})`;
       return `
         <li class="rv-shot-row">
-          <button type="button" class="rv-shot ${sel ? "is-selected" : ""} ${d.outcome === "goal" ? "is-goal" : ""}" onclick="selectReviewShot(${jsArg(d.id)}, true)">
+          <button type="button" class="rv-shot ${sel ? "is-selected" : ""} ${d.outcome === "goal" ? "is-goal" : ""}" onclick="${click}">
             <span class="rv-shot-time">${escapeHtml(formatClock(d.t_seconds))}</span>
-            <span class="rv-shot-main"><strong>${d.outcome === "goal" ? "Goal" : "Save"}</strong> · P${escapeHtml(reviewEffectivePeriod(d))}${shotZoneDisplay(d) ? " · " + escapeHtml(shotZoneDisplay(d)) : ""}${d.shot_type ? " · " + escapeHtml(d.shot_type) : ""}</span>
-            ${who}
+            <span class="rv-shot-main"><strong>${d.outcome === "goal" ? "Goal" : "Save"}</strong> · P${escapeHtml(reviewEffectivePeriod(d, pv || review.video))}${shotZoneDisplay(d) ? " · " + escapeHtml(shotZoneDisplay(d)) : ""}${d.shot_type ? " · " + escapeHtml(d.shot_type) : ""}</span>
+            ${partTag}${who}
           </button>
-          ${d.source === "ai" && !d.edited ? `<button type="button" class="rv-shot-x" onclick="quickDeleteReviewShot(${jsArg(d.id)})" title="Not a shot: delete it" aria-label="Delete the shot at ${escapeHtml(formatClock(d.t_seconds))}">×</button>` : ""}
+          ${own && d.source === "ai" && !d.edited ? `<button type="button" class="rv-shot-x" onclick="quickDeleteReviewShot(${jsArg(d.id)})" title="Not a shot: delete it" aria-label="Delete the shot at ${escapeHtml(formatClock(d.t_seconds))}">×</button>` : ""}
         </li>`;
     }).join("");
   }
@@ -26240,6 +26271,25 @@ function renderReviewShots(){
 
   renderReviewChecklist();
   renderReviewTimeline();
+
+}
+
+// A shot from another file of this request: open that file, then select it.
+async function selectReviewShotInPart(partId, draftId){
+
+  await switchReviewPart(partId);
+
+  if(!review.video || String(review.video.id) !== String(partId)){ return; }
+
+  const d = review.drafts.find(x => String(x.id) === String(draftId));
+  if(!d){ return; }
+
+  selectReviewShot(draftId, false);
+
+  const video = document.getElementById("rv-video");
+  const to = Math.max(0, Number(d.t_seconds) - 3);
+  if(video.readyState >= 1){ video.currentTime = to; }
+  else{ video.addEventListener("loadedmetadata", () => { video.currentTime = to; }, { once: true }); }
 
 }
 
