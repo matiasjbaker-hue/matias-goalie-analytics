@@ -24821,7 +24821,7 @@ async function loadVideoPipelineData(){
             return `<option value="${g.id}" data-user-id="${g.user_id}">${escapeHtml(ownerName)} — ${escapeHtml(gameDate(g))} vs ${escapeHtml(gameOpponent(g))}</option>`;
 
           }).join("")
-        : `<option value="">No games yet for your goalies -- check "This is a new game" below</option>`;
+        : `<option value="">No games yet for your goalies -- check "This is a new game" above</option>`;
 
   }
   else if(select && games && games.length){
@@ -24839,6 +24839,19 @@ async function loadVideoPipelineData(){
     select.innerHTML =
       `<option value="">No games yet -- check "This is a new game" below</option>`;
 
+  }
+
+  // A coach's goalie picker (new game) lists every assigned goalie, but the
+  // existing-game list only has goalies who already have games -- so a goalie
+  // with no games yet looked "missing". Coaches mostly upload new games, so
+  // start in new-game mode; they can untick it to attach film to an existing game.
+  if(currentRole === "coach"){
+    const t = document.getElementById("video-new-game-toggle");
+    if(t && !t.dataset.coachDefaulted){
+      t.checked = true;
+      t.dataset.coachDefaulted = "1";
+    }
+    toggleVideoNewGameFields();
   }
 
   await renderCustomerVideoList();
@@ -25334,7 +25347,7 @@ async function uploadGameVideo(){
       : "Sent! We'll review your game and you'll see the stats here once they're approved.";
     fileInput.value = "";
     document.getElementById("video-jersey-color").value = "";
-    document.getElementById("video-new-game-toggle").checked = false;
+    document.getElementById("video-new-game-toggle").checked = (currentRole === "coach");
     toggleVideoNewGameFields();
 
     if(currentRole === "coach"){
