@@ -1033,6 +1033,11 @@
     <h3>Goalies</h3>
   </div>
 
+  <label class="consent-row" id="adminShowManagedRow" style="margin:0 0 10px;display:none">
+    <input type="checkbox" id="adminShowManaged" onchange="renderAdminGoalies()">
+    <span id="adminShowManagedText">Show goalies managed by a coach</span>
+  </label>
+
   <div class="card">
     <div class="table-wrap">
       <table>
@@ -1059,6 +1064,33 @@
     <p>Link a coach to a goalie. Coaches can never do this themselves — only an admin can grant access.</p>
   </div>
 
+
+  <div class="card section-space">
+
+    <h3>Move games between accounts</h3>
+    <p class="small-note" style="margin:0 0 12px">Take games from one account's balance and give them to another, for example from a coach to one of their goalies, or back. The total stays the same. An account that isn't on pay-per-game yet is put on it with the games you give it.</p>
+
+    <div class="grid grid-3">
+      <div>
+        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px;">From</label>
+        <select id="adminMoveFrom" style="width:100%;background:var(--field);border:1.5px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
+      </div>
+      <div>
+        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px;">To</label>
+        <select id="adminMoveTo" style="width:100%;background:var(--field);border:1.5px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
+      </div>
+      <div style="display:flex;gap:10px;align-items:flex-end;">
+        <div style="flex:1">
+          <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px;">Games</label>
+          <input type="number" id="adminMoveGames" min="1" step="1" value="1" style="width:100%">
+        </div>
+        <button class="btn-primary" onclick="moveGamesBetweenAccounts(this)">Move games</button>
+      </div>
+    </div>
+
+    <div class="small-note" id="adminMoveStatus"></div>
+
+  </div>
 
   <div class="card">
 
@@ -16078,8 +16110,23 @@ function renderAdminGoalies(){
   // Keeps itself organized: paying goalies with games left first (most
   // games first), then pay-per-game goalies at 0 (the ones to follow up
   // with), then free / trial, then everyone without access. Ties by name.
+  // Goalies a coach manages (the coach's games pay for them) stay out of
+  // this overview unless the box above is ticked. Flag it per assignment
+  // under Assignments > the coach's list.
+  const managedIds = new Set(
+    adminAssignments.filter(a => a.active && a.coach_managed).map(a => a.goalie_id)
+  );
+  const showManaged = !!(document.getElementById("adminShowManaged") || {}).checked;
+  const managedHidden = adminProfiles.filter(p => p.role === "goalie" && managedIds.has(p.id)).length;
+  const managedRow = document.getElementById("adminShowManagedRow");
+  if(managedRow){
+    managedRow.style.display = managedHidden ? "" : "none";
+    document.getElementById("adminShowManagedText").textContent =
+      `Show goalies managed by a coach (${managedHidden} hidden)`;
+  }
+
   const goalies = adminProfiles
-    .filter(p => p.role === "goalie")
+    .filter(p => p.role === "goalie" && (showManaged || !managedIds.has(p.id)))
     .sort((a, b) => {
       const ra = adminAccessSortKey(a.id);
       const rb = adminAccessSortKey(b.id);
@@ -17471,6 +17518,8 @@ function renderAdminAssignments(){
   const coaches = adminProfiles.filter(p => p.role === "coach");
   const goalies = adminProfiles.filter(p => p.role === "goalie");
 
+  renderAdminMoveGames();
+
   const coachSelect = document.getElementById("adminAssignCoachSelect");
   const goalieSelect = document.getElementById("adminAssignGoalieSelect");
 
@@ -17530,7 +17579,7 @@ function renderAdminAssignments(){
 
     const body = rows.length
       ? `<div class="table-wrap"><table>
-          <thead><tr><th>Goalie</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Goalie</th><th>Status</th><th>Games left</th><th>Actions</th></tr></thead>
           <tbody>${rows.map(a => {
 
             const statusPill =
@@ -17541,8 +17590,11 @@ function renderAdminAssignments(){
             return `
               <tr>
                 <td>${escapeHtml(nameOf(a.goalie_id))}</td>
-                <td>${statusPill}</td>
+                <td>${statusPill}${a.coach_managed ? ` <span class="small-note" title="Hidden from the overall Goalies table">coach-managed</span>` : ""}</td>
+                <td>${adminGamesLeftHtml(a.goalie_id)}</td>
                 <td>
+                  <button class="btn-secondary" onclick="adminMovePrefill(${jsArg(a.coach_id)}, ${jsArg(a.goalie_id)})">Give games</button>
+                  <button class="btn-secondary" onclick="toggleCoachManaged(${a.id}, ${!a.coach_managed}, this)" title="${a.coach_managed ? "Show this goalie in the overall Goalies table again" : "Hide this goalie from the overall Goalies table (the coach's games pay for them)"}">${a.coach_managed ? "Show in overview" : "Hide from overview"}</button>
                   <button class="btn-secondary" onclick="toggleAssignment(${a.id}, ${!a.active}, this)">
                     ${a.active ? "Deactivate" : "Reactivate"}
                   </button>
@@ -17580,6 +17632,114 @@ function adminAssignToggled(el){
   else{ adminAssignOpen.delete(id); }
 }
 
+
+/* ---------- move games between accounts ---------- */
+
+function renderAdminMoveGames(){
+
+  const fromSel = document.getElementById("adminMoveFrom");
+  const toSel = document.getElementById("adminMoveTo");
+  if(!fromSel || !toSel){ return; }
+
+  const keepFrom = fromSel.value, keepTo = toSel.value;
+
+  const people = adminProfiles
+    .filter(p => p.role === "coach" || p.role === "goalie")
+    .slice()
+    .sort((a, b) => (a.role === b.role ? 0 : a.role === "coach" ? -1 : 1) || String(a.full_name || "").localeCompare(String(b.full_name || "")));
+
+  const label = p => {
+    const left = adminGamesLeft(p.id);
+    const bal = left === null ? "no game balance" : `${left} left`;
+    return `${p.full_name || "Unnamed"} (${p.role}) · ${bal}`;
+  };
+
+  const opts = people.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(label(p))}</option>`).join("");
+  fromSel.innerHTML = `<option value="">Choose…</option>` + opts;
+  toSel.innerHTML = `<option value="">Choose…</option>` + opts;
+  fromSel.value = keepFrom;
+  toSel.value = keepTo;
+
+}
+
+function adminMovePrefill(fromId, toId){
+  renderAdminMoveGames();
+  document.getElementById("adminMoveFrom").value = fromId;
+  document.getElementById("adminMoveTo").value = toId;
+  document.getElementById("adminMoveStatus").textContent = "";
+  const n = document.getElementById("adminMoveGames");
+  n.scrollIntoView({ behavior: "smooth", block: "center" });
+  n.focus();
+  n.select();
+}
+
+async function moveGamesBetweenAccounts(button){
+
+  const from = document.getElementById("adminMoveFrom").value;
+  const to = document.getElementById("adminMoveTo").value;
+  const games = Math.floor(Number(document.getElementById("adminMoveGames").value));
+  const statusEl = document.getElementById("adminMoveStatus");
+
+  if(!from || !to){ showToast("Choose both accounts.", "error"); return; }
+  if(from === to){ showToast("Pick two different accounts.", "error"); return; }
+  if(!(games >= 1)){ showToast("Enter how many games to move.", "error"); return; }
+
+  const nameOf = id => (adminProfiles.find(p => p.id === id) || {}).full_name || "this account";
+
+  if(!confirm(`Move ${games} game${games === 1 ? "" : "s"} from ${nameOf(from)} to ${nameOf(to)}?`)){ return; }
+
+  button.disabled = true;
+
+  try{
+
+    const { data, error } = await supabaseClient.rpc("transfer_game_credits", { p_from: from, p_to: to, p_games: games });
+    if(error){ throw error; }
+
+    adminAccess = await q("goalie_access");
+    renderAdminCoaches();
+    renderAdminGoalies();
+    renderAdminAssignments();
+
+    statusEl.textContent =
+      `Moved ${games}. ${nameOf(from)} now has ${data.from_left} left, ${nameOf(to)} has ${data.to_left}.`;
+    showToast("Games moved.", "success");
+
+  }
+  catch(err){
+
+    console.error(err);
+    statusEl.textContent = "";
+    showToast("Could not move games: " + (err.message || "unknown error"), "error");
+
+  }
+  finally{
+    button.disabled = false;
+  }
+
+}
+
+async function toggleCoachManaged(id, value, button){
+
+  if(button){ button.disabled = true; }
+
+  try{
+
+    const { error } = await supabaseClient.from("coach_goalie_assignments").update({ coach_managed: value }).eq("id", id);
+    if(error){ throw error; }
+
+    await loadAdminExtras();
+    showToast(value ? "Hidden from the overall Goalies table." : "Back in the overall Goalies table.", "success");
+
+  }
+  catch(err){
+
+    console.error(err);
+    showToast("Could not update: " + (err.message || "unknown error"), "error");
+    if(button){ button.disabled = false; }
+
+  }
+
+}
 
 async function createAssignment(button){
 
