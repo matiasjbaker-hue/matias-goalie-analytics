@@ -1088,19 +1088,7 @@
 
   <div class="card section-space">
     <h3>All Assignments</h3>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Coach</th>
-            <th>Goalie</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="adminAssignmentsBody"></tbody>
-      </table>
-    </div>
+    <div id="adminAssignmentsList"></div>
   </div>
 
 
@@ -17489,46 +17477,100 @@ function renderAdminAssignments(){
       ? goalies.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.full_name || g.id)}</option>`).join("")
       : `<option value="">No goalies yet</option>`;
 
-  const tbody = document.getElementById("adminAssignmentsBody");
+  const list = document.getElementById("adminAssignmentsList");
 
-  if(!adminAssignments.length){
+  if(!adminAssignments.length && !coaches.length){
 
-    tbody.innerHTML =
-      `<tr><td colspan="4"><div class="empty-state">No assignments yet. Use the form above to connect a coach with a goalie.</div></td></tr>`;
+    list.innerHTML =
+      `<div class="empty-state">No assignments yet. Use the form above to connect a coach with a goalie.</div>`;
 
     return;
 
   }
 
-  tbody.innerHTML =
-    adminAssignments.map(a => {
+  // One dropdown per coach, holding only that coach's goalies.
+  const byCoach = new Map();
 
-      const coach = adminProfiles.find(p => p.id === a.coach_id);
-      const goalie = adminProfiles.find(p => p.id === a.goalie_id);
+  coaches.forEach(c => byCoach.set(c.id, []));
 
-      const statusPill =
-        a.active
-          ? `<span class="result-pill result-win">Active</span>`
-          : `<span class="result-pill result-neutral">Inactive</span>`;
+  adminAssignments.forEach(a => {
+    if(!byCoach.has(a.coach_id)){ byCoach.set(a.coach_id, []); }
+    byCoach.get(a.coach_id).push(a);
+  });
 
-      return `
-        <tr>
-          <td>${escapeHtml(coach ? coach.full_name : a.coach_id)}</td>
-          <td>${escapeHtml(goalie ? goalie.full_name : a.goalie_id)}</td>
-          <td>${statusPill}</td>
-          <td>
-            <button class="btn-secondary" onclick="toggleAssignment(${a.id}, ${!a.active}, this)">
-              ${a.active ? "Deactivate" : "Reactivate"}
-            </button>
-            <button class="btn-danger" onclick="deleteAssignment(${a.id}, this)">
-              Delete
-            </button>
-          </td>
-        </tr>
-      `;
+  const nameOf = id => {
+    const p = adminProfiles.find(x => x.id === id);
+    return (p && (p.full_name || p.email)) || id;
+  };
 
-    }).join("");
+  const groups = [...byCoach.entries()]
+    .map(([coachId, rows]) => ({ coachId, name: nameOf(coachId), rows }))
+    .sort((x, y) => x.name.localeCompare(y.name));
 
+  list.innerHTML = groups.map(g => {
+
+    const rows = g.rows.slice().sort((x, y) =>
+      (y.active ? 1 : 0) - (x.active ? 1 : 0) ||
+      nameOf(x.goalie_id).localeCompare(nameOf(y.goalie_id))
+    );
+
+    const activeCount = rows.filter(r => r.active).length;
+    const inactiveCount = rows.length - activeCount;
+
+    const countText =
+      `${activeCount} goalie${activeCount === 1 ? "" : "s"}` +
+      (inactiveCount ? ` · ${inactiveCount} inactive` : "");
+
+    const body = rows.length
+      ? `<div class="table-wrap"><table>
+          <thead><tr><th>Goalie</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody>${rows.map(a => {
+
+            const statusPill =
+              a.active
+                ? `<span class="result-pill result-win">Active</span>`
+                : `<span class="result-pill result-neutral">Inactive</span>`;
+
+            return `
+              <tr>
+                <td>${escapeHtml(nameOf(a.goalie_id))}</td>
+                <td>${statusPill}</td>
+                <td>
+                  <button class="btn-secondary" onclick="toggleAssignment(${a.id}, ${!a.active}, this)">
+                    ${a.active ? "Deactivate" : "Reactivate"}
+                  </button>
+                  <button class="btn-danger" onclick="deleteAssignment(${a.id}, this)">
+                    Delete
+                  </button>
+                </td>
+              </tr>`;
+
+          }).join("")}</tbody></table></div>`
+      : `<div class="empty-state" style="padding:14px 0;">No goalies assigned yet.</div>`;
+
+    return `
+      <details data-coach-id="${escapeHtml(g.coachId)}"
+               ${adminAssignOpen.has(g.coachId) ? "open" : ""}
+               ontoggle="adminAssignToggled(this)"
+               style="border:1px solid var(--border2);border-radius:10px;padding:0 14px;margin-bottom:10px;">
+        <summary style="cursor:pointer;padding:14px 0;display:flex;justify-content:space-between;gap:12px;align-items:center;font-weight:600;">
+          <span>${escapeHtml(g.name)}</span>
+          <span style="font-weight:400;font-size:13px;color:var(--muted);">${escapeHtml(countText)}</span>
+        </summary>
+        <div style="padding-bottom:12px;">${body}</div>
+      </details>`;
+
+  }).join("");
+
+}
+
+
+const adminAssignOpen = new Set();
+
+function adminAssignToggled(el){
+  const id = el.getAttribute("data-coach-id");
+  if(el.open){ adminAssignOpen.add(id); }
+  else{ adminAssignOpen.delete(id); }
 }
 
 
