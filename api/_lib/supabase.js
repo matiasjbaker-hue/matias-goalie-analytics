@@ -11,7 +11,7 @@ export const SUPABASE_URL = "https://iiuqxxrrruvwvfehrzic.supabase.co";
 // Publishable key: safe to ship, RLS is what protects the data.
 export const SUPABASE_ANON_KEY = "sb_publishable_b8r2Nb1BWv4cndNyEJ75dA_o40__ZPQ";
 
-function userHeaders(accessToken, extra = {}) {
+export function userHeaders(accessToken, extra = {}) {
   return { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken}`, ...extra };
 }
 

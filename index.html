@@ -29821,7 +29821,9 @@ function renderReviewParts(){
       }).join("")
     : "";
 
-  document.getElementById("rv-part-remove").hidden = !v.parent_video_id;
+  // Any file can be removed while the request has another one left
+  // (removing Part 1 promotes the next file to be the request).
+  document.getElementById("rv-part-remove").hidden = !multi;
 
   // Extra files can be moved among themselves; Part 1 is the request and stays first.
   const extraIdx = parts.slice(1).findIndex(p => String(p.id) === String(v.id));
@@ -30014,13 +30016,15 @@ async function moveReviewPart(dir){
 
 }
 
-// Takes an extra file (never the first) out of the request: the file in
-// storage and its drafted shots. Shots already published from it stay in
-// the game.
+// Takes a file out of the request: the file in storage and its drafted
+// shots. Shots already published from it stay in the game. Removing Part 1
+// makes the next file the request (the game, jersey colour and coach
+// payment move with it). The last remaining file can't be removed here:
+// delete the request from the queue instead.
 async function removeReviewPart(){
 
   const v = review.video;
-  if(!v || !v.parent_video_id){ return; }
+  if(!v){ return; }
 
   if(review.publishing){
     showToast("Wait for the publish to finish.", "error");
@@ -30031,37 +30035,50 @@ async function removeReviewPart(){
     return;
   }
 
-  const number = reviewPartNumber(v);
-  const published = reviewStatusOf(v) === "approved";
-  if(!confirm(`Remove Part ${number} (${reviewFileName(v)}) from this review? This deletes the file from storage and the shots drafted on it.${published ? " Stats already published from it stay in the game." : ""} This cannot be undone.`)){
+  const parts = reviewLiveParts(v);
+  if(parts.length < 2){
+    showToast("This is the only file. Delete the whole request from the queue instead.", "error");
     return;
   }
 
-  const rootId = v.parent_video_id;
+  const isFirst = !v.parent_video_id;
+  const number = reviewPartNumber(v);
+  const published = reviewStatusOf(v) === "approved";
+  if(!confirm(`Remove Part ${number} (${reviewFileName(v)}) from this review? This deletes the file from storage and the shots drafted on it.${published ? " Stats already published from it stay in the game." : ""}${isFirst ? " The next file becomes Part 1." : ""} This cannot be undone.`)){
+    return;
+  }
+
   const btn = document.getElementById("rv-part-remove");
   btn.disabled = true;
 
   try{
 
+    // Anything unsaved on this file is about to be deleted with it.
+    Object.values(review.saveTimers).forEach(entry => clearTimeout(entry.timer));
+    review.saveTimers = {};
+    if(reviewPuckSaveTimer){ clearTimeout(reviewPuckSaveTimer); reviewPuckSaveTimer = null; }
+
     const res = await fetch("/api/video/delete-video", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accessToken: currentSession.access_token, gameVideoId: v.id })
+      body: JSON.stringify({ accessToken: currentSession.access_token, gameVideoId: v.id, keepOtherFiles: isFirst })
     });
     let data = {};
     try{ data = await res.json(); }catch(e){ data = {}; }
     if(!res.ok){ throw new Error(data.error || "Could not remove this file."); }
 
-    Object.values(review.saveTimers).forEach(entry => clearTimeout(entry.timer));
-    review.saveTimers = {};
-    if(reviewPuckSaveTimer){ clearTimeout(reviewPuckSaveTimer); reviewPuckSaveTimer = null; }
+    const siblings = parts.filter(p => String(p.id) !== String(v.id));
+    const openId = isFirst ? data.newRootId : v.parent_video_id;
 
     detachShotsFromVideo(v.id);
     reviewQueueCache = reviewQueueCache.filter(x => String(x.id) !== String(v.id));
     delete goFilmVideoCache[v.game_id];
 
+    // The queue rows changed (new first file, re-parented parts): reload them.
+    if(isFirst){ await refreshReviewRows(siblings.map(p => p.id)); }
+
     showToast(`Part ${number} removed.`, "success");
-    await openReview(rootId);
+    await openReview(openId);
 
   }
   catch(error){
