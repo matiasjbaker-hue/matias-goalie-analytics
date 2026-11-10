@@ -4,7 +4,7 @@
 // Call once every part from r2-start-upload.js has been PUT
 // successfully. Stitches the parts into one object in R2.
 
-import { CompleteMultipartUploadCommand, AbortMultipartUploadCommand } from "@aws-sdk/client-s3";
+import { CompleteMultipartUploadCommand, AbortMultipartUploadCommand, HeadObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { verifyUser, callerRole, callerCoachesGoalie, r2Configured, r2Client, sendServerError, UUID_RE } from "../_lib/supabase.js";
 
 // Matches the 20 GB / 25 MB limits in r2-start-upload.js, with headroom.
@@ -28,7 +28,7 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { accessToken, key, uploadId, parts, abort } = req.body || {};
+  const { accessToken, key, uploadId, parts, abort, expectedSize } = req.body || {};
 
   if (!accessToken || typeof key !== "string" || typeof uploadId !== "string") {
     res.status(400).json({ error: "Missing accessToken, key, or uploadId." });
@@ -88,6 +88,27 @@ export default async function handler(req, res) {
       UploadId: uploadId,
       MultipartUpload: { Parts: cleaned },
     }));
+
+    // A file only counts as uploaded if what's stored is the whole file. A
+    // cloud-only placeholder or an interrupted copy can "finish" with far
+    // fewer bytes than the original; catch that here, not at review time.
+    const want = Number(expectedSize);
+    if (Number.isFinite(want) && want > 0) {
+      let have = null;
+      try {
+        const head = await client.send(new HeadObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: key }));
+        have = Number(head.ContentLength);
+      } catch (headError) {
+        have = null;
+      }
+      if (have !== null && have !== want) {
+        try {
+          await client.send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: key }));
+        } catch (e) { /* best effort */ }
+        res.status(422).json({ error: "The file didn't upload completely (it arrived smaller than it is on your computer). Make sure the file is fully downloaded on your computer, then upload it again. Nothing was used." });
+        return;
+      }
+    }
 
     res.status(200).json({ key });
   } catch (error) {

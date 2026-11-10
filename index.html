@@ -25613,6 +25613,7 @@ async function uploadFileToR2(file, onProgress, ownerId, startFresh){
         accessToken: currentSession.access_token,
         key: session.key,
         uploadId: session.uploadId,
+        expectedSize: file.size,
         parts: Object.entries(session.completedParts).map(([partNumber, ETag]) => ({
           PartNumber: Number(partNumber),
           ETag: ETag
@@ -25850,6 +25851,24 @@ async function uploadGameVideo(){
       throw new Error(uploadErr.message || String(uploadErr));
     }
 
+    // Nothing is recorded (and no game is used) until EVERY file is fully
+    // uploaded. The request row is what costs a game, so it is created last.
+    const storagePaths = [storagePath];
+    for(let i = 1; i < files.length; i++){
+      try{
+        storagePaths.push(await uploadFileToR2(files[i], (uploaded, total) => {
+          const pct = total ? Math.floor((uploaded / total) * 100) : 0;
+          statusEl.textContent = (forName ? `Uploading for ${forName}... ${pct}%` : `Uploading... ${pct}%`) + fileTag(i);
+        }, ownerId || undefined));
+      }
+      catch(partErr){
+        console.error(partErr);
+        throw new Error(`File ${i + 1} of ${files.length} didn't upload (${partErr.message || partErr}). Nothing was saved and no game was used. Upload them again.`);
+      }
+    }
+
+    statusEl.textContent = "Saving...";
+
     let { data: rootRows, error: insertError } =
       await supabaseClient
         .from("game_videos")
@@ -25894,48 +25913,40 @@ async function uploadGameVideo(){
 
     // Extra files of the same game: each is a Part of the first file's
     // request. They never cost a game (only the first file does).
-    let partsDone = 0;
     const rootId = rootRows && rootRows[0] ? rootRows[0].id : null;
 
     if(files.length > 1 && !rootId){
-      throw new Error("File 1 uploaded, but the other files couldn't be linked to it. Don't upload this game again; tell Matias and he'll attach the rest.");
+      throw new Error("The files uploaded, but couldn't be linked into one game. Tell Matias; don't upload this game again.");
     }
 
-    for(let i = 1; i < files.length; i++){
+    if(files.length > 1){
 
-      if(!rootId){ break; }
-
-      try{
-
-        const partPath = await uploadFileToR2(files[i], (uploaded, total) => {
-          const pct = total ? Math.floor((uploaded / total) * 100) : 0;
-          statusEl.textContent = (forName ? `Uploading for ${forName}... ${pct}%` : `Uploading... ${pct}%`) + fileTag(i);
-        }, ownerId || undefined);
-
-        const { error: partError } =
-          await supabaseClient.from("game_videos").insert({
+      const { error: partsError } =
+        await supabaseClient.from("game_videos").insert(
+          storagePaths.slice(1).map(partPath => ({
             user_id: userId,
             game_id: gameId,
             parent_video_id: rootId,
             storage_path: partPath,
             team_jersey_color: jerseyColor,
             status: "uploaded"
-          });
-
-        if(partError){ throw new Error(partError.message); }
-
-        partsDone++;
-
-      }
-      catch(partErr){
-
-        console.error(partErr);
-        await renderCustomerVideoList();
-        throw new Error(
-          `File ${i + 1} of ${files.length} failed (${partErr.message || partErr}). ` +
-          `${partsDone + 1} of ${files.length} files did upload and are in the review. ` +
-          `Don't upload this game again from the start: send just the files that are missing, from the review screen or ask Matias.`
+          }))
         );
+
+      if(partsError){
+
+        // Undo the request so the game that was reserved comes back.
+        console.error(partsError);
+        try{
+          await fetch("/api/video/delete-video", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ accessToken: currentSession.access_token, gameVideoId: rootId })
+          });
+        }
+        catch(undoErr){ console.error(undoErr); }
+        await renderCustomerVideoList();
+        throw new Error(`The files uploaded but couldn't be saved together (${partsError.message || partsError}). Nothing was kept and no game was used. Try again.`);
 
       }
 
