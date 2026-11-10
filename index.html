@@ -30745,6 +30745,7 @@ async function approveReview(){
   // database (everything on them was saved as it was edited).
   let parts = reviewLiveParts(current);
   const plan = [];
+  const noShotParts = [];
 
   try{
     const others = parts.filter(p => String(p.id) !== String(current.id));
@@ -30765,7 +30766,7 @@ async function approveReview(){
         if(error){ throw error; }
         drafts = data || [];
       }
-      if(!drafts.length){ continue; }
+      if(!drafts.length){ noShotParts.push(part); continue; }
       plan.push({
         video: open ? part : { ...part, period_marks: part.period_marks || {} },
         drafts,
@@ -30860,6 +30861,27 @@ async function approveReview(){
     const published = [];
     for(const item of plan){
       published.push(await publishReviewFile(item, gameId, details));
+    }
+
+    // Files with no shots have nothing to publish; mark them done too, so
+    // the request doesn't stay "in review" because of an untagged file.
+    const emptyOnes = noShotParts.filter(p => reviewStatusOf(p) !== "approved");
+    if(emptyOnes.length){
+      const doneAt = new Date().toISOString();
+      const { error: emptyErr } = await supabaseClient.from("game_videos").update({
+        review_status: "approved",
+        approved_at: doneAt,
+        reviewed_by: currentSession.user.id
+      }).in("id", emptyOnes.map(p => p.id));
+      if(emptyErr){ console.error("Couldn't close files with no shots:", emptyErr); }
+      else{
+        emptyOnes.forEach(p => {
+          p.review_status = "approved";
+          p.approved_at = doneAt;
+          const cached = reviewQueueCache.find(x => String(x.id) === String(p.id));
+          if(cached){ cached.review_status = "approved"; cached.approved_at = doneAt; }
+        });
+      }
     }
 
     delete goFilmVideoCache[gameId];
