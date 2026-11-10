@@ -4299,7 +4299,9 @@ textarea:focus-visible,
 
 .rv-player-msg{
   position:absolute;
-  inset:auto 12px 12px 12px;
+  /* top of the picture, so it never covers the video's own controls */
+  inset:12px 12px auto 12px;
+  pointer-events:none;
   padding:10px 12px;
   border-radius:var(--radius);
   background:rgba(18,20,18,.88);
