@@ -15161,6 +15161,8 @@ let adminAssignments = [];
 let adminAccess = [];
 let adminAccessRequests = [];
 let adminPurchases = [];
+let adminTransfers = [];
+let adminLedger = [];
 
 
 async function loadAdminExtras(){
@@ -15181,6 +15183,12 @@ async function loadAdminExtras(){
     // break the rest of the admin page.
     try{ adminPurchases = await q("game_credit_purchases"); }
     catch(purchaseErr){ console.warn("Could not load purchases:", purchaseErr); adminPurchases = []; }
+
+    // Game transfers and the balance ledger feed each coach's games panel.
+    try{ adminTransfers = await q("game_credit_transfers"); }
+    catch(trErr){ console.warn("Could not load game transfers:", trErr); adminTransfers = []; }
+    try{ adminLedger = await q("game_credit_ledger"); }
+    catch(ledErr){ console.warn("Could not load the game ledger:", ledErr); adminLedger = []; }
 
   }
   catch(err){
@@ -17789,7 +17797,7 @@ function renderAdminAssignments(){
 
     const body = rows.length
       ? `<div class="table-wrap"><table>
-          <thead><tr><th>Goalie</th><th>Status</th><th>Games left</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Goalie</th><th>Status</th><th>Given by coach</th><th>Games left</th><th>Games</th><th>Actions</th></tr></thead>
           <tbody>${rows.map(a => {
 
             const statusPill =
@@ -17801,9 +17809,14 @@ function renderAdminAssignments(){
               <tr>
                 <td>${escapeHtml(nameOf(a.goalie_id))}</td>
                 <td>${statusPill}${a.coach_managed ? ` <span class="small-note" title="Hidden from the overall Goalies table">coach-managed</span>` : ""}${a.goalie_pays_own ? ` <span class="small-note" title="Bought games for themselves: the coach's games are not used for them">pays own games</span>` : ""}</td>
+                <td>${adminGivenByCoach(a.coach_id, a.goalie_id)}</td>
                 <td>${adminGamesLeftHtml(a.goalie_id)}</td>
+                <td style="white-space:nowrap;">
+                  <input type="number" min="1" max="100" value="1" id="gm-n-${a.id}" style="width:54px;" aria-label="Number of games">
+                  ${a.goalie_pays_own ? "" : `<button class="btn-secondary" onclick="adminQuickMove(${jsArg(a.coach_id)}, ${jsArg(a.goalie_id)}, ${a.id}, 'give', this)" title="Move games from the coach's account to this goalie">Give</button>`}
+                  <button class="btn-secondary" onclick="adminQuickMove(${jsArg(a.coach_id)}, ${jsArg(a.goalie_id)}, ${a.id}, 'take', this)" title="Move games back from this goalie to the coach">Take back</button>
+                </td>
                 <td>
-                  ${a.goalie_pays_own ? "" : `<button class="btn-secondary" onclick="adminMovePrefill(${jsArg(a.coach_id)}, ${jsArg(a.goalie_id)})">Give games</button>`}
                   <button class="btn-secondary" onclick="toggleGoaliePaysOwn(${a.id}, ${!a.goalie_pays_own}, this)" title="${a.goalie_pays_own ? "Use the coach's games for this goalie again" : "This goalie bought games for themselves: don't use the coach's games for them"}">${a.goalie_pays_own ? "Coach pays" : "Goalie pays own"}</button>
                   <button class="btn-secondary" onclick="toggleCoachManaged(${a.id}, ${!a.coach_managed}, this)" title="${a.coach_managed ? "Show this goalie in the overall Goalies table again" : "Hide this goalie from the overall Goalies table (the coach's games pay for them)"}">${a.coach_managed ? "Show in overview" : "Hide from overview"}</button>
                   <button class="btn-secondary" onclick="toggleAssignment(${a.id}, ${!a.active}, this)">
@@ -17827,7 +17840,7 @@ function renderAdminAssignments(){
           <span>${escapeHtml(g.name)}</span>
           <span style="font-weight:400;font-size:13px;color:var(--muted);">${escapeHtml(countText)}</span>
         </summary>
-        <div style="padding-bottom:12px;">${body}</div>
+        <div style="padding-bottom:12px;">${adminCoachGamesPanel(g.coachId, rows)}${body}</div>
       </details>`;
 
   }).join("");
@@ -17841,6 +17854,127 @@ function adminAssignToggled(el){
   const id = el.getAttribute("data-coach-id");
   if(el.open){ adminAssignOpen.add(id); }
   else{ adminAssignOpen.delete(id); }
+}
+
+
+/* ---------- a coach's games: balance, what each goalie was given, history ---------- */
+
+// Games moved from the coach to this goalie, minus any taken back.
+function adminGivenByCoach(coachId, goalieId){
+  let net = 0;
+  adminTransfers.forEach(t => {
+    if(t.from_user === coachId && t.to_user === goalieId){ net += Number(t.games) || 0; }
+    else if(t.from_user === goalieId && t.to_user === coachId){ net -= Number(t.games) || 0; }
+  });
+  return net ? `<strong>${net}</strong>` : `<span style="opacity:.5">0</span>`;
+}
+
+function adminCoachGamesPanel(coachId, rows){
+
+  const coach = adminProfiles.find(p => p.id === coachId);
+  const balance = adminGamesLeft(coachId);
+  const goalieIds = new Set(rows.map(r => r.goalie_id));
+
+  let given = 0;
+  adminTransfers.forEach(t => {
+    if(t.from_user === coachId && goalieIds.has(t.to_user)){ given += Number(t.games) || 0; }
+    else if(t.to_user === coachId && goalieIds.has(t.from_user)){ given -= Number(t.games) || 0; }
+  });
+  const bought = adminPurchases.filter(x => x.user_id === coachId).reduce((n, x) => n + (Number(x.credits) || 0), 0);
+  const withGoalies = rows.reduce((n, r) => n + (adminGamesLeft(r.goalie_id) || 0), 0);
+
+  const stat = (label, value, note) => `
+    <div style="min-width:120px;">
+      <div style="font-size:22px;font-weight:700;line-height:1.1;">${value}</div>
+      <div style="font-size:12px;color:var(--muted);">${escapeHtml(label)}</div>
+      ${note ? `<div style="font-size:11px;color:var(--muted);opacity:.8;">${escapeHtml(note)}</div>` : ""}
+    </div>`;
+
+  if(balance === null && !given && !bought){ return ""; }
+
+  const stats = `
+    <div style="display:flex;gap:22px;flex-wrap:wrap;padding:4px 0 14px;">
+      ${stat("In " + ((coach && coach.full_name) || "coach").split(" ")[0] + "'s account", balance === null ? "—" : balance)}
+      ${stat("Given to goalies", given, "net, all time")}
+      ${stat("Goalies have left", withGoalies, "their combined balance")}
+      ${bought ? stat("Bought", bought, "all time") : ""}
+    </div>`;
+
+  // One timeline: what changed the coach's balance, plus everything his goalies did with theirs.
+  const nameOf = id => (adminProfiles.find(p => p.id === id) || {}).full_name || "Someone";
+  const ids = new Set([coachId, ...goalieIds]);
+  const events = [];
+
+  adminTransfers.forEach(t => {
+    if(!(ids.has(t.from_user) || ids.has(t.to_user))){ return; }
+    if(!(t.from_user === coachId || t.to_user === coachId)){ return; }
+    events.push({ at: t.created_at, text: `${nameOf(t.from_user)} → ${nameOf(t.to_user)}`, change: `${t.games} game${Number(t.games) === 1 ? "" : "s"} moved` });
+  });
+  adminPurchases.filter(x => x.user_id === coachId).forEach(x => {
+    events.push({ at: x.created_at, text: `${nameOf(coachId)} bought games`, change: `+${x.credits}` });
+  });
+  adminLedger.forEach(l => {
+    if(!ids.has(l.user_id)){ return; }
+    if(/^Moved |^Balance before/.test(l.reason)){ return; }
+    const sign = l.delta > 0 ? "+" : "";
+    const other = l.other_user ? ` (${nameOf(l.other_user)})` : "";
+    events.push({ at: l.created_at, text: `${nameOf(l.user_id)}: ${l.reason}${other}`, change: `${sign}${l.delta} · ${l.balance_after} left` });
+  });
+  events.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+
+  const fmt = iso => { try{ return new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); }catch(e){ return ""; } };
+
+  const history = events.length
+    ? `<details style="margin:0 0 12px;"><summary style="cursor:pointer;font-size:13px;color:var(--muted);">Games history (${events.length})</summary>
+        <div class="table-wrap" style="margin-top:8px;max-height:280px;overflow:auto;"><table>
+          <thead><tr><th>When</th><th>What</th><th>Change</th></tr></thead>
+          <tbody>${events.slice(0, 150).map(e => `<tr><td style="white-space:nowrap;">${escapeHtml(fmt(e.at))}</td><td>${escapeHtml(e.text)}</td><td style="white-space:nowrap;">${escapeHtml(e.change)}</td></tr>`).join("")}</tbody>
+        </table></div>
+      </details>`
+    : "";
+
+  return stats + history;
+
+}
+
+// Give a goalie games out of the coach's account, or take them back.
+async function adminQuickMove(coachId, goalieId, assignmentId, dir, button){
+
+  const input = document.getElementById("gm-n-" + assignmentId);
+  const games = Math.floor(Number(input && input.value));
+  if(!(games >= 1)){ showToast("Enter how many games.", "error"); return; }
+
+  const nameOf = id => (adminProfiles.find(p => p.id === id) || {}).full_name || "this account";
+  const from = dir === "give" ? coachId : goalieId;
+  const to = dir === "give" ? goalieId : coachId;
+
+  if(!confirm(`${dir === "give" ? "Give" : "Take back"} ${games} game${games === 1 ? "" : "s"}: ${nameOf(from)} → ${nameOf(to)}?`)){ return; }
+
+  button.disabled = true;
+
+  try{
+
+    const { data, error } = await supabaseClient.rpc("transfer_game_credits", { p_from: from, p_to: to, p_games: games });
+    if(error){ throw error; }
+
+    adminAccess = await q("goalie_access");
+    try{ adminTransfers = await q("game_credit_transfers"); }catch(e){ /* keep the old list */ }
+    try{ adminLedger = await q("game_credit_ledger"); }catch(e){ /* keep the old list */ }
+    renderAdminCoaches();
+    renderAdminGoalies();
+    renderAdminAssignments();
+
+    showToast(`${nameOf(from)} now has ${data.from_left}, ${nameOf(to)} has ${data.to_left}.`, "success");
+
+  }
+  catch(err){
+
+    console.error(err);
+    showToast("Couldn't move games: " + (err.message || "unknown error"), "error");
+    button.disabled = false;
+
+  }
+
 }
 
 
