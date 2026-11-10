@@ -15580,8 +15580,17 @@ async function loadPaywallPlans(){
 
   if(activatingCheckout){ return; }
 
-  // Never had access on this account -> offer the free trial.
-  const trialEligible = !myAccess;
+  // Never had access on this account -> offer the free trial (not to a
+  // coach's goalies: the database refuses it for them, so don't show it).
+  let freeBlocked = false;
+  if(!myAccess){
+    try{
+      const { data: blocked } = await supabaseClient.rpc("my_free_game_blocked");
+      freeBlocked = blocked === true;
+    }
+    catch(err){ freeBlocked = false; }
+  }
+  const trialEligible = !myAccess && !freeBlocked;
 
   if(!plans.length && !trialEligible){
     box.innerHTML = "";
@@ -15593,7 +15602,10 @@ async function loadPaywallPlans(){
   if(msg.dataset.kind === "lapsed" && plans.length){
     msg.textContent = msg.textContent.replace(/Request access to [^.]*\./, "Buy games below to keep going.");
   }
-  if(msg.dataset.kind === "new"){
+  if(msg.dataset.kind === "new" && freeBlocked){
+    msg.textContent = "Your account is set up. Your coach covers your games, so ask your coach to set you up. If you've been invited, request access below.";
+  }
+  else if(msg.dataset.kind === "new"){
     msg.textContent = trialEligible
       ? "Your account is set up. Your first game is free. After that, pay only for the games you track."
       : "Your account is set up. Buy games to unlock your dashboard. If you've been invited, request access instead.";
