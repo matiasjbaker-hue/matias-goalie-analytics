@@ -9783,6 +9783,45 @@ function watchMarkMissingTable(error){
   return /relation|does not exist|schema cache|column/i.test((error && error.message) || "");
 }
 
+/* ---------- saving feedback without losing it ----------
+   A save can fail for a reason that goes away on its own (the sign-in
+   token ran out while the coach was drawing, a dropped connection). So:
+   refresh the sign-in first when it is close to running out, retry once
+   on an auth or network error, and when it still fails keep the drawing
+   and the voice note on screen so the coach can press Save again. */
+
+async function markEnsureSession(){
+  try{
+    const { data } = await supabaseClient.auth.getSession();
+    const exp = data && data.session && data.session.expires_at;
+    if(!exp || exp * 1000 - Date.now() < 180000){ await supabaseClient.auth.refreshSession(); }
+  }
+  catch(e){ /* the save below reports a real problem */ }
+}
+
+function markRetryable(error){
+  const t = `${(error && error.message) || ""} ${(error && error.code) || ""} ${(error && error.status) || ""}`.toLowerCase();
+  return /jwt|expired|401|pgrst30|invalid token|not authenticated|failed to fetch|network|load failed|timeout|fetch/.test(t);
+}
+
+async function markSaveWithRetry(attempt){
+  await markEnsureSession();
+  try{ return await attempt(); }
+  catch(error){
+    if(!markRetryable(error)){ throw error; }
+    try{ await supabaseClient.auth.refreshSession(); }catch(e){ /* try anyway */ }
+    return await attempt();
+  }
+}
+
+function markSaveFailed(error, setupHint){
+  console.error(error);
+  const detail = (error && error.message) || error;
+  showToast(watchMarkMissingTable(error) && setupHint
+    ? setupHint
+    : `Couldn't save yet (${detail}). Your drawing and voice note are still here: check your connection and press Save again.`, "error");
+}
+
 async function watchMarkSaveWatch(){
   const m = watchMark;
   if(!m || !watchAnnShot){ return; }
@@ -9791,17 +9830,24 @@ async function watchMarkSaveWatch(){
   btn.disabled = true;
   try{
     const shot = watchAnnShot;
-    const audioPath = await watchVoiceUpload(shot.user_id);
-    const { data, error } = await supabaseClient.from("shot_annotations").insert({
-      shot_id: shot.shot_id ?? shot.id,
-      goalie_id: shot.user_id,
-      author_id: currentSession.user.id,
-      author_name: watchMarkAuthor(),
-      video_time: Math.round((m.time ?? mk.video.currentTime) * 10000) / 10000,
-      items: m.items,
-      ...(audioPath ? { audio_path: audioPath } : {})
-    }).select().single();
-    if(error){ watchVoiceRemoveFile(audioPath); throw error; }
+    const data = await markSaveWithRetry(async () => {
+      let audioPath = null;
+      try{
+        audioPath = await watchVoiceUpload(shot.user_id);
+        const { data: row, error } = await supabaseClient.from("shot_annotations").insert({
+          shot_id: shot.shot_id ?? shot.id,
+          goalie_id: shot.user_id,
+          author_id: currentSession.user.id,
+          author_name: watchMarkAuthor(),
+          video_time: Math.round((m.time ?? mk.video.currentTime) * 10000) / 10000,
+          items: m.items,
+          ...(audioPath ? { audio_path: audioPath } : {})
+        }).select().single();
+        if(error){ throw error; }
+        return row;
+      }
+      catch(e){ if(audioPath){ watchVoiceRemoveFile(audioPath); } throw e; }
+    });
     watchAnns = [...watchAnns, data].sort((a, b) => Number(a.video_time) - Number(b.video_time));
     watchAnnSeen.add(data.id);
     watchMarkExit();
@@ -9812,15 +9858,8 @@ async function watchMarkSaveWatch(){
     showToast("Feedback saved.", "success");
   }
   catch(error){
-    console.error(error);
-    showToast(watchMarkMissingTable(error)
-      ? "Feedback isn't set up yet: run supabase/migrations/20261024_shot_annotations.sql in Supabase."
-      : "Couldn't save: " + (error.message || error), "error");
-    // Nothing was saved, so don't leave the unsaved drawing on the video.
-    watchMarkExit();
-    watchAnnShown = null;
-    watchPaint([]);
-    renderWatchAnnList();
+    // Nothing was saved: leave the markup (and voice take) open to retry.
+    markSaveFailed(error, "Feedback isn't set up yet: run supabase/migrations/20261024_shot_annotations.sql in Supabase.");
   }
   finally{
     btn.disabled = false;
@@ -27015,18 +27054,25 @@ async function reviewMarkSave(){
   const btn = document.getElementById("rvMarkSave");
   btn.disabled = true;
   try{
-    const audioPath = await watchVoiceUpload(review.video.user_id);
-    const { data, error } = await supabaseClient.from("shot_annotations").insert({
-      draft_id: d.id,
-      shot_id: reviewPublishedShotIdFor(d),
-      goalie_id: review.video.user_id,
-      author_id: currentSession.user.id,
-      author_name: watchMarkAuthor(),
-      video_time: Math.round((m.time ?? mk.video.currentTime) * 10000) / 10000,
-      items: m.items,
-      ...(audioPath ? { audio_path: audioPath } : {})
-    }).select().single();
-    if(error){ watchVoiceRemoveFile(audioPath); throw error; }
+    const data = await markSaveWithRetry(async () => {
+      let audioPath = null;
+      try{
+        audioPath = await watchVoiceUpload(review.video.user_id);
+        const { data: row, error } = await supabaseClient.from("shot_annotations").insert({
+          draft_id: d.id,
+          shot_id: reviewPublishedShotIdFor(d),
+          goalie_id: review.video.user_id,
+          author_id: currentSession.user.id,
+          author_name: watchMarkAuthor(),
+          video_time: Math.round((m.time ?? mk.video.currentTime) * 10000) / 10000,
+          items: m.items,
+          ...(audioPath ? { audio_path: audioPath } : {})
+        }).select().single();
+        if(error){ throw error; }
+        return row;
+      }
+      catch(e){ if(audioPath){ watchVoiceRemoveFile(audioPath); } throw e; }
+    });
     if(!review.ann){ review.ann = {}; }
     review.ann[d.id] = [...(review.ann[d.id] || []), data].sort((a, b) => Number(a.video_time) - Number(b.video_time));
     watchMarkExit();
@@ -27037,16 +27083,8 @@ async function reviewMarkSave(){
     showToast("Feedback saved. It shows in the goalie's shot log once you publish.", "success");
   }
   catch(error){
-    console.error(error);
-    showToast(watchMarkMissingTable(error)
-      ? "Feedback isn't set up for the Review page yet: run supabase/migrations/20261025_annotation_drafts.sql in Supabase."
-      : "Couldn't save: " + (error.message || error), "error");
-    // Nothing was saved, so don't leave the unsaved drawing on the video.
-    watchMarkExit();
-    reviewAnnShown = null;
-    mk = reviewMarkCtx();
-    watchPaint([]);
-    renderReviewAnn();
+    // Nothing was saved: leave the markup (and voice take) open to retry.
+    markSaveFailed(error, "Feedback isn't set up for the Review page yet: run supabase/migrations/20261025_annotation_drafts.sql in Supabase.");
   }
   finally{
     btn.disabled = false;
