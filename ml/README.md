@@ -4,8 +4,9 @@ Goal: find every shot on the tracked goalie in full game film automatically,
 so the admin confirms and tags proposed moments instead of scrubbing 1–3 hour
 videos. (Later: predict each shot's tags too.)
 
-Status (2026-11-07): dataset built, first model tried and **not good enough**,
-next step is a video model trained on a GPU PC. Everything in `ml/data/` and
+Status (2026-11-10): round 2 (fine-tuned video model on Modal GPUs) roughly
+**doubles** round 1 but is **not yet usable for review**; see section 4.
+The PC route in section 0 was replaced by Modal. Everything in `ml/data/` and
 `ml/models/` is git-ignored (goalies' film and stats).
 
 **Starting on the PC?** Follow [section 0](#0-setting-up-the-pc-start-here) first.
@@ -224,3 +225,42 @@ loss = m(x).float().mean(); loss.backward(); print("ok", loss.item())
 See [section 0](#0-setting-up-the-pc-start-here). `ml/data/` isn't in git:
 unzip `csv-export.zip` into `ml/data/csv/` and run the CSV rebuild, or
 re-export from the Supabase SQL editor (section 1).
+
+## 4. Round 2 results: video model on Modal (2026-11-10)
+
+`ml/video/shots_modal.py` (Modal app `goalieiq-shots`, volume `goalieiq-ml`,
+secret `goalieiq-r2`) + `ml/video/launch.py`. 4 s windows at 8 fps / 228x128:
+920 shots + 4,749 no-shot windows; r2plus1d_18 (Kinetics) fine-tuned 8 epochs
+on 2 s clips; whole goalies held out (5 folds); every 0.5 s of held-out film
+scored. Report: `ml/data/eval_video/report.md`.
+
+    ml/.venv/bin/modal deploy ml/video/shots_modal.py
+    ml/.venv/bin/python ml/video/launch.py            # start GPU jobs (survive disconnects)
+    ml/.venv/bin/python ml/video/launch.py --status
+    ml/.venv/bin/python ml/video/launch.py --report
+
+| | Round 1 (frames) | Round 2 (video) |
+|---|---|---|
+| Best F1 | 0.13 | **0.29** |
+| Found at ~60 extra/game hour | ~15% | **51%** |
+| Most found (any setting) | 62% at 330 extra/h | 89% at 416 extra/h |
+| Timing (median) | 0.85 s | 0.67 s |
+
+Data-amount test (same held-out goalies): 6 → 13 → 26 training films gave
+best F1 0.16 → 0.22 → 0.29 and found-at-60/h 29% → 37% → 51%. Still climbing
+steadily (~+0.065 F1 per doubling), so more tagged games help, but data alone
+would need many hundreds of games to reach the review target.
+
+False alarms at the 60/h setting: 42% are more than 60 s from any tagged shot
+(likely shots/scrambles at the *other* net: the model can't tell which goalie
+is tracked), 13% are 2–10 s from a tagged shot. Films with the net side marked
+(7) did no better, so the side hint alone isn't enough with this little data.
+
+Cost: about $24 of Modal credit in total (image build, clip prep, one run lost
+to a dropped connection, and the 15 GPU jobs at ~1 h each on A10G). Re-running
+the 15-job set costs roughly $15–17.
+
+Next levers, most promising first: (1) teach "which net": mark the net side
+for all films and/or predict shot-at-left/right separately; (2) higher
+resolution or crops around the nets, longer clips (3–4 s), a larger backbone;
+(3) more tagged games over time (Video Review keeps adding them).
