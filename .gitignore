@@ -16,3 +16,4 @@ ml/data/
 ml/.venv/
 ml/detect/featurize
 ml/models/
+__pycache__/
