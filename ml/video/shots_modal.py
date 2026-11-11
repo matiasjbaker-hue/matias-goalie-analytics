@@ -87,17 +87,29 @@ def live_segments(film, all_live=False):
 
 
 def tracked_side(film, t):
-    """+1 left / -1 right / 0 unknown: the tracked goalie's net at time t."""
+    """+1 left / -1 right / 0 unknown: side of the picture the tracked goalie's net is on at time t.
+
+    Uses film["net_sides"] (ml/video/net_sides.json) when present, else the
+    site's own marks (period_marks._net / ._sides). Unset periods follow the
+    usual pattern: 2nd and OT at the opposite end of the 1st, 3rd the same.
+    """
     pm = film.get("period_marks") or {}
-    first = pm.get("_net")
-    if first not in ("left", "right"):
+    period = "1"
+    for name in ("2", "3", "OT"):
+        if isinstance(pm.get(name), (int, float)) and t >= pm[name]:
+            period = name
+    ns = film.get("net_sides") or {}
+    if ns.get("goalcam"):
+        return 1.0                       # camera behind the tracked net: never flip
+    ok = lambda x: x in ("left", "right")
+    own = ns.get(period) if ok(ns.get(period)) else (pm.get("_sides") or {}).get(period) if period != "1" else None
+    first = ns.get("1") if ok(ns.get("1")) else pm.get("_net")
+    if ok(own):
+        side = own
+    elif ok(first):
+        side = first if period in ("1", "3") else ("right" if first == "left" else "left")
+    else:
         return 0.0
-    period = 1
-    if isinstance(pm.get("2"), (int, float)) and t >= pm["2"]:
-        period = 2
-    if isinstance(pm.get("3"), (int, float)) and t >= pm["3"]:
-        period = 3
-    side = first if period != 2 else ("right" if first == "left" else "left")
     return 1.0 if side == "left" else -1.0
 
 
@@ -293,7 +305,9 @@ def prepare_core(film, src, root):
     return meta
 
 
-def train_core(root, train_ids, epochs=8, device="cuda", pretrained=True, max_windows=None, batch_size=16, log=print):
+def train_core(root, train_ids, epochs=8, device="cuda", pretrained=True, max_windows=None, batch_size=16, log=print,
+               films=None, canonical=False):
+    """canonical: mirror every clip so the tracked net is on the left (needs films with sides)."""
     import torch
     from torch.utils.data import Dataset, DataLoader
 
@@ -303,6 +317,14 @@ def train_core(root, train_ids, epochs=8, device="cuda", pretrained=True, max_wi
     if max_windows:
         index = [index[j] for j in np.random.default_rng(0).permutation(len(index))[:max_windows]]
     labels = np.array([metas[i]["labels"][r] for i, r in index], np.float32)
+    if canonical:
+        win_side = [tracked_side(films[metas[i]["video_id"]], metas[i]["anchors"][r]) for i, r in index]
+        keep = [j for j, sd in enumerate(win_side) if sd != 0]
+        if len(keep) < len(index):
+            log(f"dropping {len(index) - len(keep)} windows with unknown net side")
+        index = [index[j] for j in keep]
+        labels = labels[keep]
+        win_side = [win_side[j] for j in keep]
     n_pos, n_neg = int(labels.sum()), int(len(labels) - labels.sum())
     log(f"training on {len(metas)} films: {n_pos} shot / {n_neg} no-shot windows")
 
@@ -319,14 +341,21 @@ def train_core(root, train_ids, epochs=8, device="cuda", pretrained=True, max_wi
                 self.arrays[i] = np.load(root / "windows" / f"{metas[i]['video_id']}_clips.npy", mmap_mode="r")
             s = IN_START + np.random.randint(-JITTER, JITTER + 1)
             clip = np.asarray(self.arrays[i][r, s: s + IN_FRAMES])
-            side = metas[i]["sides"][r]
-            if np.random.rand() < 0.5:
-                clip = clip[:, :, ::-1]
-                side = -side
+            if canonical:
+                side = 0.0                      # the view itself carries the side
+                if win_side[j] < 0:
+                    clip = clip[:, :, ::-1]     # tracked net -> left of the picture
+            else:
+                side = metas[i]["sides"][r]
+                if np.random.rand() < 0.5:
+                    clip = clip[:, :, ::-1]
+                    side = -side
             return torch.from_numpy(clip.copy()), torch.tensor(labels[j]), torch.tensor(side, dtype=torch.float32)
 
     cuda = device == "cuda"
-    loader = DataLoader(Windows(), batch_size=batch_size, shuffle=True, num_workers=6 if cuda else 0,
+    if cuda:
+        torch.backends.cudnn.benchmark = True   # fixed clip size: let cuDNN pick the fastest kernels
+    loader = DataLoader(Windows(), batch_size=batch_size, shuffle=True, num_workers=4 if cuda else 0,
                         pin_memory=cuda, drop_last=len(index) > batch_size, persistent_workers=cuda)
     model = make_model(pretrained).to(device)
     opt = torch.optim.AdamW([
@@ -337,8 +366,9 @@ def train_core(root, train_ids, epochs=8, device="cuda", pretrained=True, max_wi
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=[1e-4, 1e-3], total_steps=steps, pct_start=0.15)
     loss_fn = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(n_neg / max(n_pos, 1), device=device))
     model.train()
+    import time
     for ep in range(epochs):
-        total, seen = 0.0, 0
+        total, seen, t_ep = 0.0, 0, time.time()
         for x, y, side in loader:
             x = to_input(x, device)
             x = x * torch.empty(x.shape[0], 1, 1, 1, 1, device=device).uniform_(0.85, 1.15)  # brightness
@@ -350,12 +380,12 @@ def train_core(root, train_ids, epochs=8, device="cuda", pretrained=True, max_wi
             opt.step()
             sched.step()
             total += loss.item() * len(y); seen += len(y)
-        log(f"epoch {ep + 1}/{epochs}: loss {total / max(seen, 1):.4f}")
+        log(f"epoch {ep + 1}/{epochs}: loss {total / max(seen, 1):.4f} ({time.time() - t_ep:.0f}s)")
     model.eval()
     return model
 
 
-def score_core(model, root, film, device="cuda", batch=64, max_seconds=None):
+def score_core(model, root, film, device="cuda", batch=64, max_seconds=None, canonical=False):
     """Score every STRIDE seconds of a prepared film. Returns [(times, scores, seg_start, seg_end)]."""
     import torch
     meta = json.loads((root / "windows" / f"{film['video_id']}.json").read_text())
@@ -370,9 +400,14 @@ def score_core(model, root, film, device="cuda", batch=64, max_seconds=None):
         sides = torch.tensor([tracked_side(film, t) for t in times], dtype=torch.float32)
         for b in range(0, len(times), batch):
             idx = [int(round((t - LEAD - start) * FPS)) for t in times[b: b + batch]]
-            clip = torch.from_numpy(np.stack([frames[i: i + IN_FRAMES] for i in idx]))
+            sd = sides[b: b + batch]
+            clips = [frames[i: i + IN_FRAMES] for i in idx]
+            if canonical:
+                clips = [c[:, :, ::-1] if x < 0 else c for c, x in zip(clips, sd.tolist())]
+                sd = torch.zeros_like(sd)
+            clip = torch.from_numpy(np.ascontiguousarray(np.stack(clips)))
             with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16, enabled=device == "cuda"):
-                logits = model(to_input(clip, device), sides[b: b + batch].to(device))
+                logits = model(to_input(clip, device), sd.to(device))
             scores[b: b + len(idx)] = torch.sigmoid(logits.float()).cpu().numpy()
         out.append((times, scores, start, start + n / FPS))
         del frames
@@ -483,16 +518,29 @@ def prepare_film(film):
     return {k: meta[k] for k in ("video_id", "n_pos", "n_neg")} | {"segments": len(meta["segments"])}
 
 
-@app.function(image=image, gpu="A10G", volumes={"/data": volume}, cpu=8.0, memory=32768, timeout=3 * 3600)
-def train_and_score(label, train_ids, test_films, epochs, max_seconds=None):
+# 4 CPUs / 16 GB is enough (clips are read from local disk); CPU and memory are billed on
+# top of the GPU, so asking for more only costs more. 90 min cap per job bounds the bill.
+@app.function(image=image, gpu="A10G", volumes={"/data": volume}, cpu=4.0, memory=16384, timeout=90 * 60)
+def train_and_score(label, train_ids, test_films, epochs, max_seconds=None, train_films=None, canonical=False):
+    import shutil
+    import time
     import torch
     volume.reload()
     log = lambda m: print(f"[{label}] {m}", flush=True)
     log(f"GPU: {torch.cuda.get_device_name(0)}")
-    model = train_core(DATA, train_ids, epochs=epochs, device="cuda", log=log)
+    # Training reads clips at random; copy them to the container's local disk
+    # first (reading a network volume at random is slow).
+    t0, local = time.time(), Path("/tmp/data")
+    (local / "windows").mkdir(parents=True, exist_ok=True)
+    for v in train_ids:
+        for name in (f"{v}.json", f"{v}_clips.npy"):
+            if (DATA / "windows" / name).exists():
+                shutil.copy(DATA / "windows" / name, local / "windows" / name)
+    log(f"copied training clips locally in {time.time() - t0:.0f}s")
+    model = train_core(local, train_ids, epochs=epochs, device="cuda", log=log, films=train_films, canonical=canonical)
     out = {}
     for film in test_films:
-        segs = score_core(model, DATA, film, device="cuda", max_seconds=max_seconds)
+        segs = score_core(model, DATA, film, device="cuda", max_seconds=max_seconds, canonical=canonical)
         out[str(film["video_id"])] = [(t.tolist(), s.tolist(), a, b) for t, s, a, b in segs]
     log(f"scored {len(test_films)} held-out films")
     # Keep the scores on the volume too, so a dropped connection loses nothing

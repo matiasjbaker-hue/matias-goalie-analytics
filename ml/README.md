@@ -4,8 +4,8 @@ Goal: find every shot on the tracked goalie in full game film automatically,
 so the admin confirms and tags proposed moments instead of scrubbing 1–3 hour
 videos. (Later: predict each shot's tags too.)
 
-Status (2026-11-10): round 2 (fine-tuned video model on Modal GPUs) roughly
-**doubles** round 1 but is **not yet usable for review**; see section 4.
+Status (2026-11-10): round 3 (video model, tracked net mirrored to the left)
+is the best so far, F1 0.36, but still **not usable for review**; see section 5.
 The PC route in section 0 was replaced by Modal. Everything in `ml/data/` and
 `ml/models/` is git-ignored (goalies' film and stats).
 
@@ -264,3 +264,31 @@ Next levers, most promising first: (1) teach "which net": mark the net side
 for all films and/or predict shot-at-left/right separately; (2) higher
 resolution or crops around the nets, longer clips (3–4 s), a larger backbone;
 (3) more tagged games over time (Video Review keeps adding them).
+
+## 5. Round 3: tell the model which net (2026-11-10)
+
+Net side labelled for all 32 films from frames at tagged shots
+(`ml/video/net_frames.py` -> `ml/video/net_sides.json`; agrees with the 7
+films already marked in Video Review; 3 goal-cam films never flipped; 1366,
+1226 and the U11 game 1743-45 are low confidence). Every clip is mirrored so
+the tracked net is on the left, so the model only answers "shot on the left
+net?" and shots at the other end become plain negatives. At inference the
+admin's Video Review net side tells it how to mirror.
+
+    ml/.venv/bin/python ml/video/launch.py --net [--only 1,2,3] [--status|--report]
+
+Report: `ml/data/eval_video_net/report.md`. Same 5 goalie-held-out folds:
+
+| | Round 2 | Round 3 |
+|---|---|---|
+| Best F1 | 0.29 | **0.36** |
+| Found at ≤120 extra/h | 67% | **70%** |
+| Found at ≤60 extra/h | 51% | **59%** |
+| Found at ≤30 extra/h | 37% | **45%** |
+| Most found (extra/h) | 89% (416) | 83% (259) |
+
+Real gain everywhere a reviewer would operate, still far from the target
+(≥95% found at ≤60 extra/h). Cost: ~$3.95 for 5 folds after cutting GPU jobs
+to 4 CPU / 16 GB (~$0.80 per fold) — CPU and memory had been ~60% on top of
+the GPU. Note: raising a Modal spend limit restarts jobs that the limit had
+stopped; cancel stale calls (`modal.FunctionCall.from_id(id).cancel()`).
