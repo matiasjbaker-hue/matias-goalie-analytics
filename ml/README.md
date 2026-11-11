@@ -9,7 +9,8 @@ is the best so far, F1 0.36, but still **not usable for review**; see section 5.
 The PC route in section 0 was replaced by Modal. Everything in `ml/data/` and
 `ml/models/` is git-ignored (goalies' film and stats).
 
-**Starting on the PC?** Follow [section 0](#0-setting-up-the-pc-start-here) first.
+**Paused (2026-11-10) to collect more tagged games.** To pick it up again, follow
+[section 6](#6-resuming-when-there-are-more-tagged-games). (Section 0, the PC setup, is superseded by Modal.)
 
 ## 0. Setting up the PC (start here)
 
@@ -292,3 +293,54 @@ Real gain everywhere a reviewer would operate, still far from the target
 to 4 CPU / 16 GB (~$0.80 per fold) — CPU and memory had been ~60% on top of
 the GPU. Note: raising a Modal spend limit restarts jobs that the limit had
 stopped; cancel stale calls (`modal.FunctionCall.from_id(id).cancel()`).
+
+## 6. Resuming when there are more tagged games
+
+Paused on 2026-11-10 at 32 films with full film + shot times (29 games).
+The data-amount test showed accuracy still rising with more games, so the
+plan is to retrain at **~60+ film games**. Until then nothing here costs
+anything: Modal bills only while jobs run, and the 17.7 GB of saved clips on
+the `goalieiq-ml` volume is inside Modal's free 1 TiB of volume storage.
+
+### While collecting (no code needed)
+
+- Tag new games through **Video Review** (not Live Tag): only Video Review
+  saves each shot's time in the full film, which is what the model learns from.
+- **Set the net side** for period 1 in Video Review on every game (and per
+  period if the ends don't switch the usual way). Round 3 depends on it, and
+  it saves re-labelling frames by hand.
+- Prefer variety: new rinks, cameras and age levels help more than more games
+  from the same rink.
+
+### Retraining (about 1 hour of work, ~$1 per fold on Modal)
+
+1. Re-export the data: Supabase SQL editor -> the 4 queries in
+   `ml/export-queries.sql` -> Download CSV into `ml/data/csv/` -> 
+   `node ml/export-dataset.mjs --from-csv ml/data/csv`. Check `summary.md` for
+   the new count of "games usable for shot detection".
+2. Net sides: films marked in Video Review are picked up automatically
+   (`period_marks._net` / `._sides`). For any that aren't, run
+   `ml/.venv/bin/python ml/video/net_frames.py` and add them to
+   `ml/video/net_sides.json`.
+3. Cut clips for the new films only (already-prepared films are skipped):
+   `ml/.venv/bin/modal run ml/video/shots_modal.py --step prepare`
+4. `ml/.venv/bin/modal deploy ml/video/shots_modal.py`, then train in two waves
+   so a budget stop can't lose everything:
+   `ml/.venv/bin/python ml/video/launch.py --net --only 1,2,3`, check spend on
+   modal.com -> Usage & billing, then `--only 4,5`, then `--report`.
+   Old results are skipped by label: to retrain on the bigger dataset, first
+   remove the old `net100%_fold*.json` files from the volume's `scores/`
+   folder (`ml/.venv/bin/modal volume rm goalieiq-ml scores/net100%_fold1.json`
+   etc.), or the launcher will think those folds are done.
+5. Compare `ml/data/eval_video_net/report.md` with the round 3 numbers in
+   section 5 (F1 0.36; 59% found at ≤60 extra/h).
+
+Budget notes: the Starter plan includes $30/month (resets on the 1st). Keep a
+spend limit set. If a limit stops jobs, raising it **restarts** them: list
+containers (`modal container list`) and cancel stale calls before launching new.
+
+### Next model ideas, for when data alone plateaus
+
+Higher resolution or crops around the nets (the puck is invisible at
+228x128), longer clips (3–4 s), a larger backbone (`mvit_v2_s`), and
+comparing against the existing Claude-still / Twelve Labs detection.
