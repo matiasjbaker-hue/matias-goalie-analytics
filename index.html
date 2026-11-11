@@ -9630,7 +9630,7 @@ async function watchVoiceToggle(){
 
   // Replacing an earlier take.
   if(watchVoice && watchVoice.url){ URL.revokeObjectURL(watchVoice.url); }
-  const mime = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"].find(t => MediaRecorder.isTypeSupported(t)) || "";
+  const mime = ["audio/mp4;codecs=mp4a.40.2", "audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"].find(t => MediaRecorder.isTypeSupported(t)) || "";
   const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
   const v = { recorder, stream, chunks: [], blob: null, url: null, mime: recorder.mimeType || mime || "audio/webm", ext: "webm", startedAt: Date.now(), timer: null };
   v.ext = /mp4/.test(v.mime) ? "m4a" : /ogg/.test(v.mime) ? "ogg" : "webm";
@@ -9714,22 +9714,56 @@ function watchVoiceStopPlayback(boxId){
 }
 
 // Shows the voice note for a feedback row under the clip (and plays it).
+let watchVoiceBlobUrls = {};
+
 async function watchVoicePlay(a, boxId, autoplay){
   const box = document.getElementById(boxId);
   if(!box){ return; }
   if(!a || !a.audio_path){ box.innerHTML = ""; return; }
   box.dataset.for = String(a.id);
   box.innerHTML = `<span class="watch-ann-empty">Loading voice note…</span>`;
+
+  const fail = (why, signedUrl) => {
+    if(box.dataset.for !== String(a.id)){ return; }
+    const link = signedUrl ? ` <a href="${escapeHtml(signedUrl)}" target="_blank" rel="noopener" download>Download it</a>` : "";
+    box.innerHTML = `<span class="watch-ann-empty">${escapeHtml(why)}${link}</span>`;
+  };
+
+  let signedUrl = null;
   try{
     const { data, error } = await supabaseClient.storage.from("voice-notes").createSignedUrl(a.audio_path, 3600);
     if(error){ throw error; }
+    signedUrl = data.signedUrl;
     if(box.dataset.for !== String(a.id)){ return; }
-    box.innerHTML = `<audio controls preload="auto" src="${escapeHtml(data.signedUrl)}"></audio>`;
-    if(autoplay){ const el = box.querySelector("audio"); el.play().catch(() => {}); }
+
+    // Load the whole note and play it from memory: it's short, and this
+    // avoids players choking on streamed/range responses or a wrong type.
+    let src = watchVoiceBlobUrls[a.audio_path];
+    if(!src){
+      const res = await fetch(signedUrl);
+      if(!res.ok){ throw new Error("The voice note file couldn't be fetched (" + res.status + ")."); }
+      const raw = await res.blob();
+      if(!raw.size){ throw new Error("The voice note file is empty."); }
+      const ext = (a.audio_path.split(".").pop() || "").toLowerCase();
+      const type = ext === "m4a" || ext === "mp4" ? "audio/mp4" : ext === "ogg" ? "audio/ogg" : "audio/webm";
+      src = URL.createObjectURL(new Blob([raw], { type }));
+      watchVoiceBlobUrls[a.audio_path] = src;
+    }
+    if(box.dataset.for !== String(a.id)){ return; }
+
+    box.innerHTML = `<audio controls preload="auto" src="${escapeHtml(src)}"></audio>`;
+    const el = box.querySelector("audio");
+    el.addEventListener("error", () => {
+      const isWebm = /\.webm$/i.test(a.audio_path);
+      fail(isWebm
+        ? "This browser can't play this voice note (it was recorded as WebM; Safari on older iPhones and Macs can't play it). Open it in Chrome or Edge, or"
+        : "This browser couldn't play this voice note.", signedUrl);
+    });
+    if(autoplay){ el.play().catch(() => {}); }
   }
   catch(error){
     console.error(error);
-    if(box.dataset.for === String(a.id)){ box.innerHTML = `<span class="watch-ann-empty">Couldn't load the voice note.</span>`; }
+    fail("Couldn't load the voice note" + (error && error.message ? " (" + error.message + ")" : "") + ".", signedUrl);
   }
 }
 
