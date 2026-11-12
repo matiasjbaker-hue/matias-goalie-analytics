@@ -26883,13 +26883,34 @@ function syncReviewFsBtn(){
 document.addEventListener("fullscreenchange", () => {
   const w = document.getElementById("rv-fs-wrap");
   // The video's own full screen button: swap in the whole tagging area.
-  if(w && document.fullscreenElement && document.fullscreenElement.id === "rv-video" && w.requestFullscreen){
-    w.requestFullscreen().catch(() => {});
-    return;
-  }
+  if(document.fullscreenElement && document.fullscreenElement.id === "rv-video"){ reviewTakeOverVideoFs(); return; }
   if(w && !document.fullscreenElement){ w.classList.remove("is-fs"); document.body.classList.remove("rv-fs-lock"); }
   syncReviewFsBtn();
 });
+
+// The video's own full screen button only fills the screen with the
+// picture. Swap it for the whole tagging area (timeline, shot panel).
+async function reviewTakeOverVideoFs(){
+  const w = document.getElementById("rv-fs-wrap");
+  const v = document.getElementById("rv-video");
+  if(!w || !v){ return; }
+  try{
+    if(w.requestFullscreen && document.fullscreenElement){ await w.requestFullscreen(); return; }
+  }catch(e){}
+  try{
+    if(document.fullscreenElement){ await document.exitFullscreen(); }
+    else if(v.webkitExitFullscreen){ v.webkitExitFullscreen(); }
+  }catch(e){}
+  w.classList.add("is-fs"); document.body.classList.add("rv-fs-lock");
+  syncReviewFsBtn();
+}
+(function(){
+  const v = document.getElementById("rv-video");
+  if(v){
+    v.addEventListener("webkitbeginfullscreen", reviewTakeOverVideoFs);
+    v.addEventListener("webkitfullscreenchange", () => { if(v.webkitDisplayingFullscreen){ reviewTakeOverVideoFs(); } });
+  }
+})();
 
 let reviewHudLast = null;
 function updateReviewHud(total, goals){
