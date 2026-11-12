@@ -27136,7 +27136,12 @@ function reviewZoomReset(){ reviewZoomTo(1); }
     reviewZoomApply();
   });
   const end = () => { drag = null; };
-  stage.addEventListener("pointerup", end);
+  // Zoomed in, the video's own controls are hidden, so a plain click (not a
+  // drag) on the film has to pause / play it.
+  stage.addEventListener("pointerup", e => {
+    if(drag && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 5 && !watchMark){ reviewTogglePlay(); }
+    end();
+  });
   stage.addEventListener("pointercancel", end);
 })();
 
@@ -31711,8 +31716,20 @@ async function loadReviewUser(userId){
     if(!ws || ws.hidden || !review.video){ return; }
     if(!document.getElementById("adminvideoreview").classList.contains("active")){ return; }
     if(watchMark){ return; }
-    if(e.target && /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(e.target.tagName) && e.key !== "Escape"){ return; }
     if(e.metaKey || e.ctrlKey || e.altKey){ return; }
+    // Only real typing fields swallow hotkeys. A button, dropdown, slider or
+    // checkbox that was just clicked keeps focus, which used to kill every
+    // hotkey until you clicked the page again: let go of focus and carry on.
+    const tgt = e.target;
+    if(tgt && tgt.tagName){
+      const tag = tgt.tagName;
+      const typing = tag === "TEXTAREA" || tgt.isContentEditable ||
+        (tag === "INPUT" && !/^(range|checkbox|radio|button|submit)$/i.test(tgt.type || "text"));
+      if(typing && e.key !== "Escape"){ return; }
+      if(tag === "SELECT" && (e.key === "Enter" || e.key.startsWith("Arrow"))){ return; }
+      if(!typing && /^(BUTTON|SELECT|INPUT)$/.test(tag) && e.key !== "Enter"){ tgt.blur(); }
+      else if(tag === "BUTTON" && e.key === "Enter"){ return; }
+    }
 
     const k = e.key.toLowerCase();
 
