@@ -30352,11 +30352,21 @@ function fillReviewGameDetails(){
   document.getElementById("rv-gd-result").value = val(g && g.result, rg.result);
   document.getElementById("rv-gd-teamgoals").value = val(g && g.team_goals, rg.team_goals);
   document.getElementById("rv-gd-oppgoals").value = val(g && g["opponent goals"], rg.opponent_goals);
-  document.getElementById("rv-gd-length").value = val(g && (g.minutes_played || g.game_length), rg.minutes);
+  document.getElementById("rv-gd-length").value = val(g && (g.minutes_played || g.game_length), rg.minutes) || reviewStandardLength(v) || "";
+}
+
+// The goalie's standard game length (set on their profile). Unless a game
+// says otherwise, they played a full game of that length, so GAA is scaled
+// to it without anyone having to go back and edit.
+function reviewStandardLength(v){
+  const owner = v || review.video;
+  const prof = owner && (adminProfiles || []).find(p => String(p.id) === String(owner.user_id));
+  const n = prof ? Number(prof.game_length_minutes) : 0;
+  return n >= 10 && n <= 90 ? n : null;
 }
 
 function readReviewGameDetails(){
-  const minutes = numOrNull(document.getElementById("rv-gd-length").value);
+  const minutes = numOrNull(document.getElementById("rv-gd-length").value) || reviewStandardLength();
   return {
     date: textOrNull(document.getElementById("rv-gd-date").value),
     opponent: textOrNull(document.getElementById("rv-gd-opponent").value) || "Unknown",
