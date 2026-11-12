@@ -3810,7 +3810,7 @@
        <div class="rv-fs-wrap" id="rv-fs-wrap">
 
         <div class="rv-player" id="rv-player-stage">
-          <video id="rv-video" controls controlsList="nofullscreen" disablePictureInPicture playsinline preload="metadata"></video>
+          <video id="rv-video" controls playsinline preload="metadata"></video>
           <canvas id="rvMarkCanvas" class="watch-mark-canvas"></canvas>
           <div class="rv-player-msg" id="rv-player-msg" hidden></div>
           <div class="rv-hud" id="rv-hud" aria-live="polite">
@@ -3847,7 +3847,6 @@
             <option value="3">3×</option>
           </select>
           <button type="button" class="btn-secondary" id="rv-download-btn" onclick="downloadGameVideo(review.video && review.video.id, this)" title="Download this file (for example to convert it to H.264 in HandBrake)">Download file</button>
-          <button type="button" class="btn-secondary" id="rv-fs-btn" onclick="toggleReviewFullscreen()" title="Tag shots full screen, with the timeline and shot count in view (F)">Full screen</button>
         </div>
 
         <div class="rv-mark-row" role="group" aria-label="Game start, periods and game end">
@@ -26880,6 +26879,11 @@ function syncReviewFsBtn(){
 }
 document.addEventListener("fullscreenchange", () => {
   const w = document.getElementById("rv-fs-wrap");
+  // The video's own full screen button: swap in the whole tagging area.
+  if(w && document.fullscreenElement && document.fullscreenElement.id === "rv-video" && w.requestFullscreen){
+    w.requestFullscreen().catch(() => {});
+    return;
+  }
   if(w && !document.fullscreenElement){ w.classList.remove("is-fs"); document.body.classList.remove("rv-fs-lock"); }
   syncReviewFsBtn();
 });
