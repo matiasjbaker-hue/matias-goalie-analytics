@@ -3810,9 +3810,10 @@
        <div class="rv-fs-wrap" id="rv-fs-wrap">
 
         <div class="rv-player" id="rv-player-stage">
-          <video id="rv-video" controls playsinline preload="metadata"></video>
+          <video id="rv-video" controls controlsList="nofullscreen" disablePictureInPicture playsinline preload="metadata"></video>
           <canvas id="rvMarkCanvas" class="watch-mark-canvas"></canvas>
           <div class="rv-player-msg" id="rv-player-msg" hidden></div>
+          <button type="button" class="rv-fs-overlay" id="rv-fs-overlay" onclick="toggleReviewFullscreen()" title="Full screen with the timeline and shot count (F)">⛶ Full screen</button>
           <div class="rv-hud" id="rv-hud" aria-live="polite">
             <span class="rv-hud-count" id="rv-hud-count">0 shots</span>
             <span class="rv-hud-tally" id="rv-hud-tally"></span>
@@ -26875,7 +26876,10 @@ async function toggleReviewFullscreen(){
 
 function syncReviewFsBtn(){
   const b = document.getElementById("rv-fs-btn");
-  if(b){ b.textContent = reviewFsActive() ? "Exit full screen" : "Full screen"; }
+  const t = reviewFsActive() ? "Exit full screen" : "Full screen";
+  if(b){ b.textContent = t; }
+  const o = document.getElementById("rv-fs-overlay");
+  if(o){ o.textContent = "⛶ " + t; }
 }
 document.addEventListener("fullscreenchange", () => {
   const w = document.getElementById("rv-fs-wrap");

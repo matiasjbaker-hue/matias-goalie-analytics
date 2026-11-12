@@ -5630,3 +5630,5 @@ body.rv-fs-lock{overflow:hidden}
 .rv-fs-wrap:fullscreen .rv-action-bar,.rv-fs-wrap.is-fs .rv-action-bar{flex:0 0 auto;margin:0}
 .rv-fs-wrap:fullscreen .btn-secondary,.rv-fs-wrap.is-fs .btn-secondary{background:#f4f5f1;color:#121412;border-color:#f4f5f1}
 .rv-fs-wrap:fullscreen select,.rv-fs-wrap.is-fs select{background:#f4f5f1;color:#121412}
+.rv-fs-overlay{position:absolute;top:10px;left:10px;z-index:3;padding:6px 12px;border-radius:999px;border:0;background:rgba(18,20,18,.82);color:#fff;font-weight:700;font-size:14px;cursor:pointer}
+.rv-fs-overlay:hover{background:rgba(18,20,18,.95)}
