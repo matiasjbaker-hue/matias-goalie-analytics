@@ -3716,8 +3716,8 @@
       </div>
       <div class="rv-head-actions">
         <span id="rv-status"></span>
-        <span class="rv-cost" id="rv-ai-cost" hidden title="What the AI work on this video has cost, priced from the token counts Anthropic returns with each answer"></span>
-        <label class="rv-density" title="How closely the AI looks: more stills catch more action and cost more">
+        <span class="rv-cost rv-ai" id="rv-ai-cost" hidden title="What the AI work on this video has cost, priced from the token counts Anthropic returns with each answer"></span>
+        <label class="rv-density rv-ai" title="How closely the AI looks: more stills catch more action and cost more">
           <span>AI detail</span>
           <select id="rv-scan-density">
             <option value="thorough">Thorough (1 s)</option>
@@ -3726,14 +3726,14 @@
             <option value="zone">Zone only (5 s): fastest, cheapest</option>
           </select>
         </label>
-        <label class="rv-density" title="Half price: the AI answers within about an hour, usually sooner, and the results are collected while this request is open. Instant: answers while it scans, at full price.">
+        <label class="rv-density rv-ai" title="Half price: the AI answers within about an hour, usually sooner, and the results are collected while this request is open. Instant: answers while it scans, at full price.">
           <span>AI cost</span>
           <select id="rv-scan-mode">
             <option value="batch" selected>Half price (results within ~1 hr)</option>
             <option value="instant">Instant (full price)</option>
           </select>
         </label>
-        <label class="rv-density" title="Opus 5.5 reads the video more sharply and costs about twice as much. Use Test accuracy to compare them on your own footage.">
+        <label class="rv-density rv-ai" title="Opus 5.5 reads the video more sharply and costs about twice as much. Use Test accuracy to compare them on your own footage.">
           <span>AI model</span>
           <select id="rv-ai-model" onchange="onReviewModelChange(this.value)">
             <option value="claude-opus-5-5" selected>Opus 5.5 (sharper)</option>
@@ -3741,10 +3741,10 @@
             <option value="twelvelabs">Twelve Labs (watches the video)</option>
           </select>
         </label>
-        <button type="button" class="btn-secondary" id="rv-scan-btn" onclick="toggleReviewScan()">Run AI</button>
-        <button type="button" class="btn-secondary" id="rv-clear-ai-btn" onclick="clearReviewAiResults()" title="Removes the moments to check, the action stretches and any AI shots you haven't touched, so Run AI starts fresh. Your own shots, period marks and cuts are kept.">Clear AI results</button>
-        <button type="button" class="btn-secondary" onclick="copyReviewTlDetails()" title="Copies what Twelve Labs returned for this video (both passes, with its labels), the moments in the checklist and your tagged shots, to paste into a support chat.">Copy Twelve Labs details</button>
-        <button type="button" class="btn-secondary" id="rv-test-btn" onclick="runReviewAccuracyTest()" title="Checks the AI against shots you've already marked and reports how many it found, how many extra it flagged, and the cost. Doesn't change the shot list.">Test accuracy</button>
+        <button type="button" class="btn-secondary rv-ai" id="rv-scan-btn" onclick="toggleReviewScan()">Run AI</button>
+        <button type="button" class="btn-secondary rv-ai" id="rv-clear-ai-btn" onclick="clearReviewAiResults()" title="Removes the moments to check, the action stretches and any AI shots you haven't touched, so Run AI starts fresh. Your own shots, period marks and cuts are kept.">Clear AI results</button>
+        <button type="button" class="btn-secondary rv-ai" onclick="copyReviewTlDetails()" title="Copies what Twelve Labs returned for this video (both passes, with its labels), the moments in the checklist and your tagged shots, to paste into a support chat.">Copy Twelve Labs details</button>
+        <button type="button" class="btn-secondary rv-ai" id="rv-test-btn" onclick="runReviewAccuracyTest()" title="Checks the AI against shots you've already marked and reports how many it found, how many extra it flagged, and the cost. Doesn't change the shot list.">Test accuracy</button>
         <button type="button" class="btn-danger" onclick="flagReviewNeedsAttention()">Needs attention</button>
         <label class="rv-check" title="Sends the goalie a recap with their PDF stat sheet from the company Gmail">
           <input type="checkbox" id="rv-auto-email" checked> <span>Email stats + PDF</span>
@@ -3774,16 +3774,16 @@
       </div>
     </section>
 
-    <div class="rv-scanbar" id="rv-scanbar" hidden>
+    <div class="rv-scanbar rv-ai" id="rv-scanbar" hidden>
       <div class="rv-scanbar-track"><i id="rv-scanbar-fill"></i></div>
       <span id="rv-scan-text" aria-live="polite"></span>
     </div>
 
-    <div class="rv-preview" id="rv-preview" hidden></div>
+    <div class="rv-preview rv-ai" id="rv-preview" hidden></div>
 
-    <section class="rv-tests" id="rv-tests" hidden aria-label="AI accuracy tests"></section>
+    <section class="rv-tests rv-ai" id="rv-tests" hidden aria-label="AI accuracy tests"></section>
 
-    <details class="rv-details" open>
+    <details class="rv-details" data-fold="submission">
       <summary>Submission <span class="small-note">What the goalie sent. Edit anything and press Save changes; it's also saved with the game when you publish. Season decides which dashboard it shows on.</span></summary>
       <div class="field-grid rv-details-grid">
         <div class="field"><label for="rv-gd-jersey">Goalie's jersey colour</label><input type="text" id="rv-gd-jersey" maxlength="40" autocomplete="off"></div>
@@ -3821,8 +3821,8 @@
         <div class="rv-legend" aria-hidden="true">
           <span><i class="lg-save"></i>Save</span>
           <span><i class="lg-goal"></i>Goal</span>
-          <span><i class="lg-check"></i>Moment to check</span>
-          <span><i class="lg-action"></i>Action: play in the goalie's zone</span>
+          <span class="rv-ai"><i class="lg-check"></i>Moment to check</span>
+          <span class="rv-ai"><i class="lg-action"></i>Action: play in the goalie's zone</span>
           <span><i class="lg-cut"></i>Cut</span>
         </div>
 
@@ -3844,14 +3844,16 @@
         </div>
 
         <div class="rv-action-bar">
-          <label class="rv-check"><input type="checkbox" id="rv-action-only" onchange="onReviewActionOnlyChange()"> <span>Play action only</span></label>
+          <label class="rv-check rv-ai"><input type="checkbox" id="rv-action-only" onchange="onReviewActionOnlyChange()"> <span>Play action only</span></label>
           <label class="rv-check" title="S marks a shot (Shift+S a goal) without pausing or opening the editor, so you can keep watching. Z removes the last one you marked. Fill in details later from the shot list."><input type="checkbox" id="rv-quick-tag" onchange="onReviewQuickTagChange(this.checked)"> <span>Quick tag (S shot, Shift+S goal, Z undo)</span></label>
-          <button type="button" class="btn-secondary" onclick="jumpReviewAction(-1)">Previous action</button>
-          <button type="button" class="btn-secondary" onclick="jumpReviewAction(1)">Next action</button>
-          <span class="small-note" id="rv-action-note"></span>
+          <button type="button" class="btn-secondary rv-ai" onclick="jumpReviewAction(-1)">Previous action</button>
+          <button type="button" class="btn-secondary rv-ai" onclick="jumpReviewAction(1)">Next action</button>
+          <span class="small-note rv-ai" id="rv-action-note"></span>
         </div>
 
-        <div class="rv-periods">
+        <details class="rv-fold" data-fold="periods" open>
+          <summary>Periods &amp; net sides</summary>
+          <div class="rv-periods">
           <label class="rv-density rv-net" title="Which period the very start of THIS file is in. Use it when a part begins partway through the game, e.g. Part 4 is all 3rd period. Period marks below still override it.">
             <span>This file starts in</span>
             <select id="rv-start-period" onchange="setReviewStartPeriod(this.value)">
@@ -3900,8 +3902,11 @@
           </label>
           <span class="small-note" id="rv-period-note"></span>
         </div>
+        </details>
 
-        <section class="rv-puck" id="rv-puck" aria-labelledby="rv-puck-title">
+        <details class="rv-fold" data-fold="puck" open>
+          <summary>Puck playing</summary>
+          <section class="rv-puck" id="rv-puck" aria-labelledby="rv-puck-title">
           <div class="rv-puck-head">
             <h4 id="rv-puck-title">Puck playing</h4>
             <span class="small-note" id="rv-puck-sum" aria-live="polite"></span>
@@ -3910,8 +3915,11 @@
           <div class="rv-puck-body" id="rv-puck-body"></div>
           <p class="small-note rv-puck-note">Count rims and passes as you watch. They save as you go and are added to the game when you publish. A stopped rim counts as faced, a completed pass as attempted.</p>
         </section>
+        </details>
 
-        <section class="rv-edit" id="rv-edit" aria-labelledby="rv-edit-title">
+        <details class="rv-fold" data-fold="edit">
+          <summary>Edit video (cuts)</summary>
+          <section class="rv-edit" id="rv-edit" aria-labelledby="rv-edit-title">
           <div class="rv-edit-head">
             <h4 id="rv-edit-title">Edit video</h4>
             <span class="small-note" id="rv-cut-note"></span>
@@ -3941,12 +3949,13 @@
           <div class="rv-cut-list" id="rv-cut-list"></div>
           <div class="rv-edit-foot">
             <span class="small-note" id="rv-edit-state"></span>
-            <button type="button" class="btn-secondary" id="rv-finish-only-btn">Finish edit</button>
-            <button type="button" class="btn-primary" id="rv-finish-btn" onclick="finishReviewEdit(true)">Finish edit &amp; run AI</button>
+            <button type="button" class="btn-primary" id="rv-finish-only-btn">Finish edit</button>
+            <button type="button" class="btn-primary rv-ai" id="rv-finish-btn" onclick="finishReviewEdit(true)">Finish edit &amp; run AI</button>
           </div>
         </section>
+        </details>
 
-        <p class="small-note rv-keys">Keys: Space play/pause · ← → 5 seconds · ] [ next or previous action · S add a shot · N / P next or previous shot · G toggle goal · I / O mark in / out · Delete cut in → out · X start or end a cut · , . one frame · Shift + ← → 1 second · U undo · M play the next moment to check (Shift + M previous) · S at the shot clears it · A take the AI's best guess · D no shot</p>
+        <p class="small-note rv-keys">Keys: Space play/pause · ← → 5 seconds · Shift + ← → 1 second · , . one frame · S mark a shot (Shift + S a goal, Z removes the last) · N / P next or previous shot · G toggle goal · I / O mark in / out · Delete cut in → out · X start or end a cut · U undo a cut</p>
 
       </div>
 
@@ -3955,33 +3964,33 @@
         <div class="rv-side-head">
           <h4>Shots <span id="rv-count"></span></h4>
           <span class="small-note" id="rv-tally"></span>
-          <button type="button" class="rv-linkbtn" id="rv-regroup" onclick="regroupReviewBasics()" hidden title="Turns AI shots with only the basics (from an earlier run) into moments to check, grouped by sequence. Free.">Turn into moments</button>
-          <button type="button" class="rv-linkbtn" id="rv-fill-all" onclick="aiFillAllReviewShots()" hidden title="Fills in location, shot type and the rest for every AI shot that only has the basics. Delete the ones that aren't shots first.">AI fill all</button>
+          <button type="button" class="rv-linkbtn rv-ai" id="rv-regroup" onclick="regroupReviewBasics()" hidden title="Turns AI shots with only the basics (from an earlier run) into moments to check, grouped by sequence. Free.">Turn into moments</button>
+          <button type="button" class="rv-linkbtn rv-ai" id="rv-fill-all" onclick="aiFillAllReviewShots()" hidden title="Fills in location, shot type and the rest for every AI shot that only has the basics. Delete the ones that aren't shots first.">AI fill all</button>
         </div>
 
         <ol class="rv-shotlist" id="rv-shotlist"></ol>
 
-        <div class="rv-side-head rv-check-head" id="rv-check-head" hidden>
+        <div class="rv-side-head rv-check-head rv-ai" id="rv-check-head" hidden>
           <h4>Moments to check <span id="rv-check-count"></span></h4>
           <button type="button" class="rv-linkbtn" onclick="dismissAllReviewChecks()">Dismiss all</button>
         </div>
-        <p class="small-note rv-check-note" id="rv-check-note" hidden>Where the AI saw a likely shot but can't tell the exact second. M plays the next one: press S at the shot (the moment then clears), D if there wasn't one, or A to take the AI's best guess.</p>
-        <ol class="rv-checklist" id="rv-checklist" hidden></ol>
+        <p class="small-note rv-check-note rv-ai" id="rv-check-note" hidden>Where the AI saw a likely shot but can't tell the exact second. M plays the next one: press S at the shot (the moment then clears), D if there wasn't one, or A to take the AI's best guess.</p>
+        <ol class="rv-checklist rv-ai" id="rv-checklist" hidden></ol>
 
-        <div class="rv-side-head rv-check-head" id="rv-zone-head" hidden>
+        <div class="rv-side-head rv-check-head rv-ai" id="rv-zone-head" hidden>
           <h4>Zone play <span id="rv-zone-count"></span></h4>
         </div>
-        <p class="small-note rv-check-note" id="rv-zone-note" hidden>Every stretch where play is in your goalie's end. Press Play and they run back to back; press S at each shot. Click one to jump to it.</p>
-        <ol class="rv-checklist" id="rv-zonelist" hidden></ol>
+        <p class="small-note rv-check-note rv-ai" id="rv-zone-note" hidden>Every stretch where play is in your goalie's end. Press Play and they run back to back; press S at each shot. Click one to jump to it.</p>
+        <ol class="rv-checklist rv-ai" id="rv-zonelist" hidden></ol>
 
         <div class="rv-editor" id="rv-editor" hidden>
 
           <div class="rv-editor-head">
             <strong id="rv-ed-title">Shot</strong>
-            <span id="rv-ed-source"></span>
+            <span id="rv-ed-source" class="rv-ai"></span>
           </div>
 
-          <p class="small-note" id="rv-ed-ai" hidden></p>
+          <p class="small-note rv-ai" id="rv-ed-ai" hidden></p>
 
           <div class="field-grid rv-ed-grid">
             <div class="field">
@@ -4002,20 +4011,20 @@
               </select>
             </div>
             <div class="field">
+              <label for="rv-ed-type">Shot type</label>
+              <select id="rv-ed-type" onchange="updateReviewShot('shot_type', this.value || null)">
+                <option value="">Unknown</option>
+                <option>Wrist</option><option>Slap</option><option>Snap</option><option>Flick</option>
+                <option>Backhand</option><option>Deke</option>
+              </select>
+            </div>
+            <div class="field">
               <label for="rv-ed-strength">Strength</label>
               <select id="rv-ed-strength" onchange="updateReviewShot('strength', this.value || null)">
                 <option value="">Not tagged</option>
                 <option>5v5</option><option>4v4</option><option>3v3</option>
                 <option>4v5</option><option>3v5</option><option>3v4</option><option>5v6</option>
                 <option>5v4</option><option>5v3</option><option>4v3</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="rv-ed-type">Shot type</label>
-              <select id="rv-ed-type" onchange="updateReviewShot('shot_type', this.value || null)">
-                <option value="">Unknown</option>
-                <option>Wrist</option><option>Slap</option><option>Snap</option><option>Flick</option>
-                <option>Backhand</option><option>Deke</option>
               </select>
             </div>
             <div class="field">
@@ -31562,6 +31571,24 @@ async function deleteGameVideo(gameVideoId, button){
 /* ============================================================
    START
 ============================================================ */
+
+
+// Tagging screen sections remember if you left them open or closed.
+(function(){
+  try{
+    document.querySelectorAll("details[data-fold]").forEach(el => {
+      const key = "giq-fold-" + el.getAttribute("data-fold");
+      let saved = null;
+      try{ saved = localStorage.getItem(key); }catch(e){ saved = null; }
+      if(saved === "open"){ el.open = true; }
+      else if(saved === "closed"){ el.open = false; }
+      el.addEventListener("toggle", () => {
+        try{ localStorage.setItem(key, el.open ? "open" : "closed"); }catch(e){}
+      });
+    });
+  }
+  catch(e){ /* sections just keep their default state */ }
+})();
 
 renderProfileExtraForms();
 renderLiveTagPuckControls();

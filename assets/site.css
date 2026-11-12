@@ -5545,3 +5545,52 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
 .rev-lab{ font-size:.78rem; color:var(--muted-ink); }
 .rev-legend{ display:flex; gap:16px; flex-basis:100%; font-size:.8rem; color:var(--muted-ink); }
 .rev-dot{ display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; }
+
+/* ---------- tagging screen: manual-only, tidier ----------
+   The AI and Twelve Labs controls aren't used, so they're kept out of
+   sight (the code behind them is untouched). */
+.rv-ai{ display:none !important; }
+
+.rv-fold{
+  margin-top:14px;
+  background:var(--face);
+  border:1.5px solid var(--seam-strong);
+  border-radius:var(--radius);
+  padding:0 14px;
+}
+.rv-fold > summary{
+  cursor:pointer;
+  padding:12px 0;
+  font-weight:700;
+  font-size:15px;
+  list-style:none;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.rv-fold > summary::-webkit-details-marker{ display:none; }
+.rv-fold > summary::before{
+  content:"▸";
+  font-size:12px;
+  color:var(--ink-2);
+  transition:transform .15s ease;
+}
+.rv-fold[open] > summary::before{ transform:rotate(90deg); }
+.rv-fold[open] > summary{ border-bottom:1px solid var(--seam); margin-bottom:4px; }
+.rv-fold .rv-periods{ margin:8px 0 12px; }
+.rv-fold .rv-puck,
+.rv-fold .rv-edit{ margin:0; padding:8px 0 14px; border:0; background:none; box-shadow:none; }
+.rv-fold .rv-puck-head h4,
+.rv-fold .rv-edit-head h4{ display:none; }
+
+/* quick-mark bar is now just the one checkbox: keep it quiet */
+.rv-action-bar{ border-style:solid; border-color:var(--seam-strong); background:none; padding:8px 12px; }
+
+/* header: just status + the three things you do at the end */
+.rv-head-actions{ justify-content:flex-end; }
+
+/* shot form: rebound control and the grid read as one tidy block */
+.rv-editor > .field + .field,
+.rv-editor > .field + .shot-edit-flags,
+.rv-editor > .shot-edit-flags + .field{ margin-top:14px; }
+.rv-editor .shot-edit-flags{ display:flex; flex-wrap:wrap; gap:6px 14px; }
