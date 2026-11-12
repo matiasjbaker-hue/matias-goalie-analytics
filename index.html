@@ -3850,6 +3850,11 @@
           </select>
           <button type="button" class="btn-secondary" id="rv-download-btn" onclick="downloadGameVideo(review.video && review.video.id, this)" title="Download this file (for example to convert it to H.264 in HandBrake)">Download file</button>
           <button type="button" class="btn-secondary" id="rv-fs-btn" onclick="toggleReviewFullscreen()" title="Tag shots full screen, with the timeline and shot count in view (F)">Full screen</button>
+          <span class="rv-zoom-ctl" role="group" aria-label="Zoom the film">
+            <button type="button" class="btn-secondary" onclick="reviewZoomBy(1/1.4)" aria-label="Zoom out" title="Zoom out (-)">−</button>
+            <button type="button" class="btn-secondary" id="rv-zoom-level" onclick="reviewZoomReset()" title="Back to normal (0)">1×</button>
+            <button type="button" class="btn-secondary" onclick="reviewZoomBy(1.4)" aria-label="Zoom in" title="Zoom in (+). Scroll over the film to zoom, drag to move around.">+</button>
+          </span>
         </div>
 
         <div class="rv-mark-row" role="group" aria-label="Game start, periods and game end">
@@ -26863,6 +26868,7 @@ async function toggleReviewFullscreen(){
   if(reviewFsActive()){
     if(document.fullscreenElement){ try{ await document.exitFullscreen(); }catch(e){} }
     w.classList.remove("is-fs"); document.body.classList.remove("rv-fs-lock");
+    reviewZoomReset();
     syncReviewFsBtn();
     return;
   }
@@ -26884,7 +26890,7 @@ document.addEventListener("fullscreenchange", () => {
   const w = document.getElementById("rv-fs-wrap");
   // The video's own full screen button: swap in the whole tagging area.
   if(document.fullscreenElement && document.fullscreenElement.id === "rv-video"){ reviewTakeOverVideoFs(); return; }
-  if(w && !document.fullscreenElement){ w.classList.remove("is-fs"); document.body.classList.remove("rv-fs-lock"); }
+  if(w && !document.fullscreenElement){ w.classList.remove("is-fs"); document.body.classList.remove("rv-fs-lock"); reviewZoomReset(); }
   syncReviewFsBtn();
 });
 
@@ -26967,6 +26973,67 @@ function fsStep(delta){
   const next = list[Math.max(0, Math.min(list.length - 1, (i < 0 ? (delta > 0 ? 0 : list.length - 1) : i + delta)))];
   selectReviewShot(next.id, true);
 }
+// ---- Zoom the film in full screen: + / - / 0, scroll wheel, drag to pan ----
+const reviewZoom = { s: 1, x: 0, y: 0 };
+function reviewZoomApply(){
+  const v = document.getElementById("rv-video"), c = document.getElementById("rvMarkCanvas");
+  const stage = document.getElementById("rv-player-stage");
+  if(!v || !stage){ return; }
+  const z = reviewZoom;
+  const maxX = (z.s - 1) * stage.clientWidth / 2, maxY = (z.s - 1) * stage.clientHeight / 2;
+  z.x = Math.max(-maxX, Math.min(maxX, z.x));
+  z.y = Math.max(-maxY, Math.min(maxY, z.y));
+  const t = z.s === 1 ? "" : `translate(${z.x}px, ${z.y}px) scale(${z.s})`;
+  v.style.transform = t;
+  if(c){ c.style.transform = t; }
+  // The video's own bar would zoom with it, so it steps aside while zoomed.
+  v.controls = z.s === 1;
+  stage.classList.toggle("is-zoomed", z.s > 1);
+  const lvl = document.getElementById("rv-zoom-level");
+  if(lvl){ lvl.textContent = `${Math.round(z.s * 10) / 10}×`; }
+}
+function reviewZoomTo(s1, px, py){
+  const stage = document.getElementById("rv-player-stage");
+  const z = reviewZoom;
+  s1 = Math.max(1, Math.min(6, s1));
+  if(stage && px !== undefined){
+    const r = stage.getBoundingClientRect();
+    const cx = px - (r.left + r.width / 2), cy = py - (r.top + r.height / 2);
+    const k = s1 / z.s;
+    z.x = cx - (cx - z.x) * k;
+    z.y = cy - (cy - z.y) * k;
+  }
+  z.s = s1;
+  if(s1 === 1){ z.x = 0; z.y = 0; }
+  reviewZoomApply();
+}
+function reviewZoomBy(f){ reviewZoomTo(reviewZoom.s * f); }
+function reviewZoomReset(){ reviewZoomTo(1); }
+(function(){
+  const stage = document.getElementById("rv-player-stage");
+  if(!stage){ return; }
+  stage.addEventListener("wheel", e => {
+    if(!reviewFsActive()){ return; }
+    e.preventDefault();
+    reviewZoomTo(reviewZoom.s * (e.deltaY < 0 ? 1.15 : 1 / 1.15), e.clientX, e.clientY);
+  }, { passive: false });
+  let drag = null;
+  stage.addEventListener("pointerdown", e => {
+    if(!reviewFsActive() || reviewZoom.s === 1 || e.target.closest("button")) { return; }
+    drag = { x: e.clientX, y: e.clientY, ox: reviewZoom.x, oy: reviewZoom.y };
+    stage.setPointerCapture(e.pointerId);
+  });
+  stage.addEventListener("pointermove", e => {
+    if(!drag){ return; }
+    reviewZoom.x = drag.ox + e.clientX - drag.x;
+    reviewZoom.y = drag.oy + e.clientY - drag.y;
+    reviewZoomApply();
+  });
+  const end = () => { drag = null; };
+  stage.addEventListener("pointerup", end);
+  stage.addEventListener("pointercancel", end);
+})();
+
 let fsPanelRestored = false;
 function toggleFsPanel(force){
   const panel = document.getElementById("rv-fs-panel");
@@ -31543,6 +31610,9 @@ async function loadReviewUser(userId){
     else if(k === "s"){ e.preventDefault(); addReviewShotHere(e.shiftKey && reviewQuickTagOn() ? "goal" : "save"); }
     else if(k === "f"){ e.preventDefault(); toggleReviewFullscreen(); }
     else if(k === "t"){ e.preventDefault(); toggleFsPanel(); }
+    else if(reviewFsActive() && (e.key === "+" || e.key === "=")){ e.preventDefault(); reviewZoomBy(1.4); }
+    else if(reviewFsActive() && (e.key === "-" || e.key === "_")){ e.preventDefault(); reviewZoomBy(1 / 1.4); }
+    else if(reviewFsActive() && e.key === "0"){ e.preventDefault(); reviewZoomReset(); }
     else if(k === "z" && reviewQuickTagOn()){ e.preventDefault(); undoReviewQuickTag(); }
     else if(k === "m"){ e.preventDefault(); nextReviewCheck(e.shiftKey ? -1 : 1); }
     else if(k === "a"){ e.preventDefault(); acceptReviewCheck(); }

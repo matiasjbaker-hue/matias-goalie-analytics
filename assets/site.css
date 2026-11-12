@@ -5682,3 +5682,10 @@ button.rv-hud{pointer-events:auto;border:0;cursor:pointer;font-family:inherit}
 @media (max-width:900px){
   .rv-grid.rv-fs-wrap:fullscreen,.rv-grid.rv-fs-wrap.is-fs{grid-template-columns:1fr;grid-template-rows:55% 45%}
 }
+
+/* Zoom the film (full screen only) */
+.rv-zoom-ctl{display:none;gap:4px;align-items:center}
+.rv-grid.rv-fs-wrap:fullscreen .rv-zoom-ctl,.rv-grid.rv-fs-wrap.is-fs .rv-zoom-ctl{display:inline-flex}
+.rv-player video,.rv-player canvas{transform-origin:center center}
+.rv-player.is-zoomed{cursor:grab;touch-action:none}
+.rv-player.is-zoomed:active{cursor:grabbing}
