@@ -5632,3 +5632,36 @@ body.rv-fs-lock{overflow:hidden}
 .rv-fs-wrap:fullscreen select,.rv-fs-wrap.is-fs select{background:#f4f5f1;color:#121412}
 .rv-fs-overlay{position:absolute;top:10px;left:10px;z-index:3;padding:6px 12px;border-radius:999px;border:0;background:rgba(18,20,18,.82);color:#fff;font-weight:700;font-size:14px;cursor:pointer}
 .rv-fs-overlay:hover{background:rgba(18,20,18,.95)}
+
+/* Shot counter is a button that drops a panel to edit and tick off shots. */
+button.rv-hud{pointer-events:auto;border:0;cursor:pointer;font-family:inherit}
+.rv-hud-caret{font-size:12px;opacity:.8}
+.rv-fs-panel{position:absolute;top:52px;right:10px;width:min(340px,calc(100% - 20px));max-height:calc(100% - 64px);display:flex;flex-direction:column;background:rgba(18,20,18,.96);color:#fff;border-radius:12px;z-index:5;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.rv-fs-panel[hidden]{display:none}
+.rv-fs-panel .fs-top{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.15)}
+.rv-fs-panel button{font-family:inherit}
+.rv-fs-panel .fs-top button{background:none;border:0;color:#fff;font-size:16px;cursor:pointer}
+.fs-scroll{overflow:auto;padding:8px 12px 12px}
+.fs-hint{margin:4px 0 8px;opacity:.75}
+.fs-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.fs-nav button{background:#f4f5f1;color:#121412;border:0;border-radius:8px;padding:6px 14px;cursor:pointer}
+.fs-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px}
+.fs-f{display:flex;flex-direction:column;gap:2px;font-size:11px;opacity:.95}
+.fs-f select{background:#f4f5f1;color:#121412;border:0;border-radius:6px;padding:6px;font-size:13px;width:100%}
+.fs-flags{display:flex;flex-wrap:wrap;gap:6px 12px;margin:8px 0}
+.fs-flag{display:flex;align-items:center;gap:4px}
+.fs-maplabel{font-size:11px;margin:6px 0 2px}
+#fs-map{max-width:100%;background:#fff;border-radius:8px;overflow:hidden}
+.fs-actions{display:flex;gap:6px;margin:0 0 8px}
+.fs-actions button{flex:1;border:0;border-radius:8px;padding:8px;font-weight:700;cursor:pointer;background:#f4f5f1;color:#121412}
+.fs-actions .fs-done.on{background:#1e7a46;color:#fff}
+.fs-actions .fs-next{background:#ffd60a}
+.fs-actions .fs-del{flex:0 0 auto;background:#c0392b;color:#fff}
+.fs-list{display:flex;flex-direction:column;gap:3px;margin-top:6px}
+.fs-row{display:flex;align-items:center;gap:8px;padding:6px 8px;background:rgba(255,255,255,.08);color:#fff;border:0;border-radius:6px;text-align:left;cursor:pointer}
+.fs-row.is-sel{outline:2px solid #ffd60a}
+.fs-row.is-goal .fs-n{color:#ff6b5e}
+.fs-row .fs-sum{flex:1;opacity:.85}
+.fs-n{font-weight:700;min-width:30px}
+.fs-chk{width:18px;height:18px;border:1.5px solid rgba(255,255,255,.5);border-radius:4px;text-align:center;line-height:16px;font-size:13px}
+.fs-chk.on{background:#1e7a46;border-color:#1e7a46}

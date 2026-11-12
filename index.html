@@ -3813,10 +3813,12 @@
           <video id="rv-video" controls playsinline preload="metadata"></video>
           <canvas id="rvMarkCanvas" class="watch-mark-canvas"></canvas>
           <div class="rv-player-msg" id="rv-player-msg" hidden></div>
-          <div class="rv-hud" id="rv-hud" aria-live="polite">
+          <button type="button" class="rv-hud" id="rv-hud" onclick="toggleFsPanel(); this.blur()" aria-expanded="false" title="Shots: tap to edit and track them (T)">
             <span class="rv-hud-count" id="rv-hud-count">0 shots</span>
             <span class="rv-hud-tally" id="rv-hud-tally"></span>
-          </div>
+            <span class="rv-hud-caret">▾</span>
+          </button>
+          <div class="rv-fs-panel" id="rv-fs-panel" hidden></div>
           <div class="rv-flash" id="rv-flash" aria-hidden="true"></div>
         </div>
 
@@ -26909,6 +26911,119 @@ function updateReviewHud(total, goals){
   updateReviewHud.t = setTimeout(() => { f.className = "rv-flash"; }, 1100);
 }
 
+// ---- Shot panel (the dropdown under the shot counter) ----
+// Edit the selected shot and tick shots off as done, without leaving
+// full screen. "Done" is remembered in this browser, per video.
+const FS_TYPES = ["Wrist","Slap","Snap","Flick","Backhand","Deke"];
+const FS_STRENGTH = ["5v5","4v4","3v3","4v5","3v5","3v4","5v6","5v4","5v3","4v3"];
+const FS_RELEASE = [["one_timer","One-Timer"],["catch_and_release","Catch & Release"],["extended_possession","Extended Possession"]];
+const FS_REBOUND = [["glove_caught","Glove — Caught"],["glove_rebound","Glove — Rebound"],["glove_goal","Glove — Goal"],["blocker_good","Blocker — Good"],["blocker_bad","Blocker — Bad"],["blocker_goal","Blocker — Goal"],["midsection_good","Midsection — Good"],["midsection_bad","Midsection — Bad"],["midsection_goal","Midsection — Goal"],["pad_stick_good","Pad/Stick — Good"],["pad_stick_bad","Pad/Stick — Bad"],["pad_stick_goal","Pad/Stick — Goal"]];
+const FS_FLAGS = [["rush","Rush"],["rebound","Rebound"],["screened","Screened"],["breakaway","Breakaway"],["cross_ice","Cross Ice"],["deflection","Deflection"]];
+
+function fsDoneKey(){ return "giq-rv-done-" + (review.video ? review.video.id : "none"); }
+function fsDoneSet(){
+  try{ return new Set(JSON.parse(localStorage.getItem(fsDoneKey()) || "[]").map(String)); }catch(e){ return new Set(); }
+}
+function fsToggleDone(id){
+  const set = fsDoneSet();
+  const k = String(id);
+  if(set.has(k)){ set.delete(k); } else{ set.add(k); }
+  try{ localStorage.setItem(fsDoneKey(), JSON.stringify([...set])); }catch(e){}
+  if(!fsPanelRestored){ fsPanelRestored = true; try{ if(localStorage.getItem("giq-fs-panel") === "1"){ toggleFsPanel(true); } }catch(e){} }
+  renderFsPanel();
+}
+function fsMarkDoneAndNext(){
+  const d = reviewSelectedDraft();
+  if(!d){ return; }
+  const set = fsDoneSet();
+  if(!set.has(String(d.id))){ fsToggleDone(d.id); }
+  fsStep(1);
+}
+function fsStep(delta){
+  const list = review.drafts;
+  if(!list.length){ return; }
+  const i = list.findIndex(x => String(x.id) === String(review.selectedId));
+  const next = list[Math.max(0, Math.min(list.length - 1, (i < 0 ? (delta > 0 ? 0 : list.length - 1) : i + delta)))];
+  selectReviewShot(next.id, true);
+}
+let fsPanelRestored = false;
+function toggleFsPanel(force){
+  const panel = document.getElementById("rv-fs-panel");
+  if(!panel){ return; }
+  const open = typeof force === "boolean" ? force : panel.hidden;
+  panel.hidden = !open;
+  const h = document.getElementById("rv-hud");
+  if(h){ h.setAttribute("aria-expanded", open ? "true" : "false"); }
+  try{ localStorage.setItem("giq-fs-panel", open ? "1" : "0"); }catch(e){}
+  if(open){ renderFsPanel(); }
+}
+function fsSel(field, label, options, value, blank){
+  const opts = (blank ? [[ "", blank ]] : []).concat(options.map(o => Array.isArray(o) ? o : [o, o]));
+  return `<label class="fs-f"><span>${label}</span><select onchange="updateReviewShot('${field}', this.value${blank !== undefined && field !== "rebound_tag" ? " || null" : ""}); this.blur()">` +
+    opts.map(([v, t]) => `<option value="${escapeHtml(v)}"${String(value ?? "") === String(v) ? " selected" : ""}>${escapeHtml(t)}</option>`).join("") + `</select></label>`;
+}
+function renderFsPanel(){
+  const panel = document.getElementById("rv-fs-panel");
+  if(!panel || panel.hidden){ return; }
+  const list = review.drafts;
+  const done = fsDoneSet();
+  const d = reviewSelectedDraft();
+  const doneCount = list.filter(x => done.has(String(x.id))).length;
+  const idx = d ? list.findIndex(x => x === d) : -1;
+
+  const rows = list.map((x, i) => {
+    const isDone = done.has(String(x.id));
+    return `<button type="button" class="fs-row${x === d ? " is-sel" : ""}${x.outcome === "goal" ? " is-goal" : ""}" onclick="selectReviewShot(${jsArg(x.id)}, true); this.blur()">` +
+      `<span class="fs-n">#${i + 1}</span><span>${escapeHtml(formatClock(x.t_seconds))}</span>` +
+      `<span class="fs-sum">${x.outcome === "goal" ? "Goal" : "Save"}${x.shot_type ? " · " + escapeHtml(x.shot_type) : ""}${shotMapHasPin(x) ? " · 📍" : ""}</span>` +
+      `<span class="fs-chk${isDone ? " on" : ""}">${isDone ? "✓" : ""}</span></button>`;
+  }).join("");
+
+  let editor = `<p class="fs-hint">${list.length ? "Pick a shot to edit it." : "No shots yet. Press S at each shot."}</p>`;
+  if(d){
+    const flags = FS_FLAGS.map(([k, t]) =>
+      `<label class="fs-flag"><input type="checkbox" ${d[k] ? "checked" : ""} onchange="updateReviewShot('${k}', this.checked); this.blur()"> ${t}</label>`).join("");
+    editor = `
+      <div class="fs-nav">
+        <button type="button" onclick="fsStep(-1); this.blur()" aria-label="Previous shot">◀</button>
+        <strong>Shot ${idx + 1} of ${list.length} · ${escapeHtml(formatClock(d.t_seconds))}</strong>
+        <button type="button" onclick="fsStep(1); this.blur()" aria-label="Next shot">▶</button>
+      </div>
+      <div class="fs-actions">
+        <button type="button" class="fs-done${done.has(String(d.id)) ? " on" : ""}" onclick="fsToggleDone(${jsArg(d.id)}); this.blur()">${done.has(String(d.id)) ? "✓ Done" : "Mark done"}</button>
+        <button type="button" class="fs-next" onclick="fsMarkDoneAndNext(); this.blur()">Done · next</button>
+        <button type="button" class="fs-del" onclick="deleteReviewShot(); renderFsPanel(); this.blur()">Delete</button>
+      </div>`;
+  }
+
+  const scroll = panel.querySelector(".fs-scroll");
+  const keep = scroll ? scroll.scrollTop : 0;
+  panel.innerHTML = `
+    <div class="fs-top"><strong>${list.length} shot${list.length === 1 ? "" : "s"} · ${doneCount} done</strong>
+      <button type="button" onclick="toggleFsPanel(false); this.blur()" aria-label="Close">✕</button></div>
+    <div class="fs-scroll">${editor}<div class="fs-list">${rows}</div></div>`;
+  const sc = panel.querySelector(".fs-scroll");
+  if(sc){ sc.scrollTop = keep; }
+
+  if(d){
+    const host = document.getElementById("fs-map");
+    host.innerHTML = shotMapSvg("fsmap", `<g id="fsmap-pin"></g>`, true);
+    const svg = document.getElementById("fsmap-svg");
+    svg.addEventListener("click", e => {
+      const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+      const local = pt.matrixTransform(svg.getScreenCTM().inverse());
+      updateReviewShot("loc", shotMapFromSvgPoint(local.x, local.y));
+    });
+    const pin = document.getElementById("fsmap-pin");
+    const ro = document.getElementById("fs-readout");
+    if(shotMapHasPin(d)){
+      pin.innerHTML = shotMapPinMarkup(Number(d.loc_x), Number(d.loc_y));
+      ro.textContent = `· ${shotZoneDisplay(d)} · ${shotMapDistanceFt(Number(d.loc_x), Number(d.loc_y))} ft`;
+    }
+    else{ ro.textContent = "· tap the rink"; }
+  }
+}
+
 function renderReviewShots(){
 
   const list = document.getElementById("rv-shotlist");
@@ -26937,6 +27052,7 @@ function renderReviewShots(){
     total ? `${total - goals} saves · ${goals} goal${goals === 1 ? "" : "s"}${multi ? ` · all ${parts.length} files` : ""}` : "";
 
   updateReviewHud(total, goals);
+  renderFsPanel();
 
   if(!total){
     list.innerHTML = `<li class="rv-empty">No shots yet. Run AI, or play the video and press <strong>Add shot here</strong> (or S) at each shot.</li>`;
@@ -31320,6 +31436,17 @@ async function loadReviewUser(userId){
         <h4>${escapeHtml(p.full_name || "Unnamed account")}</h4>
         <span class="small-note">${escapeHtml(p.role || "")}</span>
       </div>
+      <div class="fs-grid">
+        ${fsSel("outcome", "Result", [["save","Save"],["goal","Goal"]], d.outcome || "save")}
+        ${fsSel("period", "Period", [["1","1st"],["2","2nd"],["3","3rd"],["OT","OT"]], d.period || "", "From period marks")}
+        ${fsSel("shot_type", "Shot type", FS_TYPES, d.shot_type || "", "Unknown")}
+        ${fsSel("strength", "Strength", FS_STRENGTH, d.strength || "", "Not tagged")}
+        ${fsSel("release_type", "Release", FS_RELEASE, d.release_type || "", "Unclear")}
+        ${fsSel("rebound_tag", "Rebound control", [["skip","Not tagged"]].concat(FS_REBOUND), d.rebound_tag || "skip")}
+      </div>
+      <div class="fs-flags">${flags}</div>
+      <div class="fs-maplabel">Release point <span id="fs-readout"></span></div>
+      <div id="fs-map" class="shotmap-wrap"></div>
       <div class="grid grid-4 rv-user-facts">
         <div class="card metric-card"><div class="metric">${escapeHtml(totals)}</div><div class="metric-label">Paid in total</div></div>
         <div class="card metric-card"><div class="metric">${escapeHtml(planLabel)}</div><div class="metric-label">Plan · ${escapeHtml(a.status || "no access row")}</div></div>
@@ -31394,6 +31521,7 @@ async function loadReviewUser(userId){
     else if(k === "u"){ e.preventDefault(); undoReviewCut(); }
     else if(k === "s"){ e.preventDefault(); addReviewShotHere(e.shiftKey && reviewQuickTagOn() ? "goal" : "save"); }
     else if(k === "f"){ e.preventDefault(); toggleReviewFullscreen(); }
+    else if(k === "t"){ e.preventDefault(); toggleFsPanel(); }
     else if(k === "z" && reviewQuickTagOn()){ e.preventDefault(); undoReviewQuickTag(); }
     else if(k === "m"){ e.preventDefault(); nextReviewCheck(e.shiftKey ? -1 : 1); }
     else if(k === "a"){ e.preventDefault(); acceptReviewCheck(); }
