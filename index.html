@@ -454,6 +454,17 @@
           <label for="newpassword-password">New Password</label>
           <input type="password" id="newpassword-password" required autocomplete="new-password" minlength="6">
 
+          <div id="newpassword-consent" style="display:none">
+            <label class="consent-row">
+              <input type="checkbox" id="newpassword-terms">
+              <span>I agree to the <a href="terms.html" target="_blank" rel="noopener">Terms of Service</a> and <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</span>
+            </label>
+            <label class="consent-row">
+              <input type="checkbox" id="newpassword-age">
+              <span>I'm 18 or older, or my parent or guardian has agreed to these terms for me.</span>
+            </label>
+          </div>
+
           <button type="submit" class="auth-btn">Update Password</button>
         </form>
 
@@ -1090,6 +1101,24 @@
 
     <div class="small-note" id="adminMoveStatus"></div>
 
+  </div>
+
+  <div class="card section-space">
+    <h3>Invite goalies by email</h3>
+    <p class="small-note" style="margin:0 0 12px">For goalies who haven't signed up yet. Each one gets an account linked to the coach (coach-managed, the coach's games pay for them) and an email to set a password. The coach can upload film for them right away. Run it again for the same email to send a fresh link.</p>
+    <div class="grid grid-3">
+      <div>
+        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px;">Coach</label>
+        <select id="adminInviteCoach" style="width:100%;background:var(--field);border:1.5px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
+      </div>
+      <div style="grid-column:span 2">
+        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px;">Goalies, one per line: email, name</label>
+        <textarea id="adminInviteList" rows="5" placeholder="kid@email.com, Jamie Smith&#10;other@email.com, Alex Lee" style="width:100%;box-sizing:border-box;background:var(--field);border:1.5px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></textarea>
+      </div>
+    </div>
+    <div style="margin-top:10px"><button class="btn-primary" onclick="inviteGoalies(this)">Create accounts and send invites</button></div>
+    <div class="small-note" id="adminInviteStatus"></div>
+    <div id="adminInviteResults"></div>
   </div>
 
   <div class="card">
@@ -14209,11 +14238,26 @@ document.getElementById("newpassword-form")
     const password =
       document.getElementById("newpassword-password").value;
 
+    const invited = needsInviteSetup(currentSession);
+    if(invited && (!document.getElementById("newpassword-terms").checked || !document.getElementById("newpassword-age").checked)){
+      showAuthError("Please agree to the Terms and Privacy Policy, and confirm your age or guardian permission.");
+      return;
+    }
+
     const btn = e.target.querySelector("button");
     btn.disabled = true;
 
+    const update = { password };
+    if(invited){
+      update.data = {
+        needs_terms: false,
+        terms_accepted_at: new Date().toISOString(),
+        terms_version: "2026-10",
+        age_or_guardian_confirmed: true
+      };
+    }
     const { error } =
-      await supabaseClient.auth.updateUser({ password });
+      await supabaseClient.auth.updateUser(update);
 
     btn.disabled = false;
 
@@ -17842,6 +17886,15 @@ function renderAdminAssignments(){
   const coachSelect = document.getElementById("adminAssignCoachSelect");
   const goalieSelect = document.getElementById("adminAssignGoalieSelect");
 
+  const inviteCoach = document.getElementById("adminInviteCoach");
+  if(inviteCoach){
+    const keep = inviteCoach.value;
+    inviteCoach.innerHTML = coaches.length
+      ? coaches.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.full_name || c.id)}</option>`).join("")
+      : `<option value="">No coaches yet</option>`;
+    if(keep){ inviteCoach.value = keep; }
+  }
+
   coachSelect.innerHTML =
     coaches.length
       ? coaches.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.full_name || c.id)}</option>`).join("")
@@ -18211,6 +18264,41 @@ async function toggleCoachManaged(id, value, button){
 
   }
 
+}
+
+async function inviteGoalies(button){
+  const coachId = document.getElementById("adminInviteCoach").value;
+  const raw = document.getElementById("adminInviteList").value;
+  const statusEl = document.getElementById("adminInviteStatus");
+  const out = document.getElementById("adminInviteResults");
+  const goalies = raw.split(/\n/).map(l => l.trim()).filter(Boolean).map(l => {
+    const m = l.match(/^\s*([^\s,;]+@[^\s,;]+)\s*[,;\t ]?\s*(.*)$/);
+    return m ? { email: m[1], name: m[2].trim() } : { email: l, name: "" };
+  });
+  if(!coachId){ statusEl.textContent = "Pick a coach."; return; }
+  if(!goalies.length){ statusEl.textContent = "Add at least one email."; return; }
+  statusEl.textContent = `Setting up ${goalies.length}...`;
+  out.innerHTML = "";
+  button.disabled = true;
+  try{
+    const res = await fetch("/api/admin/invite-goalies", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessToken: currentSession.access_token, coachId, goalies })
+    });
+    const data = await res.json().catch(() => ({}));
+    if(!res.ok){ throw new Error(data.error || `Error ${res.status}`); }
+    const bad = data.results.filter(r => r.status.startsWith("error")).length;
+    statusEl.textContent = `${data.results.length - bad} set up${bad ? `, ${bad} had a problem` : ""}.${data.emailed ? "" : " Email isn't set up, so send the links below yourself."}`;
+    out.innerHTML = `<ul style="margin:10px 0 0;padding-left:18px;font-size:13px">` + data.results.map(r =>
+      `<li><strong>${escapeHtml(r.email)}</strong>: ${escapeHtml(r.status)}${r.link && !data.emailed ? ` <input readonly value="${escapeHtml(r.link)}" style="width:100%" onclick="this.select()">` : ""}</li>`).join("") + `</ul>`;
+    if(data.results.length > bad){ document.getElementById("adminInviteList").value = data.results.filter(r => r.status.startsWith("error")).map(r => `${r.email}, ${r.name}`).join("\n"); }
+    await loadAdminExtras();
+  }
+  catch(error){
+    statusEl.textContent = `Could not do that: ${error.message}`;
+  }
+  finally{ button.disabled = false; }
 }
 
 async function createAssignment(button){
@@ -19361,6 +19449,20 @@ async function generateGameReportPDF(gameId, buttonEl, options = {}){
 }
 
 
+// A goalie set up by an admin (invite link): they choose a password and
+// accept the terms on their first visit, before anything else.
+function needsInviteSetup(session){
+  const m = session && session.user && session.user.user_metadata;
+  return !!(m && m.needs_terms && !m.terms_accepted_at);
+}
+
+function showInviteSetup(){
+  showAuthScreen();
+  showAuthView("newpassword");
+  document.getElementById("newpassword-consent").style.display = "block";
+  document.querySelector("#newpassword-form .auth-btn").textContent = "Finish setting up";
+}
+
 async function initAuth(){
 
   const { data } =
@@ -19368,7 +19470,10 @@ async function initAuth(){
 
   currentSession = data.session;
 
-  if(currentSession){
+  if(currentSession && needsInviteSetup(currentSession)){
+    showInviteSetup();
+  }
+  else if(currentSession){
 
     refreshUserBadge();
     showApp();
