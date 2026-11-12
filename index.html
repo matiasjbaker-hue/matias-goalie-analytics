@@ -3807,10 +3807,17 @@
 
       <div class="rv-player-col">
 
+       <div class="rv-fs-wrap" id="rv-fs-wrap">
+
         <div class="rv-player" id="rv-player-stage">
           <video id="rv-video" controls playsinline preload="metadata"></video>
           <canvas id="rvMarkCanvas" class="watch-mark-canvas"></canvas>
           <div class="rv-player-msg" id="rv-player-msg" hidden></div>
+          <div class="rv-hud" id="rv-hud" aria-live="polite">
+            <span class="rv-hud-count" id="rv-hud-count">0 shots</span>
+            <span class="rv-hud-tally" id="rv-hud-tally"></span>
+          </div>
+          <div class="rv-flash" id="rv-flash" aria-hidden="true"></div>
         </div>
 
         <div class="rv-timeline" id="rv-timeline" title="Click to jump; ticks are shots">
@@ -3841,6 +3848,7 @@
           </select>
           <button type="button" class="btn-secondary" id="rv-download-btn" onclick="downloadGameVideo(review.video && review.video.id, this)" title="Download this file (for example to convert it to H.264 in HandBrake)">Download file</button>
           <button type="button" class="btn-primary rv-add" onclick="addReviewShotHere()">Add shot here</button>
+          <button type="button" class="btn-secondary" id="rv-fs-btn" onclick="toggleReviewFullscreen()" title="Tag shots full screen, with the timeline and shot count in view (F)">Full screen</button>
         </div>
 
         <div class="rv-mark-row" role="group" aria-label="Game start, periods and game end">
@@ -3859,6 +3867,8 @@
           <button type="button" class="btn-secondary rv-ai" onclick="jumpReviewAction(1)">Next action</button>
           <span class="small-note rv-ai" id="rv-action-note"></span>
         </div>
+
+       </div>
 
         <details class="rv-fold" data-fold="periods" open>
           <summary>Periods &amp; net sides</summary>
@@ -26839,6 +26849,60 @@ function updateReviewPlayhead(){
   if(play){ play.textContent = video.paused ? "Play" : "Pause"; }
 }
 
+// ---- Full screen tagging: the player, timeline (with shot ticks),
+// controls and a shot counter all go full screen together. ----
+function reviewFsActive(){
+  const w = document.getElementById("rv-fs-wrap");
+  return !!(w && (document.fullscreenElement === w || w.classList.contains("is-fs")));
+}
+
+async function toggleReviewFullscreen(){
+  const w = document.getElementById("rv-fs-wrap");
+  if(!w){ return; }
+  if(reviewFsActive()){
+    if(document.fullscreenElement){ try{ await document.exitFullscreen(); }catch(e){} }
+    w.classList.remove("is-fs"); document.body.classList.remove("rv-fs-lock");
+    syncReviewFsBtn();
+    return;
+  }
+  try{
+    if(w.requestFullscreen){ await w.requestFullscreen(); return; }
+  }catch(e){}
+  // No Fullscreen API for a block (older iPad/iPhone): fill the window.
+  w.classList.add("is-fs"); document.body.classList.add("rv-fs-lock");
+  syncReviewFsBtn();
+}
+
+function syncReviewFsBtn(){
+  const b = document.getElementById("rv-fs-btn");
+  if(b){ b.textContent = reviewFsActive() ? "Exit full screen" : "Full screen"; }
+}
+document.addEventListener("fullscreenchange", () => {
+  const w = document.getElementById("rv-fs-wrap");
+  if(w && !document.fullscreenElement){ w.classList.remove("is-fs"); document.body.classList.remove("rv-fs-lock"); }
+  syncReviewFsBtn();
+});
+
+let reviewHudLast = null;
+function updateReviewHud(total, goals){
+  const c = document.getElementById("rv-hud-count");
+  if(!c){ return; }
+  c.textContent = `${total} shot${total === 1 ? "" : "s"}`;
+  document.getElementById("rv-hud-tally").textContent = total ? `${total - goals} saves · ${goals} goal${goals === 1 ? "" : "s"}` : "";
+  const prev = reviewHudLast;
+  reviewHudLast = { total, vid: review.video && review.video.id };
+  if(!prev || prev.vid !== reviewHudLast.vid || prev.total === total){ return; }
+  const f = document.getElementById("rv-flash");
+  const last = review.drafts.find(x => String(x.id) === String(review.lastQuickId));
+  if(!f){ return; }
+  const added = total > prev.total;
+  const goal = added && last && last.outcome === "goal";
+  f.textContent = added ? `#${total}${goal ? " GOAL" : ""}` : `Removed · ${total}`;
+  f.className = `rv-flash is-on ${added ? (goal ? "is-goal" : "is-save") : "is-undo"}`;
+  clearTimeout(updateReviewHud.t);
+  updateReviewHud.t = setTimeout(() => { f.className = "rv-flash"; }, 1100);
+}
+
 function renderReviewShots(){
 
   const list = document.getElementById("rv-shotlist");
@@ -26865,6 +26929,8 @@ function renderReviewShots(){
   document.getElementById("rv-count").textContent = total ? `(${total})` : "";
   document.getElementById("rv-tally").textContent =
     total ? `${total - goals} saves · ${goals} goal${goals === 1 ? "" : "s"}${multi ? ` · all ${parts.length} files` : ""}` : "";
+
+  updateReviewHud(total, goals);
 
   if(!total){
     list.innerHTML = `<li class="rv-empty">No shots yet. Run AI, or play the video and press <strong>Add shot here</strong> (or S) at each shot.</li>`;
@@ -31321,6 +31387,7 @@ async function loadReviewUser(userId){
     else if(e.key === "."){ e.preventDefault(); reviewStepFrame(1); }
     else if(k === "u"){ e.preventDefault(); undoReviewCut(); }
     else if(k === "s"){ e.preventDefault(); addReviewShotHere(e.shiftKey && reviewQuickTagOn() ? "goal" : "save"); }
+    else if(k === "f"){ e.preventDefault(); toggleReviewFullscreen(); }
     else if(k === "z" && reviewQuickTagOn()){ e.preventDefault(); undoReviewQuickTag(); }
     else if(k === "m"){ e.preventDefault(); nextReviewCheck(e.shiftKey ? -1 : 1); }
     else if(k === "a"){ e.preventDefault(); acceptReviewCheck(); }

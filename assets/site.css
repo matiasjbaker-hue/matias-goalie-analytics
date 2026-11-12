@@ -5606,3 +5606,27 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
 .rv-mark-row .btn-secondary{ flex:1 1 auto; padding:8px 12px; font-size:14px; white-space:nowrap; }
 
 .rv-mark-row + .rv-cut-list{ margin-top:8px; }
+
+/* Full screen tagging: video fills the space, timeline + controls stay at the bottom. */
+.rv-hud{position:absolute;top:10px;right:10px;display:flex;gap:8px;align-items:center;padding:6px 12px;border-radius:999px;background:rgba(18,20,18,.82);color:#fff;font-weight:700;font-size:15px;pointer-events:none;z-index:3}
+.rv-hud-tally{font-weight:500;font-size:13px;opacity:.85}
+.rv-hud-tally:empty{display:none}
+.rv-flash{position:absolute;left:50%;top:18%;transform:translateX(-50%) scale(.9);padding:10px 26px;border-radius:14px;font-size:42px;font-weight:800;color:#fff;background:rgba(18,20,18,.85);opacity:0;pointer-events:none;z-index:4;transition:opacity .25s,transform .25s}
+.rv-flash.is-on{opacity:1;transform:translateX(-50%) scale(1)}
+.rv-flash.is-goal{background:#c0392b}
+.rv-flash.is-save{background:#1e7a46}
+.rv-flash.is-undo{background:#555;font-size:28px}
+.rv-fs-wrap:fullscreen,.rv-fs-wrap.is-fs{background:#111;color:#fff;display:flex;flex-direction:column;gap:8px;padding:10px 14px;box-sizing:border-box;width:100vw;height:100vh;overflow:auto}
+.rv-fs-wrap.is-fs{position:fixed;inset:0;z-index:9999}
+body.rv-fs-lock{overflow:hidden}
+.rv-fs-wrap:fullscreen .rv-player,.rv-fs-wrap.is-fs .rv-player{flex:1 1 auto;min-height:0;aspect-ratio:auto;border-radius:8px}
+.rv-fs-wrap:fullscreen .rv-timeline,.rv-fs-wrap.is-fs .rv-timeline{flex:0 0 auto;height:56px;margin-top:0}
+.rv-fs-wrap:fullscreen .rv-legend,.rv-fs-wrap.is-fs .rv-legend,
+.rv-fs-wrap:fullscreen .rv-cut-list,.rv-fs-wrap.is-fs .rv-cut-list{display:none}
+.rv-fs-wrap:fullscreen .rv-time,.rv-fs-wrap.is-fs .rv-time,
+.rv-fs-wrap:fullscreen .rv-check,.rv-fs-wrap.is-fs .rv-check{color:#fff}
+.rv-fs-wrap:fullscreen .rv-controls,.rv-fs-wrap.is-fs .rv-controls,
+.rv-fs-wrap:fullscreen .rv-mark-row,.rv-fs-wrap.is-fs .rv-mark-row,
+.rv-fs-wrap:fullscreen .rv-action-bar,.rv-fs-wrap.is-fs .rv-action-bar{flex:0 0 auto;margin:0}
+.rv-fs-wrap:fullscreen .btn-secondary,.rv-fs-wrap.is-fs .btn-secondary{background:#f4f5f1;color:#121412;border-color:#f4f5f1}
+.rv-fs-wrap:fullscreen select,.rv-fs-wrap.is-fs select{background:#f4f5f1;color:#121412}
