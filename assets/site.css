@@ -5594,3 +5594,13 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
 .rv-editor > .field + .shot-edit-flags,
 .rv-editor > .shot-edit-flags + .field{ margin-top:14px; }
 .rv-editor .shot-edit-flags{ display:flex; flex-wrap:wrap; gap:6px 14px; }
+
+/* game start / period starts / game end: one row under the player controls */
+.rv-mark-row{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:10px;
+}
+.rv-mark-row .btn-secondary{ flex:1 1 auto; padding:8px 12px; font-size:14px; white-space:nowrap; }

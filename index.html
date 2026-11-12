@@ -3843,6 +3843,14 @@
           <button type="button" class="btn-primary rv-add" onclick="addReviewShotHere()">Add shot here</button>
         </div>
 
+        <div class="rv-mark-row" role="group" aria-label="Game start, periods and game end">
+          <button type="button" class="btn-secondary" onclick="cutReviewGameEdge('start')" title="Cut everything before the playhead">Game starts here</button>
+          <button type="button" class="btn-secondary" onclick="markReviewPeriod('2')">2nd starts here</button>
+          <button type="button" class="btn-secondary" onclick="markReviewPeriod('3')">3rd starts here</button>
+          <button type="button" class="btn-secondary" onclick="markReviewPeriod('OT')">OT starts here</button>
+          <button type="button" class="btn-secondary" onclick="cutReviewGameEdge('end')" title="Cut everything after the playhead">Game ends here</button>
+        </div>
+
         <div class="rv-action-bar">
           <label class="rv-check rv-ai"><input type="checkbox" id="rv-action-only" onchange="onReviewActionOnlyChange()"> <span>Play action only</span></label>
           <label class="rv-check" title="S marks a shot (Shift+S a goal) without pausing or opening the editor, so you can keep watching. Z removes the last one you marked. Fill in details later from the shot list."><input type="checkbox" id="rv-quick-tag" onchange="onReviewQuickTagChange(this.checked)"> <span>Quick tag (S shot, Shift+S goal, Z undo)</span></label>
@@ -3863,10 +3871,6 @@
               <option value="OT">OT</option>
             </select>
           </label>
-          <span class="rv-periods-label">Mark where each period starts:</span>
-          <button type="button" class="btn-secondary" onclick="markReviewPeriod('2')">2nd starts here</button>
-          <button type="button" class="btn-secondary" onclick="markReviewPeriod('3')">3rd starts here</button>
-          <button type="button" class="btn-secondary" onclick="markReviewPeriod('OT')">OT starts here</button>
           <span class="rv-periods-label" title="Which side of the picture the tracked goalie's net is on in each period. Auto = the opposite end of the 1st for the 2nd and OT, the same end for the 3rd. Set a period yourself if your league does it differently.">Goalie's net, side of the picture:</span>
           <label class="rv-density rv-net">
             <span>1st</span>
@@ -3938,9 +3942,7 @@
               <button type="button" class="btn-secondary rv-cut-go" onclick="cutReviewInOut()" title="Cut everything between in and out (Delete)">Cut in → out</button>
             </div>
             <div class="rv-edit-group" role="group" aria-label="Quick cuts">
-              <button type="button" class="btn-secondary" onclick="cutReviewGameEdge('start')" title="Cut everything before the playhead">Game starts here</button>
               <button type="button" class="btn-secondary" id="rv-cut-btn" onclick="toggleReviewCut()" title="Start a cut here, then press again where play resumes (X)">Cut starts here</button>
-              <button type="button" class="btn-secondary" onclick="cutReviewGameEdge('end')" title="Cut everything after the playhead">Game ends here</button>
             </div>
             <div class="rv-edit-group" role="group" aria-label="History">
               <button type="button" class="btn-secondary" id="rv-undo-btn" onclick="undoReviewCut()" title="Undo the last change to the cuts (U)">Undo</button>
