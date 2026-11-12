@@ -3850,6 +3850,7 @@
           <button type="button" class="btn-secondary" onclick="markReviewPeriod('OT')">OT starts here</button>
           <button type="button" class="btn-secondary" onclick="cutReviewGameEdge('end')" title="Cut everything after the playhead">Game ends here</button>
         </div>
+        <div class="rv-cut-list" id="rv-cut-list"></div>
 
         <div class="rv-action-bar">
           <label class="rv-check rv-ai"><input type="checkbox" id="rv-action-only" onchange="onReviewActionOnlyChange()"> <span>Play action only</span></label>
@@ -3921,7 +3922,7 @@
         </section>
         </details>
 
-        <details class="rv-fold" data-fold="edit">
+        <details class="rv-fold rv-ai" data-fold="edit">
           <summary>Edit video (cuts)</summary>
           <section class="rv-edit" id="rv-edit" aria-labelledby="rv-edit-title">
           <div class="rv-edit-head">
@@ -3948,7 +3949,6 @@
               <button type="button" class="btn-secondary" id="rv-undo-btn" onclick="undoReviewCut()" title="Undo the last change to the cuts (U)">Undo</button>
             </div>
           </fieldset>
-          <div class="rv-cut-list" id="rv-cut-list"></div>
           <div class="rv-edit-foot">
             <span class="small-note" id="rv-edit-state"></span>
             <button type="button" class="btn-primary" id="rv-finish-only-btn">Finish edit</button>
@@ -3957,7 +3957,7 @@
         </section>
         </details>
 
-        <p class="small-note rv-keys">Keys: Space play/pause · ← → 5 seconds · Shift + ← → 1 second · , . one frame · S mark a shot (Shift + S a goal, Z removes the last) · N / P next or previous shot · G toggle goal · I / O mark in / out · Delete cut in → out · X start or end a cut · U undo a cut</p>
+        <p class="small-note rv-keys">Keys: Space play/pause · ← → 5 seconds · Shift + ← → 1 second · , . one frame · S mark a shot (Shift + S a goal, Z removes the last) · N / P next or previous shot · G toggle goal</p>
 
       </div>
 
