@@ -31401,7 +31401,18 @@ async function approveReview(){
     delete goFilmVideoCache[gameId];
     renderReviewHeader();
     renderReviewParts();
-    showToast(`${allRepublish ? "Republished" : "Published"} to ${reviewOwnerName(current)}. Making MP4 clips for each shot…`, "success");
+    showToast(`${allRepublish ? "Republished" : "Published"} to ${reviewOwnerName(current)}. Emailing them, then making MP4 clips…`, "success");
+
+    // The goalie's email goes out first: the clips below are slow and can
+    // stall, and the stats are already live, so they never hold it back.
+    await loadDashboard().catch(err => console.error(err));
+    renderReviewHeader();
+    renderReviewParts();
+
+    const autoEmail = document.getElementById("rv-auto-email");
+    if(autoEmail && autoEmail.checked){
+      await emailPublishedStats(current, gameId, allRepublish);
+    }
 
     for(const result of published){
       const clipIds = await makeShotClips(result.video, result.shots, result.insertedShots);
@@ -31414,11 +31425,6 @@ async function approveReview(){
     await loadDashboard().catch(err => console.error(err));
     renderReviewHeader();
     renderReviewParts();
-
-    const autoEmail = document.getElementById("rv-auto-email");
-    if(autoEmail && autoEmail.checked){
-      await emailPublishedStats(current, gameId, allRepublish);
-    }
 
   }
   catch(error){
