@@ -26879,10 +26879,11 @@ function enforceReviewActionOnly(){
   const st = reviewActionStretches();
   if(!st.length){ return; }
   const now = video.currentTime;
-  if(st.some(r => now >= r[0] - 0.2 && now < r[1])){ return; }
+  if(st.some(r => now >= r[0] - 0.2 && now < r[1])){ review._aoInside = true; return; }
   const next = st.find(r => r[0] > now);
   if(next){ video.currentTime = next[0]; }
-  else{ video.pause(); showToast("End of the action stretches."); }
+  else if(review._aoInside){ review._aoInside = false; video.pause(); showToast("End of the action stretches."); }
+  // Pressing play after the last stretch just plays: it used to pause again at once.
 }
 
 function reviewEffectivePeriod(d, video = review.video){
@@ -27839,9 +27840,28 @@ function reviewSeekBy(delta){
   video.currentTime = Math.max(0, Math.min(reviewDuration() || 1e9, video.currentTime + delta));
 }
 
+// Play / pause that can't get stuck: one press = one toggle (a key and a
+// click landing together used to cancel each other out), and if the
+// browser refuses to play (still loading, or a seek got in the way) it
+// retries as soon as the film is ready instead of silently staying paused.
+let reviewToggleAt = 0;
+function reviewPlaySafe(video){
+  const p = video.play();
+  if(!p || !p.catch){ return; }
+  p.catch(err => {
+    if(err && err.name === "NotAllowedError"){ showToast("The browser blocked playback. Click the film once, then try again.", "error"); return; }
+    const retry = () => { video.removeEventListener("canplay", retry); if(video.paused){ video.play().catch(() => {}); } };
+    video.addEventListener("canplay", retry);
+    setTimeout(() => { video.removeEventListener("canplay", retry); if(video.paused && video.readyState >= 2 && !video.seeking && review._wantPlay){ video.play().catch(() => {}); } }, 600);
+  });
+}
 function reviewTogglePlay(){
+  const now = Date.now();
+  if(now - reviewToggleAt < 160){ return; }
+  reviewToggleAt = now;
   const video = document.getElementById("rv-video");
-  if(video.paused){ video.play().catch(() => {}); } else { video.pause(); }
+  if(video.paused){ review._wantPlay = true; reviewPlaySafe(video); }
+  else{ review._wantPlay = false; video.pause(); }
 }
 
 async function setReviewStartPeriod(value){
@@ -28089,7 +28109,12 @@ function enforceReviewPreviewEdit(){
   if(video.paused || video.seeking){ return; }
   const c = reviewCuts(review.video).find(r => video.currentTime >= r[0] && video.currentTime < r[1] - 0.05);
   if(!c){ return; }
-  if(c[1] >= (reviewDuration() || Infinity) - 0.1){ video.pause(); showToast("End of the edited game."); return; }
+  if(c[1] >= (reviewDuration() || Infinity) - 0.1){
+    const before = review._pePrevT;
+    review._pePrevT = video.currentTime;
+    if(Number.isFinite(before) && before < c[0]){ video.pause(); showToast("End of the edited game."); }
+    return;
+  }
   video.currentTime = c[1];
 }
 
@@ -28794,9 +28819,14 @@ function enforceReviewMomentStop(){
   if(!Number.isFinite(stop)){ return; }
   const video = document.getElementById("rv-video");
   if(video.currentTime > stop + 2){ review.checkStopAt = null; return; }   // the admin skipped ahead
-  if(!video.paused && video.currentTime >= stop){
-    video.pause();
+  const before = review._momentPrevT;
+  review._momentPrevT = video.currentTime;
+  if(video.paused){ return; }
+  if(video.currentTime >= stop){
+    // Stop only when playback runs up to the end of the moment; pressing
+    // play from past it just plays.
     review.checkStopAt = null;
+    if(Number.isFinite(before) && before < stop){ video.pause(); }
   }
 }
 
