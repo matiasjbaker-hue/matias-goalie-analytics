@@ -26577,6 +26577,7 @@ async function openReview(videoId){
   renderReviewPuck();
   document.getElementById("rv-editor").hidden = true;
   document.getElementById("rv-scanbar").hidden = true;
+  document.getElementById("rv-scanbar").classList.remove("is-floating");
 
   const { data, error } =
     await supabaseClient.from("video_shot_drafts").select("*").eq("game_video_id", v.id).order("t_seconds");
@@ -31304,6 +31305,7 @@ async function approveReview(){
   btn.disabled = true;
   btn.textContent = allRepublish ? "Republishing…" : "Publishing…";
   review.publishing = true;
+  rvPublishBar("Publishing: saving the game and shots…", 8);
 
   try{
 
@@ -31400,9 +31402,27 @@ async function approveReview(){
   finally{
 
     review.publishing = false;
+    rvPublishBar(null);
 
   }
 
+}
+
+// Progress bar for publishing. It floats over everything so it shows in
+// full screen too, and it appears the moment you click Approve.
+function rvPublishBar(text, pct){
+  const bar = document.getElementById("rv-scanbar");
+  if(!bar){ return; }
+  if(text === null){
+    if(bar.classList.contains("is-floating") && !review.publishing){ bar.hidden = true; bar.classList.remove("is-floating"); }
+    return;
+  }
+  bar.hidden = false;
+  bar.classList.add("is-floating");
+  const t = document.getElementById("rv-scan-text");
+  if(t){ t.textContent = text; }
+  const f = document.getElementById("rv-scanbar-fill");
+  if(f && pct !== undefined){ f.style.width = `${pct}%`; }
 }
 
 // After publishing: email the goalie that their stats are live, with
@@ -31421,7 +31441,7 @@ async function emailPublishedStats(v, gameId, republish){
 
   const status = document.getElementById("rv-scan-text");
   const bar = document.getElementById("rv-scanbar");
-  const say = text => { if(bar && status && review.video && review.video.id === v.id){ bar.hidden = false; status.textContent = text; } };
+  const say = text => { if(bar && status && review.video && review.video.id === v.id){ bar.hidden = false; bar.classList.add("is-floating"); status.textContent = text; } };
 
   try{
 
@@ -31531,6 +31551,7 @@ async function makeShotClips(v, shots, insertedRows){
   const show = () => {
     if(!bar || !reviewIsShowing(v)){ return; }
     bar.hidden = false;
+    bar.classList.add("is-floating");
     fill.style.width = `${Math.round((done + failed) / jobs.length * 100)}%`;
     status.textContent = `Making MP4 clips: ${done + failed} of ${jobs.length}${failed ? ` (${failed} failed${firstError ? ": " + firstError : ""})` : ""}. Keep this tab open.`;
   };

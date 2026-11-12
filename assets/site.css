@@ -5695,3 +5695,7 @@ button.rv-hud{pointer-events:auto;border:0;cursor:pointer;font-family:inherit}
 .rv-grid.rv-fs-wrap:fullscreen .rv-side-toggle,.rv-grid.rv-fs-wrap.is-fs .rv-side-toggle{display:block}
 .rv-grid.rv-fs-wrap.side-collapsed:fullscreen,.rv-grid.rv-fs-wrap.side-collapsed.is-fs{grid-template-columns:minmax(0,1fr)}
 .rv-grid.rv-fs-wrap.side-collapsed:fullscreen .rv-side,.rv-grid.rv-fs-wrap.side-collapsed.is-fs .rv-side{display:none}
+
+/* Publish progress floats over everything (full screen tagging included). */
+.rv-scanbar.is-floating{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:10001;width:min(560px,92vw);margin:0;box-shadow:0 8px 28px rgba(0,0,0,.35);background:#fff8e1;color:#121412}
+.rv-scanbar.is-floating[hidden]{display:none}
