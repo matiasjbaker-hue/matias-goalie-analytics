@@ -3813,7 +3813,6 @@
           <video id="rv-video" controls controlsList="nofullscreen" disablePictureInPicture playsinline preload="metadata"></video>
           <canvas id="rvMarkCanvas" class="watch-mark-canvas"></canvas>
           <div class="rv-player-msg" id="rv-player-msg" hidden></div>
-          <button type="button" class="rv-fs-overlay" id="rv-fs-overlay" onclick="toggleReviewFullscreen()" title="Full screen with the timeline and shot count (F)">⛶ Full screen</button>
           <div class="rv-hud" id="rv-hud" aria-live="polite">
             <span class="rv-hud-count" id="rv-hud-count">0 shots</span>
             <span class="rv-hud-tally" id="rv-hud-tally"></span>
@@ -3848,7 +3847,6 @@
             <option value="3">3×</option>
           </select>
           <button type="button" class="btn-secondary" id="rv-download-btn" onclick="downloadGameVideo(review.video && review.video.id, this)" title="Download this file (for example to convert it to H.264 in HandBrake)">Download file</button>
-          <button type="button" class="btn-primary rv-add" onclick="addReviewShotHere()">Add shot here</button>
           <button type="button" class="btn-secondary" id="rv-fs-btn" onclick="toggleReviewFullscreen()" title="Tag shots full screen, with the timeline and shot count in view (F)">Full screen</button>
         </div>
 
@@ -26878,8 +26876,7 @@ function syncReviewFsBtn(){
   const b = document.getElementById("rv-fs-btn");
   const t = reviewFsActive() ? "Exit full screen" : "Full screen";
   if(b){ b.textContent = t; }
-  const o = document.getElementById("rv-fs-overlay");
-  if(o){ o.textContent = "⛶ " + t; }
+
 }
 document.addEventListener("fullscreenchange", () => {
   const w = document.getElementById("rv-fs-wrap");
