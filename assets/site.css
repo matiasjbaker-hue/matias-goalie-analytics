@@ -5689,3 +5689,9 @@ button.rv-hud{pointer-events:auto;border:0;cursor:pointer;font-family:inherit}
 .rv-player video,.rv-player canvas{transform-origin:center center}
 .rv-player.is-zoomed{cursor:grab;touch-action:none}
 .rv-player.is-zoomed:active{cursor:grabbing}
+
+/* Collapse the shot bar sideways in full screen */
+.rv-side-toggle{display:none;position:absolute;right:0;top:50%;transform:translateY(-50%);z-index:6;width:26px;height:64px;border:0;border-radius:10px 0 0 10px;background:rgba(18,20,18,.82);color:#fff;cursor:pointer;font-size:14px}
+.rv-grid.rv-fs-wrap:fullscreen .rv-side-toggle,.rv-grid.rv-fs-wrap.is-fs .rv-side-toggle{display:block}
+.rv-grid.rv-fs-wrap.side-collapsed:fullscreen,.rv-grid.rv-fs-wrap.side-collapsed.is-fs{grid-template-columns:minmax(0,1fr)}
+.rv-grid.rv-fs-wrap.side-collapsed:fullscreen .rv-side,.rv-grid.rv-fs-wrap.side-collapsed.is-fs .rv-side{display:none}

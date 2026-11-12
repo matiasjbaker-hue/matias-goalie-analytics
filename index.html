@@ -3819,6 +3819,7 @@
             <span class="rv-hud-caret">▾</span>
           </button>
           <div class="rv-fs-panel" id="rv-fs-panel" hidden></div>
+          <button type="button" class="rv-side-toggle" id="rv-side-toggle" onclick="toggleReviewSide(); this.blur()" title="Hide or show the shot bar (B)" aria-label="Hide or show the shot bar">▶</button>
           <div class="rv-flash" id="rv-flash" aria-hidden="true"></div>
         </div>
 
@@ -27034,6 +27035,18 @@ function reviewZoomReset(){ reviewZoomTo(1); }
   stage.addEventListener("pointercancel", end);
 })();
 
+function toggleReviewSide(force){
+  const w = document.getElementById("rv-fs-wrap");
+  if(!w){ return; }
+  const collapsed = typeof force === "boolean" ? force : !w.classList.contains("side-collapsed");
+  w.classList.toggle("side-collapsed", collapsed);
+  const b = document.getElementById("rv-side-toggle");
+  if(b){ b.textContent = collapsed ? "◀" : "▶"; }
+  try{ localStorage.setItem("giq-side-collapsed", collapsed ? "1" : "0"); }catch(e){}
+  setTimeout(reviewZoomApply, 50);
+}
+(function(){ try{ if(localStorage.getItem("giq-side-collapsed") === "1"){ toggleReviewSide(true); } }catch(e){} })();
+
 let fsPanelRestored = false;
 function toggleFsPanel(force){
   const panel = document.getElementById("rv-fs-panel");
@@ -31610,6 +31623,7 @@ async function loadReviewUser(userId){
     else if(k === "s"){ e.preventDefault(); addReviewShotHere(e.shiftKey && reviewQuickTagOn() ? "goal" : "save"); }
     else if(k === "f"){ e.preventDefault(); toggleReviewFullscreen(); }
     else if(k === "t"){ e.preventDefault(); toggleFsPanel(); }
+    else if(k === "b" && reviewFsActive()){ e.preventDefault(); toggleReviewSide(); }
     else if(reviewFsActive() && (e.key === "+" || e.key === "=")){ e.preventDefault(); reviewZoomBy(1.4); }
     else if(reviewFsActive() && (e.key === "-" || e.key === "_")){ e.preventDefault(); reviewZoomBy(1 / 1.4); }
     else if(reviewFsActive() && e.key === "0"){ e.preventDefault(); reviewZoomReset(); }
