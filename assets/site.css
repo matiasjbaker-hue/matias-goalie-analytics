@@ -5665,3 +5665,20 @@ button.rv-hud{pointer-events:auto;border:0;cursor:pointer;font-family:inherit}
 .fs-n{font-weight:700;min-width:30px}
 .fs-chk{width:18px;height:18px;border:1.5px solid rgba(255,255,255,.5);border-radius:4px;text-align:center;line-height:16px;font-size:13px}
 .fs-chk.on{background:#1e7a46;border-color:#1e7a46}
+
+/* Full screen = the whole tagging workspace: video, timeline and controls on the left,
+   the shot list and the shot editor on the right. */
+.rv-grid.rv-fs-wrap:fullscreen,.rv-grid.rv-fs-wrap.is-fs{display:grid;grid-template-columns:minmax(0,1.9fr) minmax(340px,1fr);gap:14px;align-items:stretch;padding:10px 14px;height:100vh;width:100vw;overflow:hidden;background:#111;color:#fff}
+.rv-grid.rv-fs-wrap.is-fs{position:fixed;inset:0;z-index:9999}
+.rv-grid.rv-fs-wrap:fullscreen .rv-player-col,.rv-grid.rv-fs-wrap.is-fs .rv-player-col{min-height:0;display:flex;flex-direction:column}
+.rv-grid.rv-fs-wrap:fullscreen .rv-fs-inner,.rv-grid.rv-fs-wrap.is-fs .rv-fs-inner{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:8px}
+.rv-grid.rv-fs-wrap:fullscreen .rv-side,.rv-grid.rv-fs-wrap.is-fs .rv-side{position:static;max-height:none;height:100%;overflow:auto;box-sizing:border-box}
+/* the left column's details (periods, puck, submission) stay out of the way */
+.rv-grid.rv-fs-wrap:fullscreen .rv-player-col > :not(.rv-fs-inner),.rv-grid.rv-fs-wrap.is-fs .rv-player-col > :not(.rv-fs-inner){display:none}
+/* shot dropdown is for the normal view; full screen shows the real editor */
+.rv-grid.rv-fs-wrap:fullscreen .rv-fs-panel,.rv-grid.rv-fs-wrap.is-fs .rv-fs-panel,
+.rv-grid.rv-fs-wrap:fullscreen .rv-hud-caret,.rv-grid.rv-fs-wrap.is-fs .rv-hud-caret{display:none !important}
+.rv-grid.rv-fs-wrap:fullscreen button.rv-hud,.rv-grid.rv-fs-wrap.is-fs button.rv-hud{pointer-events:none}
+@media (max-width:900px){
+  .rv-grid.rv-fs-wrap:fullscreen,.rv-grid.rv-fs-wrap.is-fs{grid-template-columns:1fr;grid-template-rows:55% 45%}
+}
