@@ -3780,12 +3780,12 @@
       </div>
       <p class="small-note rv-parts-note" id="rv-parts-note"></p>
       <div class="rv-part-add" id="rv-part-add" hidden>
-        <p class="small-note">Attach the game's other file to this same review. Shots from every file go to one game and publish together. You can keep tagging while it uploads.</p>
+        <p class="small-note">Attach the game's other files to this same review: select as many as you need at once (hold Ctrl or Shift, or Cmd on Mac), in play order. They're added as the next Parts, and shots from every file go to one game and publish together. You can keep tagging while they upload.</p>
         <div class="rv-av-foot">
-          <input type="file" id="rv-part-file" accept="video/*,.mov,.mp4,.m4v">
+          <input type="file" id="rv-part-file" accept="video/*,.mov,.mp4,.m4v" multiple>
           <span class="small-note" id="rv-part-status" aria-live="polite"></span>
           <button type="button" class="btn-secondary" onclick="toggleAddReviewPart(false)">Cancel</button>
-          <button type="button" class="btn-primary" id="rv-part-btn" onclick="submitReviewPart()">Upload file</button>
+          <button type="button" class="btn-primary" id="rv-part-btn" onclick="submitReviewPart()">Upload files</button>
         </div>
       </div>
     </section>
@@ -30577,9 +30577,9 @@ async function submitReviewPart(){
   const fileInput = document.getElementById("rv-part-file");
   const status = document.getElementById("rv-part-status");
   const btn = document.getElementById("rv-part-btn");
-  const file = fileInput.files[0];
+  const picked = Array.from(fileInput.files || []);
 
-  if(!file){ showToast("Choose the video file first.", "error"); return; }
+  if(!picked.length){ showToast("Choose the video file first.", "error"); return; }
 
   const root = reviewPartsOf(v)[0] || v;
   const goalieId = root.user_id;
@@ -30588,37 +30588,50 @@ async function submitReviewPart(){
   btn.disabled = true;
   fileInput.disabled = true;
 
+  // One at a time, in the order picked, so Part numbers follow play order.
+  let added = 0;
+  let lastId = null;
+
   try{
 
-    status.textContent = "Uploading… 0%";
-    const storagePath = await uploadFileToR2(file, (done, total) => {
-      status.textContent = `Uploading… ${total ? Math.floor(done / total * 100) : 0}%`;
-    }, goalieId);
+    for(let i = 0; i < picked.length; i++){
 
-    status.textContent = "Adding it to this review…";
-    const res = await fetch("/api/admin/create-request", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        accessToken: currentSession.access_token,
-        goalieId,
-        storagePath,
-        parentVideoId: root.id
-      })
-    });
-    let data = {};
-    try{ data = await res.json(); }catch(e){ data = {}; }
-    if(!res.ok){ throw new Error(data.detail || data.error || "Couldn't add the file."); }
+      const file = picked[i];
+      const tag = picked.length > 1 ? `File ${i + 1} of ${picked.length}: ` : "";
 
-    await refreshReviewRows([root.id, data.gameVideoId]);
+      status.textContent = `${tag}uploading… 0%`;
+      const storagePath = await uploadFileToR2(file, (done, total) => {
+        status.textContent = `${tag}uploading… ${total ? Math.floor(done / total * 100) : 0}%`;
+      }, goalieId);
+
+      status.textContent = `${tag}adding it to this review…`;
+      const res = await fetch("/api/admin/create-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accessToken: currentSession.access_token,
+          goalieId,
+          storagePath,
+          parentVideoId: root.id
+        })
+      });
+      let data = {};
+      try{ data = await res.json(); }catch(e){ data = {}; }
+      if(!res.ok){ throw new Error(data.detail || data.error || `Couldn't add ${file.name}.`); }
+
+      added++;
+      lastId = data.gameVideoId;
+      await refreshReviewRows([root.id, data.gameVideoId]);
+
+    }
 
     fileInput.value = "";
     status.textContent = "";
     toggleAddReviewPart(false);
 
     let number = 0;
-    const added = reviewQueueCache.find(x => String(x.id) === String(data.gameVideoId));
-    if(added){ number = reviewPartsOf(added).findIndex(p => String(p.id) === String(added.id)) + 1; }
+    const addedRow = lastId && reviewQueueCache.find(x => String(x.id) === String(lastId));
+    if(addedRow){ number = reviewPartsOf(addedRow).findIndex(p => String(p.id) === String(addedRow.id)) + 1; }
 
     if(review.video && String(reviewPartsOf(review.video)[0].id) === String(root.id)){
       renderReviewParts();
@@ -30626,15 +30639,25 @@ async function submitReviewPart(){
       renderReviewSub();
     }
 
-    showToast(number
-      ? `Added as Part ${number}. Open it from the Part tabs when you're ready.`
-      : "File added. Open it from the Part tabs when you're ready.", "success");
+    showToast(added > 1
+      ? `Added ${added} files${number ? `, up to Part ${number}` : ""}. Open them from the Part tabs when you're ready.`
+      : (number
+        ? `Added as Part ${number}. Open it from the Part tabs when you're ready.`
+        : "File added. Open it from the Part tabs when you're ready."), "success");
 
   }
   catch(error){
     console.error(error);
     status.textContent = "";
-    showToast(error.message || "The upload failed.", "error");
+    if(added){
+      // Some made it: show them, and keep the rest picked so it can be retried.
+      try{ renderReviewParts(); renderReviewHeader(); renderReviewSub(); }catch(e){}
+      showToast(`${added} of ${picked.length} files were added, then it stopped: ${error.message || error}. Pick the remaining files and upload again.`, "error");
+      fileInput.value = "";
+    }
+    else{
+      showToast(error.message || "The upload failed.", "error");
+    }
   }
   finally{
     reviewPartUploading = false;
