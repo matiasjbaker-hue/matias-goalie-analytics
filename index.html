@@ -1013,35 +1013,19 @@
 
   <div class="page-title">
     <h2>Accounts</h2>
-    <p>Every coach and goalie on the platform, and which coaches can see which goalies.</p>
+    <p>Coaches first, with their goalies under each one. Everything you can do to an account is on its row.</p>
   </div>
 
   <div class="section-heading">
     <h3>Coaches</h3>
+    <p>Tap a coach to see their goalies. Games Left is the coach's own balance.</p>
   </div>
 
-  <div class="card">
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Team</th>
-            <th>Assigned Goalies</th>
-            <th>Games Left</th>
-            <th>Access</th>
-            <th>Created</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="adminCoachesBody"></tbody>
-      </table>
-    </div>
-  </div>
-
+  <div id="adminAssignmentsList"></div>
 
   <div class="section-heading section-space">
     <h3>Goalies</h3>
+    <p>Goalies who aren't managed by a coach. Coach-managed goalies are under their coach above.</p>
   </div>
 
   <label class="consent-row" id="adminShowManagedRow" style="margin:0 0 10px;display:none">
@@ -1069,16 +1053,66 @@
     </div>
   </div>
 
-
   <div class="section-heading section-space">
-    <h3>Assignments</h3>
-    <p>Link a coach to a goalie. Coaches can never do this themselves — only an admin can grant access.</p>
+    <h3>Tools</h3>
+    <p>Set up and move things around. Only an admin can link a coach to a goalie.</p>
   </div>
 
+  <details class="card acct-tool">
+    <summary><strong>Invite goalies by email</strong><span class="small-note">Create their account and email a set-password link</span></summary>
+    <div class="acct-tool-body">
+<h3 style="display:none">Invite goalies by email</h3>
+    <p class="small-note" style="margin:0 0 12px">For goalies who haven't signed up yet. Each one gets an account linked to the coach (coach-managed, the coach's games pay for them) and an email to set a password. The coach can upload film for them right away. Run it again for the same email to send a fresh link.</p>
+    <div class="grid grid-3">
+      <div>
+        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px;">Coach</label>
+        <select id="adminInviteCoach" style="width:100%;background:var(--field);border:1.5px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
+      </div>
+      <div style="grid-column:span 2">
+        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px;">Goalies, one per line: email, name</label>
+        <textarea id="adminInviteList" rows="5" placeholder="kid@email.com, Jamie Smith&#10;other@email.com, Alex Lee" style="width:100%;box-sizing:border-box;background:var(--field);border:1.5px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></textarea>
+      </div>
+    </div>
+    <div style="margin-top:10px"><button class="btn-primary" onclick="inviteGoalies(this)">Create accounts and send invites</button></div>
+    <div class="small-note" id="adminInviteStatus"></div>
+    <div id="adminInviteResults"></div>
 
-  <div class="card section-space">
+    </div>
+  </details>
 
-    <h3>Move games between accounts</h3>
+  <details class="card acct-tool">
+    <summary><strong>Assign a goalie to a coach</strong><span class="small-note">Link an existing goalie to a coach</span></summary>
+    <div class="acct-tool-body">
+<h3 style="display:none">Create Assignment</h3>
+
+    <div class="grid grid-3">
+
+      <div>
+        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px;">Coach</label>
+        <select id="adminAssignCoachSelect" style="width:100%;background:var(--field);border:1.5px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
+      </div>
+
+      <div>
+        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px;">Goalie</label>
+        <select id="adminAssignGoalieSelect" style="width:100%;background:var(--field);border:1.5px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
+      </div>
+
+      <div style="display:flex;align-items:flex-end;">
+        <button class="btn-primary" style="width:100%" onclick="createAssignment(this)">Create Assignment</button>
+      </div>
+
+    </div>
+
+    <div class="small-note" id="adminAssignStatus"></div>
+
+
+    </div>
+  </details>
+
+  <details class="card acct-tool">
+    <summary><strong>Move games between accounts</strong><span class="small-note">Coach to goalie, or back. The total stays the same</span></summary>
+    <div class="acct-tool-body">
+<h3 style="display:none">Move games between accounts</h3>
     <p class="small-note" style="margin:0 0 12px">Take games from one account's balance and give them to another, for example from a coach to one of their goalies, or back. The total stays the same. An account that isn't on pay-per-game yet is put on it with the games you give it.</p>
 
     <div class="grid grid-3">
@@ -1101,56 +1135,9 @@
 
     <div class="small-note" id="adminMoveStatus"></div>
 
-  </div>
-
-  <div class="card section-space">
-    <h3>Invite goalies by email</h3>
-    <p class="small-note" style="margin:0 0 12px">For goalies who haven't signed up yet. Each one gets an account linked to the coach (coach-managed, the coach's games pay for them) and an email to set a password. The coach can upload film for them right away. Run it again for the same email to send a fresh link.</p>
-    <div class="grid grid-3">
-      <div>
-        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px;">Coach</label>
-        <select id="adminInviteCoach" style="width:100%;background:var(--field);border:1.5px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
-      </div>
-      <div style="grid-column:span 2">
-        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px;">Goalies, one per line: email, name</label>
-        <textarea id="adminInviteList" rows="5" placeholder="kid@email.com, Jamie Smith&#10;other@email.com, Alex Lee" style="width:100%;box-sizing:border-box;background:var(--field);border:1.5px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></textarea>
-      </div>
-    </div>
-    <div style="margin-top:10px"><button class="btn-primary" onclick="inviteGoalies(this)">Create accounts and send invites</button></div>
-    <div class="small-note" id="adminInviteStatus"></div>
-    <div id="adminInviteResults"></div>
-  </div>
-
-  <div class="card">
-
-    <h3>Create Assignment</h3>
-
-    <div class="grid grid-3">
-
-      <div>
-        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px;">Coach</label>
-        <select id="adminAssignCoachSelect" style="width:100%;background:var(--field);border:1.5px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
-      </div>
-
-      <div>
-        <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:6px;">Goalie</label>
-        <select id="adminAssignGoalieSelect" style="width:100%;background:var(--field);border:1.5px solid var(--border2);border-radius:7px;padding:10px 12px;color:var(--text);font-size:14px;font-family:inherit;"></select>
-      </div>
-
-      <div style="display:flex;align-items:flex-end;">
-        <button class="btn-primary" style="width:100%" onclick="createAssignment(this)">Create Assignment</button>
-      </div>
 
     </div>
-
-    <div class="small-note" id="adminAssignStatus"></div>
-
-  </div>
-
-  <div class="card section-space">
-    <h3>All Assignments</h3>
-    <div id="adminAssignmentsList"></div>
-  </div>
+  </details>
 
 
 </section>
@@ -15383,6 +15370,7 @@ function renderAdminCoaches(){
 
   const coaches = adminProfiles.filter(p => p.role === "coach");
   const tbody = document.getElementById("adminCoachesBody");
+  if(!tbody){ return; }   // coaches now show as cards in renderAdminAssignments
 
   if(!coaches.length){
 
@@ -17910,7 +17898,7 @@ function renderAdminAssignments(){
   if(!adminAssignments.length && !coaches.length){
 
     list.innerHTML =
-      `<div class="empty-state">No assignments yet. Use the form above to connect a coach with a goalie.</div>`;
+      `<div class="empty-state">No coaches yet. Once a coach signs up, they show here, and you can link goalies to them under Tools.</div>`;
 
     return;
 
@@ -17935,8 +17923,16 @@ function renderAdminAssignments(){
     .map(([coachId, rows]) => ({ coachId, name: nameOf(coachId), rows }))
     .sort((x, y) => x.name.localeCompare(y.name));
 
+  if(!adminAssignInit){
+    adminAssignInit = true;
+    groups.forEach(g => adminAssignOpen.add(g.coachId));
+  }
+
   list.innerHTML = groups.map(g => {
 
+    const coachProfile = adminProfiles.find(x => x.id === g.coachId) || {};
+    const coachAccess = adminAccess.some(a => a.user_id === g.coachId) ? accessBadgeHtml(g.coachId) : "";
+    const stop = "event.preventDefault();event.stopPropagation();";
     const rows = g.rows.slice().sort((x, y) =>
       (y.active ? 1 : 0) - (x.active ? 1 : 0) ||
       nameOf(x.goalie_id).localeCompare(nameOf(y.goalie_id))
@@ -17989,10 +17985,21 @@ function renderAdminAssignments(){
       <details data-coach-id="${escapeHtml(g.coachId)}"
                ${adminAssignOpen.has(g.coachId) ? "open" : ""}
                ontoggle="adminAssignToggled(this)"
-               style="border:1px solid var(--border2);border-radius:10px;padding:0 14px;margin-bottom:10px;">
-        <summary style="cursor:pointer;padding:14px 0;display:flex;justify-content:space-between;gap:12px;align-items:center;font-weight:600;">
-          <span>${escapeHtml(g.name)}</span>
-          <span style="font-weight:400;font-size:13px;color:var(--muted);">${escapeHtml(countText)}</span>
+               class="acct-coach-card">
+        <summary class="acct-coach-head">
+          <span class="acct-coach-main">
+            <strong class="acct-coach-name">${escapeHtml(g.name)}</strong>
+            <span class="acct-coach-meta">${escapeHtml(coachProfile.team || "No team")} · ${escapeHtml(countText)}</span>
+          </span>
+          <span class="acct-coach-stats">
+            <span><span class="acct-k">Games left</span> ${adminGamesLeftHtml(g.coachId)}</span>
+            ${coachAccess ? `<span>${coachAccess}</span>` : ""}
+          </span>
+          <span class="acct-coach-actions">
+            <button type="button" class="btn-secondary" onclick="${stop}openAdminAccessModal('${escapeHtml(g.coachId)}')">Access</button>
+            <button type="button" class="btn-secondary" onclick="${stop}openAdminProfileModal('${escapeHtml(g.coachId)}')">Edit</button>
+            <button type="button" class="btn-danger" onclick="${stop}openDeleteAccountModal('${escapeHtml(g.coachId)}')">Delete</button>
+          </span>
         </summary>
         <div style="padding-bottom:12px;">${adminCoachGamesPanel(g.coachId, rows)}${body}</div>
       </details>`;
@@ -18003,6 +18010,7 @@ function renderAdminAssignments(){
 
 
 const adminAssignOpen = new Set();
+let adminAssignInit = false;
 
 function adminAssignToggled(el){
   const id = el.getAttribute("data-coach-id");

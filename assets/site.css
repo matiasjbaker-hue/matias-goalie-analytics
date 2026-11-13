@@ -5699,3 +5699,18 @@ button.rv-hud{pointer-events:auto;border:0;cursor:pointer;font-family:inherit}
 /* Publish progress floats over everything (full screen tagging included). */
 .rv-scanbar.is-floating{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:10001;width:min(560px,92vw);margin:0;box-shadow:0 8px 28px rgba(0,0,0,.35);background:#fff8e1;color:#121412}
 .rv-scanbar.is-floating[hidden]{display:none}
+
+/* Accounts tab: coach cards with their goalies underneath, tools tucked away */
+.acct-coach-card{border:1px solid var(--border2);border-radius:12px;padding:0 16px;margin-bottom:12px;background:var(--card,#fff)}
+.acct-coach-head{cursor:pointer;padding:16px 0;display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;list-style:none}
+.acct-coach-head::-webkit-details-marker{display:none}
+.acct-coach-main{display:flex;flex-direction:column;gap:2px;flex:1 1 220px;min-width:0}
+.acct-coach-name{font-size:17px}
+.acct-coach-meta{font-size:13px;color:var(--muted)}
+.acct-coach-stats{display:flex;gap:16px;align-items:center;font-size:14px}
+.acct-k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-right:4px}
+.acct-coach-actions{display:flex;gap:8px;flex-wrap:wrap}
+.acct-tool{margin-bottom:12px;padding:0 16px}
+.acct-tool>summary{cursor:pointer;padding:14px 0;display:flex;flex-direction:column;gap:2px;list-style:none}
+.acct-tool>summary::-webkit-details-marker{display:none}
+.acct-tool-body{padding:4px 0 16px}
