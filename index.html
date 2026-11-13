@@ -1018,7 +1018,7 @@
 
   <div class="section-heading">
     <h3>Coaches</h3>
-    <p>Tap a coach to see their goalies. Games Left is the coach's own balance.</p>
+    <p>Tap a coach to open their goalies. Games Left is the coach's own balance.</p>
   </div>
 
   <div id="adminAssignmentsList"></div>
@@ -17923,11 +17923,6 @@ function renderAdminAssignments(){
     .map(([coachId, rows]) => ({ coachId, name: nameOf(coachId), rows }))
     .sort((x, y) => x.name.localeCompare(y.name));
 
-  if(!adminAssignInit){
-    adminAssignInit = true;
-    groups.forEach(g => adminAssignOpen.add(g.coachId));
-  }
-
   list.innerHTML = groups.map(g => {
 
     const coachProfile = adminProfiles.find(x => x.id === g.coachId) || {};
@@ -18010,7 +18005,6 @@ function renderAdminAssignments(){
 
 
 const adminAssignOpen = new Set();
-let adminAssignInit = false;
 
 function adminAssignToggled(el){
   const id = el.getAttribute("data-coach-id");
