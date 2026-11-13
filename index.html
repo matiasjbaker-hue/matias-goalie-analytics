@@ -20393,6 +20393,7 @@ async function renderGameFilm(game){
   box.innerHTML = `
     <div class="go-film-head">
       <h3>Game film</h3>
+      ${(currentRole === "coach" || currentRole === "admin") && gameShots.some(s => s.game_video_id && clipsById[String(s.game_video_id)]) ? `<button type="button" class="btn-secondary go-film-dlall" onclick="downloadAllGameClips(${jsArg(game.id)}, this)" title="Download every shot clip of this game to your computer">Download all clips (${gameShots.filter(s => s.game_video_id && clipsById[String(s.game_video_id)]).length})</button>` : ""}
       ${hasParts ? `<div class="go-trend-controls go-film-parts" role="group" aria-label="Game film files">${partVideos.map((video, i) =>
         `<button type="button" class="${String(video.id) === String(full.id) ? "active" : ""}" onclick="goFilmPickPart(${jsArg(game.id)}, ${jsArg(video.id)})">Part ${i + 1} · ${placed(video).length} shot${placed(video).length === 1 ? "" : "s"}</button>`
       ).join("")}</div>` : ""}
@@ -20569,6 +20570,89 @@ function goFilmSelect(t){
       <p class="small-note">${shotMapHasPin(s) ? `Released ${shotMapDistanceFt(Number(s.loc_x), Number(s.loc_y))} ft from the net.` : "No release point tagged for this shot."}</p>
     </div>
   `;
+
+}
+
+// Coaches (and admins): every shot clip of the game in one click. The
+// clips are real MP4 files, named by shot, and the browser saves them one
+// after another. Chrome asks once to allow multiple downloads.
+async function downloadAllGameClips(gameId, button){
+
+  if(!currentSession || !currentSession.access_token){
+    showToast("You need to be signed in.", "error");
+    return;
+  }
+
+  const game = allGames.find(g => String(g.id) === String(gameId));
+  const shots = allShots.filter(s => String(s.game_id) === String(gameId) && s.game_video_id);
+  const videos = goFilmVideoCache[gameId] || [];
+  const clipIds = new Set(videos.filter(v => v.status === "clip").map(v => String(v.id)));
+  const withClip = shots.filter(s => clipIds.has(String(s.game_video_id)));
+
+  if(!withClip.length){
+    showToast("This game has no shot clips to download yet.", "error");
+    return;
+  }
+
+  // In game order when the film knows where each shot is, then the rest.
+  const fullVideo = videos.find(v => v.status !== "clip") || null;
+  const clipsById = {};
+  videos.filter(v => v.status === "clip").forEach(v => { clipsById[String(v.id)] = v; });
+  const timeOf = s => { try{ const t = fullVideo ? goFilmShotTime(s, fullVideo, clipsById) : null; return t === null ? Infinity : t; }catch(e){ return Infinity; } };
+  withClip.sort((a, b) => timeOf(a) - timeOf(b));
+
+  const base = [game && game.opponent, game && game.date].filter(Boolean).join(" ") || `Game ${gameId}`;
+  const pad = n => String(n).padStart(2, "0");
+  const names = withClip.map((s, i) => {
+    const t = timeOf(s);
+    return `${base} - Shot ${pad(i + 1)} - ${isGoal(s) ? "Goal" : "Save"}${Number.isFinite(t) ? " - " + formatClock(t).replace(":", "-") : ""}`;
+  });
+
+  const original = button ? button.textContent : "";
+  if(button){ button.disabled = true; button.textContent = "Getting links…"; }
+
+  try{
+
+    const res = await fetch("/api/video/get-watch-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        accessToken: currentSession.access_token,
+        gameVideoIds: withClip.map(s => s.game_video_id),
+        fileNames: names,
+        download: true
+      })
+    });
+    let data = {};
+    try{ data = await res.json(); }catch(e){ data = {}; }
+    if(!res.ok){ throw new Error(data.error || "Could not get the download links."); }
+
+    const items = data.items || [];
+    if(!items.length){ throw new Error("None of these clips can be downloaded from this account."); }
+
+    for(let i = 0; i < items.length; i++){
+      if(button){ button.textContent = `Downloading ${i + 1} of ${items.length}…`; }
+      const a = document.createElement("a");
+      a.href = items[i].url;
+      a.download = items[i].fileName || "";
+      a.rel = "noopener";
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      await new Promise(r => setTimeout(r, 700));
+    }
+
+    showToast(`Started ${items.length} clip download${items.length === 1 ? "" : "s"}${data.skipped ? ` (${data.skipped} skipped)` : ""}. If only some saved, allow multiple downloads for this site in your browser and try again.`, "success");
+
+  }
+  catch(error){
+    console.error(error);
+    showToast(error.message || "Couldn't download the clips.", "error");
+  }
+  finally{
+    if(button){ button.disabled = false; button.textContent = original; }
+  }
 
 }
 
