@@ -3200,6 +3200,7 @@
         <button type="button" class="tag-btn" data-value="Flick" onclick="selectLiveTagChoice('shot_type','Flick',this)">Flick</button>
         <button type="button" class="tag-btn" data-value="Backhand" onclick="selectLiveTagChoice('shot_type','Backhand',this)">Backhand</button>
         <button type="button" class="tag-btn" data-value="Deke" onclick="selectLiveTagChoice('shot_type','Deke',this)">Deke</button>
+        <button type="button" class="tag-btn" data-value="Wraparound" onclick="selectLiveTagChoice('shot_type','Wraparound',this)">Wraparound</button>
         <button type="button" class="tag-btn" data-value="" onclick="selectLiveTagChoice('shot_type',null,this)">Unknown</button>
       </div>
     </div>
@@ -4050,7 +4051,7 @@
               <select id="rv-ed-type" onchange="updateReviewShot('shot_type', this.value || null)">
                 <option value="">Unknown</option>
                 <option>Wrist</option><option>Slap</option><option>Snap</option><option>Flick</option>
-                <option>Backhand</option><option>Deke</option>
+                <option>Backhand</option><option>Deke</option><option>Wraparound</option>
               </select>
             </div>
             <div class="field">
@@ -4461,7 +4462,7 @@
             <option>5v4</option><option>5v3</option><option>4v3</option></select></div>
         <div class="field"><label for="ltEditType">Shot type</label>
           <select id="ltEditType"><option value="">Unknown</option>
-            <option>Wrist</option><option>Slap</option><option>Snap</option><option>Flick</option><option>Backhand</option><option>Deke</option></select></div>
+            <option>Wrist</option><option>Slap</option><option>Snap</option><option>Flick</option><option>Backhand</option><option>Deke</option><option>Wraparound</option></select></div>
         <div class="field" style="grid-column:1/-1"><label for="ltEditRelease">Release</label>
           <select id="ltEditRelease"><option value="">Unclear</option><option value="one_timer">One-Timer</option><option value="catch_and_release">Catch &amp; Release</option><option value="extended_possession">Extended Possession (&gt;2s)</option></select></div>
         <div class="field" style="grid-column:1/-1"><label for="ltEditRebound">Rebound outcome (how the save went)</label>
@@ -4533,7 +4534,7 @@
           <select id="shotEditType">
             <option value="">Unknown</option>
             <option>Wrist</option><option>Slap</option><option>Snap</option><option>Flick</option>
-            <option>Backhand</option><option>Deke</option>
+            <option>Backhand</option><option>Deke</option><option>Wraparound</option>
           </select>
         </div>
         <div class="field" style="grid-column:1/-1">
@@ -12277,6 +12278,7 @@ function baselineStatDefs(){
     shotSV("Shot type", "Flick SV%", type("flick")),
     shotSV("Shot type", "Backhand SV%", type("backhand")),
     shotSV("Shot type", "Deke SV%", type("deke")),
+    shotSV("Shot type", "Wraparound SV%", type("wraparound")),
 
     shotSV("Strength", "Even strength SV%", strength("even"), 3, 10),
     shotSV("Strength", "Power play (against) SV%", strength("advantage"), 5, 5),
@@ -16707,6 +16709,7 @@ function recapKind(s){
   if(t === "snap" || t === "snap shot"){ return "a snap shot"; }
   if(t === "flick" || t === "flick shot"){ return "a flick shot"; }
   if(t === "deke"){ return "a deke"; }
+  if(t === "wraparound" || t === "wrap-around" || t === "wrap around"){ return "a wraparound"; }
 
   return "a shot";
 
@@ -18596,7 +18599,7 @@ function computeGameReportData(gameId){
 
   // Shot type breakdown
   const shotTypeRows =
-    ["Wrist", "Slap", "Snap", "Flick", "Backhand", "Deke"]
+    ["Wrist", "Slap", "Snap", "Flick", "Backhand", "Deke", "Wraparound"]
       .map(label => {
         const key = label.toLowerCase();
         const subset = gameShotsList.filter(shot => {
@@ -27051,7 +27054,7 @@ function updateReviewHud(total, goals){
 // ---- Shot panel (the dropdown under the shot counter) ----
 // Edit the selected shot and tick shots off as done, without leaving
 // full screen. "Done" is remembered in this browser, per video.
-const FS_TYPES = ["Wrist","Slap","Snap","Flick","Backhand","Deke"];
+const FS_TYPES = ["Wrist","Slap","Snap","Flick","Backhand","Deke","Wraparound"];
 const FS_STRENGTH = ["5v5","4v4","3v3","4v5","3v5","3v4","5v6","5v4","5v3","4v3"];
 const FS_RELEASE = [["one_timer","One-Timer"],["catch_and_release","Catch & Release"],["extended_possession","Extended Possession"]];
 const FS_REBOUND = [["glove_caught","Glove — Caught"],["glove_rebound","Glove — Rebound"],["glove_goal","Glove — Goal"],["blocker_good","Blocker — Good"],["blocker_bad","Blocker — Bad"],["blocker_goal","Blocker — Goal"],["midsection_good","Midsection — Good"],["midsection_bad","Midsection — Bad"],["midsection_goal","Midsection — Goal"],["pad_stick_good","Pad/Stick — Good"],["pad_stick_bad","Pad/Stick — Bad"],["pad_stick_goal","Pad/Stick — Goal"]];
