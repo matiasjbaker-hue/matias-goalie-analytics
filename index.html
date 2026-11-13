@@ -3851,6 +3851,7 @@
           <span class="rv-ai"><i class="lg-check"></i>Moment to check</span>
           <span class="rv-ai"><i class="lg-action"></i>Action: play in the goalie's zone</span>
           <span><i class="lg-cut"></i>Cut</span>
+          <span><i class="lg-flag"></i>Flagged moment</span>
         </div>
 
         <div class="rv-controls">
@@ -3881,8 +3882,10 @@
           <button type="button" class="btn-secondary" onclick="markReviewPeriod('3')">3rd starts here</button>
           <button type="button" class="btn-secondary" onclick="markReviewPeriod('OT')">OT starts here</button>
           <button type="button" class="btn-secondary" onclick="cutReviewGameEdge('end')" title="Cut everything after the playhead">Game ends here</button>
+          <button type="button" class="btn-secondary rv-flag-btn" onclick="addReviewFlag()" title="Flag this moment for the video coaches to look at with the goalie, shot or no shot (M)">Flag a moment (M)</button>
         </div>
         <div class="rv-cut-list" id="rv-cut-list"></div>
+        <div class="rv-flaglist" id="rv-flaglist"></div>
 
         <div class="rv-action-bar">
           <label class="rv-check rv-ai"><input type="checkbox" id="rv-action-only" onchange="onReviewActionOnlyChange()"> <span>Play action only</span></label>
@@ -3991,7 +3994,7 @@
         </section>
         </details>
 
-        <p class="small-note rv-keys">Keys: Space play/pause · ← → 5 seconds · Shift + ← → 1 second · , . one frame · S mark a shot (Shift + S a goal, Z removes the last) · N / P next or previous shot · G toggle goal</p>
+        <p class="small-note rv-keys">Keys: Space play/pause · ← → 5 seconds · Shift + ← → 1 second · , . one frame · S mark a shot (Shift + S a goal, Z removes the last) · N / P next or previous shot · G toggle goal · M flag a moment for the video coaches (M again near it removes it) · Shift + N / P next or previous AI moment to check</p>
 
       </div>
 
@@ -4010,7 +4013,7 @@
           <h4>Moments to check <span id="rv-check-count"></span></h4>
           <button type="button" class="rv-linkbtn" onclick="dismissAllReviewChecks()">Dismiss all</button>
         </div>
-        <p class="small-note rv-check-note rv-ai" id="rv-check-note" hidden>Where the AI saw a likely shot but can't tell the exact second. M plays the next one: press S at the shot (the moment then clears), D if there wasn't one, or A to take the AI's best guess.</p>
+        <p class="small-note rv-check-note rv-ai" id="rv-check-note" hidden>Where the AI saw a likely shot but can't tell the exact second. Shift+N plays the next one: press S at the shot (the moment then clears), D if there wasn't one, or A to take the AI's best guess.</p>
         <ol class="rv-checklist rv-ai" id="rv-checklist" hidden></ol>
 
         <div class="rv-side-head rv-check-head rv-ai" id="rv-zone-head" hidden>
@@ -20380,6 +20383,12 @@ async function renderGameFilm(game){
   const goals = shots.filter(x => isGoal(x.s)).length;
   goFilmShots = shots;
 
+  // Moments the admin flagged for the video coaches (not tied to a shot).
+  const flags = (full.period_marks && Array.isArray(full.period_marks._flags) ? full.period_marks._flags : [])
+    .map(f => ({ t: Number(f && f.t), note: String((f && f.note) || "") }))
+    .filter(f => Number.isFinite(f.t))
+    .sort((a, b) => a.t - b.t);
+
   box.hidden = false;
   box.innerHTML = `
     <div class="go-film-head">
@@ -20403,6 +20412,11 @@ async function renderGameFilm(game){
           <div id="goFilmTicks"></div>
           <div class="rv-playhead" id="goFilmPlayhead"></div>
         </div>
+        ${flags.length ? `<div class="go-film-flags">
+          <h4>Moments to review (${flags.length})</h4>
+          <p class="small-note">Flagged for film sessions: not always a shot. Each one starts a few seconds before.</p>
+          <ol>${flags.map(f => `<li><button type="button" class="go-film-flag" onclick="goFilmJump(${f.t})"><span class="rv-shot-time">${escapeHtml(formatClock(f.t))}</span><span>${f.note ? escapeHtml(f.note) : "Take a look at this moment"}</span></button></li>`).join("")}</ol>
+        </div>` : ""}
       </div>
       <ol class="go-film-list" id="goFilmList">
         ${shots.length ? shots.map(({ s, t }) => {
@@ -20447,6 +20461,8 @@ async function renderGameFilm(game){
     if(!ticks || !d){ return; }
     ticks.innerHTML = cuts.map(r =>
       `<span class="rv-cut" style="left:${Math.min(100, r[0] / d * 100)}%;width:${Math.max(0.3, (Math.min(r[1], d) - r[0]) / d * 100)}%" title="Not part of the game"></span>`
+    ).join("") + flags.map(f =>
+      `<button type="button" class="rv-flagtick" style="left:${Math.min(100, f.t / d * 100)}%" onclick="event.stopPropagation(); goFilmJump(${f.t})" title="Moment to review ${escapeHtml(formatClock(f.t))}${f.note ? ": " + escapeHtml(f.note) : ""}" aria-label="Moment to review at ${escapeHtml(formatClock(f.t))}"></button>`
     ).join("") + shots.map(({ s, t }) =>
       `<button type="button" class="rv-tick ${isGoal(s) ? "is-goal" : "is-save"}" style="left:${Math.min(100, t / d * 100)}%" onclick="event.stopPropagation(); goFilmSelect(${t})" title="${escapeHtml(formatClock(t))} · ${isGoal(s) ? "Goal" : "Save"}${shotZoneDisplay(s) ? " · " + escapeHtml(shotZoneDisplay(s)) : ""}" aria-label="Shot at ${escapeHtml(formatClock(t))}"></button>`
     ).join("");
@@ -26940,6 +26956,9 @@ function renderReviewTimeline(){
     (reviewActionOnlyOn() ? [] : reviewChecks()).map(m =>
       `<button type="button" class="rv-moment${Number.isFinite(review.checkT) && Math.abs(review.checkT - m.start) < 0.01 ? "is-selected" : ""}" style="left:${pct(m.start - 1)}%;width:${Math.max(0.6, pct(m.end + 1) - pct(m.start - 1))}%" onclick="event.stopPropagation(); selectReviewCheck(${m.start}, true)" title="Moment to check, ${escapeHtml(formatMomentRange(m))}: ${m.goal ? "possible goal" : "possible shot"}. Click to watch it, press S at the shot or D if there's none." aria-label="Moment to check, ${escapeHtml(formatMomentRange(m))}"></button>`
     ).join("") +
+    reviewFlags(v).map((f, i) =>
+      `<button type="button" class="rv-flagtick" style="left:${pct(f.t)}%" onclick="event.stopPropagation(); reviewJumpToFlag(${i})" title="Flagged moment ${escapeHtml(formatClock(f.t))}${f.note ? ": " + escapeHtml(f.note) : ""}" aria-label="Flagged moment at ${escapeHtml(formatClock(f.t))}"></button>`
+    ).join("") +
     review.drafts.map(dr => {
       const cls = ["rv-tick", dr.outcome === "goal" ? "is-goal" : "is-save", String(dr.id) === String(review.selectedId) ? "is-selected" : ""].join(" ");
       return `<button type="button" class="${cls}" style="left:${pct(dr.t_seconds)}%" onclick="event.stopPropagation(); selectReviewShot(${jsArg(dr.id)}, true)" title="${escapeHtml(formatClock(dr.t_seconds))} · ${dr.outcome === "goal" ? "Goal" : "Save"}${shotZoneDisplay(dr) ? " · " + escapeHtml(shotZoneDisplay(dr)) : ""}" aria-label="Shot at ${escapeHtml(formatClock(dr.t_seconds))}"></button>`;
@@ -26948,7 +26967,92 @@ function renderReviewTimeline(){
   updateReviewPlayhead();
   renderReviewActionNote();
   renderReviewCuts();
+  renderReviewFlags();
 
+}
+
+/* ---------- flagged moments (for the video coaches) ----------
+   Not everything is a shot, and some games have few of them. M flags
+   the moment at the playhead, with an optional note on what to look at.
+   Stored on the file as period_marks._flags and shown on the game's
+   film page for the goalie and their coaches after publishing. */
+
+function reviewFlags(v){
+  const list = v && v.period_marks && Array.isArray(v.period_marks._flags) ? v.period_marks._flags : [];
+  return list
+    .map(f => ({ t: Number(f && f.t), note: String((f && f.note) || "") }))
+    .filter(f => Number.isFinite(f.t))
+    .sort((a, b) => a.t - b.t);
+}
+
+function setReviewFlags(list){
+  const v = review.video;
+  if(!v){ return; }
+  const { _flags, ...rest } = v.period_marks || {};
+  v.period_marks = list.length ? { ...rest, _flags: list.map(f => ({ t: f.t, note: f.note || "" })) } : rest;
+  clearTimeout(review.flagSaveTimer);
+  review.flagSaveTimer = setTimeout(() => {
+    saveReviewMarks(v).catch(error => showToast(`Couldn't save the flagged moments: ${error.message}`, "error"));
+  }, 500);
+  renderReviewTimeline();
+}
+
+function addReviewFlag(){
+  const v = review.video;
+  if(!v){ return; }
+  const video = document.getElementById("rv-video");
+  const t = Math.round(video.currentTime * 10) / 10;
+  const list = reviewFlags(v);
+  const near = list.findIndex(f => Math.abs(f.t - t) < 2);
+  if(near >= 0){
+    const gone = list.splice(near, 1)[0];
+    setReviewFlags(list);
+    showToast(`Removed the flag at ${formatClock(gone.t)}.`);
+    return;
+  }
+  list.push({ t, note: "" });
+  setReviewFlags(list);
+  showToast(`Flagged ${formatClock(t)} for the video coaches. Add a note below if you like. M again removes it.`, "success");
+}
+
+function removeReviewFlag(i){
+  const list = reviewFlags(review.video);
+  list.splice(i, 1);
+  setReviewFlags(list);
+}
+
+function setReviewFlagNote(i, value){
+  const list = reviewFlags(review.video);
+  if(!list[i]){ return; }
+  list[i].note = String(value || "").trim().slice(0, 200);
+  const v = review.video;
+  const { _flags, ...rest } = v.period_marks || {};
+  v.period_marks = { ...rest, _flags: list };
+  clearTimeout(review.flagSaveTimer);
+  review.flagSaveTimer = setTimeout(() => {
+    saveReviewMarks(v).catch(error => showToast(`Couldn't save the note: ${error.message}`, "error"));
+  }, 300);
+}
+
+function reviewJumpToFlag(i){
+  const f = reviewFlags(review.video)[i];
+  if(!f){ return; }
+  const video = document.getElementById("rv-video");
+  video.currentTime = Math.max(0, f.t - 3);
+}
+
+function renderReviewFlags(){
+  const box = document.getElementById("rv-flaglist");
+  if(!box){ return; }
+  const list = reviewFlags(review.video);
+  if(!list.length){ box.innerHTML = ""; return; }
+  box.innerHTML = `<h4>Flagged for the video coaches (${list.length})</h4>` + list.map((f, i) =>
+    `<div class="rv-flagrow">
+      <button type="button" class="btn-secondary" onclick="reviewJumpToFlag(${i})" title="Jump to 3 seconds before">${escapeHtml(formatClock(f.t))}</button>
+      <input type="text" maxlength="200" placeholder="What should they look at? (optional)" value="${escapeHtml(f.note)}" onchange="setReviewFlagNote(${i}, this.value)">
+      <button type="button" class="btn-danger" onclick="removeReviewFlag(${i})">Remove</button>
+    </div>`
+  ).join("");
 }
 
 function updateReviewPlayhead(){
@@ -28652,7 +28756,7 @@ async function regroupReviewBasics(){
   try{ await saveReviewMarks(v); }catch(e){ console.error(e); }
   renderReviewShots();
   const n = reviewChecks().length;
-  showToast(`${basics.length} AI flags grouped into ${n} moment${n === 1 ? "" : "s"} to check. M plays the first one.`, "success");
+  showToast(`${basics.length} AI flags grouped into ${n} moment${n === 1 ? "" : "s"} to check. Shift+N plays the first one.`, "success");
 }
 
 async function quickDeleteReviewShot(id){
@@ -28849,7 +28953,7 @@ function reviewCheckTarget(start){
   const key = Number.isFinite(Number(start)) && start !== null && start !== undefined ? Number(start) : review.checkT;
   const m = Number.isFinite(key) ? reviewMomentAt(key) : null;
   if(!m){
-    showToast("Pick a moment from Moments to check first (M plays the next one).", "error");
+    showToast("Pick a moment from Moments to check first (Shift+N plays the next one).", "error");
     return null;
   }
   return m;
@@ -29502,7 +29606,7 @@ async function collectReviewTwelveLabs(manual){
           // upload-the-whole-file route (no copying on the server) can't.
           const canVerify = n > 0 && tasks.some(t => t.key);
           showToast(
-            `Twelve Labs first pass finished: ${totals.segments} possible shot${totals.segments === 1 ? "" : "s"} on your goalie, grouped into ${n} moment${n === 1 ? "" : "s"}.${totals.other_net || totals.not_shot ? ` Left out: ${totals.other_net} at the other net, ${totals.not_shot} that weren't shots on goal.` : ""}${minutes ? ` Used ${minutes} Twelve Labs minute${minutes === 1 ? "" : "s"} (free on the free plan).` : ""}${errors.length ? ` ${errors.length} part${errors.length === 1 ? "" : "s"} failed: ${errors[0]}` : ""}${canVerify ? " Now double-checking each moment as a short clip…" : ` Watch each one (M), press S at each shot, or D if there wasn't one.`}`,
+            `Twelve Labs first pass finished: ${totals.segments} possible shot${totals.segments === 1 ? "" : "s"} on your goalie, grouped into ${n} moment${n === 1 ? "" : "s"}.${totals.other_net || totals.not_shot ? ` Left out: ${totals.other_net} at the other net, ${totals.not_shot} that weren't shots on goal.` : ""}${minutes ? ` Used ${minutes} Twelve Labs minute${minutes === 1 ? "" : "s"} (free on the free plan).` : ""}${errors.length ? ` ${errors.length} part${errors.length === 1 ? "" : "s"} failed: ${errors[0]}` : ""}${canVerify ? " Now double-checking each moment as a short clip…" : ` Watch each one (Shift+N), press S at each shot, or D if there wasn't one.`}`,
             errors.length && !segments ? "error" : "success"
           );
           if(canVerify){
@@ -29906,7 +30010,7 @@ async function collectReviewBatches(manual){
       finished = true;
       showToast(
         reviewChecks().length
-          ? `AI results are in: ${reviewChecks().length} moment${reviewChecks().length === 1 ? "" : "s"} to check on the right (from ${st.flagged} flags).${reviewRunCostText()} Nothing more is charged for this run. Watch each one (M plays the next), press S at each shot, or D if there wasn't one.`
+          ? `AI results are in: ${reviewChecks().length} moment${reviewChecks().length === 1 ? "" : "s"} to check on the right (from ${st.flagged} flags).${reviewRunCostText()} Nothing more is charged for this run. Watch each one (Shift+N plays the next), press S at each shot, or D if there wasn't one.`
           : `AI results are in, but it flagged nothing.${reviewRunCostText()} Nothing more is charged for this run. Use Play action only, or add shots by hand with S.`,
         reviewChecks().length ? "success" : "error"
       );
@@ -30234,7 +30338,7 @@ async function runReviewScan(){
       const summary = `${st.batches} stretches checked${st.skipped ? ` (${st.skipped} dead-time stills skipped)` : ""}, ${st.flagged} flags grouped into ${moments} moment${moments === 1 ? "" : "s"} to check${st.errors ? `, ${st.errors} errors (${st.lastError})` : ""}.${reviewRunCostText()}`;
       showToast(
         moments
-          ? `AI scan finished: ${moments} moment${moments === 1 ? "" : "s"} to check on the right. Nothing more is charged for this run. Watch each one (M plays the next), press S at each shot, or D if there wasn't one. ${summary}`
+          ? `AI scan finished: ${moments} moment${moments === 1 ? "" : "s"} to check on the right. Nothing more is charged for this run. Watch each one (Shift+N plays the next), press S at each shot, or D if there wasn't one. ${summary}`
           : `AI scan finished and flagged nothing. ${summary} Use Play action only, or add shots by hand with S.`,
         moments ? "success" : "error"
       );
@@ -31845,7 +31949,8 @@ async function loadReviewUser(userId){
     else if(reviewFsActive() && (e.key === "-" || e.key === "_")){ e.preventDefault(); reviewZoomBy(1 / 1.4); }
     else if(reviewFsActive() && e.key === "0"){ e.preventDefault(); reviewZoomReset(); }
     else if(k === "z" && reviewQuickTagOn()){ e.preventDefault(); undoReviewQuickTag(); }
-    else if(k === "m"){ e.preventDefault(); nextReviewCheck(e.shiftKey ? -1 : 1); }
+    else if(k === "m"){ e.preventDefault(); addReviewFlag(); }
+    else if((k === "n" || k === "p") && e.shiftKey){ e.preventDefault(); nextReviewCheck(k === "p" ? -1 : 1); }
     else if(k === "a"){ e.preventDefault(); acceptReviewCheck(); }
     else if(k === "d"){ e.preventDefault(); dismissReviewCheck(); }
     else if(k === "x"){ e.preventDefault(); toggleReviewCut(); }

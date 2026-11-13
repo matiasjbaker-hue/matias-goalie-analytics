@@ -5714,3 +5714,17 @@ button.rv-hud{pointer-events:auto;border:0;cursor:pointer;font-family:inherit}
 .acct-tool>summary{cursor:pointer;padding:14px 0;display:flex;flex-direction:column;gap:2px;list-style:none}
 .acct-tool>summary::-webkit-details-marker{display:none}
 .acct-tool-body{padding:4px 0 16px}
+
+/* Flagged moments (M): for the video coaches, not tied to a shot */
+.rv-flagtick{position:absolute;top:0;bottom:0;width:0;border:0;padding:0;background:none;cursor:pointer;z-index:4;transform:translateX(-50%)}
+.rv-flagtick::before{content:"";position:absolute;left:50%;top:0;width:3px;height:100%;background:#7b5cff;border-radius:2px;transform:translateX(-50%)}
+.rv-flagtick::after{content:"";position:absolute;left:50%;top:2px;width:10px;height:10px;background:#7b5cff;border-radius:50%;transform:translateX(-50%);box-shadow:0 0 0 2px rgba(255,255,255,.85)}
+.lg-flag{display:inline-block;width:10px;height:10px;border-radius:50%;background:#7b5cff;margin-right:6px}
+.rv-flaglist{margin:10px 0}
+.rv-flaglist h4{margin:0 0 8px;font-size:14px}
+.rv-flagrow{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.rv-flagrow input{flex:1;min-width:0}
+.go-film-flags{margin-top:14px}
+.go-film-flags h4{margin:0 0 4px}
+.go-film-flags ol{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.go-film-flag{display:flex;gap:10px;align-items:center;width:100%;text-align:left;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:transparent;cursor:pointer;color:inherit;font:inherit;border-left:4px solid #7b5cff}
