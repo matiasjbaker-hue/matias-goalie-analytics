@@ -6585,9 +6585,12 @@ function renderOverview(){
     else if(
       result === "otl" ||
       result === "ot" ||
-      result === "overtime loss"
+      result === "overtime loss" ||
+      result === "t" ||
+      result === "tie" ||
+      result === "tied"
     ){
-      ot++;
+      ot++; // third number: OT losses and ties
     }
 
   });
@@ -7162,9 +7165,12 @@ function renderLast5(){
     else if(
       r === "otl" ||
       r === "ot" ||
-      r === "overtime loss"
+      r === "overtime loss" ||
+      r === "t" ||
+      r === "tie" ||
+      r === "tied"
     ){
-      ot++;
+      ot++; // third number: OT losses and ties
     }
 
   });
