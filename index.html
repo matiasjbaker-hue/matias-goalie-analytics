@@ -18835,196 +18835,125 @@ function formatPdfPct(v){
 }
 
 
-function buildGameNarrativeInputText(data, goalieInfo){
+// Writing lines for the worksheet at the end of the report.
+function pdfWriteLines(doc, y, count){
 
-  const game = data.game;
-  const lines = [];
+  doc.setDrawColor(190,190,190);
 
-  lines.push(`Goalie: ${goalieInfo.name}${goalieInfo.team ? " (" + goalieInfo.team + ")" : ""}`);
-  lines.push(`Game: ${gameDate(game) || "unknown date"} vs ${gameOpponent(game)}`);
-  lines.push(`Result: ${gameResult(game) || "unknown"}`);
-  lines.push(`Shots against: ${data.shotsAgainst}, Saves: ${data.saves}, Goals against: ${data.goals}`);
-  lines.push(`Save percentage: ${formatPdfPct(data.svPct)}`);
-  lines.push(`GAA (this game): ${data.gaa !== null ? data.gaa.toFixed(2) : "n/a"}`);
-
-  if(data.advanced){
-
-    lines.push(`Expected goals against (xGA): ${data.advanced.xGA.toFixed(2)}`);
-    lines.push(`Expected save percentage: ${formatPdfPct(data.advanced.expectedSV)}`);
-    lines.push(`GSAx: ${data.advanced.gsax >= 0 ? "+" : ""}${data.advanced.gsax.toFixed(2)}`);
-    lines.push(`Shot grades -- A+: ${data.advanced.grades["A+"]}, A: ${data.advanced.grades["A"]}, B: ${data.advanced.grades["B"]}, C: ${data.advanced.grades["C"]}`);
-
-  }
-  else{
-
-    lines.push("No shot-level data tagged for this game.");
-
+  for(let i = 0; i < count; i++){
+    y = pdfEnsureSpace(doc, y, 24);
+    doc.line(48, y + 12, 548, y + 12);
+    y += 24;
   }
 
-  if(data.periodRows.length){
-
-    lines.push("Period breakdown:");
-
-    data.periodRows.forEach(p => {
-      lines.push(`  ${p.label}: ${p.shots} shots, ${p.saves} saves, ${p.goals} goals against, SV% ${formatPdfPct(p.svPct)}`);
-    });
-
-  }
-
-  if(data.periodDetail && data.periodDetail.length){
-
-    lines.push("Period detail (tagged shots):");
-
-    data.periodDetail.forEach(d => {
-
-      const gr = d.grades;
-      const topZones = d.zones.slice().sort((a, b) => b.shots - a.shots).slice(0, 3)
-        .map(z => `${z.label} ${z.shots}`).join(", ");
-
-      lines.push(
-        `  ${d.label}: ${d.shots} shots, ${d.goals} goals against, SV% ${formatPdfPct(d.svPct)}, ` +
-        `xGA ${d.xga.toFixed(2)}, GSAx ${d.gsax >= 0 ? "+" : ""}${d.gsax.toFixed(2)}, ` +
-        `shot grades A+ ${gr["A+"]} / A ${gr["A"]} / B ${gr["B"]} / C ${gr["C"]}, ` +
-        `high-danger SV% ${formatPdfPct(d.hdSV)}, ` +
-        `even strength ${d.cats.even.shots} shots, penalty kill ${d.cats.outnumbered.shots}, power play ${d.cats.advantage.shots}` +
-        (topZones ? `, most shots from: ${topZones}` : "")
-      );
-
-    });
-
-  }
-
-  if(data.situationalRows.length){
-
-    lines.push("Situational breakdown:");
-
-    data.situationalRows.forEach(s => {
-      lines.push(`  ${s.label}: ${s.shots} shots, ${s.goals} goals, SV% ${formatPdfPct(s.svPct)}`);
-    });
-
-  }
-
-  if(data.shotTypeRows.length){
-
-    lines.push("Shot type breakdown:");
-
-    data.shotTypeRows.forEach(s => {
-      lines.push(`  ${s.label}: ${s.shots} shots, ${s.goals} goals, SV% ${formatPdfPct(s.svPct)}`);
-    });
-
-  }
-
-  if(data.locationRows.length){
-
-    lines.push("Shot location breakdown:");
-
-    data.locationRows.forEach(l => {
-      lines.push(`  ${l.label}: ${l.shots} shots, ${l.goals} goals, SV% ${formatPdfPct(l.svPct)}`);
-    });
-
-  }
-
-  if(data.reboundSummary){
-
-    const t = data.reboundSummary;
-
-    lines.push(
-      `Rebound control -- Glove: ${t.glove_caught} caught, ${t.glove_rebound} rebound, ${t.glove_goal} goal; ` +
-      `Blocker: ${t.blocker_good} good, ${t.blocker_bad} bad, ${t.blocker_goal} goal; ` +
-      `Midsection: ${t.midsection_good} good, ${t.midsection_bad} bad, ${t.midsection_goal} goal; ` +
-      `Pad/Stick: ${t.pad_stick_good} good, ${t.pad_stick_bad} bad, ${t.pad_stick_goal} goal.`
-    );
-
-  }
-
-  if(data.puckSummary){
-
-    const p = data.puckSummary;
-
-    lines.push(
-      `Puck playing -- Rims faced/stopped: ${p.rimsFaced}/${p.rimsStopped}; ` +
-      `Pass attempts/completed: ${p.passAttempts}/${p.passesCompleted}.`
-    );
-
-    (p.rimRows || []).forEach(r => {
-      lines.push(`  Rims, ${r.label}: ${r.stopped} stopped of ${r.faced} (${puckPctText(r.stopped, r.faced)})`);
-    });
-
-    (p.passRows || []).forEach(r => {
-      lines.push(`  Passes, ${r.label}: ${r.completed} completed of ${r.attempts} (${puckPctText(r.completed, r.attempts)})`);
-    });
-
-  }
-
-  return lines.join("\n");
+  return y;
 
 }
 
 
-function parseGameNarrative(text){
+function pdfWorksheetBlock(doc, y, title, color, prompts, lineCount){
 
-  const sections = { wentWell: [], areasToImprove: [], priorities: [] };
+  y = pdfEnsureSpace(doc, y, 90);
 
-  if(!text){ return sections; }
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(10.5);
+  doc.setTextColor(color[0], color[1], color[2]);
+  doc.text(title, 48, y);
+  y += 14;
 
-  const wentWellMatch = text.match(/WENT WELL:([\s\S]*?)(AREAS TO IMPROVE:|$)/i);
-  const improveMatch = text.match(/AREAS TO IMPROVE:([\s\S]*?)(PRIORITIES FOR NEXT PRACTICE:|$)/i);
-  const priorityMatch = text.match(/PRIORITIES FOR NEXT PRACTICE:([\s\S]*)$/i);
+  doc.setFont("helvetica","italic");
+  doc.setFontSize(9);
+  doc.setTextColor(110,110,110);
 
-  const toBullets = block =>
-    (block || "")
-      .split("\n")
-      .map(l => l.trim())
-      .filter(l => l.startsWith("-"))
-      .map(l => l.replace(/^-\s*/, ""));
+  prompts.forEach(t => {
+    const wrapped = doc.splitTextToSize("\u2022  " + t, 500);
+    y = pdfEnsureSpace(doc, y, wrapped.length * 11 + 3);
+    doc.text(wrapped, 48, y);
+    y += wrapped.length * 11 + 3;
+  });
 
-  sections.wentWell = toBullets(wentWellMatch && wentWellMatch[1]);
-  sections.areasToImprove = toBullets(improveMatch && improveMatch[1]);
-  sections.priorities = toBullets(priorityMatch && priorityMatch[1]);
+  y += 4;
 
-  return sections;
+  return pdfWriteLines(doc, y, lineCount) + 8;
 
 }
 
 
-async function fetchGameNarrative(summaryText){
+// Fill-in review sheet. The goalie (or coach) uses the numbers and the
+// film to write their own review: what went well, what to work on, and
+// what they will do about it.
+function pdfGameWorksheet(doc, y){
 
-  if(!currentSession || !currentSession.access_token){
-    return null;
+  doc.addPage();
+  y = 56;
+
+  y = pdfSectionHeading(doc, y, "Game Review Worksheet");
+
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(9.5);
+  doc.setTextColor(60,60,60);
+
+  const intro = doc.splitTextToSize(
+    "Fill this out yourself after you've gone through your film and the numbers in this report. Writing it down is what turns a game into something you can actually improve on.",
+    500
+  );
+  doc.text(intro, 48, y);
+  y += intro.length * 12 + 10;
+
+  y = pdfWorksheetBlock(doc, y, "1. What went well", [20,90,55], [
+    "Which periods, saves or situations were your best? What were you doing in those moments?",
+    "What did you do that you want to repeat next game?"
+  ], 4);
+
+  y = pdfWorksheetBlock(doc, y, "2. What I'm going to focus on", [150,90,20], [
+    "Which goals or shot types gave you trouble? Is there a pattern (location, type, rebounds, strength)?",
+    "What did the film show that the numbers don't?"
+  ], 4);
+
+  // 3. Action plan table
+  y = pdfEnsureSpace(doc, y, 150);
+
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(10.5);
+  doc.setTextColor(20,20,20);
+  doc.text("3. My action plan", 48, y);
+  y += 14;
+
+  doc.setFont("helvetica","italic");
+  doc.setFontSize(9);
+  doc.setTextColor(110,110,110);
+  doc.text("Pick 1\u20133 things. Make each one specific enough that you'd know if you did it.", 48, y);
+  y += 12;
+
+  const cols = [48, 188, 408, 478];
+  const colW = [140, 220, 70, 70];
+  const heads = ["Focus", "What I'll do", "By when", "Done?"];
+
+  doc.setFillColor(238,242,239);
+  doc.rect(48, y - 2, 500, 20, "F");
+
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(9);
+  doc.setTextColor(30,30,30);
+  heads.forEach((h, i) => doc.text(h, cols[i] + 4, y + 11));
+  y += 20;
+
+  doc.setDrawColor(190,190,190);
+
+  for(let r = 0; r < 4; r++){
+    y = pdfEnsureSpace(doc, y, 44);
+    doc.rect(48, y, 500, 44);
+    cols.slice(1).forEach(x => doc.line(x, y, x, y + 44));
+    y += 44;
   }
 
-  // Goalie tier: the PDF still has every stat, just not the AI analysis.
-  if(!clientHasAiAccess()){
-    return null;
-  }
+  y += 14;
 
-  try{
+  y = pdfWorksheetBlock(doc, y, "4. How I'll know it's working", [20,20,20], [
+    "What will you check in your next game's numbers or film to see if this is working?"
+  ], 3);
 
-    const res = await fetch("/api/game-report", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        accessToken: currentSession.access_token,
-        summaryText: summaryText,
-        viewerRole: currentRole
-      })
-    });
-
-    if(!res.ok){
-      console.error("Game narrative request failed:", res.status);
-      return null;
-    }
-
-    const responseData = await res.json();
-    return parseGameNarrative(responseData.narrative);
-
-  }
-  catch(err){
-
-    console.error("Game narrative error:", err);
-    return null;
-
-  }
+  return y;
 
 }
 
@@ -19087,16 +19016,6 @@ async function generateGameReportPDF(gameId, buttonEl, options = {}){
     goalieInfo.season = data.game.season;
     if(data.game.team) goalieInfo.team = data.game.team;
   }
-
-  // Grounded narrative: the same real, already-computed numbers going
-  // into the tables below are all the model is given -- it's asked
-  // not to invent anything beyond them. Best-effort: if this fails
-  // (no network, API not configured, etc.) the PDF still generates
-  // with the data sections, just without the narrative.
-  const narrative =
-    await fetchGameNarrative(
-      buildGameNarrativeInputText(data, goalieInfo)
-    );
 
   if(buttonEl){
     buttonEl.disabled = false;
@@ -19173,50 +19092,6 @@ async function generateGameReportPDF(gameId, buttonEl, options = {}){
   }
 
   y += 10;
-
-  // Coach's Analysis (grounded narrative)
-  y = pdfSectionHeading(doc, y, "Coach's Analysis");
-
-  if(narrative){
-
-    doc.setFont("helvetica","bold");
-    doc.setFontSize(10);
-    doc.setTextColor(20,90,55);
-    y = pdfEnsureSpace(doc, y, 16);
-    doc.text("What Went Well", 48, y);
-    y += 15;
-
-    y = pdfBulletList(doc, y, narrative.wentWell);
-    y += 4;
-
-    doc.setFont("helvetica","bold");
-    doc.setFontSize(10);
-    doc.setTextColor(150,90,20);
-    y = pdfEnsureSpace(doc, y, 16);
-    doc.text("Areas to Improve", 48, y);
-    y += 15;
-
-    y = pdfBulletList(doc, y, narrative.areasToImprove);
-    y += 4;
-
-    doc.setFont("helvetica","bold");
-    doc.setFontSize(10);
-    doc.setTextColor(20,20,20);
-    y = pdfEnsureSpace(doc, y, 16);
-    doc.text("Priorities for Next Practice", 48, y);
-    y += 15;
-
-    y = pdfBulletList(doc, y, narrative.priorities);
-    y += 6;
-
-  }
-  else{
-
-    y = pdfStatRow(doc, y, "", "AI analysis is being finalized -- the data sections below are still fully accurate.");
-
-  }
-
-  y += 4;
 
   // Period Breakdown
   if(data.periodRows.length){
@@ -19424,6 +19299,9 @@ async function generateGameReportPDF(gameId, buttonEl, options = {}){
     y += 10;
 
   }
+
+  // Worksheet: the goalie fills this in themselves
+  pdfGameWorksheet(doc, y);
 
   // Footer on every page
   const pageCount = doc.internal.getNumberOfPages();

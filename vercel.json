@@ -8,9 +8,6 @@
     "api/coach.js": {
       "maxDuration": 60
     },
-    "api/game-report.js": {
-      "maxDuration": 60
-    },
     "api/admin/*.js": {
       "maxDuration": 60,
       "memory": 1024,
