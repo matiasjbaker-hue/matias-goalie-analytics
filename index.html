@@ -19982,10 +19982,53 @@ function viewGoalieAnalytics(goalieId){
 let addGameMode = "upload";
 
 // Coach: how many games they have left, and what an upload costs.
+// Goalie: if their coach covers their games, the upload page says so and
+// whose games it uses. Read through a database function because a goalie
+// can't see their coach's balance directly. Hidden if the function isn't
+// there or the coach doesn't cover them.
+let coachCoverInfo = null;
+
+async function loadCoachCover(){
+
+  try{
+    const { data, error } = await supabaseClient.rpc("my_coach_cover");
+    coachCoverInfo = error ? null : (data || null);
+  }
+  catch(e){
+    coachCoverInfo = null;
+  }
+
+  return coachCoverInfo;
+
+}
+
+function renderGoalieCoverLine(el){
+
+  const info = coachCoverInfo;
+
+  if(!info){ el.style.display = "none"; return; }
+
+  const name = info.coach_name || "your coach";
+  const left = info.games_left;
+
+  el.style.display = "";
+  el.innerHTML =
+    `<strong>Use one of ${escapeHtml(name)}'s games.</strong> ` +
+    `${escapeHtml(name)} covers your games, so this upload comes out of their games${left === null || left === undefined ? "" : ` (${left} left)`}, not yours. ` +
+    `Adding more film to a game you've already started is free.`;
+
+}
+
 function renderCoachCreditsLine(){
 
   const el = document.getElementById("coach-credits-line");
   if(!el){ return; }
+
+  if(currentRole === "goalie"){
+    renderGoalieCoverLine(el);
+    loadCoachCover().then(() => renderGoalieCoverLine(el));
+    return;
+  }
 
   if(currentRole !== "coach"){ el.style.display = "none"; return; }
 
