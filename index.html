@@ -14475,8 +14475,12 @@ async function applyRoleAndLoad(){
     }
 
     if(!accessIsActive(myAccess)){
-      showPaywall(myAccess);
-      return;
+      // A goalie their coach covers doesn't hit the paywall.
+      const cover = await loadCoachCover();
+      if(!cover){
+        showPaywall(myAccess);
+        return;
+      }
     }
 
     if(checkoutState === "success"){
@@ -15478,6 +15482,21 @@ function renderAccessPill(row){
     return;
   }
 
+  // A goalie whose coach covers their games never pays: say so, no Buy link.
+  if(currentRole === "goalie" && row){
+    if(coachCoverInfo === undefined){ loadCoachCover(); }
+    else if(coachCoverInfo){
+      const nm = coachCoverInfo.coach_name || "your coach";
+      pill.textContent = `Use ${nm}'s games`;
+      pill.title = `${nm} covers your games. Nothing to buy.`;
+      pill.style.pointerEvents = "none";
+      pill.style.display = "";
+      return;
+    }
+  }
+  pill.style.pointerEvents = "";
+  pill.title = "See plans";
+
   if(row && row.plan === "pay_per_game" && accessIsActive(row)){
     const left = row.game_credits || 0;
     pill.textContent = left > 0
@@ -15603,6 +15622,8 @@ async function requestGoalieAccess(button){
 
 
 async function openPlansModal(){
+
+  if(currentRole === "goalie" && coachCoverInfo){ return; }
 
   if(currentRole === "coach"){
     showToast("Need more games? Message Matias and he'll add them to your balance.");
@@ -19927,7 +19948,7 @@ let addGameMode = "upload";
 // whose games it uses. Read through a database function because a goalie
 // can't see their coach's balance directly. Hidden if the function isn't
 // there or the coach doesn't cover them.
-let coachCoverInfo = null;
+let coachCoverInfo; // undefined = not loaded yet, null = no coach covers them
 
 async function loadCoachCover(){
 
@@ -19938,6 +19959,9 @@ async function loadCoachCover(){
   catch(e){
     coachCoverInfo = null;
   }
+
+  // The access pill depends on this too.
+  if(currentRole === "goalie"){ renderAccessPill(myAccess); }
 
   return coachCoverInfo;
 
