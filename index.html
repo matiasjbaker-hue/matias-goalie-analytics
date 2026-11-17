@@ -30681,14 +30681,14 @@ function renderReviewParts(){
   document.getElementById("rv-part-remove").hidden = !multi;
 
   // Extra files can be moved among themselves; Part 1 is the request and stays first.
-  const extraIdx = parts.slice(1).findIndex(p => String(p.id) === String(v.id));
-  const canMove = !!v.parent_video_id && parts.length > 2;
+  const pos = parts.findIndex(p => String(p.id) === String(v.id));
+  const canMove = parts.length > 1;
   const upBtn = document.getElementById("rv-part-up");
   const downBtn = document.getElementById("rv-part-down");
   upBtn.hidden = !canMove;
   downBtn.hidden = !canMove;
-  upBtn.disabled = extraIdx <= 0;
-  downBtn.disabled = extraIdx < 0 || extraIdx >= parts.length - 2;
+  upBtn.disabled = pos <= 0;
+  downBtn.disabled = pos < 0 || pos >= parts.length - 1;
 
   document.getElementById("rv-part-btn").textContent = `Upload as Part ${parts.length + 1}`;
 
@@ -30845,11 +30845,43 @@ async function submitReviewPart(){
 async function moveReviewPart(dir){
 
   const v = review.video;
-  if(!v || !v.parent_video_id){ return; }
+  if(!v){ return; }
 
   if(review.publishing){ showToast("Wait for the publish to finish.", "error"); return; }
 
   const parts = reviewLiveParts(v);
+
+  // Part 1 <-> Part 2: the request itself changes hands (database function).
+  const pos = parts.findIndex(p => String(p.id) === String(v.id));
+  if(pos < 0 || pos + dir < 0 || pos + dir >= parts.length){ return; }
+  if(pos === 0 || (pos === 1 && dir === -1)){
+    if(review.scanning || review.collecting || review.testing){ showToast("Pause the AI first.", "error"); return; }
+    const rootRow = parts[0];
+    const partRow = parts[1];
+    const upB = document.getElementById("rv-part-up");
+    const downB = document.getElementById("rv-part-down");
+    upB.disabled = true; downB.disabled = true;
+    try{
+      await flushReviewSaves();
+      await flushReviewPuck();
+      const { data, error } = await supabaseClient.rpc("swap_first_video_part", { p_root: rootRow.id, p_part: partRow.id });
+      if(error){ throw error; }
+      const ids = parts.map(p => p.id);
+      delete goFilmVideoCache[v.game_id];
+      await refreshReviewRows(ids);
+      showToast("Part order updated.", "success");
+      await openReview(data.newRootId);
+      if(String(data.newRootId) !== String(v.id)){ await switchReviewPart(v.id); }
+    }
+    catch(error){
+      console.error(error);
+      showToast("Couldn't reorder: " + (error.message || error), "error");
+      renderReviewParts();
+    }
+    return;
+  }
+
+  if(!v.parent_video_id){ return; }
   const extras = parts.slice(1);
   const i = extras.findIndex(p => String(p.id) === String(v.id));
   const j = i + dir;
