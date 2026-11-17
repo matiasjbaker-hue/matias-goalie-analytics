@@ -3316,7 +3316,7 @@
 
   <div class="go-trend-controls add-mode-toggle" id="addModeToggle">
     <button type="button" data-mode="upload" onclick="setAddGameMode('upload')">Upload game film</button>
-    <button type="button" data-mode="manual" onclick="setAddGameMode('manual')">Enter stats manually</button>
+    <button type="button" id="addModeManualBtn" data-mode="manual" onclick="setAddGameMode('manual')">Edit game stats</button>
   </div>
 
   <div id="addUploadPanel">
@@ -20015,6 +20015,9 @@ function setAddGameMode(mode){
 
   addGameMode = mode === "manual" && currentRole !== "coach" ? "manual" : "upload";
 
+  const manualBtn = document.getElementById("addModeManualBtn");
+  if(manualBtn){ manualBtn.textContent = currentRole === "admin" ? "Enter stats manually" : "Edit game stats"; }
+
   const modeToggle = document.getElementById("addModeToggle");
   if(modeToggle){ modeToggle.style.display = currentRole === "coach" ? "none" : ""; }
 
@@ -24464,6 +24467,10 @@ async function finishLiveTagGame(){
       notes: null
     };
 
+    if(currentRole !== "admin"){
+      throw new Error("New games come from film uploads now, so you can't add one by hand. You can still edit the stats on games you already have.");
+    }
+
     const { data: newGame, error: gameError } =
       await supabaseClient
         .from("Games")
@@ -25123,6 +25130,11 @@ document.getElementById("addgame-form")
       return;
     }
 
+    if(!editingGameId && currentRole !== "admin"){
+      showAddGameError("New games come from film uploads now, so you can't add one by hand. You can still edit the stats on games you already have.");
+      return;
+    }
+
     const submitBtn =
       document.getElementById("addgame-submit");
 
@@ -25184,6 +25196,10 @@ document.getElementById("addgame-form")
 
       }
       else{
+
+        if(currentRole !== "admin"){
+          throw new Error("New games come from film uploads now, so you can't add one by hand. You can still edit the stats on games you already have.");
+        }
 
         const { data: newGame, error: gameError } =
           await supabaseClient
