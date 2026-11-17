@@ -4134,7 +4134,7 @@
                 <button type="button" data-tool="pen" class="active" onclick="watchMarkTool('pen')">Pen</button>
                 <button type="button" data-tool="circle" onclick="watchMarkTool('circle')">Circle</button>
                 <button type="button" data-tool="arrow" onclick="watchMarkTool('arrow')">Arrow</button>
-                <button type="button" data-tool="text" onclick="watchMarkTool('text')">Text</button>
+                <button type="button" data-tool="text" onclick="watchMarkTool('text')" title="Click the canvas to add text. Click a placed box to move it, drag its corner to resize, double-click to edit, Delete to remove.">Text</button>
               </div>
               <div class="watch-mark-colors">
                 <button type="button" data-color="#ff3b30" class="active" style="background:#ff3b30" aria-label="Red" onclick="watchMarkColor('#ff3b30')"></button>
@@ -4676,7 +4676,7 @@
           <button type="button" data-tool="pen" class="active" onclick="watchMarkTool('pen')">Pen</button>
           <button type="button" data-tool="circle" onclick="watchMarkTool('circle')">Circle</button>
           <button type="button" data-tool="arrow" onclick="watchMarkTool('arrow')">Arrow</button>
-          <button type="button" data-tool="text" onclick="watchMarkTool('text')">Text</button>
+          <button type="button" data-tool="text" onclick="watchMarkTool('text')" title="Click the canvas to add text. Click a placed box to move it, drag its corner to resize, double-click to edit, Delete to remove.">Text</button>
         </div>
         <div class="watch-mark-colors" id="watchMarkColors">
           <button type="button" data-color="#ff3b30" class="active" style="background:#ff3b30" aria-label="Red" onclick="watchMarkColor('#ff3b30')"></button>
@@ -9247,6 +9247,11 @@ function watchSizeCanvas(){
   return dpr;
 }
 
+// Where each text box was last drawn (pixels), so a placed box can be
+// picked up to move, resize or edit before the feedback is saved.
+const watchTextBoxes = new WeakMap();
+const watchTextEditing = new Set();
+
 function watchPaint(items){
   const c = mkc().canvas;
   const dpr = watchSizeCanvas();
@@ -9314,10 +9319,24 @@ function watchPaint(items){
       const x = px(it.x);
       // Keep a long note inside the picture.
       const y = Math.max(r.y, Math.min(py(it.y), r.y + r.h - (lh * lines.length + 6)));
+      if(watchTextEditing.has(it)){ return; }
       ctx.fillStyle = "rgba(0,0,0,.6)";
       ctx.fillRect(x - 5, y - 3, wMax + 10, lh * lines.length + 6);
       ctx.fillStyle = it.c;
       lines.forEach((l, i) => ctx.fillText(l, x, y + i * lh));
+      const box = { x: x - 5, y: y - 3, w: wMax + 10, h: lh * lines.length + 6 };
+      watchTextBoxes.set(it, box);
+      if(watchMark && watchMark.sel === it){
+        ctx.save();
+        ctx.setLineDash([6, 4]);
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = "#ffffff";
+        ctx.strokeRect(box.x, box.y, box.w, box.h);
+        ctx.setLineDash([]);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(box.x + box.w - 6, box.y + box.h - 6, 12, 12);
+        ctx.restore();
+      }
     }
   });
 }
@@ -9555,6 +9574,16 @@ function watchBindDraw(c){
     ev.preventDefault();
     const [x, y] = watchPoint(ev);
     const m = watchMark;
+    const hit = watchTextHit(ev, m.tool === "text");
+    if(hit){
+      m.sel = hit.item;
+      const b = c.getBoundingClientRect();
+      m.drag = { item: hit.item, mode: hit.corner ? "resize" : "move", sx: ev.clientX, sy: ev.clientY, ox: hit.item.x, oy: hit.item.y, ofs: hit.item.fs || 0.05, ow: hit.item.w || (watchTextBoxes.get(hit.item).w / watchFrameRect().w), bw: watchTextBoxes.get(hit.item).w };
+      c.setPointerCapture(ev.pointerId);
+      watchRepaint();
+      return;
+    }
+    if(m.sel){ m.sel = null; watchRepaint(); }
     if(m.tool === "text"){ watchTextAt(x, y, ev); return; }
     c.setPointerCapture(ev.pointerId);
     if(m.tool === "pen"){ m.draft = { t:"pen", c:m.color, w:0.006, p:[[x, y]] }; }
@@ -9563,6 +9592,22 @@ function watchBindDraw(c){
   });
 
   c.addEventListener("pointermove", ev => {
+    if(watchMark && watchMark.drag){
+      const d = watchMark.drag, r = watchFrameRect(), it = d.item;
+      const dx = ev.clientX - d.sx, dy = ev.clientY - d.sy;
+      if(d.mode === "move"){
+        it.x = Math.min(0.98, Math.max(0, d.ox + dx / r.w));
+        it.y = Math.min(0.98, Math.max(0, d.oy + dy / r.h));
+      }
+      else{
+        // Corner drag: the box and its lettering grow and shrink together.
+        const ratio = Math.min(4, Math.max(0.25, (d.bw + dx) / d.bw));
+        it.fs = Math.min(0.2, Math.max(0.02, d.ofs * ratio));
+        it.w = Math.min(1 - it.x, Math.max(0.06, d.ow * ratio));
+      }
+      watchRepaint();
+      return;
+    }
     if(!watchMark || !watchMark.draft){ return; }
     const [x, y] = watchPoint(ev);
     const d = watchMark.draft;
@@ -9571,7 +9616,20 @@ function watchBindDraw(c){
     watchRepaint();
   });
 
+  c.addEventListener("dblclick", ev => {
+    if(!watchMark){ return; }
+    const hit = watchTextHit(ev, true);
+    if(hit){ watchMark.drag = null; watchTextEdit(hit.item); }
+  });
+  c.addEventListener("pointermove", ev => {
+    // Show that a placed text box can be picked up.
+    if(!watchMark || watchMark.drag || watchMark.draft){ return; }
+    const hit = watchTextHit(ev, true);
+    c.style.cursor = hit ? (hit.corner ? "nwse-resize" : "move") : "";
+  });
+
   const end = () => {
+    if(watchMark && watchMark.drag){ watchMark.drag = null; return; }
     if(!watchMark || !watchMark.draft){ return; }
     const d = watchMark.draft;
     watchMark.draft = null;
@@ -9582,6 +9640,77 @@ function watchBindDraw(c){
   c.addEventListener("pointerup", end);
   c.addEventListener("pointercancel", end);
 }
+
+// The text box under the pointer, if any. corner = the bottom-right
+// handle (drag to resize). Only the Text tool picks boxes up when
+// pickAny is false, so pen strokes over a note aren't hijacked.
+function watchTextHit(ev, pickAny){
+  if(!watchMark || !pickAny){ return null; }
+  const b = mkc().canvas.getBoundingClientRect();
+  const px = ev.clientX - b.left, py = ev.clientY - b.top;
+  for(let i = watchMark.items.length - 1; i >= 0; i--){
+    const it = watchMark.items[i];
+    if(it.t !== "text"){ continue; }
+    const box = watchTextBoxes.get(it);
+    if(!box){ continue; }
+    if(px >= box.x - 4 && px <= box.x + box.w + 8 && py >= box.y - 4 && py <= box.y + box.h + 8){
+      const corner = watchMark.sel === it && px >= box.x + box.w - 16 && py >= box.y + box.h - 16;
+      return { item: it, corner };
+    }
+  }
+  return null;
+}
+
+// Edit the words of a placed text box.
+function watchTextEdit(item){
+  if(!watchMark){ return; }
+  const stage = mkc().stage;
+  const r = watchFrameRect();
+  const box = watchTextBoxes.get(item);
+  const input = document.createElement("textarea");
+  input.className = "watch-mark-text";
+  input.value = item.s;
+  input.style.left = (box ? box.x + 5 : r.x + item.x * r.w) + "px";
+  input.style.top = (box ? box.y + 3 : r.y + item.y * r.h) + "px";
+  input.style.color = item.c;
+  input.style.fontSize = Math.max(12, (item.fs || 0.05) * r.h) + "px";
+  input.style.width = Math.max(120, box ? box.w : 220) + "px";
+  input.style.height = Math.max(44, box ? box.h + 8 : 60) + "px";
+  watchTextEditing.add(item);
+  watchRepaint();
+  let done = false;
+  const commit = () => {
+    if(done){ return; }
+    done = true;
+    const text = input.value.trim();
+    input.remove();
+    watchTextEditing.delete(item);
+    if(!watchMark){ return; }
+    if(text){ item.s = text; }
+    else{ watchMark.items = watchMark.items.filter(x => x !== item); watchMark.sel = null; }
+    watchRepaint();
+  };
+  input.addEventListener("keydown", ev => {
+    if(ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)){ ev.preventDefault(); commit(); }
+    if(ev.key === "Escape"){ ev.preventDefault(); commit(); }
+  });
+  input.addEventListener("blur", commit);
+  stage.appendChild(input);
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+}
+
+// Delete removes the selected text box (not while typing in a field).
+document.addEventListener("keydown", e => {
+  if(!watchMark || !watchMark.sel){ return; }
+  if(e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)){ return; }
+  if(e.key === "Delete" || e.key === "Backspace"){
+    e.preventDefault();
+    watchMark.items = watchMark.items.filter(x => x !== watchMark.sel);
+    watchMark.sel = null;
+    watchRepaint();
+  }
+});
 
 // A text box: click where it goes, type, Enter (or click away) to place
 // it. Shift+Enter adds a new line.
@@ -9607,7 +9736,11 @@ function watchTextAt(x, y){
     done = true;
     const text = input.value.trim();
     input.remove();
-    if(text && watchMark){ watchMark.items.push({ t:"text", c:color, x, y, s:text, fs:0.05, w:Math.min(1 - x, width / r.w) }); }
+    if(text && watchMark){
+      const item = { t:"text", c:color, x, y, s:text, fs:0.05, w:Math.min(1 - x, width / r.w) };
+      watchMark.items.push(item);
+      watchMark.sel = item;
+    }
     watchRepaint();
   };
   let width = input.offsetWidth;
