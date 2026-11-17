@@ -9073,11 +9073,11 @@ function watchQueueNext(){
 
 }
 
-async function watchShotClip(shotId, keepQueue){
+async function watchShotClip(shotId, keepQueue, shotLike){
 
   if(!keepQueue){ watchQueue = null; }
 
-  const shot =
+  const shot = shotLike ||
     allShots.find(s => String(s.shot_id ?? s.id) === String(shotId));
 
   if(!shot || !shot.game_video_id){
@@ -9454,8 +9454,9 @@ async function watchAnnLoad(shot){
   renderWatchAnnList();
   const shotId = shot.shot_id ?? shot.id;
   try{
-    const { data, error } = await supabaseClient
-      .from("shot_annotations").select("*").eq("shot_id", shotId).order("video_time");
+    let query = supabaseClient.from("shot_annotations").select("*");
+    query = shot.moment_id ? query.eq("moment_id", shot.moment_id) : query.eq("shot_id", shotId);
+    const { data, error } = await query.order("video_time");
     if(error){ throw error; }
     if(watchAnnShot !== shot){ return; }
     watchAnns = data || [];
@@ -9889,7 +9890,7 @@ async function watchMarkSaveWatch(){
       try{
         audioPath = await watchVoiceUpload(shot.user_id);
         const { data: row, error } = await supabaseClient.from("shot_annotations").insert({
-          shot_id: shot.shot_id ?? shot.id,
+          ...(shot.moment_id ? { moment_id: shot.moment_id } : { shot_id: shot.shot_id ?? shot.id }),
           goalie_id: shot.user_id,
           author_id: currentSession.user.id,
           author_name: watchMarkAuthor(),
@@ -20314,6 +20315,23 @@ async function renderGameFilm(game){
           <p class="small-note">Flagged for film sessions: not always a shot. Each one starts a few seconds before.</p>
           <ol>${flags.map(f => `<li><button type="button" class="go-film-flag" onclick="goFilmJump(${f.t})"><span class="rv-shot-time">${escapeHtml(formatClock(f.t))}</span><span>${f.note ? escapeHtml(f.note) : "Take a look at this moment"}</span></button></li>`).join("")}</ol>
         </div>` : ""}
+        ${watchCanMark() ? `
+        <div class="go-moment-bar">
+          <button type="button" class="btn-secondary" onclick="goMomentStart()">Flag moment here</button>
+          <span class="small-note">Flag any moment, cut a clip and add feedback for ${currentRole === "coach" ? "your goalie" : "the goalie"}. It goes to them right away.</span>
+        </div>
+        <div class="go-moment-form" id="goMomentForm" hidden>
+          <input type="text" id="goMomentTitle" maxlength="80" placeholder="What is this moment? (e.g. Positioning on the 2-on-1)">
+          <div class="go-moment-clip">
+            <span id="goMomentClipText"></span>
+            <button type="button" class="btn-secondary" onclick="goMomentEdge('start')" title="Pause where the clip should begin, then press this">Start clip here</button>
+            <button type="button" class="btn-secondary" onclick="goMomentEdge('end')" title="Pause where the clip should end, then press this">End clip here</button>
+          </div>
+          <div class="go-moment-actions">
+            <button type="button" class="btn-primary" id="goMomentSave" onclick="goMomentSave()">Save and make clip</button>
+            <button type="button" class="btn-secondary" onclick="goMomentCancel()">Cancel</button>
+          </div>
+        </div>` : ""}
       </div>
       <ol class="go-film-list" id="goFilmList">
         ${shots.length ? shots.map(({ s, t }) => {
@@ -20333,7 +20351,12 @@ async function renderGameFilm(game){
       </ol>
     </div>
     <div class="go-film-detail" id="goFilmDetail" hidden></div>
+    <div class="go-moments" id="goMomentsBox" hidden></div>
   `;
+
+  goFilmFull = full;
+  goFilmMoments = [];
+  goMomentLoad(full, token);
 
   const video = document.getElementById("goFilmVideo");
   const timeline = document.getElementById("goFilmTimeline");
@@ -20360,6 +20383,8 @@ async function renderGameFilm(game){
       `<span class="rv-cut" style="left:${Math.min(100, r[0] / d * 100)}%;width:${Math.max(0.3, (Math.min(r[1], d) - r[0]) / d * 100)}%" title="Not part of the game"></span>`
     ).join("") + flags.map(f =>
       `<button type="button" class="rv-flagtick" style="left:${Math.min(100, f.t / d * 100)}%" onclick="event.stopPropagation(); goFilmJump(${f.t})" title="Moment to review ${escapeHtml(formatClock(f.t))}${f.note ? ": " + escapeHtml(f.note) : ""}" aria-label="Moment to review at ${escapeHtml(formatClock(f.t))}"></button>`
+    ).join("") + goFilmMoments.map(m =>
+      `<button type="button" class="rv-tick is-moment" style="left:${Math.min(100, Number(m.t_seconds) / d * 100)}%" onclick="event.stopPropagation(); goFilmJump(${Number(m.t_seconds)})" title="${escapeHtml(formatClock(Number(m.t_seconds)))} · Coach moment${m.title ? ": " + escapeHtml(m.title) : ""}" aria-label="Coach moment at ${escapeHtml(formatClock(Number(m.t_seconds)))}"></button>`
     ).join("") + shots.map(({ s, t }) =>
       `<button type="button" class="rv-tick ${isGoal(s) ? "is-goal" : "is-save"}" style="left:${Math.min(100, t / d * 100)}%" onclick="event.stopPropagation(); goFilmSelect(${t})" title="${escapeHtml(formatClock(t))} · ${isGoal(s) ? "Goal" : "Save"}${shotZoneDisplay(s) ? " · " + escapeHtml(shotZoneDisplay(s)) : ""}" aria-label="Shot at ${escapeHtml(formatClock(t))}"></button>`
     ).join("");
@@ -20395,6 +20420,7 @@ async function renderGameFilm(game){
   });
 
   drawTicks();
+  goFilmRedraw = drawTicks;
 
   try{
     const res = await fetch("/api/video/get-watch-url", {
@@ -20414,6 +20440,211 @@ async function renderGameFilm(game){
     if(msg){ msg.hidden = false; msg.textContent = error.message; }
   }
 
+}
+
+
+/* ---------- Coach moments ----------
+   A coach (or admin) flags any moment in a goalie's game film, cuts a
+   clip of it and marks it up (drawing, voice): the same feedback as on a
+   shot. The goalie sees it as soon as it is saved. */
+
+let goFilmFull = null;
+let goFilmMoments = [];
+let goFilmRedraw = () => {};
+let goMomentDraft = null;   // { t, start, end }
+const GO_MOMENT_BEFORE = 5;
+const GO_MOMENT_AFTER = 7;
+
+async function goMomentLoad(full, token){
+  try{
+    const { data, error } = await supabaseClient.from("coach_moments")
+      .select("*").eq("game_video_id", full.id).order("t_seconds");
+    if(error){ throw error; }
+    if(token !== undefined && token !== goFilmToken){ return; }
+    goFilmMoments = data || [];
+  }
+  catch(error){
+    console.error("Coach moments not available:", error);
+    goFilmMoments = [];
+  }
+  goMomentRender();
+}
+
+function goMomentRender(){
+  goFilmRedraw();
+  const box = document.getElementById("goMomentsBox");
+  if(!box){ return; }
+  if(!goFilmMoments.length){ box.hidden = true; box.innerHTML = ""; return; }
+  box.hidden = false;
+  box.innerHTML = `
+    <h4>Coach moments <span class="small-note">(${goFilmMoments.length})</span></h4>
+    <ol class="go-film-list">
+      ${goFilmMoments.map(m => {
+        const mine = currentRole === "admin" || (currentSession && m.author_id === currentSession.user.id);
+        return `
+        <li>
+          <button type="button" class="go-film-shot is-moment" onclick="goFilmJump(${Number(m.t_seconds)})">
+            <span class="rv-shot-time">${escapeHtml(formatClock(Number(m.t_seconds)))}</span>
+            <span class="go-film-shot-main"><strong>${escapeHtml(m.title || "Coach moment")}</strong> · ${escapeHtml(m.author_name || "Coach")}</span>
+          </button>
+          ${m.clip_video_id
+            ? `<button type="button" class="watch-btn" onclick="goMomentWatch(${jsArg(m.id)})">Watch clip</button>`
+            : (watchCanMark() ? `<button type="button" class="watch-btn" onclick="goMomentMakeClip(${jsArg(m.id)}, this)">Make clip</button>` : "")}
+          ${mine ? `<button type="button" class="watch-ann-del" aria-label="Delete this moment" onclick="goMomentDelete(${jsArg(m.id)})">&times;</button>` : ""}
+        </li>`;
+      }).join("")}
+    </ol>`;
+}
+
+function goMomentClipText(){
+  const el = document.getElementById("goMomentClipText");
+  if(el && goMomentDraft){
+    el.textContent = `Clip ${formatClock(goMomentDraft.start)} to ${formatClock(goMomentDraft.end)} (${(goMomentDraft.end - goMomentDraft.start).toFixed(1)} s)`;
+  }
+}
+
+function goMomentStart(){
+  const video = document.getElementById("goFilmVideo");
+  if(!video || !goFilmFull){ return; }
+  video.pause();
+  const t = Math.round(video.currentTime * 10) / 10;
+  goMomentDraft = { t, start: Math.max(0, t - GO_MOMENT_BEFORE), end: t + GO_MOMENT_AFTER };
+  document.getElementById("goMomentForm").hidden = false;
+  document.getElementById("goMomentTitle").value = "";
+  goMomentClipText();
+  document.getElementById("goMomentTitle").focus();
+}
+
+function goMomentCancel(){
+  goMomentDraft = null;
+  const f = document.getElementById("goMomentForm");
+  if(f){ f.hidden = true; }
+}
+
+function goMomentEdge(edge){
+  if(!goMomentDraft){ return; }
+  const video = document.getElementById("goFilmVideo");
+  video.pause();
+  const t = Math.round(video.currentTime * 10) / 10;
+  const start = edge === "start" ? t : goMomentDraft.start;
+  const end = edge === "end" ? t : goMomentDraft.end;
+  if(end - start < 1){ showToast(edge === "start" ? "The start has to be at least 1 s before the end." : "The end has to be at least 1 s after the start.", "error"); return; }
+  if(end - start > 30){ showToast("A clip can be at most 30 s long.", "error"); return; }
+  goMomentDraft.start = start; goMomentDraft.end = end;
+  goMomentClipText();
+}
+
+async function goMomentCut(moment){
+  const res = await fetch("/api/admin/make-clip", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      accessToken: currentSession && currentSession.access_token,
+      gameVideoId: moment.game_video_id,
+      start: Number(moment.clip_start_seconds),
+      end: Number(moment.clip_end_seconds)
+    })
+  });
+  const data = await res.json().catch(() => ({}));
+  if(!res.ok || !data.gameVideoId){ throw new Error(data.error || `Couldn't make the clip (${res.status}).`); }
+  const { error } = await supabaseClient.from("coach_moments").update({ clip_video_id: data.gameVideoId }).eq("id", moment.id);
+  if(error){ throw error; }
+  moment.clip_video_id = data.gameVideoId;
+  if(goFilmFull){ delete goFilmVideoCache[goFilmFull.game_id]; }
+}
+
+async function goMomentSave(){
+  const d = goMomentDraft;
+  if(!d || !goFilmFull){ return; }
+  const btn = document.getElementById("goMomentSave");
+  btn.disabled = true;
+  btn.textContent = "Saving...";
+  let row = null;
+  try{
+    const ins = await supabaseClient.from("coach_moments").insert({
+      goalie_id: goFilmFull.user_id,
+      game_id: goFilmFull.game_id,
+      game_video_id: goFilmFull.id,
+      author_id: currentSession.user.id,
+      author_name: watchMarkAuthor(),
+      t_seconds: d.t,
+      title: (document.getElementById("goMomentTitle").value || "").trim().slice(0, 80) || null,
+      clip_start_seconds: d.start,
+      clip_end_seconds: d.end
+    }).select().single();
+    if(ins.error){ throw ins.error; }
+    row = ins.data;
+    goFilmMoments = [...goFilmMoments, row].sort((a, b) => Number(a.t_seconds) - Number(b.t_seconds));
+    goMomentRender();
+    goMomentCancel();
+    btn.textContent = "Making clip...";
+    await goMomentCut(row);
+    goMomentRender();
+    showToast("Moment saved. Open Watch clip to add feedback.", "success");
+  }
+  catch(error){
+    console.error(error);
+    if(row){
+      goMomentRender();
+      showToast(`Moment saved, but the clip didn't work (${error.message}). Press Make clip to try again.`, "error");
+    }
+    else{
+      showToast(`Couldn't save the moment: ${error.message}`, "error");
+    }
+  }
+  finally{
+    btn.disabled = false;
+    btn.textContent = "Save and make clip";
+  }
+}
+
+async function goMomentMakeClip(id, button){
+  const m = goFilmMoments.find(x => String(x.id) === String(id));
+  if(!m){ return; }
+  if(button){ button.disabled = true; button.textContent = "Making..."; }
+  try{
+    await goMomentCut(m);
+    showToast("Clip ready.", "success");
+  }
+  catch(error){
+    showToast(`Couldn't make the clip: ${error.message}`, "error");
+  }
+  goMomentRender();
+}
+
+function goMomentWatch(id){
+  const m = goFilmMoments.find(x => String(x.id) === String(id));
+  if(!m || !m.clip_video_id){ showToast("This moment has no clip yet.", "error"); return; }
+  watchShotClip(null, false, {
+    moment_id: m.id,
+    user_id: m.goalie_id,
+    game_video_id: m.clip_video_id,
+    clip_start_seconds: 0,
+    clip_end_seconds: null
+  });
+}
+
+async function goMomentDelete(id){
+  const m = goFilmMoments.find(x => String(x.id) === String(id));
+  if(!m || !confirm("Delete this moment, its clip and its feedback?")){ return; }
+  try{
+    const { data: anns } = await supabaseClient.from("shot_annotations").select("audio_path").eq("moment_id", m.id);
+    const { error } = await supabaseClient.from("coach_moments").delete().eq("id", m.id);
+    if(error){ throw error; }
+    (anns || []).forEach(a => { if(a.audio_path){ watchVoiceRemoveFile(a.audio_path); } });
+    if(m.clip_video_id){
+      fetch("/api/video/delete-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accessToken: currentSession.access_token, gameVideoId: m.clip_video_id })
+      }).catch(() => {});
+    }
+    goFilmMoments = goFilmMoments.filter(x => x !== m);
+    goMomentRender();
+  }
+  catch(error){
+    showToast(`Couldn't delete it: ${error.message}`, "error");
+  }
 }
 
 // Read-only view of everything tagged on one shot, the same fields the

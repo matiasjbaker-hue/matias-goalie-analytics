@@ -20,7 +20,7 @@ import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import ffmpegPath from "ffmpeg-static";
 import { verifyUser, getProfile, serviceSelect, SUPABASE_URL } from "./billing.js";
-import { r2Configured, r2Client, r2CapBlocks, storagePathIsTrusted } from "./supabase.js";
+import { r2Configured, r2Client, r2CapBlocks, storagePathIsTrusted, callerCoachesGoalie } from "./supabase.js";
 import { ffmpegAvailable } from "./frames.js";
 
 const MAX_CLIP_SECONDS = 30;
@@ -99,8 +99,10 @@ export default async function handler(req, res) {
     }
 
     const callerProfile = await getProfile(caller.id);
-    if (!callerProfile || callerProfile.role !== "admin") {
-      res.status(403).json({ error: "Only an admin can make clips." });
+    const isAdmin = !!callerProfile && callerProfile.role === "admin";
+    const isCoach = !!callerProfile && callerProfile.role === "coach";
+    if (!isAdmin && !isCoach) {
+      res.status(403).json({ error: "Only an admin or a coach can make clips." });
       return;
     }
 
@@ -108,6 +110,11 @@ export default async function handler(req, res) {
     const source = rows[0];
     if (!source || !(await storagePathIsTrusted(source))) {
       res.status(404).json({ error: "Video not found." });
+      return;
+    }
+    // A coach can only cut film of their own goalies.
+    if (!isAdmin && !(await callerCoachesGoalie(caller.id, source.user_id, accessToken))) {
+      res.status(403).json({ error: "That film isn't one of your goalies'." });
       return;
     }
 

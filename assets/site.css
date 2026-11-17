@@ -5728,3 +5728,14 @@ button.rv-hud{pointer-events:auto;border:0;cursor:pointer;font-family:inherit}
 .go-film-flags h4{margin:0 0 4px}
 .go-film-flags ol{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
 .go-film-flag{display:flex;gap:10px;align-items:center;width:100%;text-align:left;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:transparent;cursor:pointer;color:inherit;font:inherit;border-left:4px solid #7b5cff}
+/* Coach moments in the game film */
+.go-moment-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.go-moment-form{margin-top:10px;display:flex;flex-direction:column;gap:8px;padding:12px;border:1.5px solid var(--ink);border-radius:var(--radius)}
+.go-moment-form[hidden]{display:none}
+.go-moment-form input{width:100%;box-sizing:border-box}
+.go-moment-clip{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px}
+.go-moment-actions{display:flex;gap:8px}
+.rv-tick.is-moment{background:var(--gold);border-color:var(--gold-deep)}
+.go-film-shot.is-moment .rv-shot-time{color:var(--gold-deep)}
+.go-moments{margin-top:16px}
+.go-moments h4{margin:0 0 8px}
