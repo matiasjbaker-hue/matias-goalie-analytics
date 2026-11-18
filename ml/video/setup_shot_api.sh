@@ -26,4 +26,4 @@ echo "paste it into Vercel as SHOT_MODEL_SECRET now (copying anything else repla
 echo
 read -r -p "Press Return once it's pasted in Vercel, to deploy the Modal app… " _
 printf '' | pbcopy
-ml/.venv/bin/modal deploy ml/video/shots_modal.py | tee /dev/stderr | grep -o 'https://[^ ]*shot-api[^ ]*' | head -1 | sed 's/^/\nAdd this to Vercel as SHOT_MODEL_URL: /'
+COLUMNS=400 ml/.venv/bin/modal deploy ml/video/shots_modal.py | tee /dev/stderr | grep -o 'https://[^ ]*shot-api[^ ]*' | head -1 | sed 's/^/\nAdd this to Vercel as SHOT_MODEL_URL: /'
