@@ -99,6 +99,8 @@ def tracked_side(film, t):
         if isinstance(pm.get(name), (int, float)) and t >= pm[name]:
             period = name
     ns = film.get("net_sides") or {}
+    if ns.get("exclude"):
+        return 0.0                       # side not readable: left out of training
     if ns.get("goalcam"):
         return 1.0                       # camera behind the tracked net: never flip
     ok = lambda x: x in ("left", "right")
@@ -306,8 +308,10 @@ def prepare_core(film, src, root):
 
 
 def train_core(root, train_ids, epochs=8, device="cuda", pretrained=True, max_windows=None, batch_size=16, log=print,
-               films=None, canonical=False):
-    """canonical: mirror every clip so the tracked net is on the left (needs films with sides)."""
+               films=None, canonical=False, ckpt=None, on_save=None):
+    """canonical: mirror every clip so the tracked net is on the left (needs films with sides).
+    ckpt: file to save model + optimizer to after every epoch, and to resume from if it
+    exists (a GPU preemption then costs at most one epoch). on_save() runs after each save."""
     import torch
     from torch.utils.data import Dataset, DataLoader
 
@@ -365,9 +369,15 @@ def train_core(root, train_ids, epochs=8, device="cuda", pretrained=True, max_wi
     steps = max(1, epochs * len(loader))
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=[1e-4, 1e-3], total_steps=steps, pct_start=0.15)
     loss_fn = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor(n_neg / max(n_pos, 1), device=device))
+    first = 0
+    if ckpt is not None and Path(ckpt).exists():
+        state = torch.load(ckpt, map_location=device, weights_only=False)
+        model.load_state_dict(state["model"]); opt.load_state_dict(state["opt"]); sched.load_state_dict(state["sched"])
+        first = state["epoch"]
+        log(f"resuming after epoch {first}/{epochs} from checkpoint")
     model.train()
     import time
-    for ep in range(epochs):
+    for ep in range(first, epochs):
         total, seen, t_ep = 0.0, 0, time.time()
         for x, y, side in loader:
             x = to_input(x, device)
@@ -381,6 +391,12 @@ def train_core(root, train_ids, epochs=8, device="cuda", pretrained=True, max_wi
             sched.step()
             total += loss.item() * len(y); seen += len(y)
         log(f"epoch {ep + 1}/{epochs}: loss {total / max(seen, 1):.4f} ({time.time() - t_ep:.0f}s)")
+        if ckpt is not None:
+            tmp = Path(str(ckpt) + ".tmp")
+            torch.save(dict(model=model.state_dict(), opt=opt.state_dict(), sched=sched.state_dict(), epoch=ep + 1), tmp)
+            tmp.replace(ckpt)
+            if on_save:
+                on_save()
     model.eval()
     return model
 
@@ -519,8 +535,9 @@ def prepare_film(film):
 
 
 # 4 CPUs / 16 GB is enough (clips are read from local disk); CPU and memory are billed on
-# top of the GPU, so asking for more only costs more. 90 min cap per job bounds the bill.
-@app.function(image=image, gpu="A10G", volumes={"/data": volume}, cpu=4.0, memory=16384, timeout=90 * 60)
+# top of the GPU, so asking for more only costs more. The time cap bounds the bill
+# (~2 h per fold at 73 h of film; raise it if the dataset grows a lot more).
+@app.function(image=image, gpu="A10G", volumes={"/data": volume}, cpu=4.0, memory=16384, timeout=180 * 60)
 def train_and_score(label, train_ids, test_films, epochs, max_seconds=None, train_films=None, canonical=False):
     import shutil
     import time
@@ -528,20 +545,37 @@ def train_and_score(label, train_ids, test_films, epochs, max_seconds=None, trai
     volume.reload()
     log = lambda m: print(f"[{label}] {m}", flush=True)
     log(f"GPU: {torch.cuda.get_device_name(0)}")
-    # Training reads clips at random; copy them to the container's local disk
-    # first (reading a network volume at random is slow).
-    t0, local = time.time(), Path("/tmp/data")
-    (local / "windows").mkdir(parents=True, exist_ok=True)
-    for v in train_ids:
-        for name in (f"{v}.json", f"{v}_clips.npy"):
-            if (DATA / "windows" / name).exists():
-                shutil.copy(DATA / "windows" / name, local / "windows" / name)
-    log(f"copied training clips locally in {time.time() - t0:.0f}s")
-    model = train_core(local, train_ids, epochs=epochs, device="cuda", log=log, films=train_films, canonical=canonical)
-    out = {}
+    # Modal can preempt a GPU container and restart the call from the top. Save the
+    # model after every epoch and the scores after every film, so a restart picks up
+    # where it left off instead of paying for training again.
+    safe = label.replace("/", "_")
+    (DATA / "ckpt").mkdir(parents=True, exist_ok=True)
+    ckpt, partial = DATA / "ckpt" / f"{safe}.pt", DATA / "ckpt" / f"{safe}_scores.json"
+    trained = ckpt.exists() and torch.load(ckpt, map_location="cpu", weights_only=False)["epoch"] >= epochs
+    local = Path("/tmp/data")
+    if not trained:
+        # Training reads clips at random; copy them to the container's local disk
+        # first (reading a network volume at random is slow).
+        t0 = time.time()
+        (local / "windows").mkdir(parents=True, exist_ok=True)
+        for v in train_ids:
+            for name in (f"{v}.json", f"{v}_clips.npy"):
+                if (DATA / "windows" / name).exists():
+                    shutil.copy(DATA / "windows" / name, local / "windows" / name)
+        log(f"copied training clips locally in {time.time() - t0:.0f}s")
+    # Once trained, only the json is read (to count windows); the volume copy is fine.
+    model = train_core(DATA if trained else local, train_ids, epochs=epochs, device="cuda", log=log,
+                       films=train_films, canonical=canonical, ckpt=ckpt, on_save=volume.commit)
+    out = json.loads(partial.read_text()) if partial.exists() else {}
+    if out:
+        log(f"{len(out)} held-out films already scored before a restart")
     for film in test_films:
+        if str(film["video_id"]) in out:
+            continue
         segs = score_core(model, DATA, film, device="cuda", max_seconds=max_seconds, canonical=canonical)
         out[str(film["video_id"])] = [(t.tolist(), s.tolist(), a, b) for t, s, a, b in segs]
+        partial.write_text(json.dumps(out))
+        volume.commit()
     log(f"scored {len(test_films)} held-out films")
     # Keep the scores on the volume too, so a dropped connection loses nothing
     # (`--step report` rebuilds the report from these).

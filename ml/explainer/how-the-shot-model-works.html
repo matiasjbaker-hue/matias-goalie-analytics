@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How the GoalieIQ Shot Model Works</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* GoalieIQ system: a 16:9 rink-ice stage in a pine player, lower-third caption, chapters listed underneath */
+  --ice: #FCFDFC;
+  --page: #F4F5F1;
+  --navy: #121412;
+  --pine: #0A3627;
+  --gold: #E8B923;
+  --blue: #1F5FBF;
+  --red: #C8102E;
+  --muted: #4F564F;
+  --green: #17704F;
+  --line: #D9DCD4;
+  --display: "Archivo", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --body: "Archivo", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--page); color: var(--navy); font: 16px/1.55 var(--body); }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 28px 16px 60px; display: grid; gap: 18px; }
+header h1 { font: 900 clamp(30px, 4.4vw, 50px)/.95 var(--display); font-variation-settings: 'wdth' 64; letter-spacing: .002em; margin: 0; text-wrap: balance; text-transform: uppercase; }
+header p { margin: 6px 0 0; color: var(--muted); max-width: 65ch; }
+.player { background: var(--pine); border-radius: 14px; overflow: hidden; box-shadow: 0 8px 24px rgba(0, 0, 0, .14); }
+.stage { position: relative; }
+canvas { display: block; width: 100%; aspect-ratio: 16 / 9; background: var(--ice); }
+.big-play { position: absolute; inset: 0; margin: auto; width: 96px; height: 96px; border-radius: 50%; border: 0; background: var(--gold); color: var(--navy); cursor: pointer; display: grid; place-items: center; box-shadow: 0 6px 18px rgba(0, 0, 0, .28); }
+.big-play[hidden] { display: none; }
+.lower { display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; padding: 14px 18px 6px; color: #fff; align-items: baseline; }
+.lower .num { font: 800 16px var(--display); letter-spacing: .08em; color: var(--gold); text-transform: uppercase; font-variant-numeric: tabular-nums; }
+.lower .ttl { font: 900 26px/1.05 var(--display); font-variation-settings: 'wdth' 70; text-transform: uppercase; letter-spacing: .02em; }
+.lower .cap { grid-column: 1 / -1; color: #EEF5F0; max-width: 80ch; min-height: 4.7em; margin: 4px 0 0; }
+.bar { display: flex; gap: 3px; padding: 6px 18px 0; }
+.bar button { flex: 1; height: 8px; border: 0; padding: 0; border-radius: 2px; background: #145C43; cursor: pointer; position: relative; overflow: hidden; }
+.bar button i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--gold); }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px 18px 16px; }
+.controls button { font: 600 14px var(--body); color: #fff; background: #145C43; border: 1px solid #2A7358; border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+.controls button:hover { background: #1B6A4E; }
+.controls .spacer { flex: 1; }
+.controls .count { color: #B3CEBF; font: 600 14px var(--body); font-variant-numeric: tabular-nums; }
+button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.chapters h2 { font: 900 24px var(--display); font-variation-settings: 'wdth' 70; text-transform: uppercase; letter-spacing: .03em; margin: 8px 0 10px; }
+.chapters ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.chapters li button { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 2.2em 1fr; gap: 2px 10px; width: 100%; padding: 10px 12px; border-radius: 10px; background: var(--ice); border: 1px solid var(--line); cursor: pointer; }
+.chapters li button:hover { border-color: var(--blue); }
+.chapters li button:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+.chapters li button[aria-current="true"] { border-color: var(--red); box-shadow: inset 4px 0 0 var(--red); }
+.chapters .n { font: 800 18px var(--display); color: var(--blue); font-variant-numeric: tabular-nums; }
+.chapters .t { font-weight: 600; }
+.chapters .c { grid-column: 2; color: var(--muted); font-size: 15px; max-width: 75ch; }
+footer { color: var(--muted); font-size: 14px; max-width: 75ch; }
+@media (max-width: 600px) {
+  .lower .ttl { font-size: 20px; }
+  .lower .cap { font-size: 14px; }
+  .big-play { width: 64px; height: 64px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>How the GoalieIQ shot model works</h1>
+    <p>A narrated, three-minute walk through the model that learns to find shots in game film, from your tags to the finished predictions. Press play, or step through the chapters below.</p>
+  </header>
+
+  <section class="player" aria-label="Explainer player">
+    <div class="stage">
+      <canvas id="stage" role="img" aria-label="Animated diagram for the current chapter"></canvas>
+      <button class="big-play" id="bigPlay" aria-label="Play the explainer">
+        <svg width="38" height="38" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l13-7.5z" fill="currentColor"/></svg>
+      </button>
+    </div>
+    <div class="lower">
+      <span class="num" id="num">01 / 16</span>
+      <span class="ttl" id="ttl"></span>
+      <p class="cap" id="cap" aria-live="polite"></p>
+    </div>
+    <div class="bar" id="bar"></div>
+    <div class="controls">
+      <button id="play">Play</button>
+      <button id="prev">Previous</button>
+      <button id="next">Next</button>
+      <button id="restart">Start over</button>
+      <span class="spacer"></span>
+      <button id="voice" aria-pressed="true">Voice: on</button>
+      <span class="count" id="count"></span>
+    </div>
+  </section>
+
+  <section class="chapters">
+    <h2>Chapters</h2>
+    <ol id="list"></ol>
+  </section>
+
+  <footer>Numbers come from the real GoalieIQ data and training runs: 98 film files, 1,793 tagged shots, the R(2+1)D-18 network trained with PyTorch on a rented A10G GPU. The full-game scan in chapter 14 is a simplified illustration. Space plays and pauses; the arrow keys change chapter. The voice uses your browser's built-in speech.</footer>
+</div>
+
+<script>
+const W = 1280, H = 720;
+const css = getComputedStyle(document.documentElement);
+const C = {};
+["ice", "page", "navy", "pine", "gold", "blue", "red", "muted", "green", "line"].forEach(k => C[k] = css.getPropertyValue("--" + k).trim());
+Object.assign(C, { blueSoft: "#BFD6EC", redSoft: "#F8D3D8", greenSoft: "#E5F0EA", ice2: "#ECEEE8", strip: "#13563F" });
+const F = { display: 'Archivo, system-ui, sans-serif', body: 'Archivo, system-ui, sans-serif', mono: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' };
+
+const cv = document.getElementById("stage");
+const c = cv.getContext("2d");
+
+// ---------- drawing helpers ----------
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const E = t => { t = clamp(t); return t * t * (3 - 2 * t); };
+const seg = (p, a, b) => E((p - a) / (b - a));
+const lerp = (a, b, t) => a + (b - a) * t;
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function A(alpha, fn) { if (alpha <= 0.001) return; c.save(); c.globalAlpha *= clamp(alpha); fn(); c.restore(); }
+function txt(s, x, y, o = {}) {
+  c.save();
+  c.font = `${o.weight || 500} ${o.size || 26}px ${F[o.font || "body"]}`;
+  if ("fontStretch" in c) c.fontStretch = o.font === "display" ? "condensed" : "normal";
+  c.fillStyle = o.color || C.navy; c.textAlign = o.align || "left"; c.textBaseline = o.base || "alphabetic";
+  c.fillText(s, x, y); c.restore();
+}
+function wrap(s, x, y, maxW, lh, o = {}) {
+  c.save(); c.font = `${o.weight || 500} ${o.size || 26}px ${F[o.font || "body"]}`;
+  const lines = []; let line = "";
+  for (const w of s.split(" ")) { const t = line ? line + " " + w : w; if (c.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t; }
+  lines.push(line); c.restore();
+  lines.forEach((l, i) => txt(l, x, y + i * lh, o));
+  return lines.length;
+}
+function rr(x, y, w, h, r) { c.beginPath(); c.roundRect(x, y, w, h, r); }
+function box(x, y, w, h, o = {}) { rr(x, y, w, h, o.r ?? 10); if (o.fill) { c.fillStyle = o.fill; c.fill(); } if (o.stroke) { c.lineWidth = o.lw || 2; c.strokeStyle = o.stroke; c.stroke(); } }
+function ln(x1, y1, x2, y2, col, lw = 2, dash) { c.save(); c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.strokeStyle = col; c.lineWidth = lw; if (dash) c.setLineDash(dash); c.stroke(); c.restore(); }
+function arrow(x1, y1, x2, y2, col, lw = 3) {
+  ln(x1, y1, x2, y2, col, lw);
+  const a = Math.atan2(y2 - y1, x2 - x1), s = 13;
+  c.beginPath(); c.moveTo(x2, y2); c.lineTo(x2 - s * Math.cos(a - .45), y2 - s * Math.sin(a - .45)); c.lineTo(x2 - s * Math.cos(a + .45), y2 - s * Math.sin(a + .45)); c.closePath(); c.fillStyle = col; c.fill();
+}
+function dot(x, y, r, fill, stroke, lw = 2) { c.beginPath(); c.arc(x, y, Math.max(0, r), 0, Math.PI * 2); if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = lw; c.stroke(); } }
+function heading(n, s) {
+  txt(String(n).padStart(2, "0"), 60, 82, { font: "display", weight: 700, size: 30, color: C.red });
+  txt(s.toUpperCase(), 100, 82, { font: "display", weight: 700, size: 44 });
+}
+function chip(s, x, y, o = {}) {
+  c.save(); c.font = `600 ${o.size || 22}px ${F.body}`; const w = c.measureText(s).width + 32; c.restore();
+  const bx = o.align === "center" ? x - w / 2 : o.align === "right" ? x - w : x;
+  box(bx, y - 30, w, 44, { r: 22, fill: o.fill || "#fff", stroke: o.stroke || C.line, lw: 2 });
+  txt(s, bx + 16, y, { size: o.size || 22, weight: 600, color: o.color || C.navy });
+  return w;
+}
+function rink(x, y, w, h, o = {}) {
+  const r = h * .28, gl = w * .07;
+  box(x, y, w, h, { r, fill: "#fff", stroke: C.navy, lw: 3 });
+  c.save(); rr(x, y, w, h, r); c.clip();
+  ln(x + w / 2, y, x + w / 2, y + h, C.red, Math.max(2, h * .018));
+  ln(x + w * .35, y, x + w * .35, y + h, C.blue, Math.max(2, h * .02));
+  ln(x + w * .65, y, x + w * .65, y + h, C.blue, Math.max(2, h * .02));
+  ln(x + gl, y, x + gl, y + h, C.red, 2); ln(x + w - gl, y, x + w - gl, y + h, C.red, 2);
+  dot(x + w / 2, y + h / 2, h * .14, null, C.blue, 2);
+  for (const left of [true, false]) {
+    const gx = left ? x + gl : x + w - gl;
+    c.beginPath(); c.arc(gx, y + h / 2, h * .1, left ? -Math.PI / 2 : Math.PI / 2, left ? Math.PI / 2 : Math.PI * 1.5); c.closePath();
+    c.fillStyle = "#CFE4F5"; c.fill(); c.strokeStyle = C.red; c.lineWidth = 2; c.stroke();
+  }
+  c.restore();
+  for (const side of ["L", "R"]) {
+    const gx = side === "L" ? x + gl : x + w - gl, nw = h * .07, nh = h * .16, nx = side === "L" ? gx - nw : gx;
+    if (o.hl === side) box(nx - 10, y + h / 2 - nh / 2 - 10, nw + 20, nh + 20, { r: 8, fill: C.redSoft, stroke: C.red, lw: 2 });
+    box(nx, y + h / 2 - nh / 2, nw, nh, { r: 3, fill: "#fff", stroke: C.red, lw: 3 });
+  }
+}
+function goalie(x, y, s, fill) { dot(x, y - s * .55, s * .32, fill); c.beginPath(); c.ellipse(x, y + s * .25, s * .55, s * .42, 0, Math.PI, 0); c.fillStyle = fill; c.fill(); }
+
+// ---------- fixed data used by the scenes ----------
+const SHOTS1 = [.04, .11, .17, .21, .3, .36, .44, .5, .57, .63, .71, .78, .85, .93];
+const FILMS = (() => { const r = rng(7); return Array.from({ length: 98 }, () => { const n = 10 + Math.floor(r() * 17); return Array.from({ length: n }, () => r()); }); })();
+const LOSS = [.99, .68, .58, .46, .32, .22, .13, .09];
+const PIX = (() => { const r = rng(3), g = []; for (let row = 0; row < 10; row++) { g.push([]); for (let col = 0; col < 16; col++) { const t = clamp((col - 1) / 13); const ly = 8 - t * 7; const d = Math.abs(row - ly); const on = col >= 1 && col <= 14 ? Math.exp(-d * d / .5) : 0; g[row].push(clamp(.12 + r() * .16 + on * .8)); } } return g; })();
+const KER = [[-1, -1, 2], [-1, 2, -1], [2, -1, -1]];
+const CONV = (() => { const o = []; let mx = 0; for (let r = 0; r < 8; r++) { o.push([]); for (let col = 0; col < 14; col++) { let s = 0; for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) s += KER[i][j] * PIX[r + i][col + j]; s = Math.max(0, s); mx = Math.max(mx, s); o[r].push(s); } } return o.map(r => r.map(v => v / mx)); })();
+const TRUE14 = [.06, .14, .22, .31, .39, .47, .55, .63, .71, .79, .87, .95];
+const STR14 = [.9, .85, .35, .92, .8, .4, .88, .95, .3, .86, .82, .9];
+const FALSE14 = [[.1, .66], [.51, .62], [.835, .7]];
+function score14(x) {
+  let s = .06 + .035 * Math.sin(x * 97) + .03 * Math.sin(x * 211 + 1) + .025 * Math.sin(x * 431 + 2);
+  TRUE14.forEach((t, i) => s += STR14[i] * Math.exp(-((x - t) ** 2) / (2 * .0055 ** 2)));
+  FALSE14.forEach(([t, h]) => s += h * Math.exp(-((x - t) ** 2) / (2 * .005 ** 2)));
+  return clamp(s, 0, 1);
+}
+
+// ---------- scenes ----------
+const scenes = [
+{
+  title: "The job",
+  text: "Today, someone watches a whole game and tags every shot on your goalie by hand. The goal is a model that watches the film for you and marks the moment of every shot.",
+  draw(p) {
+    heading(1, "The job");
+    const x0 = 90, x1 = 1190, y = 340, h = 80;
+    box(x0, y, x1 - x0, h, { r: 8, fill: C.pine });
+    for (let i = 0; i < 60; i++) { const hx = x0 + 14 + i * ((x1 - x0 - 28) / 60); box(hx, y + 7, 8, 8, { r: 2, fill: "#2A7358" }); box(hx, y + h - 15, 8, 8, { r: 2, fill: "#2A7358" }); }
+    for (let i = 0; i < 22; i++) box(x0 + 8 + i * 50, y + 22, 44, 36, { r: 3, fill: i % 2 ? C.strip : "#1B6248" });
+    ["0:00", "20:00", "40:00", "60:00"].forEach((s, i) => txt(s, lerp(x0, x1, i / 3), y + h + 34, { size: 20, color: C.muted, align: i === 0 ? "left" : i === 3 ? "right" : "center" }));
+    const ph = lerp(x0, x1, seg(p, .05, .75));
+    let found = 0;
+    SHOTS1.forEach(f => { const sx = lerp(x0, x1, f); if (sx <= ph) { found++; const k = clamp((ph - sx) / 30); ln(sx, y - 6, sx, y - 48, C.red, 3); dot(sx, y - 58, 10 * E(k), C.red); } });
+    ln(ph, y - 18, ph, y + h + 8, C.navy, 3);
+    c.beginPath(); c.moveTo(ph - 10, y - 30); c.lineTo(ph + 10, y - 30); c.lineTo(ph, y - 16); c.fillStyle = C.navy; c.fill();
+    txt("Full game film", x0, 220, { size: 32, weight: 600 });
+    txt("about 60 minutes of live play", x0, 254, { size: 22, color: C.muted });
+    txt(`${found} shot${found === 1 ? "" : "s"} marked`, x1, 220, { size: 32, weight: 600, color: C.red, align: "right" });
+    A(seg(p, .78, .9), () => wrap("Each red pin is a shot on your goalie, saved with the exact second it happened.", x0, 560, 1000, 36, { size: 28 }));
+  }
+},
+{
+  title: "Your tags are the answer key",
+  text: "Every shot tagged on GoalieIQ has a timestamp in the film. Across 98 film files that's 1,793 shots in about 73 hours of play. These tags are the answers the model learns from.",
+  draw(p) {
+    heading(2, "Your tags are the answer key");
+    const shown = seg(p, .04, .6) * 98, gx = 60, gy = 130, cw = 56, ch = 54;
+    FILMS.forEach((ticks, i) => {
+      const col = i % 14, row = Math.floor(i / 14), x = gx + col * (cw + 6), y = gy + row * (ch + 10);
+      A(clamp(shown - i), () => {
+        box(x, y, cw, ch, { r: 5, fill: "#fff", stroke: C.line, lw: 1.5 });
+        ln(x + 4, y + ch / 2, x + cw - 4, y + ch / 2, C.ice2, 2);
+        ticks.forEach(t => ln(x + 4 + t * (cw - 8), y + 12, x + 4 + t * (cw - 8), y + ch - 12, C.red, 1.6));
+      });
+    });
+    const k = seg(p, .04, .65), rx = 990;
+    txt(Math.round(98 * k).toString(), rx, 220, { font: "display", weight: 700, size: 76 });
+    txt("film files", rx, 252, { size: 22, color: C.muted });
+    txt(Math.round(1793 * k).toLocaleString("en-US"), rx, 370, { font: "display", weight: 700, size: 76, color: C.red });
+    txt("tagged shots", rx, 402, { size: 22, color: C.muted });
+    txt(`≈${Math.round(73 * k)} h`, rx, 520, { font: "display", weight: 700, size: 76 });
+    txt("of live play", rx, 552, { size: 22, color: C.muted });
+    A(seg(p, .7, .85), () => txt("Each red tick = one shot you tagged on the site", gx, 640, { size: 24, weight: 500 }));
+  }
+},
+{
+  title: "Cut short clips",
+  text: "Around each tagged shot we cut a 4-second clip, and we also grab about five clips from moments with no shot. The model learns from these short clips, not from whole games.",
+  draw(p) {
+    heading(3, "Cut short clips");
+    const x0 = 80, x1 = 1200, y = 300, h = 100, X = f => lerp(x0, x1, f);
+    txt("Zoomed in: a few minutes of one game", x0, 200, { size: 22, color: C.muted });
+    box(x0, y, x1 - x0, h, { r: 8, fill: C.pine });
+    for (let i = 0; i < 28; i++) box(x0 + 6 + i * 40, y + 14, 34, h - 28, { r: 3, fill: i % 2 ? C.strip : "#1B6248" });
+    const ticks = [.18, .43, .61, .86], negs = [.05, .1, .28, .33, .51, .55, .7, .76, .93, .97], half = 30;
+    ticks.forEach(t => { ln(X(t), y - 14, X(t), y + h + 14, C.red, 3); dot(X(t), y - 20, 7, C.red); });
+    ticks.forEach((t, i) => A(seg(p, .15 + i * .06, .25 + i * .06), () => {
+      box(X(t) - half - 6, y - 6, half * 2 + 12, h + 12, { r: 6, stroke: C.red, lw: 4 });
+      txt("shot", X(t), y - 38, { size: 20, weight: 600, color: C.red, align: "center" });
+    }));
+    negs.forEach((t, i) => A(seg(p, .42 + i * .03, .5 + i * .03), () => {
+      box(X(t) - half, y - 2, half * 2, h + 4, { r: 6, stroke: "#9AA39B", lw: 3 });
+      txt("no shot", X(t), y + h + 40, { size: 17, color: C.muted, align: "center" });
+    }));
+    A(seg(p, .78, .9), () => {
+      let x = x0;
+      x += chip("≈1,450 shot clips", x, 560, { color: C.red, stroke: C.redSoft }) + 14;
+      x += chip("≈7,400 no-shot clips", x, 560) + 14;
+      chip("4 seconds each", x, 560);
+      txt("per training run: about 1 shot clip for every 5 without a shot", x0, 630, { size: 22, color: C.muted });
+    });
+  }
+},
+{
+  title: "Video becomes numbers",
+  text: "A computer can't see a picture. It sees numbers. Each pixel is three values, for red, green and blue. One 2-second clip of 16 small frames is about 1.4 million numbers.",
+  draw(p) {
+    heading(4, "Video becomes numbers");
+    const fw = 300, fh = 169;
+    for (let i = 0; i < 16; i++) A(seg(p, i * .015, .05 + i * .015), () => {
+      const x = 80 + i * 10, y = 150 + i * 9;
+      box(x, y, fw, fh, { r: 6, fill: "#fff", stroke: "#9AA39B", lw: 1.5 });
+      if (i === 15) { rink(x + 14, y + 30, fw - 28, fh - 60); dot(x + fw * .72, y + fh * .52, 4, C.navy); }
+    });
+    txt("16 frames = 2 seconds", 80, 520, { size: 22, color: C.muted });
+    const gx = 690, gy = 160, cs = 52, a = seg(p, .3, .55);
+    A(a, () => {
+      ln(80 + 150 + 300 - 20, 150 + 135 + 80, gx, gy + 182, "#9AA39B", 2, [6, 6]);
+      const r = rng(11);
+      for (let row = 0; row < 7; row++) for (let col = 0; col < 10; col++) {
+        const puck = Math.hypot(col - 6.5, row - 3.2) < 1.3;
+        const v = puck ? 30 + Math.floor(r() * 30) : 196 + Math.floor(r() * 50);
+        box(gx + col * cs, gy + row * cs, cs - 2, cs - 2, { r: 3, fill: `rgb(${v - 14},${v - 4},${Math.min(255, v + 8)})` });
+        txt(String(v), gx + col * cs + cs / 2 - 1, gy + row * cs + cs / 2 + 6, { size: 15, font: "mono", color: v < 120 ? "#fff" : C.navy, align: "center" });
+      }
+      txt("zoomed in on a few pixels", gx, gy - 16, { size: 20, color: C.muted });
+    });
+    A(seg(p, .52, .62), () => {
+      const hx = gx + 2 * cs, hy = gy + 1 * cs;
+      box(hx - 3, hy - 3, cs + 4, cs + 4, { r: 4, stroke: C.red, lw: 4 });
+      box(gx + 10, gy + 7 * cs + 18, 500, 52, { r: 10, fill: "#fff", stroke: C.red });
+      txt("one pixel = 3 numbers: R 212 · G 226 · B 238", gx + 26, gy + 7 * cs + 52, { size: 21, weight: 600 });
+    });
+    const eq = "16 frames × 128 × 228 pixels × 3 colours = 1,400,832 numbers";
+    const n = Math.floor(eq.length * seg(p, .64, .88));
+    txt(eq.slice(0, n), 80, 660, { size: 30, weight: 600, font: "mono", color: C.navy });
+  }
+},
+{
+  title: "Flip so your net is on the left",
+  text: "Your goalie defends a different end each period. So any clip where their net is on the right gets mirrored. Now the model only has to learn one picture of a shot. This was the biggest single improvement.",
+  draw(p) {
+    heading(5, "Flip so your net is on the left");
+    const k = seg(p, .35, .62), sx = Math.cos(Math.PI * k);
+    c.save(); c.translate(640, 0); c.scale(Math.abs(sx) < .02 ? .02 : sx, 1); c.translate(-640, 0);
+    rink(240, 200, 800, 340, { hl: "R" }); c.restore();
+    const before = k < .5;
+    A(before ? 1 - k * 2 : (k - .5) * 2, () => {
+      const nx = before ? 1040 - 56 + 12 : 640 - (1040 - 56 + 12 - 640);
+      const lx = before ? 1000 : 280;
+      txt(before ? "This period: your goalie's net is on the right" : "Mirrored: your goalie's net is on the left", 640, 172, { size: 28, weight: 600, align: "center", color: before ? C.navy : C.red });
+      arrow(lx + (before ? 60 : -40), 590, nx, 400, C.red, 3);
+      txt("your goalie", lx + (before ? 60 : -40), 620, { size: 22, weight: 600, color: C.red, align: "center" });
+    });
+    A(seg(p, .72, .85), () => {
+      txt("Behind-the-net cameras are never flipped. Films where the side is unclear are left out.", 640, 680, { size: 22, color: C.muted, align: "center" });
+      chip("F1 score 0.29 → 0.36", 1220, 82, { align: "right", color: C.green, stroke: C.greenSoft });
+    });
+  }
+},
+{
+  title: "Pattern detectors",
+  text: "Inside the model, small pattern detectors slide across every frame, and from one frame to the next. Each detector is a tiny grid of numbers, and it lights up wherever its pattern appears, like this diagonal streak.",
+  draw(p) {
+    heading(6, "Pattern detectors");
+    const gx = 70, gy = 190, cs = 26;
+    PIX.forEach((row, r) => row.forEach((v, col) => { const g = Math.round(20 + v * 225); box(gx + col * cs, gy + r * cs, cs - 2, cs - 2, { r: 2, fill: `rgb(${g * .85 | 0},${g * .92 | 0},${g})` }); }));
+    txt("a frame (bright streak = puck path)", gx, gy + 10 * cs + 36, { size: 20, color: C.muted });
+    const total = 112, idx = Math.min(total, Math.floor(seg(p, .08, .85) * total + (p > .85 ? 1 : 0)));
+    const ox = 770, oy = 216;
+    CONV.forEach((row, r) => row.forEach((v, col) => {
+      const i = r * 14 + col; const on = i < idx;
+      const rr2 = Math.round(lerp(255, 210, on ? v : 0)), gg = Math.round(lerp(255, 40, on ? v : 0)), bb = Math.round(lerp(255, 58, on ? v : 0));
+      box(ox + col * cs, oy + r * cs, cs - 2, cs - 2, { r: 2, fill: `rgb(${rr2},${gg},${bb})`, stroke: C.line, lw: 1 });
+    }));
+    txt("where the pattern was found", ox, oy + 8 * cs + 36, { size: 20, color: C.muted });
+    if (idx < total) {
+      const col = idx % 14, r = Math.floor(idx / 14);
+      box(gx + col * cs - 2, gy + r * cs - 2, cs * 3 + 2, cs * 3 + 2, { r: 4, stroke: C.red, lw: 4 });
+      box(ox + col * cs - 2, oy + r * cs - 2, cs + 2, cs + 2, { r: 3, stroke: C.red, lw: 3 });
+    }
+    const kx = 540, ky = 250, ks = 50;
+    txt("detector", kx + ks * 1.5, ky - 20, { size: 22, weight: 600, align: "center", color: C.red });
+    KER.forEach((row, i) => row.forEach((v, j) => {
+      box(kx + j * ks, ky + i * ks, ks - 4, ks - 4, { r: 6, fill: v > 0 ? C.redSoft : "#fff", stroke: C.line });
+      txt(String(v), kx + j * ks + ks / 2 - 2, ky + i * ks + ks / 2 + 6, { size: 20, font: "mono", weight: 500, align: "center" });
+    }));
+    arrow(gx + 16 * cs + 10, 320, kx - 14, 320, C.muted, 3);
+    arrow(kx + ks * 3 + 6, 320, ox - 14, 320, C.muted, 3);
+    A(seg(p, .86, .95), () => wrap("Multiply the 9 pixels under the detector by its 9 numbers and add them up. A big total means the pattern is there.", 70, 640, 1120, 32, { size: 24 }));
+  }
+},
+{
+  title: "Layers build up",
+  text: "Detectors are stacked in layers. Early layers find edges, middle layers find shapes and movement, and deep layers find things like a puck flying at the net. Our network has about 31 million of these adjustable numbers, called weights.",
+  draw(p) {
+    heading(7, "Layers build up");
+    const cols = [{ x: 190, n: 6, l: "Edges" }, { x: 470, n: 6, l: "Shapes" }, { x: 750, n: 5, l: "Movement" }, { x: 1030, n: 1, l: "Shot?" }];
+    const ny = (k, i) => cols[k].n === 1 ? 400 : 260 + i * (280 / (cols[k].n - 1));
+    const lit = k => seg(p, .08 + k * .2, .18 + k * .2);
+    for (let k = 0; k < 3; k++) for (let i = 0; i < cols[k].n; i++) for (let j = 0; j < cols[k + 1].n; j++) {
+      ln(cols[k].x, ny(k, i), cols[k + 1].x, ny(k + 1, j), lit(k + 1) > .5 ? "#7FA8D4" : "#E1E4DD", lit(k + 1) > .5 ? 1.6 : 1);
+      const t = seg(p, .1 + k * .2, .28 + k * .2);
+      if (t > 0 && t < 1 && (i + j) % 2 === 0) dot(lerp(cols[k].x, cols[k + 1].x, t), lerp(ny(k, i), ny(k + 1, j), t), 4, C.blue);
+    }
+    cols.forEach((col, k) => {
+      for (let i = 0; i < col.n; i++) {
+        const L = lit(k), last = k === 3;
+        dot(col.x, ny(k, i), last ? 34 : 15, last ? (L > .5 ? C.red : "#fff") : (L > .5 ? C.blue : "#fff"), last ? C.red : C.navy, 2.5);
+      }
+      txt(col.l, col.x, 620, { size: 26, weight: 600, align: "center", color: k === 3 ? C.red : C.navy });
+      A(.35 + .65 * lit(k), () => {
+        const x = col.x, y = 180;
+        c.save(); c.strokeStyle = k === 3 ? C.red : C.navy; c.lineWidth = 3; c.lineCap = "round";
+        if (k === 0) { [[-30, 18, -10, -18], [-6, 18, 10, -18], [16, 18, 34, -18]].forEach(([a, b, d, e]) => { c.beginPath(); c.moveTo(x + a, y + b); c.lineTo(x + d, y + e); c.stroke(); }); }
+        if (k === 1) { c.beginPath(); c.arc(x - 18, y, 14, 0, 7); c.stroke(); c.beginPath(); c.moveTo(x + 6, y - 20); c.lineTo(x + 20, y + 14); c.lineTo(x + 40, y + 14); c.stroke(); }
+        if (k === 2) { dot(x + 26, y, 7, C.navy); [16, 30, 44].forEach((d, i) => { c.globalAlpha = .7 - i * .2; c.beginPath(); c.moveTo(x + 26 - d, y - 8); c.lineTo(x + 26 - d - 10, y - 8); c.moveTo(x + 26 - d, y + 8); c.lineTo(x + 26 - d - 10, y + 8); c.stroke(); }); }
+        if (k === 3) { c.strokeRect(x + 14, y - 18, 22, 36); dot(x - 26, y + 4, 6, C.red); c.setLineDash([5, 6]); c.beginPath(); c.moveTo(x - 18, y + 2); c.lineTo(x + 8, y - 2); c.stroke(); }
+        c.restore();
+      });
+    });
+    A(seg(p, .82, .92), () => txt("R(2+1)D-18 network · 18 layers · about 31 million weights · pre-trained on YouTube action videos", 640, 680, { size: 22, color: C.muted, align: "center" }));
+  }
+},
+{
+  title: "One number comes out",
+  text: "All of that boils down to a single number, which gets squashed into a probability between zero and one. Here the model says: 91 percent likely to be a shot.",
+  draw(p) {
+    heading(8, "One number comes out");
+    box(80, 280, 260, 160, { r: 14, fill: C.pine });
+    txt("the network", 210, 330, { size: 22, color: "#B3CEBF", align: "center" });
+    txt("2.3", 210, 400, { font: "display", weight: 700, size: 64, color: "#fff", align: "center" });
+    const px = 520, py = 160, pw = 640, ph = 380, X = v => px + (v + 6) / 12 * pw, Y = v => py + ph - v * ph;
+    A(seg(p, .05, .15), () => {
+      ln(px, py + ph, px + pw, py + ph, C.muted, 2); ln(px, py, px, py + ph, C.muted, 2);
+      ln(px, Y(.5), px + pw, Y(.5), C.line, 1, [4, 6]);
+      ["0", "0.5", "1"].forEach((s, i) => txt(s, px - 12, Y(i / 2) + 7, { size: 18, color: C.muted, align: "right" }));
+      ["−6", "0", "+6"].forEach((s, i) => txt(s, X(-6 + i * 6), py + ph + 30, { size: 18, color: C.muted, align: "center" }));
+      txt("probability of a shot", px, py - 18, { size: 20, color: C.muted });
+      arrow(350, 360, px - 50, 360, C.muted, 3);
+    });
+    const draw = seg(p, .12, .4);
+    c.save(); c.beginPath();
+    for (let i = 0; i <= 200 * draw; i++) { const v = -6 + i / 200 * 12, y = 1 / (1 + Math.exp(-v)); i ? c.lineTo(X(v), Y(y)) : c.moveTo(X(v), Y(y)); }
+    c.strokeStyle = C.blue; c.lineWidth = 4; c.stroke(); c.restore();
+    const m = seg(p, .42, .68), v = lerp(-6, 2.3, m), y = 1 / (1 + Math.exp(-v));
+    if (m > 0) {
+      dot(X(v), Y(y), 11, C.red, "#fff", 3);
+      if (m >= 1) { ln(X(v), Y(y), X(v), py + ph, C.red, 2, [5, 5]); ln(X(v), Y(y), px, Y(y), C.red, 2, [5, 5]); txt("2.3", X(v), py + ph + 30, { size: 18, weight: 600, color: C.red, align: "center" }); txt("0.91", px + 10, Y(y) - 10, { size: 20, weight: 600, color: C.red }); }
+    }
+    A(seg(p, .72, .84), () => {
+      box(80, 480, 260, 110, { r: 14, fill: C.redSoft, stroke: C.red });
+      txt("91% shot", 210, 552, { font: "display", weight: 700, size: 52, color: C.red, align: "center" });
+    });
+  }
+},
+{
+  title: "Check against your tag",
+  text: "Now compare the guess with your tag. Confident and right gives a small error. Confident and wrong gives a big one. This error is called the loss.",
+  draw(p) {
+    heading(9, "Check against your tag");
+    const rows = [{ y: 190, tag: "SHOT", right: true, loss: .09, a: seg(p, .05, .18), b: seg(p, .2, .4) }, { y: 410, tag: "NO SHOT", right: false, loss: 2.41, a: seg(p, .45, .58), b: seg(p, .6, .8) }];
+    rows.forEach(r => A(r.a, () => {
+      box(70, r.y, 280, 150, { r: 14, fill: "#fff", stroke: C.line });
+      txt("model's guess", 210, r.y + 46, { size: 20, color: C.muted, align: "center" });
+      txt("91% shot", 210, r.y + 110, { font: "display", weight: 700, size: 50, align: "center" });
+      txt("vs", 395, r.y + 88, { size: 26, color: C.muted, align: "center" });
+      box(440, r.y, 280, 150, { r: 14, fill: r.right ? C.greenSoft : C.redSoft, stroke: r.right ? C.green : C.red });
+      txt("your tag", 580, r.y + 46, { size: 20, color: C.muted, align: "center" });
+      txt(r.tag, 580, r.y + 110, { font: "display", weight: 700, size: 50, align: "center", color: r.right ? C.green : C.red });
+      const bw = 380 * (r.loss / 2.6) * r.b;
+      txt(r.right ? "small error" : "big error", 780, r.y + 50, { size: 24, weight: 600, color: r.right ? C.green : C.red });
+      box(780, r.y + 70, Math.max(4, bw), 40, { r: 6, fill: r.right ? C.green : C.red });
+      A(r.b, () => txt(`loss ${r.loss.toFixed(2)}`, 780 + Math.max(4, bw) + 12, r.y + 100, { size: 24, weight: 600, font: "mono" }));
+    }));
+  }
+},
+{
+  title: "Nudge every weight downhill",
+  text: "Then the learning step. For each of the 31 million weights, work out which direction would have made the error smaller, and nudge it a tiny step that way. It's like walking downhill in fog, one small step at a time.",
+  draw(p) {
+    heading(10, "Nudge every weight downhill");
+    const f = x => (x - .7) ** 2 * 2.2 + .03 * Math.sin(x * 14), X = x => 110 + x * 700, Y = y => 600 - y * 360;
+    c.save(); c.beginPath(); for (let i = 0; i <= 200; i++) { const x = i / 200; i ? c.lineTo(X(x), Y(f(x))) : c.moveTo(X(x), Y(f(x))); }
+    c.lineTo(X(1), 640); c.lineTo(X(0), 640); c.closePath(); c.fillStyle = C.ice2; c.fill(); c.restore();
+    c.save(); c.beginPath(); for (let i = 0; i <= 200; i++) { const x = i / 200; i ? c.lineTo(X(x), Y(f(x))) : c.moveTo(X(x), Y(f(x))); } c.strokeStyle = C.navy; c.lineWidth = 3; c.stroke(); c.restore();
+    txt("error (loss)", 110, 170, { size: 20, color: C.muted });
+    txt("value of one weight →", 810, 672, { size: 20, color: C.muted, align: "right" });
+    const xs = [.05, .22, .36, .47, .56, .62, .66, .685, .697];
+    const q = seg(p, .08, .88) * (xs.length - 1), s = Math.min(xs.length - 2, Math.floor(q)), e = q - s;
+    const bx = lerp(xs[s], xs[s + 1], E(e)), hop = Math.sin(Math.PI * e) * 26;
+    for (let i = 0; i <= s; i++) dot(X(xs[i]), Y(f(xs[i])), 4, "#9AA39B");
+    const slope = (f(bx + .001) - f(bx - .001)) / .002;
+    if (Math.abs(slope) > .05) { const dir = slope > 0 ? -1 : 1; arrow(X(bx), Y(f(bx)) - 30 - hop, X(bx) + dir * 70, Y(f(bx + dir * .1)) - 30 - hop, C.red, 3); }
+    dot(X(bx), Y(f(bx)) - 14 - hop, 14, C.red, "#fff", 3);
+    const dx = 1000, labels = ["weight 1", "weight 2", "weight 31,000,000"];
+    labels.forEach((l, i) => {
+      const y = 220 + i * 150 + (i === 2 ? 0 : 0), cy = i === 2 ? 520 : 220 + i * 140;
+      dot(dx, cy, 40, "#fff", C.navy, 3);
+      const ang = -Math.PI / 2 + (q * (i === 1 ? -.35 : .28)) + i;
+      ln(dx, cy, dx + Math.cos(ang) * 32, cy + Math.sin(ang) * 32, C.red, 4);
+      txt(l, dx + 58, cy + 8, { size: 20, weight: 500 });
+    });
+    txt("⋮", dx, 450, { size: 34, color: C.muted, align: "center" });
+    A(seg(p, .3, .45), () => { box(860, 600, 380, 64, { r: 10, fill: "#fff", stroke: C.line }); txt("new = old − 0.0001 × slope", 1050, 640, { size: 20, font: "mono", align: "center" }); });
+  }
+},
+{
+  title: "What PyTorch does",
+  text: "PyTorch is the toolkit that does this math. It builds the network, runs it fast on the GPU, and with one line, loss.backward(), it works out the slope for all 31 million weights automatically.",
+  say: "PyTorch is the toolkit that does this math. It builds the network, runs it fast on the GPU, and with one line, loss dot backward, it works out the slope for all 31 million weights automatically.",
+  draw(p) {
+    heading(11, "What PyTorch does");
+    box(70, 120, 1140, 540, { r: 16, fill: C.pine });
+    txt("the training loop in shots_modal.py, simplified", 100, 160, { size: 18, font: "mono", color: "#B3CEBF" });
+    const L = [
+      ["model = r2plus1d_18(weights=\"KINETICS400_V1\")", "build the network, already trained on YouTube action videos"],
+      ["guess = model(clip)", "run the 1.4M numbers through it on the GPU"],
+      ["loss = loss_fn(guess, tag)", "compare with your tag: how wrong was it?"],
+      ["loss.backward()", "find the slope for all 31M weights (the calculus)"],
+      ["optimizer.step()", "nudge every weight a tiny step downhill"],
+    ];
+    const cur = Math.min(4, Math.floor(seg(p, .04, .96) * 5));
+    L.forEach(([code, note], i) => {
+      const y = 210 + i * 88;
+      if (i === cur) box(86, y - 8, 1108, 82, { r: 10, fill: "#145C43" });
+      txt(code, 110, y + 30, { size: 26, font: "mono", color: i <= cur ? "#fff" : "#6F9483" });
+      if (i <= cur) txt("# " + note, 110, y + 62, { size: 19, font: "mono", color: i === 3 ? C.gold : "#B3CEBF" });
+    });
+  }
+},
+{
+  title: "Repeat thousands of times",
+  text: "One pass through about 8,900 clips takes about 4.6 minutes on the rented GPU. After 8 passes, the error falls from about 1.0 to under 0.1. These are real numbers from tonight's run.",
+  say: "One pass through about 8,900 clips takes about four and a half minutes on the rented GPU. After 8 passes, the error falls from about 1.0 to under 0.1. These are real numbers from tonight's run.",
+  draw(p) {
+    heading(12, "Repeat thousands of times");
+    const px = 140, py = 160, pw = 680, ph = 420, X = e => px + e / 8 * pw, Y = v => py + ph - v * ph;
+    [0, .25, .5, .75, 1].forEach(v => { ln(px, Y(v), px + pw, Y(v), C.line, 1); txt(v.toFixed(2), px - 12, Y(v) + 6, { size: 17, color: C.muted, align: "right" }); });
+    for (let e = 0; e <= 8; e++) txt(String(e), X(e), py + ph + 28, { size: 17, color: C.muted, align: "center" });
+    txt("training loss", px, py - 18, { size: 20, color: C.muted });
+    txt("pass through the data (epoch)", px + pw, py + ph + 58, { size: 20, color: C.muted, align: "right" });
+    const n = seg(p, .05, .8) * 8;
+    c.save(); c.beginPath(); c.moveTo(X(1), Y(LOSS[0]));
+    for (let e = 1; e < 8; e++) { if (e > n - 1 + 1e-9 && e - 1 >= n - 1) break; const t = clamp(n - e); if (t <= 0) break; c.lineTo(lerp(X(e), X(e + 1), t), lerp(Y(LOSS[e - 1]), Y(LOSS[e]), t)); }
+    c.strokeStyle = C.red; c.lineWidth = 4; c.stroke(); c.restore();
+    LOSS.forEach((v, i) => { if (i + 1 <= n + 1 && (i === 0 || n >= i)) dot(X(i + 1), Y(v), 7, C.red, "#fff", 2); });
+    if (n > 0) txt("0.99", X(1) + 14, Y(.99) + 6, { size: 20, weight: 600, color: C.red });
+    if (n >= 7) txt("0.09", X(8) - 12, Y(.09) - 16, { size: 20, weight: 600, color: C.red, align: "right" });
+    const rx = 890, stats = [["≈8,900", "clips per pass"], ["≈556", "batches of 16 clips"], ["4.6 min", "per pass on an A10G GPU"], ["≈37 min", "for all 8 passes"]];
+    stats.forEach(([a, b], i) => A(seg(p, .1 + i * .15, .2 + i * .15), () => { txt(a, rx, 210 + i * 110, { font: "display", weight: 700, size: 50 }); txt(b, rx, 240 + i * 110, { size: 20, color: C.muted }); }));
+  }
+},
+{
+  title: "A fair test",
+  text: "To check it works on goalies it has never seen, we split the goalies into 5 groups. Train on 4, test on the 5th, and repeat so every goalie gets tested once. These are the 5 folds.",
+  draw(p) {
+    heading(13, "A fair test");
+    const k = Math.min(4, Math.floor(seg(p, .06, .96) * 5));
+    txt(`Fold ${k + 1} of 5`, 640, 170, { font: "display", weight: 700, size: 40, align: "center", color: C.red });
+    for (let g = 0; g < 5; g++) {
+      const cx = 168 + g * 236, test = g === k;
+      box(cx - 100, 230, 200, 260, { r: 16, fill: test ? C.redSoft : "#fff", stroke: test ? C.red : C.line, lw: test ? 3 : 2 });
+      for (let i = 0; i < 7; i++) { const col = i < 4 ? i : i - 4, row = i < 4 ? 0 : 1, off = row ? 36 : 0; goalie(cx - 66 + off + col * 44, 310 + row * 90, 30, test ? C.red : C.blue); }
+      txt(test ? "TEST" : "train", cx, 530, { font: "display", weight: 700, size: 30, align: "center", color: test ? C.red : C.blue });
+    }
+    A(seg(p, .2, .3), () => txt("Each fold trains on about 78 films and tests on about 20 films from goalies it has never seen.", 640, 640, { size: 23, align: "center" }));
+  }
+},
+{
+  title: "Scanning a full game",
+  text: "On a test game, the model scores every moment of live play. Peaks above the line become shot marks. A mark within 2 seconds of a real tag is a hit. Anything else is a false alarm.",
+  draw(p) {
+    heading(14, "Scanning a full game");
+    const x0 = 100, x1 = 1180, X = f => lerp(x0, x1, f), base = 440, Y = s => base - s * 230, thr = .5;
+    txt("model's shot score", x0, 182, { size: 20, color: C.muted });
+    ln(x0, base, x1, base, C.line, 2);
+    ln(x0, Y(thr), x1, Y(thr), C.navy, 2, [8, 7]); txt("line", x1, Y(thr) - 10, { size: 18, color: C.muted, align: "right" });
+    const reveal = seg(p, .03, .48);
+    c.save(); c.beginPath(); c.moveTo(X(0), base);
+    for (let i = 0; i <= 900 * reveal; i++) { const f = i / 900; c.lineTo(X(f), Y(score14(f))); }
+    c.lineTo(X(reveal), base); c.closePath(); c.fillStyle = "rgba(31,95,191,.14)"; c.fill();
+    c.beginPath(); for (let i = 0; i <= 900 * reveal; i++) { const f = i / 900; i ? c.lineTo(X(f), Y(score14(f))) : c.moveTo(X(f), Y(score14(f))); }
+    c.strokeStyle = C.blue; c.lineWidth = 2.5; c.stroke(); c.restore();
+    const peaks = [...TRUE14.filter((t, i) => STR14[i] > thr).map(t => [t, true]), ...FALSE14.map(([t]) => [t, false])];
+    const match = seg(p, .55, .7);
+    peaks.forEach(([t, hit]) => {
+      if (t > reveal) return;
+      const y = Y(score14(t));
+      c.beginPath(); c.moveTo(X(t), y - 8); c.lineTo(X(t) - 9, y - 24); c.lineTo(X(t) + 9, y - 24); c.closePath();
+      c.fillStyle = match > .5 ? (hit ? C.green : "#9AA39B") : C.navy; c.fill();
+      if (match > .5 && hit) A(match, () => ln(X(t), base + 6, X(t), 512, C.green, 2));
+    });
+    txt("your tags", x0, 500, { size: 18, color: C.muted });
+    TRUE14.forEach((t, i) => { ln(X(t), 516, X(t), 548, C.red, 3); if (match > .5 && STR14[i] <= thr) A(match, () => dot(X(t), 568, 9, null, C.red, 3)); });
+    A(match, () => {
+      txt("hit", X(.31), Y(score14(.31)) - 34, { size: 18, weight: 600, color: C.green, align: "center" });
+      txt("false alarm", X(.835), Y(score14(.835)) - 34, { size: 18, weight: 600, color: "#596159", align: "center" });
+      txt("missed", X(.22), 598, { size: 18, weight: 600, color: C.red, align: "center" });
+    });
+    A(seg(p, .78, .9), () => {
+      let x = x0;
+      x += chip("9 hits", x, 660, { color: C.green, stroke: C.greenSoft }) + 12;
+      x += chip("3 missed", x, 660, { color: C.red, stroke: C.redSoft }) + 12;
+      x += chip("3 false alarms", x, 660, { color: C.muted }) + 18;
+      txt("example game", x, 652, { size: 18, color: C.muted });
+    });
+  }
+},
+{
+  title: "How good is it so far",
+  text: "Each round got better, from 0.13 to 0.36 on the F1 score. Round 3 finds about 59 percent of shots if you accept about one false alarm per minute of film. Round 4, with twice the data, is running now.",
+  draw(p) {
+    heading(15, "How good is it so far");
+    const px = 130, py = 170, pw = 640, ph = 380, Y = v => py + ph - v / .4 * ph;
+    [0, .1, .2, .3, .4].forEach(v => { ln(px, Y(v), px + pw, Y(v), C.line, 1); txt(v.toFixed(1), px - 12, Y(v) + 6, { size: 17, color: C.muted, align: "right" }); });
+    txt("F1 score (higher is better)", px, py - 22, { size: 20, color: C.muted });
+    const bars = [["Round 1", "frame features", .13], ["Round 2", "video model", .29], ["Round 3", "+ net mirroring", .36], ["Round 4", "+ 2× the data", null]];
+    bars.forEach(([r, d, v], i) => {
+      const bx = px + 30 + i * 155, bw = 110, g = seg(p, .05 + i * .12, .2 + i * .12);
+      if (v === null) {
+        A(g, () => { c.save(); c.setLineDash([7, 6]); box(bx, Y(.36), bw, ph - (Y(.36) - py), { r: 6, stroke: C.blue, lw: 2.5 }); c.restore(); txt("running", bx + bw / 2, Y(.36) - 14, { size: 20, weight: 600, color: C.blue, align: "center" }); });
+      } else {
+        const h = (py + ph - Y(v)) * g;
+        box(bx, py + ph - h, bw, h, { r: 6, fill: i === 2 ? C.red : C.blue });
+        A(g, () => txt(v.toFixed(2), bx + bw / 2, py + ph - h - 12, { size: 22, weight: 600, align: "center", font: "mono" }));
+      }
+      txt(r, bx + bw / 2, py + ph + 32, { size: 20, weight: 600, align: "center" });
+      txt(d, bx + bw / 2, py + ph + 58, { size: 17, color: C.muted, align: "center" });
+    });
+    A(seg(p, .55, .7), () => {
+      txt("59%", 860, 320, { font: "display", weight: 700, size: 120, color: C.red });
+      wrap("of shots found by round 3, at about 1 false alarm per minute of film", 864, 368, 360, 32, { size: 24 });
+    });
+  }
+},
+{
+  title: "Where this ends up",
+  text: "The end goal: upload a game, the model marks every likely shot, and you just confirm or delete. Every confirmation becomes new training data, so the model keeps getting better.",
+  draw(p) {
+    heading(16, "Where this ends up");
+    const steps = ["Upload a game", "Model marks likely shots", "You confirm or delete", "Shots saved to stats"];
+    const bw = 240, bh = 120, y = 270, xs = [60, 370, 680, 990];
+    steps.forEach((s, i) => A(seg(p, .05 + i * .14, .15 + i * .14), () => {
+      box(xs[i], y, bw, bh, { r: 14, fill: i === 1 ? C.pine : "#fff", stroke: i === 1 ? C.pine : C.line });
+      wrap(s, xs[i] + 22, y + 52, bw - 44, 32, { size: 26, weight: 600, color: i === 1 ? "#fff" : C.navy });
+      if (i < 3) arrow(xs[i] + bw + 8, y + bh / 2, xs[i + 1] - 10, y + bh / 2, C.muted, 3);
+    }));
+    A(seg(p, .65, .8), () => {
+      c.save(); c.beginPath(); c.moveTo(xs[2] + bw / 2, y + bh + 10); c.bezierCurveTo(xs[2] + bw / 2, y + bh + 120, xs[1] + bw / 2, y + bh + 120, xs[1] + bw / 2, y + bh + 22);
+      c.strokeStyle = C.red; c.lineWidth = 3; c.setLineDash([8, 7]); c.stroke(); c.restore();
+      arrow(xs[1] + bw / 2, y + bh + 40, xs[1] + bw / 2, y + bh + 16, C.red, 3);
+      txt("every confirmation becomes new training data", (xs[1] + xs[2] + bw) / 2, y + bh + 140, { size: 24, weight: 600, color: C.red, align: "center" });
+    });
+  }
+},
+];
+
+// ---------- player ----------
+scenes.forEach(s => { const words = (s.say || s.text).split(/\s+/).length; s.dur = Math.max(9, words / 2.5 + 2) * 1000; });
+const $ = id => document.getElementById(id);
+let cur = 0, elapsed = 0, playing = false, started = false, last = 0, speechDone = true, voiceOn = true, speakToken = 0;
+const synth = "speechSynthesis" in window ? window.speechSynthesis : null;
+let voice = null;
+function pickVoice() {
+  if (!synth) return;
+  const vs = synth.getVoices();
+  voice = vs.find(v => /^en[-_]US/i.test(v.lang) && /(Natural|Samantha|Google US English|Aria|Jenny|Ava)/i.test(v.name)) || vs.find(v => /^en[-_]US/i.test(v.lang)) || vs.find(v => /^en/i.test(v.lang)) || null;
+}
+if (synth) { pickVoice(); synth.onvoiceschanged = pickVoice; } else { $("voice").hidden = true; voiceOn = false; }
+
+function speak(text) {
+  if (!synth || !voiceOn) { speechDone = true; return; }
+  try {
+    synth.cancel();
+    const tok = ++speakToken;
+    const parts = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
+    speechDone = false;
+    parts.forEach((pt, i) => {
+      const u = new SpeechSynthesisUtterance(pt.trim());
+      if (voice) u.voice = voice;
+      u.rate = 1.02;
+      if (i === parts.length - 1) { u.onend = () => { if (tok === speakToken) speechDone = true; }; u.onerror = u.onend; }
+      synth.speak(u);
+    });
+  } catch (e) { speechDone = true; }
+}
+function stopSpeech() { speakToken++; speechDone = true; try { synth && synth.cancel(); } catch (e) {} }
+
+const bar = $("bar"), list = $("list");
+scenes.forEach((s, i) => {
+  const b = document.createElement("button"); b.setAttribute("aria-label", `Go to chapter ${i + 1}: ${s.title}`); b.innerHTML = "<i></i>"; b.onclick = () => go(i); bar.appendChild(b);
+  const li = document.createElement("li"), lb = document.createElement("button");
+  lb.innerHTML = `<span class="n">${String(i + 1).padStart(2, "0")}</span><span class="t"></span><span class="c"></span>`;
+  lb.querySelector(".t").textContent = s.title; lb.querySelector(".c").textContent = s.text;
+  lb.onclick = () => { go(i); cv.scrollIntoView({ behavior: "smooth", block: "center" }); };
+  li.appendChild(lb); list.appendChild(li);
+});
+
+function ui() {
+  const s = scenes[cur];
+  $("num").textContent = `${String(cur + 1).padStart(2, "0")} / ${scenes.length}`;
+  $("ttl").textContent = s.title; $("cap").textContent = s.text;
+  $("play").textContent = playing ? "Pause" : (started && !(cur === scenes.length - 1 && elapsed >= s.dur) ? "Resume" : "Play");
+  $("bigPlay").hidden = playing || started;
+  $("count").textContent = playing ? "Playing" : started ? "Paused" : "";
+  [...list.children].forEach((li, i) => li.firstChild.setAttribute("aria-current", i === cur ? "true" : "false"));
+}
+function bars() {
+  [...bar.children].forEach((b, i) => { b.firstChild.style.width = (i < cur ? 100 : i > cur ? 0 : clamp(elapsed / scenes[cur].dur) * 100) + "%"; });
+}
+function render() {
+  c.save(); c.setTransform(cv.width / W, 0, 0, cv.height / H, 0, 0);
+  c.fillStyle = C.ice; c.fillRect(0, 0, W, H);
+  ln(0, H - 6, W, H - 6, C.red, 4); ln(0, H - 14, W, H - 14, C.blue, 2);
+  const p = (playing || elapsed > 0) ? clamp(elapsed / scenes[cur].dur) : 1;
+  scenes[cur].draw(p);
+  c.restore();
+  bars();
+}
+function go(i) {
+  cur = clamp(i, 0, scenes.length - 1); elapsed = 0;
+  if (playing) speak(scenes[cur].say || scenes[cur].text); else stopSpeech();
+  ui(); render();
+}
+function play() {
+  if (cur === scenes.length - 1 && elapsed >= scenes[cur].dur) { cur = 0; elapsed = 0; }
+  playing = true; started = true; last = performance.now();
+  if (synth && voiceOn && elapsed > 0 && synth.paused) { try { synth.resume(); } catch (e) {} }
+  else if (elapsed < scenes[cur].dur) speak(scenes[cur].say || scenes[cur].text);
+  ui(); requestAnimationFrame(tick);
+}
+function pause() {
+  playing = false;
+  if (synth && !speechDone) { try { synth.pause(); } catch (e) {} }
+  ui(); render();
+}
+function tick(ts) {
+  if (!playing) return;
+  elapsed += Math.min(100, ts - last); last = ts;
+  const s = scenes[cur];
+  if (elapsed >= s.dur && (speechDone || elapsed > s.dur + 15000)) {
+    if (cur < scenes.length - 1) { cur++; elapsed = 0; speak(scenes[cur].say || scenes[cur].text); ui(); }
+    else { elapsed = s.dur; playing = false; ui(); render(); return; }
+  }
+  render(); requestAnimationFrame(tick);
+}
+
+$("play").onclick = () => playing ? pause() : play();
+$("bigPlay").onclick = play;
+$("prev").onclick = () => go(cur - 1);
+$("next").onclick = () => go(cur + 1);
+$("restart").onclick = () => { go(0); if (!playing) play(); };
+$("voice").onclick = () => {
+  voiceOn = !voiceOn; $("voice").textContent = `Voice: ${voiceOn ? "on" : "off"}`; $("voice").setAttribute("aria-pressed", String(voiceOn));
+  if (!voiceOn) stopSpeech(); else if (playing) speak(scenes[cur].say || scenes[cur].text);
+};
+document.addEventListener("keydown", e => {
+  if (e.target.closest && e.target.closest("button")) return;
+  if (e.code === "Space") { e.preventDefault(); playing ? pause() : play(); }
+  if (e.key === "ArrowRight") go(cur + 1);
+  if (e.key === "ArrowLeft") go(cur - 1);
+});
+
+function fit() {
+  const w = cv.clientWidth, d = window.devicePixelRatio || 1;
+  cv.width = Math.round(w * d); cv.height = Math.round(w * 9 / 16 * d);
+  render();
+}
+new ResizeObserver(fit).observe(cv);
+ui(); fit();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(render);
+</script>
+</body>
+</html>

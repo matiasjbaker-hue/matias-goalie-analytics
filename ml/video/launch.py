@@ -39,7 +39,7 @@ def load_films(net=False):
     return films
 
 
-def job_list(films, k, fold_of, fractions, epochs, net=False):
+def job_list(films, k, fold_of, fractions, epochs, net=False, run=""):
     jobs = []
     for frac in fractions:
         for f in range(k):
@@ -48,7 +48,7 @@ def job_list(films, k, fold_of, fractions, epochs, net=False):
             if frac < 1:
                 n = max(2, int(round(frac * len(train))))
                 train = sorted(np.random.default_rng(100 + f).choice(train, n, replace=False).tolist())
-            label = f"{'net' if net else ''}{int(frac * 100)}%/fold{f + 1}"
+            label = f"{run}{'net' if net else ''}{int(frac * 100)}%/fold{f + 1}"
             extra = (None, {v: films[v] for v in train}, True) if net else ()
             jobs.append((label, train, test, epochs, *extra))
     return jobs
@@ -63,13 +63,27 @@ def main():
     ap.add_argument("--no-curve", action="store_true")
     ap.add_argument("--net", action="store_true")
     ap.add_argument("--only", default="", help="comma-separated fold numbers to start, e.g. 1,2,3")
+    ap.add_argument("--run", default="", help="name prefix for this run's results, e.g. r4 (keeps older runs apart)")
+    ap.add_argument("--prepare", action="store_true", help="cut clips for films not prepared yet, then exit")
     args = ap.parse_args()
 
     films = load_films(args.net)
     fold_of, k = S.goalie_folds(films, args.folds)
     fractions = [1.0] if (args.no_curve or args.net) else [1.0, 0.5, 0.25]
-    jobs = job_list(films, k, fold_of, fractions, args.epochs, args.net)
-    pre = "net" if args.net else ""
+    if "_" in args.run or "/" in args.run:
+        sys.exit("--run must not contain _ or /")
+    if args.prepare:
+        done_ids = {e.path.split("/")[-1][:-5] for e in modal.Volume.from_name("goalieiq-ml").iterdir("windows")
+                    if e.path.endswith(".json")}
+        todo = [f for v, f in films.items() if v not in done_ids]
+        print(f"{len(films) - len(todo)} films already prepared; starting {len(todo)}")
+        prep = modal.Function.from_name(APP, "prepare_film")
+        for f in todo:
+            prep.spawn(f)
+        print("Running in the cloud. Re-run with --prepare to see what's left.")
+        return
+    jobs = job_list(films, k, fold_of, fractions, args.epochs, args.net, args.run)
+    pre = args.run + ("net" if args.net else "")
 
     load_scores = modal.Function.from_name(APP, "load_scores")
     done = load_scores.remote()
@@ -83,7 +97,7 @@ def main():
         to_arrays = lambda res: {v: [(np.array(t), np.array(s), a, b) for t, s, a, b in segs] for v, segs in res.items()}
         results = {lab: to_arrays(res) for lab, res in done.items()}
         merged = lambda tag: {v: s for lab, res in results.items() if lab.startswith(pre + tag + "/") for v, s in res.items()}
-        out_dir = S.REPO / "ml" / "data" / ("eval_video_net" if args.net else "eval_video")
+        out_dir = S.REPO / "ml" / "data" / ((f"eval_video_{args.run}" if args.run else "eval_video") + ("_net" if args.net else ""))
         heads = []
         for frac in fractions:
             tag = f"{int(frac * 100)}%"
@@ -96,7 +110,9 @@ def main():
             heads.append((f"{tag} (~{n_films} films){'' if n_folds == k else f', {n_folds}/{k} folds'}", h))
         if not merged("100%"):
             sys.exit("No 100% results yet.")
-        title = "Shot detection — video model, tracked net mirrored to the left (round 3)" if args.net else "Shot detection — video model (round 2)"
+        rnd = args.run[1:] if args.run[:1] == "r" and args.run[1:].isdigit() else ("3" if args.net else "2")
+        title = (f"Shot detection — video model, tracked net mirrored to the left (round {rnd})" if args.net
+                 else f"Shot detection — video model (round {rnd})")
         _, head = S.evaluate_core(merged("100%"), films, out_dir, title,
                                   curve=heads if len(heads) > 1 else None)
         print(head)

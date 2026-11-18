@@ -42,6 +42,8 @@ def frame(url, t):
 
 def sheet(film):
     vid = str(film["video_id"])
+    if (OUT / f"{vid}.jpg").exists():          # already made earlier
+        return vid, ["(kept)"]
     url = s3.generate_presigned_url("get_object", Params={"Bucket": os.environ["R2_BUCKET_NAME"], "Key": film["storage_path"]}, ExpiresIn=3600)
     pm = film.get("period_marks") or {}
     by_p = {}

@@ -294,12 +294,46 @@ to 4 CPU / 16 GB (~$0.80 per fold) — CPU and memory had been ~60% on top of
 the GPU. Note: raising a Modal spend limit restarts jobs that the limit had
 stopped; cancel stale calls (`modal.FunctionCall.from_id(id).cancel()`).
 
-## 6. Resuming when there are more tagged games
+## 6. Round 4: same model, about twice the data (2026-11-17)
 
-Paused on 2026-11-10 at 32 films with full film + shot times (29 games).
+98 film files (~70 games), 72.6 h of live film, 1,793 shots. Net side
+labelled for the 63 new files the same way (8 goal cams; 2406 and 2540
+excluded as unclear, 23 shots; 2388, 2045 and 1743-45 low confidence). Same
+recipe as round 3, new goalie folds.
+
+    ml/.venv/bin/python ml/video/launch.py --net --run r4 [--only 1,2,3] [--status|--report]
+
+Report: `ml/data/eval_video_r4_net/report.md`. Because the folds changed, the
+fair comparison is on the 32 films both rounds tested:
+
+| | Round 3 | Round 4 (same 32 films) | Round 4 (all 98) |
+|---|---|---|---|
+| Best F1 | 0.36 | **0.42** | 0.40 |
+| Found at ≤120 extra/h | 70% | **82%** | 82% |
+| Found at ≤60 extra/h | 59% | **72%** | 70% |
+| Found at ≤30 extra/h | 45% | **54%** | 55% |
+| Most found (extra/h) | 83% (259) | — | 87% (220) |
+
+Doubling the data gave a bigger gain than the net-mirroring change did, and
+the films round 3 already knew improved as much as the new ones, so more
+tagged games are still the cheapest lever. Still short of the target (≥95%
+found at ≤60 extra/h).
+
+Cost: ~$10 for 5 folds plus ~$1.60 to cut clips for the new films. Folds
+ran ~40 min training + ~15-20 min scoring at ~$1.30/GPU-hour, but Modal
+preempted two GPUs mid-scan and they restarted from scratch (~$1.50 extra).
+`train_and_score` now checkpoints after every epoch and every scored film
+(`/data/ckpt/` on the volume), so a preemption costs at most one epoch.
+The fold 4-5 models from this run are saved there (`r4net100%_fold4.pt`,
+`..._fold5.pt`).
+
+## 7. Resuming when there are more tagged games
+
+Paused on 2026-11-10 at 32 films (29 games); retrained as round 4 on
+2026-11-17 at 98 films (~70 games).
 The data-amount test showed accuracy still rising with more games, so the
-plan is to retrain at **~60+ film games**. Until then nothing here costs
-anything: Modal bills only while jobs run, and the 17.7 GB of saved clips on
+plan is to retrain again once there are clearly more tagged games (round 4's
+gain says it is still worth it). Until then nothing here costs anything: Modal bills only while jobs run, and the ~35 GB of saved clips on
 the `goalieiq-ml` volume is inside Modal's free 1 TiB of volume storage.
 
 ### While collecting (no code needed)
@@ -323,17 +357,15 @@ the `goalieiq-ml` volume is inside Modal's free 1 TiB of volume storage.
    `ml/.venv/bin/python ml/video/net_frames.py` and add them to
    `ml/video/net_sides.json`.
 3. Cut clips for the new films only (already-prepared films are skipped):
-   `ml/.venv/bin/modal run ml/video/shots_modal.py --step prepare`
-4. `ml/.venv/bin/modal deploy ml/video/shots_modal.py`, then train in two waves
-   so a budget stop can't lose everything:
-   `ml/.venv/bin/python ml/video/launch.py --net --only 1,2,3`, check spend on
-   modal.com -> Usage & billing, then `--only 4,5`, then `--report`.
-   Old results are skipped by label: to retrain on the bigger dataset, first
-   remove the old `net100%_fold*.json` files from the volume's `scores/`
-   folder (`ml/.venv/bin/modal volume rm goalieiq-ml scores/net100%_fold1.json`
-   etc.), or the launcher will think those folds are done.
-5. Compare `ml/data/eval_video_net/report.md` with the round 3 numbers in
-   section 5 (F1 0.36; 59% found at ≤60 extra/h).
+   `ml/.venv/bin/python ml/video/launch.py --prepare`, and re-run it until it
+   says all films are prepared.
+4. `ml/.venv/bin/modal deploy ml/video/shots_modal.py`, then train in two
+   waves under a new run name, so older results stay apart:
+   `ml/.venv/bin/python ml/video/launch.py --net --run r5 --only 1,2,3`, check
+   spend on modal.com -> Usage & billing, then `--only 4,5`, then `--report`.
+   Budget about $2 per fold plus ~$0.03 per new film for clips.
+5. Compare `ml/data/eval_video_r5_net/report.md` with round 4 in section 6
+   (F1 0.40; 70% found at ≤60 extra/h), and on the films both rounds tested.
 
 Budget notes: the Starter plan includes $30/month (resets on the 1st). Keep a
 spend limit set. If a limit stops jobs, raising it **restarts** them: list
