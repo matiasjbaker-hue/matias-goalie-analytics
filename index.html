@@ -3548,9 +3548,9 @@
 
 <!-- ========================================================= -->
 <!-- VIDEO REVIEW (admin-only -- uploaded game film across all
-     customers. No AI shot-finding here anymore: shots are entered
-     via the normal manual workflow, and clips are attached to
-     individual shots directly from the Shot Log.) -->
+     customers. "Find shots with" runs the GoalieIQ model (or Claude /
+     Twelve Labs); what it finds becomes moments to check, and the admin
+     confirms each shot before anything is published.) -->
 <!-- ========================================================= -->
 
 <section id="adminvideoreview" class="tab">
@@ -3611,37 +3611,47 @@
       <div class="rv-head-actions">
         <span id="rv-status"></span>
         <span class="rv-cost" id="rv-ai-cost" hidden title="What the AI work on this video has cost, priced from the token counts Anthropic returns with each answer"></span>
-        <label class="rv-density" title="How closely the AI looks: more stills catch more action and cost more">
-          <span>AI detail</span>
-          <select id="rv-scan-density">
-            <option value="thorough">Thorough (1 s)</option>
-            <option value="normal" selected>Normal (1.5 s)</option>
-            <option value="fast">Fast (2.5 s)</option>
-          </select>
-        </label>
-        <label class="rv-density" title="Half price: the AI answers within about an hour, usually sooner, and the results are collected while this request is open. Instant: answers while it scans, at full price.">
-          <span>AI cost</span>
-          <select id="rv-scan-mode">
-            <option value="batch" selected>Half price (results within ~1 hr)</option>
-            <option value="instant">Instant (full price)</option>
-          </select>
-        </label>
-        <label class="rv-density" title="Opus 5.5 reads the video more sharply and costs about twice as much. Use Test accuracy to compare them on your own footage.">
-          <span>AI model</span>
-          <select id="rv-ai-model" onchange="onReviewModelChange(this.value)">
-            <option value="claude-opus-5-5" selected>Opus 5.5 (sharper)</option>
-            <option value="claude-sonnet-5-5">Sonnet 5.5 (about half the cost)</option>
-            <option value="twelvelabs">Twelve Labs (watches the video)</option>
-          </select>
-        </label>
-        <button type="button" class="btn-secondary" id="rv-scan-btn" onclick="toggleReviewScan()">Run AI</button>
-        <button type="button" class="btn-secondary" id="rv-clear-ai-btn" onclick="clearReviewAiResults()" title="Removes the moments to check, the action stretches and any AI shots you haven't touched, so Run AI starts fresh. Your own shots, period marks and cuts are kept.">Clear AI results</button>
-        <button type="button" class="btn-secondary" id="rv-test-btn" onclick="runReviewAccuracyTest()" title="Checks the AI against shots you've already marked and reports how many it found, how many extra it flagged, and the cost. Doesn't change the shot list.">Test accuracy</button>
-        <button type="button" class="btn-danger" onclick="flagReviewNeedsAttention()">Needs attention</button>
+        <div class="rv-ai-run" role="group" aria-label="Find shots">
+          <label class="rv-density" title="GoalieIQ model: our own shot detector, trained on the games tagged here. It finds about 87% of shots and costs about 10 cents a game. The others are general AI models that look at stills (Claude) or watch the video (Twelve Labs).">
+            <span>Find shots with</span>
+            <select id="rv-ai-model" onchange="onReviewModelChange(this.value)">
+              <option value="goalieiq" selected>GoalieIQ model</option>
+              <option value="claude-opus-5-5">Opus 5.5</option>
+              <option value="claude-sonnet-5-5">Sonnet 5.5 (about half the cost)</option>
+              <option value="twelvelabs">Twelve Labs</option>
+            </select>
+          </label>
+          <button type="button" class="btn-secondary" id="rv-scan-btn" onclick="toggleReviewScan()">Run AI</button>
+        </div>
         <label class="rv-check" title="Sends the goalie a recap with their PDF stat sheet from the company Gmail">
           <input type="checkbox" id="rv-auto-email" checked> <span>Email stats + PDF</span>
         </label>
         <button type="button" class="btn-primary" id="rv-approve-btn" onclick="approveReview()">Approve &amp; publish</button>
+        <details class="rv-more" id="rv-more">
+          <summary class="btn-secondary">More</summary>
+          <div class="rv-more-menu">
+            <div class="rv-more-settings" id="rv-claude-settings">
+              <label class="rv-density" title="How closely the AI looks: more stills catch more action and cost more">
+                <span>AI detail</span>
+                <select id="rv-scan-density">
+                  <option value="thorough">Thorough (1 s)</option>
+                  <option value="normal" selected>Normal (1.5 s)</option>
+                  <option value="fast">Fast (2.5 s)</option>
+                </select>
+              </label>
+              <label class="rv-density" title="Half price: the AI answers within about an hour, usually sooner, and the results are collected while this request is open. Instant: answers while it scans, at full price.">
+                <span>AI cost</span>
+                <select id="rv-scan-mode">
+                  <option value="batch" selected>Half price (results within ~1 hr)</option>
+                  <option value="instant">Instant (full price)</option>
+                </select>
+              </label>
+            </div>
+            <button type="button" class="btn-secondary" id="rv-clear-ai-btn" onclick="clearReviewAiResults()" title="Removes the moments to check, the action stretches and any AI shots you haven't touched, so Run AI starts fresh. Your own shots, period marks and cuts are kept.">Clear AI results</button>
+            <button type="button" class="btn-secondary" id="rv-test-btn" onclick="runReviewAccuracyTest()" title="Checks the Claude AI against shots you've already marked and reports how many it found, how many extra it flagged, and the cost. Doesn't change the shot list.">Test accuracy</button>
+            <button type="button" class="btn-danger" onclick="flagReviewNeedsAttention()">Needs attention</button>
+          </div>
+        </details>
       </div>
     </div>
 
@@ -23528,6 +23538,7 @@ async function openReview(videoId){
   if(review.scanning){ review.scanning = false; }
   stopReviewBatchPolling();
   stopReviewTlPolling();
+  stopReviewMlPolling();
 
   review.video = { ...v, period_marks: v.period_marks || {} };
   review.scanStats = null;
@@ -23545,9 +23556,10 @@ async function openReview(videoId){
   review.checkT = null;
   review.selectedId = null;
   try{
-    const m = localStorage.getItem("giq-ai-model-v2");
+    const m = localStorage.getItem("giq-ai-model-v3");
     if(m && REVIEW_MODELS[m]){ document.getElementById("rv-ai-model").value = m; }
   }catch(e){}
+  syncReviewModelControls();
   refreshReviewNetSelects();
 
   document.getElementById("rv-queue-view").hidden = true;
@@ -23580,6 +23592,7 @@ async function openReview(videoId){
   renderReviewTests();
   startReviewBatchPolling();
   startReviewTlPolling();
+  startReviewMlPolling();
 
   window.scrollTo({ top: 0, behavior: "smooth" });
 
@@ -23590,6 +23603,7 @@ function closeReview(){
   review.scanning = false;
   stopReviewBatchPolling();
   stopReviewTlPolling();
+  stopReviewMlPolling();
   review.video = null;
   const video = document.getElementById("rv-video");
   video.pause();
@@ -23628,7 +23642,7 @@ function renderReviewHeader(){
   scanBtn.textContent =
     review.scanning ? "Pause AI" :
     review.collecting ? "Collecting…" :
-    (reviewPendingBatches(v).length || reviewUntagged(v).length || reviewTlTasks(v).length) ? "Check AI results" :
+    (reviewPendingBatches(v).length || reviewUntagged(v).length || reviewTlTasks(v).length || reviewMlJob(v)) ? "Check AI results" :
     Number(v.scan_progress) >= 1 ? "Re-run AI" :
     Number(v.scan_progress) > 0 ? "Resume AI" : "Run AI";
 
@@ -24768,10 +24782,17 @@ function renderReviewScanBar(){
   if(!v){ return; }
   const d = reviewDuration() || Number(v.duration_seconds) || 0;
   const cursor = Number(v.scan_cursor) || 0;
-  const waiting = !review.scanning && (reviewPendingBatches(v).length || reviewUntagged(v).length || reviewTlTasks(v).length);
+  const waiting = !review.scanning && (reviewPendingBatches(v).length || reviewUntagged(v).length || reviewTlTasks(v).length || reviewMlJob(v));
   const show = review.scanning || waiting || (cursor > 0 && Number(v.scan_progress) < 1);
   bar.hidden = !show;
   if(!show){ return; }
+  if(waiting && reviewMlJob(v)){
+    const job = reviewMlJob(v);
+    document.getElementById("rv-scanbar-fill").style.width = "100%";
+    document.getElementById("rv-scan-text").textContent =
+      `The GoalieIQ model is scanning ${job.seconds ? formatClock(job.seconds) + " of " : ""}the game. Usually 5 to 15 minutes; checked every 20 seconds while this request is open. You can close it and come back.${review.mlCheckedAt ? ` Last checked ${new Date(review.mlCheckedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.` : ""}`;
+    return;
+  }
   if(waiting && reviewTlTasks(v).length){
     const n = reviewTlTasks(v).length;
     document.getElementById("rv-scanbar-fill").style.width = "100%";
@@ -25245,7 +25266,7 @@ async function clearReviewAiResults(){
   const aiShots = review.drafts.filter(d => d.source === "ai" && !d.edited);
   const checks = reviewChecks().length;
   const stretches = Array.isArray(marks._action) ? marks._action.length : 0;
-  const pending = reviewPendingBatches(v).length + reviewUntagged(v).length + reviewTlTasks(v).length;
+  const pending = reviewPendingBatches(v).length + reviewUntagged(v).length + reviewTlTasks(v).length + (reviewMlJob(v) ? 1 : 0);
 
   if(!aiShots.length && !(review.candidates || []).length && !stretches && !pending && !Number(v.scan_cursor)){
     showToast("There are no AI results on this video to clear.");
@@ -25272,7 +25293,7 @@ async function clearReviewAiResults(){
       }
     }
 
-    const { _action, _candidates, _batches, _untagged, _tl, ...rest } = marks;
+    const { _action, _candidates, _batches, _untagged, _tl, _ml, ...rest } = marks;
     const { error } = await supabaseClient.from("game_videos")
       .update({ period_marks: rest, scan_cursor: 0, scan_progress: 0 }).eq("id", v.id);
     if(error){ throw error; }
@@ -25286,6 +25307,7 @@ async function clearReviewAiResults(){
     review.scanStats = null;
     stopReviewBatchPolling();
     stopReviewTlPolling();
+    stopReviewMlPolling();
 
     renderReviewPreview(null);
     renderReviewHeader();
@@ -25628,9 +25650,154 @@ async function collectReviewTwelveLabs(manual){
 
 }
 
+/* ---------- GoalieIQ shot model ----------
+   With "GoalieIQ model" picked, Run AI sends the game to our own shot
+   detector (ml/video/shots_modal.py on Modal, through
+   /api/admin/shot-model), trained on the games tagged here. It scans the
+   uncut parts at the goalie's end and returns likely shots, which become
+   moments to check: it finds about 87% of shots, along with extra moments
+   that aren't shots. The run is saved in period_marks._ml and checked
+   every 20 seconds while the request is open, so the admin can close it
+   and come back. */
+
+const REVIEW_ML_POLL_MS = 20 * 1000;
+let reviewMlTimer = null;
+
+function reviewMlJob(v){
+  const j = v && v.period_marks && v.period_marks._ml;
+  return j && typeof j.callId === "string" ? j : null;
+}
+
+async function shotModelApi(body){
+  const res = await fetch("/api/admin/shot-model", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accessToken: currentSession.access_token, ...body })
+  });
+  let data = {};
+  try{ data = await res.json(); }catch(e){ data = {}; }
+  if(!res.ok){
+    const err = new Error(data.error || `The GoalieIQ model request failed (error ${res.status}).`);
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+
+async function runReviewShotModel(){
+
+  const v = review.video;
+  if(!v || review.scanning || review.collecting){ return; }
+  if(reviewMlJob(v)){ collectReviewShotModel(true); return; }
+
+  const m = v.period_marks || {};
+  if(m._net !== "left" && m._net !== "right"){
+    showToast("Set the goalie's net for the 1st period first (next to the period marks). The model watches that end of the ice.", "error");
+    const sel = document.getElementById("rv-net-side");
+    if(sel){ sel.focus(); }
+    return;
+  }
+  const parts = reviewKeptRanges();
+  if(!parts.length){ showToast("Nothing left to scan: the whole video is cut.", "error"); return; }
+  const seconds = parts.reduce((sum, r) => sum + (r[1] - r[0]), 0);
+  if(!confirm(
+    `Run the GoalieIQ model on ${formatClock(seconds)} of game?\n\n` +
+    `It marks every likely shot on the goalie as a moment to check. It finds about 87% of shots, along with extra moments that aren't shots.\n\n` +
+    `Then: watch each moment (M) and press S at each real shot, or D if there wasn't one. Last, watch the game at 2× and add any shots it missed.\n\n` +
+    `About 10 cents. Results usually take 5 to 15 minutes; you can close this request and come back.`
+  )){ return; }
+
+  review.collecting = true;
+  renderReviewHeader();
+  setReviewTlProgress("Sending the game to the GoalieIQ model…", 100);
+
+  try{
+    const data = await shotModelApi({ op: "start", gameVideoId: v.id, duration: reviewDuration() || Number(v.duration_seconds) || 0 });
+    v.period_marks = { ...(v.period_marks || {}), _ml: { callId: data.callId, sent_at: new Date().toISOString(), seconds: Math.round(seconds) } };
+    await saveReviewMarks(v);
+    showToast("Sent to the GoalieIQ model. Results usually take 5 to 15 minutes and are checked every 20 seconds while this request is open.", "success");
+  }
+  catch(error){
+    console.error(error);
+    showToast(error.message || "Couldn't start the GoalieIQ model.", "error");
+  }
+  finally{
+    review.collecting = false;
+    renderReviewHeader();
+    renderReviewScanBar();
+  }
+
+  startReviewMlPolling();
+
+}
+
+function startReviewMlPolling(){
+  stopReviewMlPolling();
+  if(!review.video || !reviewMlJob(review.video)){ return; }
+  collectReviewShotModel(false);
+  reviewMlTimer = setInterval(() => collectReviewShotModel(false), REVIEW_ML_POLL_MS);
+}
+
+function stopReviewMlPolling(){
+  if(reviewMlTimer){ clearInterval(reviewMlTimer); reviewMlTimer = null; }
+}
+
+async function collectReviewShotModel(manual){
+
+  const v = review.video;
+  const job = reviewMlJob(v);
+  if(!v || !job){ stopReviewMlPolling(); return; }
+  if(review.mlChecking){ return; }
+  review.mlChecking = true;
+
+  try{
+    const data = await shotModelApi({ op: "status", gameVideoId: v.id, callId: job.callId });
+    if(!review.video || review.video.id !== v.id){ return; }
+    review.mlCheckedAt = Date.now();
+    if(data.status === "running"){
+      if(manual){ showToast("The GoalieIQ model is still scanning the game. Usually 5 to 15 minutes."); }
+      return;
+    }
+
+    const { _ml, ...rest } = v.period_marks || {};
+    v.period_marks = rest;
+    const shots = data.status === "ready" ? (data.shots || []) : [];
+    shots.forEach(s => addReviewCandidate(v, s.t, s.score, false));
+    await saveReviewMarks(v);
+    stopReviewMlPolling();
+    renderReviewShots();
+
+    if(data.status === "ready"){
+      const n = reviewChecks().length;
+      showToast(
+        `GoalieIQ model finished: ${shots.length} likely shot${shots.length === 1 ? "" : "s"}, grouped into ${n} moment${n === 1 ? "" : "s"} to check on the right. Watch each one (M), press S at each real shot or D if there wasn't one, then watch the game at 2× for any it missed.`,
+        "success"
+      );
+    }
+    else{
+      showToast(`The GoalieIQ model couldn't finish: ${data.error || "unknown error"}. Press Run AI to try again.`, "error");
+    }
+  }
+  catch(error){
+    console.error(error);
+    if(manual || error.status === 401 || error.status === 403 || error.status === 503){
+      showToast(error.message || "Couldn't check the GoalieIQ model.", "error");
+    }
+  }
+  finally{
+    review.mlChecking = false;
+    if(review.video && review.video.id === v.id){
+      renderReviewScanBar();
+      renderReviewHeader();
+    }
+  }
+
+}
+
 /* ---------- AI model ---------- */
 
 const REVIEW_MODELS = {
+  "goalieiq": "GoalieIQ model",
   "claude-sonnet-5-5": "Sonnet 5.5",
   "claude-opus-5-5": "Opus 5.5",
   "twelvelabs": "Twelve Labs"
@@ -25645,12 +25812,26 @@ function reviewClaudeModel(){
 
 function reviewAiModel(){
   const sel = document.getElementById("rv-ai-model");
-  return sel && REVIEW_MODELS[sel.value] ? sel.value : "claude-opus-5-5";
+  return sel && REVIEW_MODELS[sel.value] ? sel.value : "goalieiq";
 }
 
 function onReviewModelChange(value){
-  try{ localStorage.setItem("giq-ai-model-v2", value); }catch(e){}
+  try{ localStorage.setItem("giq-ai-model-v3", value); }catch(e){}
+  syncReviewModelControls();
 }
+
+// AI detail and AI cost only apply to the Claude scan.
+function syncReviewModelControls(){
+  const box = document.getElementById("rv-claude-settings");
+  if(box){ box.hidden = !reviewAiModel().startsWith("claude-"); }
+}
+
+// The More menu closes when you click outside it or pick something in it.
+document.addEventListener("click", e => {
+  const more = document.getElementById("rv-more");
+  if(!more || !more.open){ return; }
+  if(!more.contains(e.target) || e.target.closest(".rv-more-menu > button")){ more.open = false; }
+});
 
 
 /* ---------- accuracy test ----------
@@ -26031,11 +26212,15 @@ function toggleReviewScan(){
     collectReviewTwelveLabs(true);
     return;
   }
+  if(review.video && reviewMlJob(review.video)){
+    collectReviewShotModel(true);
+    return;
+  }
   if(review.video && (reviewPendingBatches(review.video).length || reviewUntagged(review.video).length)){
     collectReviewBatches(true);
     return;
   }
-  if(review.video && !(review.video.period_marks || {})._net && !review.scanning){
+  if(review.video && !(review.video.period_marks || {})._net && !review.scanning && reviewAiModel() !== "goalieiq"){
     if(!confirm("Which net is the goalie's isn't set (next to the period marks), so the AI may flag action at the wrong end. Run the AI anyway?")){ return; }
   }
   if(review.video && !reviewEditFinished(review.video)){
@@ -26053,6 +26238,7 @@ function toggleReviewScan(){
 async function runReviewScan(){
 
   if(reviewAiModel() === "twelvelabs"){ return runReviewTwelveLabs(); }
+  if(reviewAiModel() === "goalieiq"){ return runReviewShotModel(); }
 
   const v = review.video;
   if(!v || review.scanning || review.collecting){ return; }

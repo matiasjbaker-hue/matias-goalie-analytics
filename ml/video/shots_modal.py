@@ -585,6 +585,145 @@ def train_and_score(label, train_ids, test_films, epochs, max_seconds=None, trai
     return label, out
 
 
+# ---------------------------------------------------------------- shot suggestions for the site
+# Review's "GoalieIQ model" button: the site sends one game here, the
+# trained model scans all of its live play, and the likely shots come back
+# as moments to check. The admin confirms or deletes each one, then watches
+# the game at 2x to add the ones it missed.
+#
+#   site (api/_lib/admin-shot-model.js) --POST--> shot_api (web endpoint)
+#     op "start"  -> suggest_shots.spawn(film)            -> { callId }
+#     op "status" -> FunctionCall.get(timeout=0)          -> running | ready | failed
+#   suggest_shots (CPU): small 8 fps copy of the game from R2, then
+#   suggest_score (GPU): score every half second, pick peaks.
+#
+# Needs a Modal secret `goalieiq-shot-api` with SHOT_MODEL_SECRET, the same
+# value as SHOT_MODEL_SECRET in Vercel (ml/video/setup_shot_api.sh makes it).
+
+SUGGEST_THRESHOLD = 0.02   # "review mode": round 4 found ~87% of shots here, ~220 extra moments per game hour
+# Newest first: "final" is trained on every tagged film (train_final); until it exists,
+# a round-4 fold model (trained on ~80 of the 98 films) is used.
+MODEL_CKPTS = ("final.pt", "r4net100%_fold4.pt", "r4net100%_fold5.pt")
+INFER = DATA / "infer"
+
+
+def load_trained(device="cuda"):
+    import torch
+    for name in MODEL_CKPTS:
+        path = DATA / "ckpt" / name
+        if path.exists():
+            model = make_model(pretrained=False).to(device)
+            model.load_state_dict(torch.load(path, map_location=device, weights_only=False)["model"])
+            model.eval()
+            return model, name[:-3]
+    raise RuntimeError("There's no trained shot model on the volume yet.")
+
+
+@app.function(image=image, gpu="A10G", volumes={"/data": volume}, cpu=4.0, memory=16384, timeout=60 * 60)
+def suggest_score(film):
+    volume.reload()
+    model, name = load_trained("cuda")
+    shots, seconds = [], 0.0
+    for times, scores, a, b in score_core(model, INFER, film, device="cuda", canonical=True):
+        seconds += b - a
+        if len(times) < 3:
+            continue
+        pt, ps = pick_peaks(times, scores, SUGGEST_THRESHOLD)
+        shots += [{"t": round(float(t), 2), "score": round(float(s), 3)} for t, s in zip(pt, ps)]
+    return {"shots": sorted(shots, key=lambda s: s["t"]), "model": name, "minutes": round(seconds / 60, 1)}
+
+
+@app.function(image=image, volumes={"/data": volume}, secrets=[modal.Secret.from_name("goalieiq-r2")],
+              cpu=4.0, memory=16384, timeout=2 * 3600)
+def suggest_shots(film):
+    """One untagged game -> likely shot times. Cuts (warm-up, intermissions) are skipped."""
+    import shutil
+    vid = str(film["video_id"])
+    film = dict(film, video_id=vid, shot_times=[], net_sides=None)
+    segs = live_segments(film, all_live=True)
+    if not segs:
+        raise ValueError("Nothing to scan: the whole video is cut.")
+    volume.reload()
+    # Always cut fresh: the admin may have changed the cuts since the last run.
+    shutil.rmtree(INFER / "film" / vid, ignore_errors=True)
+    (INFER / "windows").mkdir(parents=True, exist_ok=True)
+    src = r2_url(film["storage_path"])
+    meta = []
+    for n, (a, b) in enumerate(segs):
+        out = INFER / "film" / vid / f"{n}.mp4"
+        ffmpeg_small_copy(src, a, b - a, out.with_suffix(".part.mp4"))
+        out.with_suffix(".part.mp4").rename(out)
+        meta.append(dict(n=n, start=a, end=b, path=f"film/{vid}/{n}.mp4"))
+    (INFER / "windows" / f"{vid}.json").write_text(json.dumps({"video_id": vid, "segments": meta}))
+    volume.commit()
+    return suggest_score.remote(film)
+
+
+web_image = modal.Image.debian_slim(python_version="3.12").pip_install("fastapi[standard]", "numpy")
+
+
+@app.function(image=web_image, secrets=[modal.Secret.from_name("goalieiq-shot-api")], timeout=60)
+@modal.fastapi_endpoint(method="POST", docs=False)
+def shot_api(body: dict):
+    import hmac
+    import re
+    from fastapi import HTTPException
+    want = os.environ.get("SHOT_MODEL_SECRET", "")
+    if len(want) < 32 or not hmac.compare_digest(str(body.get("secret", "")), want):
+        raise HTTPException(status_code=401, detail="Not allowed.")
+    op = body.get("op")
+    if op == "start":
+        f = body.get("film") or {}
+        vid, path, dur, marks = str(f.get("video_id", "")), str(f.get("storage_path", "")), f.get("duration_seconds"), f.get("period_marks")
+        if (not re.fullmatch(r"\d{1,12}", vid) or not path or ".." in path or path.startswith("/")
+                or not isinstance(dur, (int, float)) or not 10 <= dur <= 6 * 3600 or not isinstance(marks, dict)):
+            raise HTTPException(status_code=400, detail="That video can't be scanned.")
+        call = suggest_shots.spawn({"video_id": vid, "storage_path": path, "duration_seconds": float(dur),
+                                    "period_marks": marks})
+        return {"callId": call.object_id}
+    if op == "status":
+        cid = str(body.get("callId", ""))
+        if not re.fullmatch(r"fc-[A-Za-z0-9]{8,64}", cid):
+            raise HTTPException(status_code=400, detail="Unknown run.")
+        try:
+            result = modal.FunctionCall.from_id(cid).get(timeout=0)
+        except (TimeoutError, modal.exception.TimeoutError):
+            return {"status": "running"}
+        except modal.exception.OutputExpiredError:
+            return {"status": "failed", "error": "This run's results expired. Run the model again."}
+        except Exception as e:  # the job itself failed
+            return {"status": "failed", "error": str(e)[:300] or type(e).__name__}
+        return {"status": "ready", **result}
+    raise HTTPException(status_code=400, detail="Unknown operation.")
+
+
+@app.function(image=image, gpu="A10G", volumes={"/data": volume}, cpu=4.0, memory=16384, timeout=180 * 60)
+def train_final(films, epochs=8):
+    """Train the model the site uses on every film with a known net side -> /data/ckpt/final.pt."""
+    import shutil
+    import time
+    import torch
+    volume.reload()
+    ids = sorted(films)
+    local = Path("/tmp/data")
+    (local / "windows").mkdir(parents=True, exist_ok=True)
+    t0 = time.time()
+    for v in ids:
+        for name in (f"{v}.json", f"{v}_clips.npy"):
+            if (DATA / "windows" / name).exists():
+                shutil.copy(DATA / "windows" / name, local / "windows" / name)
+    print(f"copied training clips locally in {time.time() - t0:.0f}s", flush=True)
+    (DATA / "ckpt").mkdir(parents=True, exist_ok=True)
+    work = DATA / "ckpt" / "final-training.pt"
+    train_core(local, ids, epochs=epochs, device="cuda", log=lambda m: print(f"[final] {m}", flush=True),
+               films=films, canonical=True, ckpt=work, on_save=volume.commit)
+    state = torch.load(work, map_location="cpu", weights_only=False)
+    torch.save({"model": state["model"], "epoch": state["epoch"], "films": len(ids)}, DATA / "ckpt" / "final.pt")
+    work.unlink()
+    volume.commit()
+    return len(ids)
+
+
 @app.function(image=image, volumes={"/data": volume}, timeout=600)
 def load_scores():
     volume.reload()

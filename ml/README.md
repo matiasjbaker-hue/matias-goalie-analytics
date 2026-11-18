@@ -376,3 +376,37 @@ containers (`modal container list`) and cancel stale calls before launching new.
 Higher resolution or crops around the nets (the puck is invisible at
 228x128), longer clips (3–4 s), a larger backbone (`mvit_v2_s`), and
 comparing against the existing Claude-still / Twelve Labs detection.
+
+## 8. The model in Review: "Find shots with: GoalieIQ model"
+
+Review's header has one shot-finding control: pick **GoalieIQ model** (the
+default) and press **Run AI**. The game goes to Modal, the trained model scans
+every uncut part at the goalie's end, and the likely shots come back as
+**moments to check**. Its setting finds ~87% of shots, with extra moments
+that aren't shots (round 4: ~220 per game hour). Then:
+
+1. Watch each moment (M): press S at a real shot, D if there wasn't one.
+2. Watch the game at 2x and add any shot it missed (~1 in 8). Don't skip
+   this: a missed shot left untagged teaches the next model it wasn't one.
+
+It needs the goalie's net set for the 1st period (and period marks), skips
+cut parts, costs about 10 cents a game and takes 5-15 minutes; the request
+can be closed meanwhile. The less-used buttons (Claude's AI detail/cost,
+Clear AI results, Test accuracy, Needs attention) are under **More**.
+
+How it fits together: `index.html` (runReviewShotModel) ->
+`api/_lib/admin-shot-model.js` (admin check, reads the video row) -> Modal
+`shot_api` web endpoint -> `suggest_shots` (CPU: small copy of the game from
+R2) -> `suggest_score` (GPU: score every 0.5 s, peaks above 0.02). The run id
+is kept in `period_marks._ml` and checked every 20 s.
+
+One-time setup:
+
+1. `bash ml/video/setup_shot_api.sh`: makes the shared key (Modal secret
+   `goalieiq-shot-api`, copied to the clipboard, never printed), then deploys.
+2. In Vercel -> Settings -> Environment Variables add `SHOT_MODEL_SECRET`
+   (the key) and `SHOT_MODEL_URL` (the `...shot-api...modal.run` address the
+   deploy prints), then redeploy the site.
+3. Optional, ~$2: `ml/.venv/bin/python ml/video/launch.py --final` trains the
+   model on all 98 films (`ckpt/final.pt`). Until then a round-4 fold model
+   (~80 films) is used. Re-run after each retrain on more games.

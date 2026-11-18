@@ -7,6 +7,8 @@ even if this Mac sleeps or loses its connection. Collect results later.
     ml/.venv/bin/python ml/video/launch.py --status          # how many are done
     ml/.venv/bin/python ml/video/launch.py --report          # write ml/data/eval_video/report.md
 
+    ml/.venv/bin/python ml/video/launch.py --final            # train the model the site's Review button uses
+
 Options: --epochs 8 --folds 5 --no-curve (100% only)
          --net  mirror clips so the tracked net is always on the left
                 (uses ml/video/net_sides.json; 100% data only; results kept
@@ -65,6 +67,7 @@ def main():
     ap.add_argument("--only", default="", help="comma-separated fold numbers to start, e.g. 1,2,3")
     ap.add_argument("--run", default="", help="name prefix for this run's results, e.g. r4 (keeps older runs apart)")
     ap.add_argument("--prepare", action="store_true", help="cut clips for films not prepared yet, then exit")
+    ap.add_argument("--final", action="store_true", help="train the model the site uses on every film (~$2), then exit")
     args = ap.parse_args()
 
     films = load_films(args.net)
@@ -72,6 +75,12 @@ def main():
     fractions = [1.0] if (args.no_curve or args.net) else [1.0, 0.5, 0.25]
     if "_" in args.run or "/" in args.run:
         sys.exit("--run must not contain _ or /")
+    if args.final:
+        films = load_films(True)
+        call = modal.Function.from_name(APP, "train_final").spawn(films, args.epochs)
+        print(f"Training the site's model on {len(films)} films in the cloud ({call.object_id}).\n"
+              "About 45 minutes; it's saved as ckpt/final.pt on the volume and used from the next scan on.")
+        return
     if args.prepare:
         done_ids = {e.path.split("/")[-1][:-5] for e in modal.Volume.from_name("goalieiq-ml").iterdir("windows")
                     if e.path.endswith(".json")}
