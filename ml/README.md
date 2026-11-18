@@ -382,8 +382,11 @@ comparing against the existing Claude-still / Twelve Labs detection.
 Review's header has one shot-finding button, **Find shots (GoalieIQ model)**
 (Claude and Twelve Labs are hidden on the manual-only tagging screen). The game goes to Modal, the trained model scans
 every uncut part at the goalie's end, and the likely shots come back as
-**moments to check**. Its setting finds ~87% of shots, with extra moments
-that aren't shots (round 4: ~220 per game hour). Then:
+**moments to check**. The switch next to the button picks how many: **Fewer
+extras** (default, score ≥ 0.2) found 80% of shots at ~100 extra moments per
+game hour in round 4; **Catch more** (≥ 0.02) found 87% at ~220. All peaks
+are kept in `period_marks._ml_shots`, so switching after a run just
+re-filters. Then:
 
 1. Shift+N plays each moment: press S at a real shot, D if there wasn't one.
 2. Watch the game at 2x and add any shot it missed (~1 in 8). Don't skip

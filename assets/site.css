@@ -4250,7 +4250,7 @@ textarea:focus-visible,
   display:inline-flex;
   align-items:center;
   gap:8px;
-  padding:4px 4px 4px 12px;
+  padding:4px;
   border:1.5px solid var(--seam-strong);
   border-radius:var(--radius);
   background:var(--face);
