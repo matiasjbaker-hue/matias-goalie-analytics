@@ -379,20 +379,20 @@ comparing against the existing Claude-still / Twelve Labs detection.
 
 ## 8. The model in Review: "Find shots with: GoalieIQ model"
 
-Review's header has one shot-finding control: pick **GoalieIQ model** (the
-default) and press **Run AI**. The game goes to Modal, the trained model scans
+Review's header has one shot-finding button, **Find shots (GoalieIQ model)**
+(Claude and Twelve Labs are hidden on the manual-only tagging screen). The game goes to Modal, the trained model scans
 every uncut part at the goalie's end, and the likely shots come back as
 **moments to check**. Its setting finds ~87% of shots, with extra moments
 that aren't shots (round 4: ~220 per game hour). Then:
 
-1. Watch each moment (M): press S at a real shot, D if there wasn't one.
+1. Shift+N plays each moment: press S at a real shot, D if there wasn't one.
 2. Watch the game at 2x and add any shot it missed (~1 in 8). Don't skip
    this: a missed shot left untagged teaches the next model it wasn't one.
 
 It needs the goalie's net set for the 1st period (and period marks), skips
 cut parts, costs about 10 cents a game and takes 5-15 minutes; the request
-can be closed meanwhile. The less-used buttons (Claude's AI detail/cost,
-Clear AI results, Test accuracy, Needs attention) are under **More**.
+can be closed meanwhile. Clear AI results and Needs attention are under
+**More**.
 
 How it fits together: `index.html` (runReviewShotModel) ->
 `api/_lib/admin-shot-model.js` (admin check, reads the video row) -> Modal

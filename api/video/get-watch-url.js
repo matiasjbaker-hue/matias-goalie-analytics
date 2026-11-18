@@ -8,10 +8,16 @@
 // game_videos") by fetching the row with the caller's OWN access token.
 // If RLS returns zero rows, this 404s.
 //
-// Download (download: true): admin-only, and the URL carries a
-// Content-Disposition that forces a file download. This used to be its
-// own endpoint (get-download-url.js); it lives here so the project stays
-// within Vercel Hobby's 12-function limit.
+// Download (download: true): the URL carries a Content-Disposition that
+// forces a file download. Admins can download any video; coaches can
+// download the shot clips (status "clip") of their goalies, nothing else.
+// This used to be its own endpoint (get-download-url.js); it lives here so
+// the project stays within Vercel Hobby's 12-function limit.
+//
+// Batch: { accessToken, gameVideoIds: [...], download: true, fileNames?: [...] }
+// returns { items: [{ id, url, fileName }] } for up to 100 clips at once
+// (the page uses it for "Download all clips"). Anything the caller can't
+// download is left out, and "skipped" says how many.
 //
 // R2 serves range requests on GetObject, so the browser's <video>
 // element can seek within the file using this one signed URL.
@@ -36,15 +42,28 @@ function safeFileName(path) {
   return base.replace(/[^\w.\- ]+/g, "_").slice(0, 150) || "video";
 }
 
+// A friendly name for a clip, always ending in .mp4.
+function clipFileName(wanted, path) {
+  const cleaned = String(wanted || "").replace(/[^\w.\- ()]+/g, "_").replace(/\.mp4$/i, "").trim().slice(0, 140);
+  return cleaned ? `${cleaned}.mp4` : safeFileName(path);
+}
+
+const MAX_BATCH = 100;
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
 
-  const { accessToken, gameVideoId, download } = req.body || {};
-  if (!accessToken || !gameVideoId) {
+  const { accessToken, gameVideoId, download, gameVideoIds, fileNames } = req.body || {};
+  const batch = Array.isArray(gameVideoIds) ? gameVideoIds.slice(0, MAX_BATCH) : null;
+  if (!accessToken || (!gameVideoId && !(batch && batch.length))) {
     res.status(400).json({ error: "Missing accessToken or gameVideoId." });
+    return;
+  }
+  if (batch && !download) {
+    res.status(400).json({ error: "Batch is for downloads only." });
     return;
   }
 
@@ -60,13 +79,41 @@ export default async function handler(req, res) {
       return;
     }
 
-    if (download && (await callerRole(user.id, accessToken)) !== "admin") {
-      res.status(403).json({ error: "Only an admin account can download videos here." });
+    const role = download ? await callerRole(user.id, accessToken) : null;
+    if (download && role !== "admin" && role !== "coach") {
+      res.status(403).json({ error: "Only an admin or coach account can download videos here." });
+      return;
+    }
+
+    if (batch) {
+      const items = [];
+      let skipped = 0;
+      for (let i = 0; i < batch.length; i++) {
+        const id = String(batch[i] || "");
+        if (!/^\d+$/.test(id)) { skipped++; continue; }
+        const found = await userSelect("game_videos", `id=eq.${encodeURIComponent(id)}&select=*`, accessToken);
+        const row = found[0];
+        // A coach may only take shot clips; the row is only visible if RLS lets them see it.
+        if (!row || (role !== "admin" && row.status !== "clip") || !(await storagePathIsTrusted(row))) { skipped++; continue; }
+        const fileName = clipFileName(Array.isArray(fileNames) ? fileNames[i] : "", row.storage_path);
+        const url = await getSignedUrl(r2Client(), new GetObjectCommand({
+          Bucket: process.env.R2_BUCKET_NAME,
+          Key: row.storage_path,
+          ResponseContentDisposition: `attachment; filename="${fileName}"`,
+        }), { expiresIn: DOWNLOAD_URL_EXPIRY_SECONDS });
+        items.push({ id, url, fileName });
+      }
+      res.status(200).json({ items, skipped });
       return;
     }
 
     const rows = await userSelect("game_videos", `id=eq.${encodeURIComponent(gameVideoId)}&select=*`, accessToken);
     const gameVideo = rows[0];
+
+    if (download && role !== "admin" && gameVideo && gameVideo.status !== "clip") {
+      res.status(403).json({ error: "Coaches can download shot clips, not the full game film." });
+      return;
+    }
 
     // RLS decides whether the row is visible; the path check stops a row
     // that points into someone else's folder from unlocking their file.

@@ -17,9 +17,14 @@ const ROUTES = {
   "send-recap": () => import("../_lib/admin-send-recap.js"),
   "user-info": () => import("../_lib/admin-user-info.js"),
   "make-clip": () => import("../_lib/admin-make-clip.js"),
+  "invite-goalies": () => import("../_lib/admin-invite-goalies.js"),
   "create-request": () => import("../_lib/admin-create-request.js"),
+  storage: () => import("../_lib/admin-storage.js"),
   twelvelabs: () => import("../_lib/admin-twelvelabs.js"),
   "shot-model": () => import("../_lib/admin-shot-model.js"),
+  payment: () => import("../_lib/admin-payment.js"),
+  // not admin-only: any signed-in goalie may send a film link (verified in the handler)
+  "film-link": () => import("../_lib/submit-film-link.js"),
 };
 
 export default async function handler(req, res) {

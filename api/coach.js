@@ -95,7 +95,7 @@ function buildStatsSummary({ games, periodStats, shots, reboundControls, puckPla
   const gamesPlayed = seasonGames.length;
   const wins = seasonGames.filter(g => g.result === "W").length;
   const losses = seasonGames.filter(g => g.result === "L").length;
-  const otLosses = seasonGames.filter(g => g.result === "OTL").length;
+  const otLosses = seasonGames.filter(g => g.result === "OTL" || g.result === "T").length; // third number: OT losses and ties
 
   const totalShotsAgainst = seasonGames.reduce((sum, g) => sum + num(g.shots_against), 0);
   const totalSaves = seasonGames.reduce((sum, g) => sum + num(g.saves), 0);

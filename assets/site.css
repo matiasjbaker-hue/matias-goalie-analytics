@@ -765,6 +765,90 @@ header{
 }
 
 
+/* Feedback drawn on a shot's video (Mark up) */
+.watch-stage{ position:relative; }
+.watch-mark-canvas{
+  position:absolute; left:0; top:0;
+  pointer-events:none;
+  touch-action:none;
+  border-radius:var(--radius);
+}
+.watch-mark-canvas.marking{ pointer-events:auto; cursor:crosshair; }
+.watch-mark-text{
+  position:absolute;
+  min-width:120px; min-height:44px;
+  background:rgba(0,0,0,.65);
+  border:1.5px dashed #fff;
+  border-radius:4px;
+  padding:3px 6px;
+  font:700 18px/1.2 system-ui,sans-serif;
+  resize:both; outline:none; overflow:auto;
+  z-index:3;
+}
+.watch-mark-bar{
+  display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center;
+  margin-top:10px; padding:10px 12px;
+  background:var(--field); border:1.5px solid var(--seam-strong); border-radius:var(--radius);
+}
+.watch-mark-bar[hidden], .watch-ann[hidden]{ display:none; }
+.watch-mark-bar button{
+  font:inherit; font-size:13px; font-weight:700; cursor:pointer;
+  padding:6px 12px; border-radius:var(--radius);
+  background:transparent; color:var(--ink); border:1.5px solid var(--seam-strong);
+}
+.watch-mark-tools, .watch-mark-actions, .watch-mark-colors{ display:flex; gap:6px; align-items:center; }
+.watch-mark-actions{ margin-left:auto; }
+.watch-mark-tools button.active{ background:var(--pine); color:var(--on-pine); border-color:var(--pine); }
+.watch-mark-colors button{ width:24px; height:24px; padding:0; border-radius:50%; border:2px solid var(--seam-strong); }
+.watch-mark-colors button.active{ outline:2px solid var(--ink); outline-offset:2px; }
+.watch-mark-bar button.primary{ background:var(--pine); color:var(--on-pine); border-color:var(--pine); }
+.watch-mark-bar button:disabled{ opacity:.6; cursor:default; }
+.watch-ann{ margin-top:12px; }
+.watch-ann-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; font-weight:800; font-size:13px; text-transform:uppercase; letter-spacing:.05em; }
+.watch-ann-head button{
+  font:inherit; font-size:13px; font-weight:700; text-transform:none; letter-spacing:0; cursor:pointer;
+  padding:6px 12px; border-radius:var(--radius);
+  background:var(--pine); color:var(--on-pine); border:1.5px solid var(--pine);
+}
+.watch-ann-head button[hidden]{ display:none; }
+.watch-ann-list{ display:flex; flex-direction:column; gap:6px; }
+.watch-ann-chip{ display:flex; align-items:stretch; border:1.5px solid var(--seam-strong); border-radius:var(--radius); overflow:hidden; background:var(--field); }
+.watch-ann-chip.active{ border-color:var(--pine); box-shadow:inset 3px 0 0 var(--pine); }
+.watch-ann-open{ flex:1; display:flex; gap:10px; align-items:baseline; text-align:left; font:inherit; font-size:13px; color:var(--ink); background:none; border:none; padding:8px 10px; cursor:pointer; min-width:0; }
+.watch-ann-open span{ color:var(--muted-ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.watch-ann-del{ background:none; border:none; border-left:1.5px solid var(--seam-strong); color:var(--muted-ink); font-size:18px; padding:0 12px; cursor:pointer; }
+.watch-ann-del:hover{ color:#b42318; }
+.watch-ann-empty{ font-size:13px; color:var(--muted-ink); }
+.watch-mark-voice{ display:flex; flex-wrap:wrap; gap:8px 10px; align-items:center; }
+.watch-mark-voice .wv-rec{ border-color:#b42318; color:#b42318; }
+.watch-mark-voice .wv-time{ font-size:13px; font-weight:700; color:#b42318; }
+.watch-mark-voice .wv-preview{ height:34px; max-width:260px; }
+.watch-mark-voice [hidden]{ display:none; }
+.watch-ann-audio{ margin-top:8px; }
+.watch-ann-audio audio{ width:100%; max-width:420px; height:36px; }
+
+
+/* Profile pictures */
+.avatar{
+  display:inline-flex; align-items:center; justify-content:center;
+  border-radius:50%; overflow:hidden; flex:none;
+  background:var(--pine); color:var(--on-pine);
+  font-weight:800; letter-spacing:.02em;
+  border:2px solid var(--seam-strong);
+}
+.avatar[hidden]{ display:none; }
+.avatar img{ width:100%; height:100%; object-fit:cover; display:block; }
+.avatar-sm{ width:30px; height:30px; font-size:12px; border-width:1.5px; }
+.avatar-lg{ width:72px; height:72px; font-size:24px; }
+#header-avatar{ border-color:rgba(238,245,240,.55); margin-right:6px; }
+.avatar-row{ display:flex; align-items:center; gap:14px; margin-bottom:14px; }
+.avatar-actions{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.avatar-upload{ cursor:pointer; display:inline-block; }
+.page-title-row{ display:flex; align-items:center; gap:14px; }
+.page-title-row h2, .page-title-row p{ margin:0; }
+.goalie-switcher .avatar{ margin-right:8px; vertical-align:middle; }
+
+
 /* =========================================================
    TABLES
 ========================================================= */
@@ -4257,7 +4341,9 @@ textarea:focus-visible,
 
 .rv-player-msg{
   position:absolute;
-  inset:auto 12px 12px 12px;
+  /* top of the picture, so it never covers the video's own controls */
+  inset:12px 12px auto 12px;
+  pointer-events:none;
   padding:10px 12px;
   border-radius:var(--radius);
   background:rgba(18,20,18,.88);
@@ -4721,6 +4807,13 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
   max-width:75ch;
 }
 
+/* Part 1 / Part 2 switch when a game's film came as more than one file */
+.go-film-parts{
+  margin:0 0 10px;
+  max-width:100%;
+  flex-wrap:wrap;
+}
+
 .go-film-grid{
   display:grid;
   grid-template-columns:minmax(0,1.7fr) minmax(260px,1fr);
@@ -4846,6 +4939,61 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
   font-weight:600;
   cursor:pointer;
 }
+
+.rv-puck{
+  margin-top:14px;
+  padding:12px 16px;
+  border:1px solid var(--seam-strong);
+  border-radius:var(--radius);
+  background:var(--face);
+}
+.rv-puck-head{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:baseline;
+  gap:8px 14px;
+}
+.rv-puck-head h4{ margin:0; }
+.rv-puck-head .small-note{ margin:0; }
+.rv-puck-toggle{
+  margin-left:auto;
+  font-size:13px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  cursor:pointer;
+}
+.rv-puck-body{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:4px 24px;
+  margin-top:8px;
+}
+@media (max-width:760px){
+  .rv-puck-body{ grid-template-columns:1fr; }
+}
+.rv-puck-row{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto auto;
+  align-items:center;
+  gap:12px;
+  padding:6px 0;
+  border-bottom:1px dashed var(--seam-strong);
+}
+.rv-puck-row:last-child{ border-bottom:0; }
+.rv-puck-row .counter-name{ font-size:14px; color:var(--ink); }
+.rv-puck-row .counter-controls{ gap:6px; }
+.rv-puck-row .counter-step-btn{ width:28px; height:28px; }
+.rv-puck-cols{
+  font-size:12px;
+  color:var(--muted-ink);
+  text-transform:uppercase;
+  letter-spacing:.06em;
+  border-bottom:1px solid var(--seam-strong);
+}
+.rv-puck-cols span:not(:first-child){ width:104px; text-align:center; }
+.rv-puck-row .counter-controls{ width:104px; justify-content:center; }
+.rv-puck-note{ margin:8px 0 0; }
 
 .rv-details{
   margin:0 0 16px;
@@ -5217,6 +5365,37 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
 .rv-av-foot .small-note{ margin:0 auto 0 0; }
 .rv-details .rv-av-foot{ padding:0 16px 14px; }
 
+/* Admin: a request's film files (Part 1 / Part 2 switch + add a file) */
+.rv-parts{
+  margin:0 0 12px;
+  padding:10px 12px;
+  background:var(--face);
+  border:1.5px solid var(--seam-strong);
+  border-radius:var(--radius);
+}
+.rv-parts-row{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:10px;
+}
+.rv-parts-label{
+  font-size:13px;
+  font-weight:800;
+  color:var(--ink-2);
+}
+.rv-parts-note{ margin:6px 0 0; }
+.rv-parts-note:empty{ display:none; }
+.rv-part-add{
+  margin-top:10px;
+  padding-top:10px;
+  border-top:1px dashed var(--seam-strong);
+}
+.rv-part-add > .small-note{ margin:0 0 6px; }
+.rv-part-add .rv-av-foot{ margin-top:6px; justify-content:flex-start; }
+.rv-part-add .rv-av-foot .small-note{ margin:0 auto 0 0; }
+.rv-parts-tabs-wide button{ white-space:nowrap; }
+
 
 /* To check list (review side panel) */
 .rv-check-head{ margin-top:16px; }
@@ -5383,3 +5562,222 @@ header .theme-toggle:hover{ background:rgba(238,245,240,.1); }
 .rv-moment:focus-visible,
 .rv-moment.is-selected{ background:rgba(232,185,35,.7); }
 .rv-moment-range{ white-space:nowrap; min-width:0; }
+
+.lt-shot-strength{padding:4px 6px;font-size:13px;border-radius:6px;max-width:80px}
+.lt-bulk-strength{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 0;font-size:13px}
+.lt-bulk-strength select{padding:4px 6px;font-size:13px;border-radius:6px}
+.lt-shot-click{cursor:pointer}
+.lt-shot-click:hover{background:var(--channel)}
+.lt-shot-click:focus-visible{outline:2px solid var(--pine-bright);outline-offset:2px}
+.lt-period-group{border-bottom:1px solid var(--seam-strong)}
+.lt-period-group:last-child{border-bottom:0}
+.lt-period-head{display:flex;align-items:center;gap:8px;width:100%;padding:10px 0;background:none;border:0;font:inherit;font-weight:700;color:var(--ink);cursor:pointer;text-align:left}
+.lt-period-caret{width:14px;color:var(--muted-ink)}
+.lt-period-count{margin-left:auto;font-weight:400;font-size:13px;color:var(--muted-ink)}
+.lt-period-body[hidden]{display:none}
+
+/* ---------- Admin: Revenue tab ---------- */
+.rev-chart{ display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap; padding:6px 4px 14px; min-height:170px; }
+.rev-col{ display:flex; flex-direction:column; align-items:center; gap:6px; min-width:64px; }
+.rev-val{ font-size:.8rem; font-weight:600; color:var(--ink); }
+.rev-bar{ width:44px; height:110px; display:flex; flex-direction:column-reverse; background:var(--channel); border-radius:var(--radius); overflow:hidden; }
+.rev-seg{ display:block; width:100%; }
+.rev-seg-stripe{ background:var(--pine-bright); }
+.rev-seg-manual{ background:var(--gold); }
+.rev-lab{ font-size:.78rem; color:var(--muted-ink); }
+.rev-legend{ display:flex; gap:16px; flex-basis:100%; font-size:.8rem; color:var(--muted-ink); }
+.rev-dot{ display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; }
+
+/* ---------- tagging screen: manual-only, tidier ----------
+   The AI and Twelve Labs controls aren't used, so they're kept out of
+   sight (the code behind them is untouched). */
+.rv-ai{ display:none !important; }
+
+.rv-fold{
+  margin-top:14px;
+  background:var(--face);
+  border:1.5px solid var(--seam-strong);
+  border-radius:var(--radius);
+  padding:0 14px;
+}
+.rv-fold > summary{
+  cursor:pointer;
+  padding:12px 0;
+  font-weight:700;
+  font-size:15px;
+  list-style:none;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.rv-fold > summary::-webkit-details-marker{ display:none; }
+.rv-fold > summary::before{
+  content:"▸";
+  font-size:12px;
+  color:var(--ink-2);
+  transition:transform .15s ease;
+}
+.rv-fold[open] > summary::before{ transform:rotate(90deg); }
+.rv-fold[open] > summary{ border-bottom:1px solid var(--seam); margin-bottom:4px; }
+.rv-fold .rv-periods{ margin:8px 0 12px; }
+.rv-fold .rv-puck,
+.rv-fold .rv-edit{ margin:0; padding:8px 0 14px; border:0; background:none; box-shadow:none; }
+.rv-fold .rv-puck-head h4,
+.rv-fold .rv-edit-head h4{ display:none; }
+
+/* quick-mark bar is now just the one checkbox: keep it quiet */
+.rv-action-bar{ border-style:solid; border-color:var(--seam-strong); background:none; padding:8px 12px; }
+
+/* header: just status + the three things you do at the end */
+.rv-head-actions{ justify-content:flex-end; }
+
+/* shot form: rebound control and the grid read as one tidy block */
+.rv-editor > .field + .field,
+.rv-editor > .field + .shot-edit-flags,
+.rv-editor > .shot-edit-flags + .field{ margin-top:14px; }
+.rv-editor .shot-edit-flags{ display:flex; flex-wrap:wrap; gap:6px 14px; }
+
+/* game start / period starts / game end: one row under the player controls */
+.rv-mark-row{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:10px;
+}
+.rv-mark-row .btn-secondary{ flex:1 1 auto; padding:8px 12px; font-size:14px; white-space:nowrap; }
+
+.rv-mark-row + .rv-cut-list{ margin-top:8px; }
+
+/* Full screen tagging: video fills the space, timeline + controls stay at the bottom. */
+.rv-hud{position:absolute;top:10px;right:10px;display:flex;gap:8px;align-items:center;padding:6px 12px;border-radius:999px;background:rgba(18,20,18,.82);color:#fff;font-weight:700;font-size:15px;pointer-events:none;z-index:3}
+.rv-hud-tally{font-weight:500;font-size:13px;opacity:.85}
+.rv-hud-tally:empty{display:none}
+.rv-flash{position:absolute;left:50%;top:18%;transform:translateX(-50%) scale(.9);padding:10px 26px;border-radius:14px;font-size:42px;font-weight:800;color:#fff;background:rgba(18,20,18,.85);opacity:0;pointer-events:none;z-index:4;transition:opacity .25s,transform .25s}
+.rv-flash.is-on{opacity:1;transform:translateX(-50%) scale(1)}
+.rv-flash.is-goal{background:#c0392b}
+.rv-flash.is-save{background:#1e7a46}
+.rv-flash.is-undo{background:#555;font-size:28px}
+.rv-fs-wrap:fullscreen,.rv-fs-wrap.is-fs{background:#111;color:#fff;display:flex;flex-direction:column;gap:8px;padding:10px 14px;box-sizing:border-box;width:100vw;height:100vh;overflow:auto}
+.rv-fs-wrap.is-fs{position:fixed;inset:0;z-index:9999}
+body.rv-fs-lock{overflow:hidden}
+.rv-fs-wrap:fullscreen .rv-player,.rv-fs-wrap.is-fs .rv-player{flex:1 1 auto;min-height:0;aspect-ratio:auto;border-radius:8px}
+.rv-fs-wrap:fullscreen .rv-timeline,.rv-fs-wrap.is-fs .rv-timeline{flex:0 0 auto;height:56px;margin-top:0}
+.rv-fs-wrap:fullscreen .rv-legend,.rv-fs-wrap.is-fs .rv-legend,
+.rv-fs-wrap:fullscreen .rv-cut-list,.rv-fs-wrap.is-fs .rv-cut-list{display:none}
+.rv-fs-wrap:fullscreen .rv-time,.rv-fs-wrap.is-fs .rv-time,
+.rv-fs-wrap:fullscreen .rv-check,.rv-fs-wrap.is-fs .rv-check{color:#fff}
+.rv-fs-wrap:fullscreen .rv-controls,.rv-fs-wrap.is-fs .rv-controls,
+.rv-fs-wrap:fullscreen .rv-mark-row,.rv-fs-wrap.is-fs .rv-mark-row,
+.rv-fs-wrap:fullscreen .rv-action-bar,.rv-fs-wrap.is-fs .rv-action-bar{flex:0 0 auto;margin:0}
+.rv-fs-wrap:fullscreen .btn-secondary,.rv-fs-wrap.is-fs .btn-secondary{background:#f4f5f1;color:#121412;border-color:#f4f5f1}
+.rv-fs-wrap:fullscreen select,.rv-fs-wrap.is-fs select{background:#f4f5f1;color:#121412}
+.rv-fs-overlay{position:absolute;top:10px;left:10px;z-index:3;padding:6px 12px;border-radius:999px;border:0;background:rgba(18,20,18,.82);color:#fff;font-weight:700;font-size:14px;cursor:pointer}
+.rv-fs-overlay:hover{background:rgba(18,20,18,.95)}
+
+/* Shot counter is a button that drops a panel to edit and tick off shots. */
+button.rv-hud{pointer-events:auto;border:0;cursor:pointer;font-family:inherit}
+.rv-hud-caret{font-size:12px;opacity:.8}
+.rv-fs-panel{position:absolute;top:52px;right:10px;width:min(340px,calc(100% - 20px));max-height:calc(100% - 64px);display:flex;flex-direction:column;background:rgba(18,20,18,.96);color:#fff;border-radius:12px;z-index:5;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.rv-fs-panel[hidden]{display:none}
+.rv-fs-panel .fs-top{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.15)}
+.rv-fs-panel button{font-family:inherit}
+.rv-fs-panel .fs-top button{background:none;border:0;color:#fff;font-size:16px;cursor:pointer}
+.fs-scroll{overflow:auto;padding:8px 12px 12px}
+.fs-hint{margin:4px 0 8px;opacity:.75}
+.fs-nav{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.fs-nav button{background:#f4f5f1;color:#121412;border:0;border-radius:8px;padding:6px 14px;cursor:pointer}
+.fs-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px}
+.fs-f{display:flex;flex-direction:column;gap:2px;font-size:11px;opacity:.95}
+.fs-f select{background:#f4f5f1;color:#121412;border:0;border-radius:6px;padding:6px;font-size:13px;width:100%}
+.fs-flags{display:flex;flex-wrap:wrap;gap:6px 12px;margin:8px 0}
+.fs-flag{display:flex;align-items:center;gap:4px}
+.fs-maplabel{font-size:11px;margin:6px 0 2px}
+#fs-map{max-width:100%;background:#fff;border-radius:8px;overflow:hidden}
+.fs-actions{display:flex;gap:6px;margin:0 0 8px}
+.fs-actions button{flex:1;border:0;border-radius:8px;padding:8px;font-weight:700;cursor:pointer;background:#f4f5f1;color:#121412}
+.fs-actions .fs-done.on{background:#1e7a46;color:#fff}
+.fs-actions .fs-next{background:#ffd60a}
+.fs-actions .fs-del{flex:0 0 auto;background:#c0392b;color:#fff}
+.fs-list{display:flex;flex-direction:column;gap:3px;margin-top:6px}
+.fs-row{display:flex;align-items:center;gap:8px;padding:6px 8px;background:rgba(255,255,255,.08);color:#fff;border:0;border-radius:6px;text-align:left;cursor:pointer}
+.fs-row.is-sel{outline:2px solid #ffd60a}
+.fs-row.is-goal .fs-n{color:#ff6b5e}
+.fs-row .fs-sum{flex:1;opacity:.85}
+.fs-n{font-weight:700;min-width:30px}
+.fs-chk{width:18px;height:18px;border:1.5px solid rgba(255,255,255,.5);border-radius:4px;text-align:center;line-height:16px;font-size:13px}
+.fs-chk.on{background:#1e7a46;border-color:#1e7a46}
+
+/* Full screen = the whole tagging workspace: video, timeline and controls on the left,
+   the shot list and the shot editor on the right. */
+.rv-grid.rv-fs-wrap:fullscreen,.rv-grid.rv-fs-wrap.is-fs{display:grid;grid-template-columns:minmax(0,1.9fr) minmax(340px,1fr);gap:14px;align-items:stretch;padding:10px 14px;height:100vh;width:100vw;overflow:hidden;background:#111;color:#fff}
+.rv-grid.rv-fs-wrap.is-fs{position:fixed;inset:0;z-index:9999}
+.rv-grid.rv-fs-wrap:fullscreen .rv-player-col,.rv-grid.rv-fs-wrap.is-fs .rv-player-col{min-height:0;display:flex;flex-direction:column}
+.rv-grid.rv-fs-wrap:fullscreen .rv-fs-inner,.rv-grid.rv-fs-wrap.is-fs .rv-fs-inner{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:8px}
+.rv-grid.rv-fs-wrap:fullscreen .rv-side,.rv-grid.rv-fs-wrap.is-fs .rv-side{position:static;max-height:none;height:100%;overflow:auto;box-sizing:border-box}
+/* the left column's details (periods, puck, submission) stay out of the way */
+.rv-grid.rv-fs-wrap:fullscreen .rv-player-col > :not(.rv-fs-inner),.rv-grid.rv-fs-wrap.is-fs .rv-player-col > :not(.rv-fs-inner){display:none}
+/* shot dropdown is for the normal view; full screen shows the real editor */
+.rv-grid.rv-fs-wrap:fullscreen .rv-fs-panel,.rv-grid.rv-fs-wrap.is-fs .rv-fs-panel,
+.rv-grid.rv-fs-wrap:fullscreen .rv-hud-caret,.rv-grid.rv-fs-wrap.is-fs .rv-hud-caret{display:none !important}
+.rv-grid.rv-fs-wrap:fullscreen button.rv-hud,.rv-grid.rv-fs-wrap.is-fs button.rv-hud{pointer-events:none}
+@media (max-width:900px){
+  .rv-grid.rv-fs-wrap:fullscreen,.rv-grid.rv-fs-wrap.is-fs{grid-template-columns:1fr;grid-template-rows:55% 45%}
+}
+
+/* Zoom the film (full screen only) */
+.rv-zoom-ctl{display:none;gap:4px;align-items:center}
+.rv-grid.rv-fs-wrap:fullscreen .rv-zoom-ctl,.rv-grid.rv-fs-wrap.is-fs .rv-zoom-ctl{display:inline-flex}
+.rv-player video,.rv-player canvas{transform-origin:center center}
+.rv-player.is-zoomed{cursor:grab;touch-action:none}
+.rv-player.is-zoomed:active{cursor:grabbing}
+
+/* Collapse the shot bar sideways in full screen */
+.rv-side-toggle{display:none;position:absolute;right:0;top:50%;transform:translateY(-50%);z-index:6;width:26px;height:64px;border:0;border-radius:10px 0 0 10px;background:rgba(18,20,18,.82);color:#fff;cursor:pointer;font-size:14px}
+.rv-grid.rv-fs-wrap:fullscreen .rv-side-toggle,.rv-grid.rv-fs-wrap.is-fs .rv-side-toggle{display:block}
+.rv-grid.rv-fs-wrap.side-collapsed:fullscreen,.rv-grid.rv-fs-wrap.side-collapsed.is-fs{grid-template-columns:minmax(0,1fr)}
+.rv-grid.rv-fs-wrap.side-collapsed:fullscreen .rv-side,.rv-grid.rv-fs-wrap.side-collapsed.is-fs .rv-side{display:none}
+
+/* Publish progress floats over everything (full screen tagging included). */
+.rv-scanbar.is-floating{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:10001;width:min(560px,92vw);margin:0;box-shadow:0 8px 28px rgba(0,0,0,.35);background:#fff8e1;color:#121412}
+.rv-scanbar.is-floating[hidden]{display:none}
+
+/* Accounts tab: coach cards with their goalies underneath, tools tucked away */
+.acct-coach-card{border:1px solid var(--border2);border-radius:12px;padding:0 16px;margin-bottom:12px;background:var(--card,#fff)}
+.acct-coach-head{cursor:pointer;padding:16px 0;display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;list-style:none}
+.acct-coach-head::-webkit-details-marker{display:none}
+.acct-coach-main{display:flex;flex-direction:column;gap:2px;flex:1 1 220px;min-width:0}
+.acct-coach-name{font-size:17px}
+.acct-coach-meta{font-size:13px;color:var(--muted)}
+.acct-coach-stats{display:flex;gap:16px;align-items:center;font-size:14px}
+.acct-k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-right:4px}
+.acct-coach-actions{display:flex;gap:8px;flex-wrap:wrap}
+.acct-tool{margin-bottom:12px;padding:0 16px}
+.acct-tool>summary{cursor:pointer;padding:14px 0;display:flex;flex-direction:column;gap:2px;list-style:none}
+.acct-tool>summary::-webkit-details-marker{display:none}
+.acct-tool-body{padding:4px 0 16px}
+
+/* Flagged moments (M): for the video coaches, not tied to a shot */
+.rv-flagtick{position:absolute;top:0;bottom:0;width:0;border:0;padding:0;background:none;cursor:pointer;z-index:4;transform:translateX(-50%)}
+.rv-flagtick::before{content:"";position:absolute;left:50%;top:0;width:3px;height:100%;background:#7b5cff;border-radius:2px;transform:translateX(-50%)}
+.rv-flagtick::after{content:"";position:absolute;left:50%;top:2px;width:10px;height:10px;background:#7b5cff;border-radius:50%;transform:translateX(-50%);box-shadow:0 0 0 2px rgba(255,255,255,.85)}
+.lg-flag{display:inline-block;width:10px;height:10px;border-radius:50%;background:#7b5cff;margin-right:6px}
+.rv-flaglist{margin:10px 0}
+.rv-flaglist h4{margin:0 0 8px;font-size:14px}
+.rv-flagrow{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.rv-flagrow input{flex:1;min-width:0}
+.go-film-flags{margin-top:14px}
+.go-film-flags h4{margin:0 0 4px}
+.go-film-flags ol{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.go-film-flag{display:flex;gap:10px;align-items:center;width:100%;text-align:left;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:transparent;cursor:pointer;color:inherit;font:inherit;border-left:4px solid #7b5cff}
+/* Coach moments in the game film */
+.go-moment-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.go-moment-form{margin-top:10px;display:flex;flex-direction:column;gap:8px;padding:12px;border:1.5px solid var(--ink);border-radius:var(--radius)}
+.go-moment-form[hidden]{display:none}
+.go-moment-form input{width:100%;box-sizing:border-box}
+.go-moment-clip{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px}
+.go-moment-actions{display:flex;gap:8px}
+.rv-tick.is-moment{background:var(--gold);border-color:var(--gold-deep)}
+.go-film-shot.is-moment .rv-shot-time{color:var(--gold-deep)}
+.go-moments{margin-top:16px}
+.go-moments h4{margin:0 0 8px}

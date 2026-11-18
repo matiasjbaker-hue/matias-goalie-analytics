@@ -32,12 +32,24 @@
 //
 // Only the kept parts are sent (the usual path): each kept part is copied
 // out of the stored video into small MPEG-TS pieces (stream copy, no
-// re-encoding, original timestamps kept), and only those pieces go to
-// Twelve Labs. Cut footage never leaves R2. Pieces are deleted when their
-// task finishes.
+// re-encoding), and only those pieces go to Twelve Labs. Cut footage never
+// leaves R2. Pieces are deleted when their task finishes.
+//   Each piece's clock starts at 0, and pieceStart says where that 0 is on
+// the stored video's clock. Twelve Labs reads a video's times from 0 and
+// pins anything past the end to the end: pieces that kept the game's clock
+// (a piece from the 2nd period starting at 31:27) came back with every
+// shot at the piece's last second.
 //   op "plan": { gameVideoId } -> { size, duration, offset, bytesPerSec, canCut }
 //   op "cut":  { gameVideoId, start, end } -> { key, bytes, pieceStart, pieceDuration }
-//   op "start" with pieces: [{ key, start, end, side, pieceStart, pieceDuration }]
+//   op "start" with pieces: [{ key, start, end, side, pieceStart, pieceDuration }], offset
+//     verify: true = the check pass: each piece is a short clip around
+//     first-pass moments (pieces also carry ms/me, that window), asked a
+//     stricter question and filtered strictly (see shotsFromResult).
+//     A long game is many pieces, and each one is a separate Twelve Labs
+//     task, so the page sends them a few at a time (each call has to finish
+//     inside the 60 s function limit) and the tasks inside a call are
+//     created several at once. offset (from op "plan") saves measuring the
+//     whole stored video again, which is slow.
 //
 // Vercel environment variables: TWELVELABS_API_KEY (from the Twelve Labs
 // dashboard's API Keys page), and TWELVELABS_PAID=1 once the account is on
@@ -67,6 +79,9 @@ const TASK_ID_RE = /^[A-Za-z0-9_-]{6,80}$/;
 const PIECE_MAX_SECONDS = 1800;
 const CUT_TIMEOUT_MS = 48 * 1000;
 const PIECE_PART_BYTES = 8 * 1024 ** 2;
+const START_PARALLEL = 4;               // Twelve Labs tasks created at once
+const STATUS_PARALLEL = 6;              // tasks checked at once
+const MAX_TASKS = 100;                  // pieces per game
 const BIG_FILE_HELP = "Make a smaller copy (for example QuickTime: File > Export As > 1080p, or HandBrake's Fast 1080p30) and upload that with Add a video.";
 
 async function loadVideo(gameVideoId) {
@@ -180,9 +195,13 @@ async function cut(req, res) {
   if (!video) { res.status(404).json({ error: "Video not found." }); return; }
   const key = pieceKey(video, start, end);
   try {
-    const bytes = await copyPieceToR2(await signedGet(video.storage_path, 3600), start, end, key);
+    const src = await signedGet(video.storage_path, 3600);
+    const [bytes, zeroAt] = await Promise.all([copyPieceToR2(src, start, end, key), keyframeTime(src, start)]);
     const info = await probe(await signedGet(key, 600));
-    res.status(200).json({ key, bytes, pieceStart: info.offset, pieceDuration: info.duration });
+    if (zeroAt === null) console.warn("Couldn't read the keyframe time; using the requested start", video.id, start);
+    // Without the keyframe time, the requested start is off by at most one
+    // keyframe gap (a second or two).
+    res.status(200).json({ key, bytes, pieceStart: zeroAt ?? start, pieceDuration: info.duration });
   } catch (error) {
     if (error.code === "cut_timeout") { res.status(504).json({ error: error.message, code: "cut_timeout" }); return; }
     throw error;
@@ -260,9 +279,9 @@ async function signedGet(key, seconds) {
 
 // Copies start..end of the stored video into an MPEG-TS piece in R2:
 // video only, stream copy (no re-encoding, so it's fast and identical),
-// with the original timestamps kept (-copyts), so a moment in the piece
-// has the same time as in the full video. Streams straight into an R2
-// multipart upload; nothing touches the function's small disk.
+// timestamps starting at 0 (see keyframeTime for where that 0 is on the
+// full video). Streams straight into an R2 multipart upload; nothing
+// touches the function's small disk.
 async function copyPieceToR2(srcUrl, start, end, key) {
   const r2 = r2Client();
   const Bucket = process.env.R2_BUCKET_NAME;
@@ -298,8 +317,9 @@ async function copyPieceToR2(srcUrl, start, end, key) {
 
   const args = [
     "-hide_banner", "-loglevel", "error", "-nostdin", "-threads", "2",
-    "-ss", String(start), "-t", String(end - start + 1), "-copyts", "-i", srcUrl,
+    "-ss", String(start), "-t", String(end - start + 1), "-i", srcUrl,
     "-map", "0:v:0", "-c", "copy", "-an", "-sn", "-dn",
+    "-avoid_negative_ts", "make_zero",
     "-muxdelay", "0", "-muxpreload", "0", "-f", "mpegts", "pipe:1",
   ];
   const proc = spawn(ffmpegPath, args, { stdio: ["ignore", "pipe", "pipe"] });
@@ -331,6 +351,34 @@ async function copyPieceToR2(srcUrl, start, end, key) {
   }
 }
 
+// Where a piece's 0 is on the stored video's clock. A stream copy can
+// only start on a keyframe, which is at or a little before `start`, so
+// this reads the first packet a copy from `start` would take (same seek,
+// no decoding) and returns its time on the file's own clock. null if it
+// can't be read.
+function keyframeTime(srcUrl, start) {
+  return new Promise(resolve => {
+    const proc = spawn(ffmpegPath, [
+      "-hide_banner", "-loglevel", "error", "-nostdin",
+      "-ss", String(start), "-copyts", "-i", srcUrl,
+      "-map", "0:v:0", "-c", "copy", "-frames:v", "1", "-f", "framecrc", "pipe:1",
+    ], { stdio: ["ignore", "pipe", "ignore"] });
+    let out = "";
+    const timer = setTimeout(() => proc.kill("SIGKILL"), 20000);
+    proc.stdout.on("data", c => { if (out.length < 8000) out += c.toString(); });
+    proc.on("close", () => {
+      clearTimeout(timer);
+      // "#tb 0: 1/90000" then "0, dts, pts, duration, size, crc"; the piece's
+      // 0 is the first packet's dts (make_zero shifts by it).
+      const tb = /#tb 0: (\d+)\/(\d+)/.exec(out);
+      const line = out.split("\n").find(l => /^\s*0,/.test(l));
+      const dts = line ? Number(line.split(",")[1]) : NaN;
+      resolve(tb && Number.isFinite(dts) ? Math.round(dts * Number(tb[1]) / Number(tb[2]) * 1000) / 1000 : null);
+    });
+    proc.on("error", () => { clearTimeout(timer); resolve(null); });
+  });
+}
+
 async function deletePiece(key) {
   try { await r2Client().send(new DeleteObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: key })); }
   catch (e) { console.warn("Couldn't delete Twelve Labs piece", key, e.message); }
@@ -349,25 +397,37 @@ function clean(text, max) {
 // asked to list every shot attempt at either net and label each one
 // (what it was, which end of the rink, which goalie faced it), and the
 // filter below keeps only shots on goal against the tracked goalie.
-function shotDefinition(jersey, side) {
+// verify: the second, stricter pass. Each task is a short clip cut around
+// one moment the first pass flagged, so the model gets a close-up instead
+// of a 3-minute stretch; same fields, so the same parser reads both.
+function shotDefinition(jersey, side, verify = false) {
   const team = jersey || "the tracked goalie's team colour";
   const net = side === "left" || side === "right"
     ? ` In this part of the game the tracked goalie defends the net at the ${side.toUpperCase()} end of the rink as this camera sees it.`
     : "";
+  const scope = verify
+    ? " This is a short clip cut around one possible shot an earlier pass flagged. Watch it closely: it may hold one shot attempt, " +
+      "a few, or none at all (often it's a pass, a dump-in, or a shot at the other net)."
+    : "";
+  const shotsWanted = verify
+    ? "Every real shot attempt in this clip, one event per attempt, each labelled with the fields below. Be strict: a shot is " +
+      "a skater deliberately sending the puck at a net. Each event starts at the exact moment the puck leaves the shooter's " +
+      "stick and ends when the goalie stops it, it goes in, or it misses. A rebound shot is its own event. Passes, dump-ins, " +
+      "clears, rims and pucks that just slide toward the net are not shots. If there is no shot attempt, return an empty list."
+    : "Every shot attempt at EITHER net in this stretch, one event per attempt, each labelled with the fields below. " +
+      "Each event starts when the puck leaves the shooter's stick and ends when the goalie saves it, the puck goes in, " +
+      "or play moves on, usually a few seconds later. A rebound shot is its own event. Do not list passes, dump-ins, " +
+      "carries, faceoffs or line changes as attempts. If there are none, return an empty list.";
   return {
     id: "play",
     description:
-      `Stretches of ice hockey game play, split wherever play stops (a whistle or faceoff). The tracked goalie's team wears ${team}.${net} ` +
+      `Stretches of ice hockey game play, split wherever play stops (a whistle or faceoff). The tracked goalie's team wears ${team}.${net}${scope} ` +
       "The stretches only organise the shot attempts listed in each one.",
     fields: [
       {
         name: "shots",
         type: "time_array",
-        description:
-          "Every shot attempt at EITHER net in this stretch, one event per attempt, each labelled with the fields below. " +
-          "Each event starts when the puck leaves the shooter's stick and ends when the goalie saves it, the puck goes in, " +
-          "or play moves on, usually a few seconds later. A rebound shot is its own event. Do not list passes, dump-ins, " +
-          "carries, faceoffs or line changes as attempts. If there are none, return an empty list.",
+        description: shotsWanted,
         items: {
           type: "object",
           fields: [
@@ -383,31 +443,55 @@ function shotDefinition(jersey, side) {
   };
 }
 
-// Keeps the shots on goal against the tracked goalie. side is the net
-// side the admin set for this part of the game, or null.
+// Which shots to keep. side is the net side the admin set for this part
+// of the game, or null. A missed shot costs the admin more than a moment
+// to skip, and Twelve Labs' net and goalie labels are often wrong, so it
+// leans towards keeping: a shot is only left out at the other net when
+// its labels point there more than at the tracked goalie.
+//   "keep"      shot on goal, labels on the tracked goalie (none against)
+//   "maybe"     kept as a low-confidence moment: the labels disagree or
+//               can't tell, or a missed/blocked shot both labels put on
+//               the tracked net (often a save it misjudged)
+//   "other_net" / "not_shot"  left out
 function onTrackedNet(e, side) {
-  if (e.event !== "shot_on_goal") return "not_shot";
-  if (e.goalie === "other") return "other_net";
-  if (side && e.net !== "unclear" && e.net !== side) return "other_net";
-  if (!side && e.goalie !== "tracked") return "other_net";
-  return "keep";
+  if (e.event === "not_a_shot") return "not_shot";
+  const net = side && (e.net === "left" || e.net === "right") ? (e.net === side ? "tracked" : "other") : "unclear";
+  const goalie = e.goalie === "tracked" || e.goalie === "other" ? e.goalie : "unclear";
+  const tracked = (net === "tracked" ? 1 : 0) + (goalie === "tracked" ? 1 : 0);
+  const other = (net === "other" ? 1 : 0) + (goalie === "other" ? 1 : 0);
+  if (other > tracked) return "other_net";
+  if (e.event === "missed_or_blocked") return tracked === 2 ? "maybe" : "not_shot";
+  return tracked >= 1 && other === 0 ? "keep" : "maybe";
 }
 
 // Shots from a finished task, in the review player's time, plus what was
-// left out. Also reads tasks sent before the labels existed.
-function shotsFromResult(data, offset, side) {
+// left out, plus every labelled event (raw) so the filter can be tuned
+// against the shots the admin marks without paying for another run.
+// Also reads tasks sent before the labels existed.
+// strict (the check pass): also drops "maybe" missed/blocked attempts.
+function shotsFromResult(data, offset, side, strict = false) {
   const level = c => (["high", "medium", "low"].includes(c) ? c : "low");
+  const label = x => (typeof x === "string" ? x.slice(0, 24) : null);
+  const r1 = x => Math.round(x * 10) / 10;
   const out = [];
-  const left = { other_net: 0, not_shot: 0 };
+  const raw = [];
+  const left = { other_net: 0, not_shot: 0, unsure: 0 };
   (Array.isArray(data.play) ? data.play : []).forEach(seg => {
     const events = seg && seg.metadata && Array.isArray(seg.metadata.shots) ? seg.metadata.shots : [];
     events.forEach(e => {
       const labelled = "event" in e || "net" in e || "goalie" in e;
       const verdict = labelled ? onTrackedNet(e, side) : "keep";
-      if (verdict !== "keep") { left[verdict]++; return; }
       const a = Number(e.start_time) - offset;
       const b = Number(e.end_time) - offset;
-      out.push({ start: a, end: b, t: a, outcome: ["save", "goal"].includes(e.outcome) ? e.outcome : "unclear", confidence: level(e.confidence) });
+      if (Number.isFinite(a) && Number.isFinite(b)) {
+        raw.push({ s: r1(a), e: r1(b), ev: label(e.event), net: label(e.net), gk: label(e.goalie), out: label(e.outcome), c: label(e.confidence), side, v: verdict });
+      }
+      if (verdict === "other_net" || verdict === "not_shot") { left[verdict]++; return; }
+      // The net/goalie labels are often "unclear" even on real shots, so
+      // the check pass doesn't require them to agree; it only drops a
+      // missed/blocked attempt (not a shot on goal) the labels can't settle.
+      if (strict && verdict === "maybe" && e.event === "missed_or_blocked") { left.unsure++; return; }
+      out.push({ start: a, end: b, t: a, outcome: ["save", "goal"].includes(e.outcome) ? e.outcome : "unclear", confidence: verdict === "maybe" ? "low" : level(e.confidence) });
     });
   });
   (Array.isArray(data.shots) ? data.shots : []).forEach(s => {
@@ -419,7 +503,7 @@ function shotsFromResult(data, offset, side) {
   const shots = out
     .filter(x => Number.isFinite(x.start) && Number.isFinite(x.end) && x.end >= x.start)
     .map(x => ({ ...x, start: Math.round(x.start * 10) / 10, end: Math.round(x.end * 10) / 10, t: Math.round(x.t * 10) / 10 }));
-  return { shots, left };
+  return { shots, left, raw };
 }
 
 async function checkAdmin(accessToken) {
@@ -432,8 +516,9 @@ async function checkAdmin(accessToken) {
 
 async function start(req, res, caller) {
   const { gameVideoId, ranges, jersey, assetId, pieces } = req.body || {};
+  const verify = (req.body || {}).verify === true;
   const usePieces = Array.isArray(pieces) && pieces.length > 0;
-  if (usePieces && pieces.length > 200) {
+  if (usePieces && pieces.length > MAX_TASKS) {
     res.status(400).json({ error: "Too many parts to send at once." });
     return;
   }
@@ -464,7 +549,12 @@ async function start(req, res, caller) {
 
   // Long enough for Twelve Labs to fetch the file even if tasks queue.
   const url = await getSignedUrl(r2Client(), new GetObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: video.storage_path }), { expiresIn: 60 * 60 * 24 });
-  const { offset, duration } = await probe(url);
+  // When sending parts the page already has the video's start time from op
+  // "plan", so it isn't measured again (reading the whole stored video).
+  const given = usePieces ? Number(req.body.offset) : NaN;
+  const { offset, duration } = Number.isFinite(given) && given >= 0 && given < 86400
+    ? { offset: given, duration: null }
+    : await probe(url);
   if (duration && duration > MAX_VIDEO) {
     res.status(400).json({ error: "Twelve Labs can analyse videos up to 4 hours long, and this one is longer." });
     return;
@@ -473,25 +563,43 @@ async function start(req, res, caller) {
   const team = clean(jersey, 40);
 
   if (usePieces) {
-    const tasks = [];
-    for (let i = 0; i < pieces.length; i++) {
-      const p = pieces[i] || {};
-      if (!pieceKeyIsFor(video, p.key)) { res.status(400).json({ error: "A part of the video wasn't prepared for this request." }); return; }
-      const side = p.side === "left" || p.side === "right" ? p.side : null;
-      // The whole piece is analysed (it holds only the kept part), so
-      // there's no window to get wrong and only the piece counts.
-      const made = await tl("POST", "/analyze/tasks", {
-        model_name: MODEL,
-        custom_id: `giq-${video.id}-${Date.now()}-${i}`,
-        video: { type: "url", url: await signedGet(p.key, 60 * 60 * 24) },
-        analysis_mode: "time_based_metadata",
-        response_format: { type: "segment_definitions", segment_definitions: [shotDefinition(team, side)] },
-      });
-      tasks.push({
-        id: made.task_id || made._id, start: Number(p.start), end: Number(p.end), offset, side, key: p.key,
-        pieceStart: Number(p.pieceStart) || 0, pieceDuration: Number(p.pieceDuration) || 0,
-      });
+    // Check every part before creating anything, so a bad one can't leave
+    // earlier tasks running at Twelve Labs with nothing pointing at them.
+    for (const p of pieces) {
+      if (!pieceKeyIsFor(video, p && p.key)) { res.status(400).json({ error: "A part of the video wasn't prepared for this request." }); return; }
     }
+    const tasks = new Array(pieces.length);
+    let next = 0;
+    let failed = false;
+    const worker = async () => {
+      while (!failed && next < pieces.length) {
+        const i = next++;
+        const p = pieces[i];
+        const side = p.side === "left" || p.side === "right" ? p.side : null;
+        try {
+          // The whole piece is analysed (it holds only the kept part), so
+          // there's no window to get wrong and only the piece counts.
+          const made = await tl("POST", "/analyze/tasks", {
+            model_name: MODEL,
+            custom_id: `giq-${video.id}-${Date.now()}-${i}`,
+            video: { type: "url", url: await signedGet(p.key, 60 * 60 * 24) },
+            analysis_mode: "time_based_metadata",
+            response_format: { type: "segment_definitions", segment_definitions: [shotDefinition(team, side, verify)] },
+          });
+          tasks[i] = {
+            id: made.task_id || made._id, start: Number(p.start), end: Number(p.end), offset, side, key: p.key,
+            pieceStart: Number(p.pieceStart) || 0, pieceDuration: Number(p.pieceDuration) || 0,
+            // ms/me: the window of first-pass moments this clip checks; the
+            // page replaces the flags inside it with what comes back.
+            ...(verify ? { verify: true, ms: Number(p.ms), me: Number(p.me) } : {}),
+          };
+        } catch (error) {
+          failed = true; // don't start more tasks once one has failed
+          throw error;
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(START_PARALLEL, pieces.length) }, worker));
     res.status(200).json({ tasks });
     return;
   }
@@ -534,72 +642,73 @@ async function start(req, res, caller) {
   res.status(200).json({ tasks });
 }
 
-// A piece keeps the full video's timestamps (it starts at, say, 35:00).
-// Twelve Labs could report times on that clock or from the piece's own
-// start; pieces are made so the two can't overlap (a piece is never
-// longer than its start time), so the times themselves say which.
+// A piece's clock starts at 0, at pieceStart on the full video's clock,
+// so Twelve Labs' times map back by adding pieceStart. (Pieces used to keep
+// the full video's clock and this guessed which clock the times were on;
+// Twelve Labs pins those times to the piece's end, so there's nothing to
+// guess any more, and a guess could misplace a whole piece.)
 function pieceTimeBase(t, data, offset) {
-  if (!t.key || !(t.pieceStart > 0)) return offset;
-  const times = [];
-  (Array.isArray(data.play) ? data.play : []).forEach(seg => {
-    ((seg && seg.metadata && seg.metadata.shots) || []).forEach(e => times.push(Number(e.start_time), Number(e.end_time)));
-  });
-  const finite = times.filter(Number.isFinite);
-  if (!finite.length) return offset;
-  const fromPieceStart = t.pieceStart > t.pieceDuration + 2 && Math.max(...finite) <= t.pieceDuration + 2;
-  return fromPieceStart ? offset - t.pieceStart : offset;
+  return t.key ? offset - (Number(t.pieceStart) || 0) : offset;
 }
 
-async function deletePieceFor(key, gameVideoId) {
-  const video = await loadVideo(gameVideoId);
+async function deletePieceFor(key, video) {
   if (video && pieceKeyIsFor(video, key)) await deletePiece(key);
 }
 
+// One task's state. Pieces of a finished task are deleted from R2.
+async function checkTask(t, video, caller, gameVideoId) {
+  const id = String(t && t.id || "");
+  if (!TASK_ID_RE.test(id)) return { id, status: "failed", error: "Unknown task." };
+  const offset = Number(t.offset) || 0;
+  let task;
+  try {
+    task = await tl("GET", `/analyze/tasks/${encodeURIComponent(id)}`);
+  } catch (error) {
+    return { id, status: error.status === 404 ? "failed" : "unknown", error: error.message };
+  }
+  if (task.status === "failed" || task.status === "canceled") {
+    if (t.key) await deletePieceFor(t.key, video);
+    return { id, status: "failed", error: (task.error && task.error.message) || `The analysis was ${task.status}.` };
+  }
+  if (task.status !== "ready") return { id, status: task.status || "processing" };
+
+  let data = {};
+  try { data = JSON.parse((task.result && task.result.data) || "{}"); } catch (e) { data = {}; }
+  const side = t.side === "left" || t.side === "right" ? t.side : null;
+  const { shots: segments, left, raw } = shotsFromResult(data, pieceTimeBase(t, data, offset), side, !!t.verify);
+  if (t.key) await deletePieceFor(t.key, video);
+
+  // Billed on the task's window; logged once per task. On the free plan
+  // it uses free minutes instead of money.
+  const hours = Math.max(0, (Number(t.end) - Number(t.start)) / 3600);
+  const paid = String(process.env.TWELVELABS_PAID || "") === "1";
+  const usd = paid ? Math.round(hours * USD_PER_HOUR * 10000) / 10000 : 0;
+  await logAiUsage({
+    gameVideoId, requestedBy: caller.id, kind: "tl-segment", model: `twelvelabs-${MODEL}`,
+    batchId: `tl:${id}`, tokens: NO_TOKENS, usd,
+  });
+  return { id, status: "ready", segments, usd, minutes: Math.ceil(hours * 60), leftOut: left, events: raw };
+}
+
+// A long game is dozens of tasks; checking them one after another can run
+// past the 60 s function limit, so several are checked at once. Answers
+// stay in the order the tasks were sent.
 async function status(req, res, caller) {
   const { gameVideoId, tasks } = req.body || {};
-  if (!Array.isArray(tasks) || !tasks.length || tasks.length > 40) {
+  if (!Array.isArray(tasks) || !tasks.length || tasks.length > MAX_TASKS) {
     res.status(400).json({ error: "No Twelve Labs tasks to check." });
     return;
   }
-  const out = [];
-  for (const t of tasks) {
-    const id = String(t && t.id || "");
-    if (!TASK_ID_RE.test(id)) { out.push({ id, status: "failed", error: "Unknown task." }); continue; }
-    const offset = Number(t.offset) || 0;
-    let task;
-    try {
-      task = await tl("GET", `/analyze/tasks/${encodeURIComponent(id)}`);
-    } catch (error) {
-      out.push({ id, status: error.status === 404 ? "failed" : "unknown", error: error.message });
-      continue;
+  const video = tasks.some(t => t && t.key) ? await loadVideo(gameVideoId) : null;
+  const out = new Array(tasks.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < tasks.length) {
+      const i = next++;
+      out[i] = await checkTask(tasks[i], video, caller, gameVideoId);
     }
-    if (task.status === "failed" || task.status === "canceled") {
-      if (t.key) await deletePieceFor(t.key, gameVideoId);
-      out.push({ id, status: "failed", error: (task.error && task.error.message) || `The analysis was ${task.status}.` });
-      continue;
-    }
-    if (task.status !== "ready") {
-      out.push({ id, status: task.status || "processing" });
-      continue;
-    }
-
-    let data = {};
-    try { data = JSON.parse((task.result && task.result.data) || "{}"); } catch (e) { data = {}; }
-    const side = t.side === "left" || t.side === "right" ? t.side : null;
-    const { shots: segments, left } = shotsFromResult(data, pieceTimeBase(t, data, offset), side);
-    if (t.key) await deletePieceFor(t.key, gameVideoId);
-
-    // Billed on the task's window; logged once per task. On the free plan
-    // it uses free minutes instead of money.
-    const hours = Math.max(0, (Number(t.end) - Number(t.start)) / 3600);
-    const paid = String(process.env.TWELVELABS_PAID || "") === "1";
-    const usd = paid ? Math.round(hours * USD_PER_HOUR * 10000) / 10000 : 0;
-    await logAiUsage({
-      gameVideoId, requestedBy: caller.id, kind: "tl-segment", model: `twelvelabs-${MODEL}`,
-      batchId: `tl:${id}`, tokens: NO_TOKENS, usd,
-    });
-    out.push({ id, status: "ready", segments, usd, minutes: Math.ceil(hours * 60), leftOut: left });
-  }
+  };
+  await Promise.all(Array.from({ length: Math.min(STATUS_PARALLEL, tasks.length) }, worker));
   res.status(200).json({ tasks: out });
 }
 
