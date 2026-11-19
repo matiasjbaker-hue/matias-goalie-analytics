@@ -5739,3 +5739,12 @@ button.rv-hud{pointer-events:auto;border:0;cursor:pointer;font-family:inherit}
 .go-film-shot.is-moment .rv-shot-time{color:var(--gold-deep)}
 .go-moments{margin-top:16px}
 .go-moments h4{margin:0 0 8px}
+
+/* Pin shot / Pin pass switch under shot maps */
+.passpin-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
+.passpin-btn{border:1px solid var(--line,#C9CEC8);background:#fff;color:#121412;border-radius:999px;padding:6px 14px;font:inherit;font-size:.85rem;cursor:pointer}
+.passpin-btn.on{background:#0F5C8A;border-color:#0F5C8A;color:#fff}
+.passpin-btn.need{outline:2px solid #B3261E}
+.passpin-read{font-size:.85rem;color:var(--muted,#555)}
+.is-fs .passpin-btn,.fs-panel .passpin-btn{background:#1d2220;color:#e9ece8;border-color:#3a423e}
+.is-fs .passpin-btn.on,.fs-panel .passpin-btn.on{background:#2b86bd;border-color:#2b86bd;color:#fff}
