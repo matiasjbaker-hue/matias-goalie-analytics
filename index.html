@@ -2150,7 +2150,7 @@
 
     <div class="card">
 
-      <h3>Cross Ice</h3>
+      <h3>Royal Road</h3>
 
       <div class="stat-list">
 
@@ -2316,7 +2316,7 @@
           <span class="stat-value" id="pcDoubleGsax">—</span>
         </div>
       </div>
-      <div class="small-note">A cross-ice pass over the crease with a second option available.</div>
+      <div class="small-note">A royal road pass with a second option available.</div>
     </div>
 
     <div class="card">
@@ -2339,7 +2339,7 @@
           <span class="stat-value" id="pcTripleGsax">—</span>
         </div>
       </div>
-      <div class="small-note">Cross-ice pass with two more options after it.</div>
+      <div class="small-note">A royal road pass with two more options after it.</div>
     </div>
 
     <div class="card">
@@ -2386,29 +2386,6 @@
         </div>
       </div>
       <div class="small-note">Shot right after a faceoff.</div>
-    </div>
-
-    <div class="card">
-      <h3>Royal Road (Double or Triple)</h3>
-      <div class="stat-list">
-        <div class="stat-row">
-          <span class="stat-name">Shots</span>
-          <span class="stat-value" id="pcRoyalShots">—</span>
-        </div>
-        <div class="stat-row">
-          <span class="stat-name">SV%</span>
-          <span class="stat-value" id="pcRoyalSV">—</span>
-        </div>
-        <div class="stat-row">
-          <span class="stat-name">Goals</span>
-          <span class="stat-value" id="pcRoyalGoals">—</span>
-        </div>
-        <div class="stat-row">
-          <span class="stat-name">GSAx</span>
-          <span class="stat-value" id="pcRoyalGsax">—</span>
-        </div>
-      </div>
-      <div class="small-note">Both royal road tags together.</div>
     </div>
 
   </div>
@@ -3389,7 +3366,7 @@
         <button type="button" class="tag-btn" data-value="rebound" onclick="toggleLiveTagFlag('rebound',this)">Rebound</button>
         <button type="button" class="tag-btn" data-value="screened" onclick="toggleLiveTagFlag('screened',this)">Screened</button>
         <button type="button" class="tag-btn" data-value="breakaway" onclick="toggleLiveTagFlag('breakaway',this)">Breakaway</button>
-        <button type="button" class="tag-btn" data-value="cross_ice" onclick="toggleLiveTagFlag('cross_ice',this)">Cross Ice</button>
+        <button type="button" class="tag-btn" data-value="cross_ice" onclick="toggleLiveTagFlag('cross_ice',this)">Royal Road</button>
         <button type="button" class="tag-btn" data-value="deflection" onclick="toggleLiveTagFlag('deflection',this)">Deflection</button>
       </div>
     </div>
@@ -4280,7 +4257,7 @@
             <label><input type="checkbox" data-rv-flag="rebound"> Rebound</label>
             <label><input type="checkbox" data-rv-flag="screened"> Screened</label>
             <label><input type="checkbox" data-rv-flag="breakaway"> Breakaway</label>
-            <label><input type="checkbox" data-rv-flag="cross_ice"> Cross Ice</label>
+            <label><input type="checkbox" data-rv-flag="cross_ice"> Royal Road</label>
             <label><input type="checkbox" data-rv-flag="deflection"> Deflection</label>
           </fieldset>
           <fieldset class="shot-edit-flags">
@@ -4666,7 +4643,7 @@
         <label><input type="checkbox" data-ltflag="rebound"> Rebound</label>
         <label><input type="checkbox" data-ltflag="screened"> Screened</label>
         <label><input type="checkbox" data-ltflag="breakaway"> Breakaway</label>
-        <label><input type="checkbox" data-ltflag="cross_ice"> Cross Ice</label>
+        <label><input type="checkbox" data-ltflag="cross_ice"> Royal Road</label>
         <label><input type="checkbox" data-ltflag="deflection"> Deflection</label>
       </fieldset>
       <fieldset class="shot-edit-flags">
@@ -4762,7 +4739,7 @@
         <label><input type="checkbox" data-flag="rebound"> Rebound</label>
         <label><input type="checkbox" data-flag="screened"> Screened</label>
         <label><input type="checkbox" data-flag="breakaway"> Breakaway</label>
-        <label><input type="checkbox" data-flag="cross_ice"> Cross Ice</label>
+        <label><input type="checkbox" data-flag="cross_ice"> Royal Road</label>
         <label><input type="checkbox" data-flag="deflection"> Deflection</label>
       </fieldset>
       <fieldset class="shot-edit-flags">
@@ -11124,7 +11101,7 @@ function renderPassLanes(rebuild){
   const game = gameSel.value;
 
   const typeTests = {
-    royal: sh => shotBoolean(sh.double_royal_road) || shotBoolean(sh.triple_royal_road),
+    royal: sh => shotBoolean(sh.cross_ice) || shotBoolean(sh.double_royal_road) || shotBoolean(sh.triple_royal_road),
     double: sh => shotBoolean(sh.double_royal_road),
     triple: sh => shotBoolean(sh.triple_royal_road),
     lowhigh: sh => shotBoolean(sh.pass_low_to_high)
@@ -11156,8 +11133,7 @@ function renderPassContextBreakdown(){
     ["pcDouble", s => shotBoolean(s.double_royal_road)],
     ["pcTriple", s => shotBoolean(s.triple_royal_road)],
     ["pcTurnover", s => shotBoolean(s.turnover_shot)],
-    ["pcDraw", s => shotBoolean(s.draw_shot)],
-    ["pcRoyal", s => shotBoolean(s.double_royal_road) || shotBoolean(s.triple_royal_road)]
+    ["pcDraw", s => shotBoolean(s.draw_shot)]
   ];
 
   cards.forEach(([prefix, test]) => {
@@ -11387,7 +11363,7 @@ function renderSituational(){
   const candidates = [
 
     {
-      name:"cross-ice shots",
+      name:"royal road shots",
       value:crossIce.sv,
       shots:crossIce.shots
     },
@@ -12711,7 +12687,7 @@ function baselineStatDefs(){
     shotSV("Situations", "Rebound-shot SV%", shotIsRebound),
     shotSV("Situations", "Screened SV%", isScreened),
     shotSV("Situations", "Breakaway SV%", isBreakaway, 10, 3),
-    shotSV("Situations", "Cross-ice SV%", s => shotBoolean(s.cross_ice)),
+    shotSV("Situations", "Royal road SV%", s => shotBoolean(s.cross_ice)),
     shotSV("Situations", "Deflection SV%", s => shotBoolean(s.deflection)),
 
     shotSV("Release", "One-timer SV%", isOneTimer),
@@ -12865,7 +12841,7 @@ const PEER_METRICS = [
   ["Situations", "rebound_sv", "Rebound-shot SV%"],
   ["Situations", "screened_sv", "Screened SV%"],
   ["Situations", "breakaway_sv", "Breakaway SV%"],
-  ["Situations", "cross_ice_sv", "Cross-ice SV%"],
+  ["Situations", "cross_ice_sv", "Royal road SV%"],
   ["Situations", "deflection_sv", "Deflection SV%"],
   ["Release", "quick_sv", "Quick-release SV%"],
   ["Release", "extended_sv", "Extended-possession SV%"],
@@ -17162,7 +17138,7 @@ function recapKind(s){
 
   if(shotBoolean(s.breakaway)){ return "a breakaway"; }
   if(shotBoolean(s.deflection)){ return "a deflection"; }
-  if(shotBoolean(s.cross_ice)){ return "a shot off a cross-ice pass"; }
+  if(shotBoolean(s.cross_ice)){ return "a shot off a royal road pass"; }
   if(s.release_type === "one_timer"){ return "a one-timer"; }
   if(shotBoolean(s.rebound)){ return "a rebound chance"; }
   if(shotBoolean(s.screened)){ return "a screened shot"; }
@@ -17415,7 +17391,7 @@ function buildGameRecap({ game, shots, rebound, goalieName, creditsLeft, others 
     clean(shots.filter(s => s.release_type === "extended_possession"), 6, n => `all ${n} shots where the shooter had time to pick a spot`);
     clean(shots.filter(s => shotBoolean(s.rush)), 5, n => `all ${n} rush chances`);
     clean(shots.filter(s => shotBoolean(s.breakaway)), 2, n => `all ${n} breakaways`);
-    clean(shots.filter(s => shotBoolean(s.cross_ice)), 2, n => n === 2 ? "both cross-ice plays" : `all ${n} cross-ice plays`);
+    clean(shots.filter(s => shotBoolean(s.cross_ice)), 2, n => n === 2 ? "both royal road plays" : `all ${n} royal road plays`);
     clean(shots.filter(s => shotBoolean(s.screened)), 4, n => `all ${n} screened shots`);
     clean(shots.filter(s => s.release_type === "one_timer"), 4, n => `all ${n} one-timers`);
 
@@ -18990,7 +18966,7 @@ function computeGameReportData(gameId){
     { key:"rebound", label:"Rebound", test: shotIsRebound },
     { key:"screened", label:"Screened", test: isScreened },
     { key:"breakaway", label:"Breakaway", test: isBreakaway },
-    { key:"cross_ice", label:"Cross-Ice", test: s => shotBoolean(s.cross_ice) },
+    { key:"cross_ice", label:"Royal Road", test: s => shotBoolean(s.cross_ice) },
     { key:"deflection", label:"Deflection", test: s => shotBoolean(s.deflection) }
   ];
 
@@ -21107,7 +21083,7 @@ function goFilmSelect(t){
   const xg = Number(s.xg);
   const flags = [
     ["rush", "Rush"], ["rebound", "Rebound"], ["screened", "Screened"],
-    ["breakaway", "Breakaway"], ["cross_ice", "Cross ice"], ["deflection", "Deflection"]
+    ["breakaway", "Breakaway"], ["cross_ice", "Royal road"], ["deflection", "Deflection"]
   ].filter(([k]) => shotBoolean(s[k])).map(([, label]) => label);
 
   const facts = [
@@ -22253,7 +22229,7 @@ function addShotRow(){
 
       <div class="field checkbox-field">
         <input type="checkbox" data-field="cross_ice">
-        <label>Cross Ice</label>
+        <label>Royal Road</label>
       </div>
 
       <div class="field checkbox-field">
@@ -24343,7 +24319,7 @@ function selectLiveTagChoice(field, value, btnEl){
 }
 
 
-// Double/triple royal road imply a cross-ice pass, and are alternatives
+// Double/triple royal road imply a royal road pass, and are alternatives
 // (a triple option is not also a double). Applied wherever a pass flag
 // can change so every tagging screen behaves the same.
 function passBoxSync(box, selector, dataKey){
@@ -24772,7 +24748,7 @@ function renderLiveTagUI(){
         shot.rebound ? "Rebound" : null,
         shot.screened ? "Screened" : null,
         shot.breakaway ? "Breakaway" : null,
-        shot.cross_ice ? "Cross Ice" : null,
+        shot.cross_ice ? "Royal Road" : null,
         shot.deflection ? "Deflection" : null
       ].filter(Boolean).join(", ");
 
@@ -27994,7 +27970,7 @@ const FS_TYPES = ["Wrist","Slap","Snap","Flick","Backhand","Deke","Wraparound"];
 const FS_STRENGTH = ["5v5","4v4","3v3","4v5","3v5","3v4","5v6","5v4","5v3","4v3"];
 const FS_RELEASE = [["one_timer","One-Timer"],["catch_and_release","Catch & Release"],["extended_possession","Extended Possession"]];
 const FS_REBOUND = [["glove_caught","Glove — Caught"],["glove_rebound","Glove — Rebound"],["glove_goal","Glove — Goal"],["blocker_good","Blocker — Good"],["blocker_bad","Blocker — Bad"],["blocker_goal","Blocker — Goal"],["midsection_good","Midsection — Good"],["midsection_bad","Midsection — Bad"],["midsection_goal","Midsection — Goal"],["pad_stick_good","Pad/Stick — Good"],["pad_stick_bad","Pad/Stick — Bad"],["pad_stick_goal","Pad/Stick — Goal"]];
-const FS_FLAGS = [["rush","Rush"],["rebound","Rebound"],["screened","Screened"],["breakaway","Breakaway"],["cross_ice","Cross Ice"],["deflection","Deflection"],["pass_low_to_high","Low→high"],["double_royal_road","Double RR"],["triple_royal_road","Triple RR"],["turnover_shot","Turnover"],["draw_shot","Draw"]];
+const FS_FLAGS = [["rush","Rush"],["rebound","Rebound"],["screened","Screened"],["breakaway","Breakaway"],["cross_ice","Royal Road"],["deflection","Deflection"],["pass_low_to_high","Low→high"],["double_royal_road","Double RR"],["triple_royal_road","Triple RR"],["turnover_shot","Turnover"],["draw_shot","Draw"]];
 
 function fsDoneKey(){ return "giq-rv-done-" + (review.video ? review.video.id : "none"); }
 function fsDoneSet(){
