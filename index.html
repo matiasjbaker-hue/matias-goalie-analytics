@@ -14603,6 +14603,14 @@ document.getElementById("signup-form")
     btn.disabled = false;
 
     if(error){
+      if(/already\s+(been\s+)?registered|already exists/i.test(error.message || "")){
+        // Usually a goalie a coach set up by email whose invite link was already used.
+        showAuthView("reset");
+        const re = document.getElementById("reset-email");
+        if(re){ re.value = email; }
+        showAuthError("This email already has an account (a coach may have set it up for you). Tap Send Reset Link to set your password, then sign in.");
+        return;
+      }
       showAuthError(error.message);
       return;
     }
