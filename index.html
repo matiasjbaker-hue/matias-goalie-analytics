@@ -2422,7 +2422,7 @@
       <div class="field"><label for="plfResult">Result</label>
         <select id="plfResult" onchange="renderPassLanes()"><option value="">All</option><option value="goal">Goals</option><option value="save">Saves</option></select></div>
       <div class="field"><label for="plfType">Pass type</label>
-        <select id="plfType" onchange="renderPassLanes()"><option value="">All</option><option value="royal">Any royal road</option><option value="double">Double royal road</option><option value="triple">Triple royal road</option><option value="lowhigh">Low-to-high</option><option value="turnover">Off a turnover</option><option value="draw">Off a draw</option></select></div>
+        <select id="plfType" onchange="renderPassLanes()"><option value="">All</option><option value="royal">Any royal road</option><option value="double">Double royal road</option><option value="triple">Triple royal road</option><option value="lowhigh">Low-to-high</option></select></div>
       <div class="field"><label for="plfFrom">Pass from</label>
         <select id="plfFrom" onchange="renderPassLanes()"></select></div>
       <div class="field"><label for="plfGame">Game</label>
@@ -11127,9 +11127,7 @@ function renderPassLanes(rebuild){
     royal: sh => shotBoolean(sh.double_royal_road) || shotBoolean(sh.triple_royal_road),
     double: sh => shotBoolean(sh.double_royal_road),
     triple: sh => shotBoolean(sh.triple_royal_road),
-    lowhigh: sh => shotBoolean(sh.pass_low_to_high),
-    turnover: sh => shotBoolean(sh.turnover_shot),
-    draw: sh => shotBoolean(sh.draw_shot)
+    lowhigh: sh => shotBoolean(sh.pass_low_to_high)
   };
 
   const laneShots = base.filter(sh =>
