@@ -8228,6 +8228,14 @@ async function saveShotEdit(){
 
   if(!shotEditState){ return; }
 
+  {
+    const chk = {};
+    document.querySelectorAll("#shotEditModalOverlay [data-flag]").forEach(b => {
+      if(b.tagName === "SELECT"){ chk.pre_pass_location = b.value; } else{ chk[b.dataset.flag] = b.checked; }
+    });
+    if(royalNeedsPass(chk)){ showToast(ROYAL_PASS_MSG, "error"); return; }
+  }
+
   const btn = document.getElementById("shotEditSaveBtn");
   const shot = shotEditState.original;
   const hasPin = shotMapHasPin({ loc_x: shotEditState.loc_x, loc_y: shotEditState.loc_y });
@@ -24322,6 +24330,19 @@ function selectLiveTagChoice(field, value, btnEl){
 // Double/triple royal road imply a royal road pass, and are alternatives
 // (a triple option is not also a double). Applied wherever a pass flag
 // can change so every tagging screen behaves the same.
+// A royal road shot needs a pass location so its passing lane can be
+// drawn. Used at every save point.
+function reviewPassHint(d){
+  const need = royalNeedsPass(d);
+  const el = document.getElementById("rv-ed-prepass");
+  if(el){ el.style.outline = need ? "2px solid #B3261E" : ""; }
+  document.querySelectorAll(".fs-prepass").forEach(e => { e.style.outline = need ? "2px solid #B3261E" : ""; });
+}
+function royalNeedsPass(o){
+  return !!(o && (o.cross_ice || o.double_royal_road || o.triple_royal_road) && !o.pre_pass_location);
+}
+const ROYAL_PASS_MSG = "Royal Road shots need a pass location (where the pass came from), so the passing lane can be drawn.";
+
 function passBoxSync(box, selector, dataKey){
   if(!box.checked){ return; }
   const key = box.dataset[dataKey];
@@ -24417,6 +24438,13 @@ function resetLiveTagShotPicker(){
 
 
 function addLiveTagShot(){
+
+  if(royalNeedsPass({ ...liveTagState.flags, pre_pass_location: liveTagState.pre_pass_location })){
+    showToast(ROYAL_PASS_MSG, "error");
+    const pp = document.getElementById("lt-prepass");
+    if(pp){ pp.focus(); pp.style.outline = "2px solid #B3261E"; setTimeout(() => { pp.style.outline = ""; }, 2500); }
+    return;
+  }
 
   const shot = {
     period: liveTagState.currentPeriod,
@@ -24547,6 +24575,14 @@ function renderLiveTagEditPin(){
 function saveLiveTagShotEdit(){
 
   if(!ltEditState){ return; }
+
+  {
+    const chk = {};
+    document.querySelectorAll("#ltEditOverlay [data-ltflag]").forEach(b => {
+      if(b.tagName === "SELECT"){ chk.pre_pass_location = b.value; } else{ chk[b.dataset.ltflag] = b.checked; }
+    });
+    if(royalNeedsPass(chk)){ showToast(ROYAL_PASS_MSG, "error"); return; }
+  }
 
   const shot = liveTagState.shots[ltEditState.index];
   if(!shot){ closeLiveTagShotEdit(); return; }
@@ -28113,7 +28149,7 @@ function renderFsPanel(){
   if(d){
     const flags = FS_FLAGS.map(([k, t]) =>
       `<label class="fs-flag"><input type="checkbox" ${d[k] ? "checked" : ""} onchange="updateReviewShot('${k}', this.checked); this.blur()"> ${t}</label>`).join("");
-    const prePass = `<label class="fs-flag">Pass from <select onchange="updateReviewShot('pre_pass_location', this.value || null); this.blur()">` +
+    const prePass = `<label class="fs-flag">Pass from <select class="fs-prepass"${royalNeedsPass(d) ? ' style="outline:2px solid #B3261E"' : ""} onchange="updateReviewShot('pre_pass_location', this.value || null); this.blur()">` +
       [["","—"],["behind_net","Behind net"],["corner","Corner"],["below_goal_line","Below goal line"],["half_wall","Half wall"],["slot","Slot"],["point","Point"],["other","Other"]]
         .map(([v,t]) => `<option value="${v}"${(d.pre_pass_location || "") === v ? " selected" : ""}>${t}</option>`).join("") + `</select></label>`;
     editor = `
@@ -28464,6 +28500,7 @@ function renderReviewEditor(){
   document.querySelectorAll("#rv-editor [data-rv-flag]").forEach(box => {
     if(box.tagName === "SELECT"){
       box.value = d.pre_pass_location || "";
+      reviewPassHint(d);
       box.onchange = () => updateReviewShot("pre_pass_location", box.value || null);
       return;
     }
@@ -28616,6 +28653,7 @@ function updateReviewShot(field, value){
 
   saveReviewDraftSoon(d, patch);
   if((field === "double_royal_road" || field === "triple_royal_road") && document.getElementById("fs-map")){ renderFsPanel(); }
+  reviewPassHint(d);
 
 }
 
@@ -32318,6 +32356,14 @@ async function approveReview(){
   }
 
   const allDrafts = plan.flatMap(item => item.drafts);
+
+  const missingPass = allDrafts.filter(royalNeedsPass);
+  if(missingPass.length){
+    showToast(`${missingPass.length} Royal Road shot${missingPass.length === 1 ? " has" : "s have"} no pass location. Open ${missingPass.length === 1 ? "it" : "the first one"} and pick where the pass came from.`, "error");
+    try{ if(String(review.drafts.find(x => x.id === missingPass[0].id)?.id) === String(missingPass[0].id)){ selectReviewShot(missingPass[0].id, true); } }catch(e){}
+    return;
+  }
+
   const goals = allDrafts.filter(d => d.outcome === "goal").length;
 
   const basicCount = allDrafts.filter(reviewDraftIsBasic).length;
