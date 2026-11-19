@@ -18,6 +18,8 @@ const ROUTES = {
   "user-info": () => import("../_lib/admin-user-info.js"),
   "make-clip": () => import("../_lib/admin-make-clip.js"),
   "invite-goalies": () => import("../_lib/admin-invite-goalies.js"),
+  // not admin-only: whoever can see a voice note may convert it (verified in the handler)
+  "convert-voice": () => import("../_lib/admin-convert-voice.js"),
   "create-request": () => import("../_lib/admin-create-request.js"),
   storage: () => import("../_lib/admin-storage.js"),
   twelvelabs: () => import("../_lib/admin-twelvelabs.js"),

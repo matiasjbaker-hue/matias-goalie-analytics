@@ -5748,3 +5748,7 @@ button.rv-hud{pointer-events:auto;border:0;cursor:pointer;font-family:inherit}
 .passpin-read{font-size:.85rem;color:var(--muted,#555)}
 .is-fs .passpin-btn,.fs-panel .passpin-btn{background:#1d2220;color:#e9ece8;border-color:#3a423e}
 .is-fs .passpin-btn.on,.fs-panel .passpin-btn.on{background:#2b86bd;border-color:#2b86bd;color:#fff}
+
+/* Edit button on saved feedback chips */
+.watch-ann-edit{ background:none; border:none; border-left:1.5px solid var(--seam-strong); color:var(--muted-ink); font-size:16px; padding:0 11px; cursor:pointer; }
+.watch-ann-edit:hover{ color:var(--ink,#121412); }

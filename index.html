@@ -9664,6 +9664,7 @@ function renderWatchAnnList(){
             <b>${watchAnnFmt(a.video_time)}</b>
             <span>${a.audio_path ? "&#127908; " : ""}${escapeHtml(a.author_name || "Coach")}${notes ? " — " + escapeHtml(notes.length > 70 ? notes.slice(0, 70) + "…" : notes) : ""}</span>
           </button>
+          ${canDel && can ? `<button type="button" class="watch-ann-edit" aria-label="Edit feedback" title="Edit this feedback" onclick="watchAnnEdit(${a.id})">&#9998;</button>` : ""}
           ${canDel ? `<button type="button" class="watch-ann-del" aria-label="Delete feedback" onclick="watchAnnDelete(${a.id})">&times;</button>` : ""}
         </div>`;
       }).join("")
@@ -9698,6 +9699,21 @@ async function watchAnnLoad(shot){
   renderWatchAnnList();
 }
 
+// Reopen saved feedback on its own frame to change the drawing, text or voice note.
+function watchAnnEdit(id){
+  const a = watchAnns.find(x => x.id === id);
+  if(!a || !watchCanMark() || watchMark){ return; }
+  mk = watchCtx();
+  const v = mk.video;
+  v.pause();
+  watchSeekExact(v, a.video_time);
+  watchVoiceStopPlayback("watchAnnAudioBox");
+  watchAnnShown = null;
+  watchMarkStartDrawing({ items: a.items, time: Number(a.video_time), editId: a.id, audio: a.audio_path });
+  renderWatchAnnList();
+  watchRepaint();
+}
+
 async function watchAnnDelete(id){
   if(!confirm("Delete this feedback?")){ return; }
   const gone = watchAnns.find(a => a.id === id);
@@ -9721,18 +9737,26 @@ function watchMarkBegin(){
 }
 
 // Starts drawing on the current context's paused frame.
-function watchMarkStartDrawing(){
+function watchMarkStartDrawing(init){
   const v = mkc().video;
   v.pause();
   v.controls = false;
   const m = { tool:"pen", color:"#ff3b30", items:[], draft:null, time:null };
+  // Editing saved feedback: start from its drawing, on its own frame.
+  if(init){
+    m.items = JSON.parse(JSON.stringify(init.items || []));
+    m.time = init.time;
+    m.editId = init.editId;
+    m.editAudio = init.audio || null;
+  }
   watchMark = m;
   mk.bar.hidden = false;
   mk.canvas.classList.add("marking");
   watchMarkSyncUi();
   watchBindDraw(mk.canvas);
   // Lock in the exact frame being drawn on.
-  watchFrameTime(v).then(t => { if(watchMark === m){ m.time = t; } });
+  if(!init){ watchFrameTime(v).then(t => { if(watchMark === m){ m.time = t; } }); }
+  watchVoiceUi();
 }
 
 function watchMarkExit(){
@@ -9992,7 +10016,8 @@ function watchVoiceUi(){
   rec.innerHTML = recording ? "&#9632; Stop" : ready ? "&#9679; Record again" : "&#9679; Record voice note";
   if(time){
     const secs = watchVoice && watchVoice.startedAt ? Math.floor((Date.now() - watchVoice.startedAt) / 1000) : 0;
-    time.textContent = recording ? `Recording… ${watchAnnFmt(secs)}` : "";
+    time.textContent = recording ? `Recording… ${watchAnnFmt(secs)}`
+      : (!ready && watchMark && watchMark.editAudio) ? "Current voice note is kept. Record again to replace it." : "";
   }
   if(prev){
     if(ready){ if(prev.src !== watchVoice.url){ prev.src = watchVoice.url; } prev.hidden = false; }
@@ -10150,8 +10175,27 @@ async function watchVoicePlay(a, boxId, autoplay){
 
     box.innerHTML = `<audio controls preload="auto" src="${escapeHtml(src)}"></audio>`;
     const el = box.querySelector("audio");
-    el.addEventListener("error", () => {
+    el.addEventListener("error", async () => {
       const isWebm = /\.webm$/i.test(a.audio_path);
+      // Older WebM notes: have the server convert it to M4A once, then play that.
+      if(isWebm && !a._voiceConvertTried && a.id){
+        a._voiceConvertTried = true;
+        if(box.dataset.for === String(a.id)){ box.innerHTML = `<span class="watch-ann-empty">Making this voice note playable on your device…</span>`; }
+        try{
+          const res = await fetch("/api/admin/convert-voice", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ accessToken: currentSession.access_token, annotationId: a.id })
+          });
+          const out = await res.json().catch(() => ({}));
+          if(res.ok && out.audio_path && out.audio_path !== a.audio_path){
+            delete watchVoiceBlobUrls[a.audio_path];
+            a.audio_path = out.audio_path;
+            return watchVoicePlay(a, boxId, autoplay);
+          }
+        }
+        catch(e){ console.error("Voice note conversion failed:", e); }
+      }
       fail(isWebm
         ? "This browser can't play this voice note (it was recorded as WebM; Safari on older iPhones and Macs can't play it). Open it in Chrome or Edge, or"
         : "This browser couldn't play this voice note.", signedUrl);
@@ -10219,6 +10263,21 @@ function markSaveFailed(error, setupHint){
     : `Couldn't save yet (${detail}). Your drawing and voice note are still here: check your connection and press Save again.`, "error");
 }
 
+// Saves changes to existing feedback (drawing/text, and a new voice take if one was recorded).
+async function markUpdateAnnotation(m, goalieId){
+  let audioPath = null;
+  try{
+    audioPath = await watchVoiceUpload(goalieId);
+    const patch = { items: m.items };
+    if(audioPath){ patch.audio_path = audioPath; }
+    const { data: row, error } = await supabaseClient.from("shot_annotations").update(patch).eq("id", m.editId).select().single();
+    if(error){ throw error; }
+    if(audioPath && m.editAudio && m.editAudio !== audioPath){ watchVoiceRemoveFile(m.editAudio); }
+    return row;
+  }
+  catch(e){ if(audioPath){ watchVoiceRemoveFile(audioPath); } throw e; }
+}
+
 async function watchMarkSaveWatch(){
   const m = watchMark;
   if(!m || !watchAnnShot){ return; }
@@ -10227,7 +10286,9 @@ async function watchMarkSaveWatch(){
   btn.disabled = true;
   try{
     const shot = watchAnnShot;
+    const editing = m.editId;
     const data = await markSaveWithRetry(async () => {
+      if(editing){ return await markUpdateAnnotation(m, shot.user_id); }
       let audioPath = null;
       try{
         audioPath = await watchVoiceUpload(shot.user_id);
@@ -10245,14 +10306,15 @@ async function watchMarkSaveWatch(){
       }
       catch(e){ if(audioPath){ watchVoiceRemoveFile(audioPath); } throw e; }
     });
-    watchAnns = [...watchAnns, data].sort((a, b) => Number(a.video_time) - Number(b.video_time));
+    watchAnns = (editing ? watchAnns.filter(a => a.id !== data.id) : watchAnns).concat([data]).sort((a, b) => Number(a.video_time) - Number(b.video_time));
+    delete watchVoiceBlobUrls[data.audio_path];
     watchAnnSeen.add(data.id);
     watchMarkExit();
     watchAnnShown = data.id;
     watchPaint(data.items);
     renderWatchAnnList();
     watchVoicePlay(data, "watchAnnAudioBox", false);
-    showToast("Feedback saved.", "success");
+    showToast(editing ? "Feedback updated." : "Feedback saved.", "success");
   }
   catch(error){
     // Nothing was saved: leave the markup (and voice take) open to retry.
@@ -28571,6 +28633,7 @@ function renderReviewAnn(){
         <b>${watchAnnFmt(a.video_time)}</b>
         <span>${a.audio_path ? "&#127908; " : ""}${escapeHtml(a.author_name || "Coach")}${notes ? " — " + escapeHtml(notes.length > 60 ? notes.slice(0, 60) + "…" : notes) : ""}</span>
       </button>
+      <button type="button" class="watch-ann-edit" aria-label="Edit feedback" title="Edit this feedback" onclick="reviewAnnEdit(${a.id})">&#9998;</button>
       <button type="button" class="watch-ann-del" aria-label="Delete feedback" onclick="reviewAnnDelete(${a.id})">&times;</button>
     </div>`;
   }).join("");
@@ -28604,6 +28667,21 @@ function reviewAnnShow(id){
   watchVoicePlay(a, "rvAnnAudioBox", true);
 }
 
+function reviewAnnEdit(id){
+  const d = reviewSelectedDraft();
+  const a = d && ((review.ann && review.ann[d.id]) || []).find(x => x.id === id);
+  if(!a || watchMark){ return; }
+  reviewAnnHook();
+  mk = reviewMarkCtx();
+  mk.video.pause();
+  watchSeekExact(mk.video, a.video_time);
+  watchVoiceStopPlayback("rvAnnAudioBox");
+  reviewAnnShown = null;
+  watchMarkStartDrawing({ items: a.items, time: Number(a.video_time), editId: a.id, audio: a.audio_path });
+  renderReviewAnn();
+  watchRepaint();
+}
+
 async function reviewAnnDelete(id){
   const d = reviewSelectedDraft();
   if(!d || !confirm("Delete this feedback?")){ return; }
@@ -28634,7 +28712,9 @@ async function reviewMarkSave(){
   const btn = document.getElementById("rvMarkSave");
   btn.disabled = true;
   try{
+    const editing = m.editId;
     const data = await markSaveWithRetry(async () => {
+      if(editing){ return await markUpdateAnnotation(m, review.video.user_id); }
       let audioPath = null;
       try{
         audioPath = await watchVoiceUpload(review.video.user_id);
@@ -28654,13 +28734,14 @@ async function reviewMarkSave(){
       catch(e){ if(audioPath){ watchVoiceRemoveFile(audioPath); } throw e; }
     });
     if(!review.ann){ review.ann = {}; }
-    review.ann[d.id] = [...(review.ann[d.id] || []), data].sort((a, b) => Number(a.video_time) - Number(b.video_time));
+    review.ann[d.id] = (editing ? (review.ann[d.id] || []).filter(a => a.id !== data.id) : (review.ann[d.id] || [])).concat([data]).sort((a, b) => Number(a.video_time) - Number(b.video_time));
+    delete watchVoiceBlobUrls[data.audio_path];
     watchMarkExit();
     reviewAnnShown = data.id;
     watchPaint(data.items);
     renderReviewAnn();
     watchVoicePlay(data, "rvAnnAudioBox", false);
-    showToast("Feedback saved. It shows in the goalie's shot log once you publish.", "success");
+    showToast(editing ? "Feedback updated." : "Feedback saved. It shows in the goalie's shot log once you publish.", "success");
   }
   catch(error){
     // Nothing was saved: leave the markup (and voice take) open to retry.
