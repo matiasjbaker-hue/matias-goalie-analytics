@@ -2267,6 +2267,24 @@
 
 
   <div class="section-heading">
+    <h3>Pass &amp; Possession</h3>
+    <p>Each tag on its own, against the same shots' expected goals. Tagged shots get a small xG bump (low-to-high 1.10, double royal road 1.15, triple 1.25, turnover 1.15, draw 1.05) -- these are starting estimates, so GSAx here shows how the goalie did against that estimate, and the goal rate vs xGA shows whether the bump is about right.</p>
+  </div>
+
+  <div class="card">
+    <div style="overflow-x:auto">
+      <table class="shot-log-table">
+        <thead>
+          <tr><th>Tag</th><th>Shots</th><th>Goals</th><th>SV%</th><th>xGA</th><th>GSAx</th><th>Goals / xGA</th></tr>
+        </thead>
+        <tbody id="passContextBody"></tbody>
+      </table>
+    </div>
+    <div class="small-note" id="passContextNote"></div>
+  </div>
+
+
+  <div class="section-heading">
     <h3>Game Strength</h3>
     <p>Every shot counts toward expected goals against. Strength is from your team's view (your skaters first). Shots on other strengths get a small xG adjustment.</p>
   </div>
@@ -3228,6 +3246,18 @@
     </div>
 
     <div class="tag-group">
+      <div class="tag-group-label">Pass &amp; possession</div>
+      <div class="tag-btn-row" id="lt-pass-buttons">
+        <button type="button" class="tag-btn" data-value="pass_low_to_high" onclick="toggleLiveTagFlag('pass_low_to_high',this)">Low-to-high pass</button>
+        <button type="button" class="tag-btn" data-value="double_royal_road" onclick="toggleLiveTagFlag('double_royal_road',this)">Double royal road option</button>
+        <button type="button" class="tag-btn" data-value="triple_royal_road" onclick="toggleLiveTagFlag('triple_royal_road',this)">Triple royal road option</button>
+        <button type="button" class="tag-btn" data-value="turnover_shot" onclick="toggleLiveTagFlag('turnover_shot',this)">Off a turnover</button>
+        <button type="button" class="tag-btn" data-value="draw_shot" onclick="toggleLiveTagFlag('draw_shot',this)">Off a draw</button>
+      </div>
+      <select id="lt-prepass" onchange="liveTagState.pre_pass_location=this.value||null" aria-label="Pass location before royal road"><option value="">Not tagged</option><option value="behind_net">Behind the net</option><option value="corner">Corner</option><option value="below_goal_line">Below goal line (wall)</option><option value="half_wall">Half wall</option><option value="slot">Slot / middle</option><option value="point">Point</option><option value="other">Other</option></select>
+    </div>
+
+    <div class="tag-group">
       <div class="tag-group-label">Rebound Control (optional — how did the save go?)</div>
       <div class="tag-btn-row" id="lt-rebound-buttons">
         <button type="button" class="tag-btn selected" data-value="skip" onclick="selectLiveTagChoice('reboundTag','skip',this)">Skip</button>
@@ -4104,6 +4134,15 @@
             <label><input type="checkbox" data-rv-flag="cross_ice"> Cross Ice</label>
             <label><input type="checkbox" data-rv-flag="deflection"> Deflection</label>
           </fieldset>
+          <fieldset class="shot-edit-flags">
+            <legend>Pass &amp; possession</legend>
+            <label><input type="checkbox" data-rv-flag="pass_low_to_high"> Low-to-high pass</label>
+            <label><input type="checkbox" data-rv-flag="double_royal_road"> Double royal road option</label>
+            <label><input type="checkbox" data-rv-flag="triple_royal_road"> Triple royal road option</label>
+            <label><input type="checkbox" data-rv-flag="turnover_shot"> Off a turnover</label>
+            <label><input type="checkbox" data-rv-flag="draw_shot"> Off a draw</label>
+            <label>Pass location before royal road <select id="rv-ed-prepass" data-prepass="1"><option value="">Not tagged</option><option value="behind_net">Behind the net</option><option value="corner">Corner</option><option value="below_goal_line">Below goal line (wall)</option><option value="half_wall">Half wall</option><option value="slot">Slot / middle</option><option value="point">Point</option><option value="other">Other</option></select></label>
+          </fieldset>
 
           <div class="field">
             <span class="field-label">Release point</span>
@@ -4481,6 +4520,15 @@
         <label><input type="checkbox" data-ltflag="cross_ice"> Cross Ice</label>
         <label><input type="checkbox" data-ltflag="deflection"> Deflection</label>
       </fieldset>
+      <fieldset class="shot-edit-flags">
+        <legend>Pass &amp; possession</legend>
+        <label><input type="checkbox" data-ltflag="pass_low_to_high"> Low-to-high pass</label>
+        <label><input type="checkbox" data-ltflag="double_royal_road"> Double royal road option</label>
+        <label><input type="checkbox" data-ltflag="triple_royal_road"> Triple royal road option</label>
+        <label><input type="checkbox" data-ltflag="turnover_shot"> Off a turnover</label>
+        <label><input type="checkbox" data-ltflag="draw_shot"> Off a draw</label>
+        <label>Pass location before royal road <select id="ltEditPrePass" data-prepass="1"><option value="">Not tagged</option><option value="behind_net">Behind the net</option><option value="corner">Corner</option><option value="below_goal_line">Below goal line (wall)</option><option value="half_wall">Half wall</option><option value="slot">Slot / middle</option><option value="point">Point</option><option value="other">Other</option></select></label>
+      </fieldset>
       <div class="field">
         <span class="field-label">Release point</span>
         <div id="ltEditMap" class="shotmap-wrap"></div>
@@ -4567,6 +4615,15 @@
         <label><input type="checkbox" data-flag="breakaway"> Breakaway</label>
         <label><input type="checkbox" data-flag="cross_ice"> Cross Ice</label>
         <label><input type="checkbox" data-flag="deflection"> Deflection</label>
+      </fieldset>
+      <fieldset class="shot-edit-flags">
+        <legend>Pass &amp; possession</legend>
+        <label><input type="checkbox" data-flag="pass_low_to_high"> Low-to-high pass</label>
+        <label><input type="checkbox" data-flag="double_royal_road"> Double royal road option</label>
+        <label><input type="checkbox" data-flag="triple_royal_road"> Triple royal road option</label>
+        <label><input type="checkbox" data-flag="turnover_shot"> Off a turnover</label>
+        <label><input type="checkbox" data-flag="draw_shot"> Off a draw</label>
+        <label>Pass location before royal road <select id="shotEditPrePass" data-prepass="1"><option value="">Not tagged</option><option value="behind_net">Behind the net</option><option value="corner">Corner</option><option value="below_goal_line">Below goal line (wall)</option><option value="half_wall">Half wall</option><option value="slot">Slot / middle</option><option value="point">Point</option><option value="other">Other</option></select></label>
       </fieldset>
 
       <div class="field">
@@ -7867,7 +7924,9 @@ function openShotEditModalFor(shot, shotId, isNew){
   document.getElementById("shotEditRebound").value = shot.rebound_tag || "";
 
   document.querySelectorAll("#shotEditModalOverlay [data-flag]").forEach(box => {
+    if(box.tagName === "SELECT"){ box.value = shot.pre_pass_location || ""; return; }
     box.checked = shotBoolean(shot[box.dataset.flag]);
+    box.onchange = () => passBoxSync(box, "#shotEditModalOverlay [data-flag]", "flag");
   });
 
   const aiNote = document.getElementById("shotEditAiNote");
@@ -8060,6 +8119,7 @@ async function saveShotEdit(){
   };
 
   document.querySelectorAll("#shotEditModalOverlay [data-flag]").forEach(box => {
+    if(box.tagName === "SELECT"){ patch.pre_pass_location = box.value || null; return; }
     patch[box.dataset.flag] = box.checked;
   });
 
@@ -10880,6 +10940,71 @@ function strengthRowStats(list){
 
 }
 
+const PASS_CONTEXT_ROWS = [
+  ["Low-to-high pass", s => shotBoolean(s.pass_low_to_high)],
+  ["Royal road (double or triple)", s => shotBoolean(s.double_royal_road) || shotBoolean(s.triple_royal_road)],
+  ["Double royal road option", s => shotBoolean(s.double_royal_road)],
+  ["Triple royal road option", s => shotBoolean(s.triple_royal_road)],
+  ["Off a turnover", s => shotBoolean(s.turnover_shot)],
+  ["Off a draw", s => shotBoolean(s.draw_shot)]
+];
+
+const PRE_PASS_LABELS = {
+  behind_net:"Behind the net", corner:"Corner", below_goal_line:"Below goal line (wall)",
+  half_wall:"Half wall", slot:"Slot / middle", point:"Point", other:"Other"
+};
+
+function renderPassContextBreakdown(){
+
+  const body = document.getElementById("passContextBody");
+  if(!body){ return; }
+
+  const fmtPct = v => v === null ? "—" : `${v.toFixed(1)}%`;
+  const fmtNum = v => v === null ? "—" : v.toFixed(2);
+  const fmtGsax = v => v === null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(2)}`;
+
+  const row = (label, list, strong, indent) => {
+    const st = strengthRowStats(list);
+    const ratio = st.xga ? (st.goals / st.xga) : null;
+    return `<tr${strong ? ' style="font-weight:700"' : ""}>
+      <td${indent ? ' style="padding-left:26px;color:var(--muted)"' : ""}>${label}</td>
+      <td>${st.shots}</td><td>${st.goals}</td><td>${fmtPct(st.sv)}</td>
+      <td>${fmtNum(st.xga)}</td><td>${fmtGsax(st.gsax)}</td>
+      <td>${ratio === null ? "—" : ratio.toFixed(2) + "x"}</td></tr>`;
+  };
+
+  const anyTag = s => PASS_CONTEXT_ROWS.some(([, t]) => t(s));
+  const rows = [];
+
+  PASS_CONTEXT_ROWS.forEach(([label, test]) => {
+    const list = seasonShots.filter(test);
+    rows.push(row(label, list, false, label.includes("royal road option")));
+  });
+
+  const untagged = seasonShots.filter(s => !anyTag(s));
+  if(seasonShots.length){ rows.push(row("No pass/possession tag", untagged, true, false)); }
+
+  const rr = seasonShots.filter(s => shotBoolean(s.double_royal_road) || shotBoolean(s.triple_royal_road));
+  const locs = Object.keys(PRE_PASS_LABELS).filter(k => rr.some(s => s.pre_pass_location === k));
+  if(locs.length){
+    rows.push(`<tr><td colspan="7" style="font-weight:700;padding-top:14px">Where the pass came from (royal road shots)</td></tr>`);
+    locs.forEach(k => rows.push(row(PRE_PASS_LABELS[k], rr.filter(s => s.pre_pass_location === k), false, true)));
+  }
+
+  body.innerHTML = seasonShots.length
+    ? rows.join("")
+    : `<tr><td colspan="7"><div class="empty-state">No shots tracked yet.</div></td></tr>`;
+
+  const note = document.getElementById("passContextNote");
+  if(note){
+    const tagged = seasonShots.length - untagged.length;
+    note.textContent = tagged
+      ? `${tagged} of ${seasonShots.length} shots carry a pass/possession tag. A shot can have several tags, so rows overlap. Goals / xGA above 1.00 means more goals than the model expected (the bump may be too small); below 1.00 means fewer.`
+      : "No shots have pass/possession tags yet. They are added while tagging a game.";
+  }
+
+}
+
 function renderStrengthBreakdown(){
 
   const body = document.getElementById("strengthBreakdownBody");
@@ -10963,6 +11088,7 @@ function renderSituational(){
 
   renderShotMapDisplay();
   renderStrengthBreakdown();
+  renderPassContextBreakdown();
 
   const rush =
     subsetStats(
@@ -22591,6 +22717,12 @@ let editingGameId = null;
 // shot, so without carrying these through, editing a game would
 // silently wipe attached clips and release-context tags.
 const PRESERVED_SHOT_FIELDS = [
+  "pass_low_to_high",
+  "double_royal_road",
+  "triple_royal_road",
+  "turnover_shot",
+  "draw_shot",
+  "pre_pass_location",
   "release_type",
   "possession_duration_seconds",
   "game_video_id",
@@ -23938,7 +24070,8 @@ function freshLiveTagState(){
     // Game state like the period: stays selected from shot to shot until
     // you change it (resetLiveTagShotPicker deliberately does NOT reset it).
     strength: "5v5",
-    flags: { rush:false, rebound:false, screened:false, breakaway:false, cross_ice:false, deflection:false },
+    flags: { rush:false, rebound:false, screened:false, breakaway:false, cross_ice:false, deflection:false, pass_low_to_high:false, double_royal_road:false, triple_royal_road:false, turnover_shot:false, draw_shot:false },
+    pre_pass_location: null,
     reboundTag: "skip",
     shots: [],
     draftId: null,
@@ -23989,10 +24122,33 @@ function selectLiveTagChoice(field, value, btnEl){
 }
 
 
+// Double/triple royal road imply a cross-ice pass, and are alternatives
+// (a triple option is not also a double). Applied wherever a pass flag
+// can change so every tagging screen behaves the same.
+function passBoxSync(box, selector, dataKey){
+  if(!box.checked){ return; }
+  const key = box.dataset[dataKey];
+  if(!["double_royal_road","triple_royal_road"].includes(key)){ return; }
+  const other = key === "double_royal_road" ? "triple_royal_road" : "double_royal_road";
+  document.querySelectorAll(selector).forEach(b => {
+    if(b.dataset[dataKey] === other){ b.checked = false; }
+    if(b.dataset[dataKey] === "cross_ice"){ b.checked = true; }
+  });
+}
+function ltEditPassSync(box){ passBoxSync(box, "#ltEditOverlay [data-ltflag]", "ltflag"); }
+function passFlagFix(obj, key){
+  if(!obj[key]){ return; }
+  if(key === "double_royal_road"){ obj.triple_royal_road = false; obj.cross_ice = true; }
+  if(key === "triple_royal_road"){ obj.double_royal_road = false; obj.cross_ice = true; }
+}
+
 function toggleLiveTagFlag(flag, btnEl){
 
   liveTagState.flags[flag] = !liveTagState.flags[flag];
-  btnEl.classList.toggle("selected", liveTagState.flags[flag]);
+  passFlagFix(liveTagState.flags, flag);
+  document.querySelectorAll("#lt-toggle-buttons .tag-btn, #lt-pass-buttons .tag-btn").forEach(b => {
+    b.classList.toggle("selected", !!liveTagState.flags[b.dataset.value]);
+  });
 
 }
 
@@ -24033,7 +24189,8 @@ function resetLiveTagShotPicker(){
   liveTagState.loc_y = null;
   liveTagState.shot_type = "Snap";
   liveTagState.release_type = null;
-  liveTagState.flags = { rush:false, rebound:false, screened:false, breakaway:false, cross_ice:false, deflection:false };
+  liveTagState.flags = { rush:false, rebound:false, screened:false, breakaway:false, cross_ice:false, deflection:false, pass_low_to_high:false, double_royal_road:false, triple_royal_road:false, turnover_shot:false, draw_shot:false };
+  liveTagState.pre_pass_location = null;
   liveTagState.reboundTag = "skip";
 
   document.querySelectorAll("#lt-outcome-buttons .tag-btn").forEach(btn => {
@@ -24050,9 +24207,10 @@ function resetLiveTagShotPicker(){
     btn.classList.toggle("selected", btn.dataset.value === "");
   });
 
-  document.querySelectorAll("#lt-toggle-buttons .tag-btn").forEach(btn => {
+  document.querySelectorAll("#lt-toggle-buttons .tag-btn, #lt-pass-buttons .tag-btn").forEach(btn => {
     btn.classList.remove("selected");
   });
+  { const pp = document.getElementById("lt-prepass"); if(pp){ pp.value = ""; } }
 
   document.querySelectorAll("#lt-rebound-buttons .tag-btn").forEach(btn => {
     btn.classList.toggle("selected", btn.dataset.value === "skip");
@@ -24078,6 +24236,12 @@ function addLiveTagShot(){
     breakaway: liveTagState.flags.breakaway,
     cross_ice: liveTagState.flags.cross_ice,
     deflection: liveTagState.flags.deflection,
+    pass_low_to_high: liveTagState.flags.pass_low_to_high,
+    double_royal_road: liveTagState.flags.double_royal_road,
+    triple_royal_road: liveTagState.flags.triple_royal_road,
+    turnover_shot: liveTagState.flags.turnover_shot,
+    draw_shot: liveTagState.flags.draw_shot,
+    pre_pass_location: liveTagState.pre_pass_location || null,
     reboundTag: liveTagState.reboundTag
   };
 
@@ -24127,7 +24291,9 @@ function openLiveTagShotEdit(index){
   document.getElementById("ltEditRebound").value = shot.reboundTag || "skip";
 
   document.querySelectorAll("#ltEditOverlay [data-ltflag]").forEach(box => {
+    if(box.tagName === "SELECT"){ box.value = shot.pre_pass_location || ""; return; }
     box.checked = !!shot[box.dataset.ltflag];
+    box.onchange = () => ltEditPassSync(box);
   });
 
   document.getElementById("ltEditMap").innerHTML = shotMapSvg("ltemap", `<g id="ltemap-pin"></g>`, true);
@@ -24204,6 +24370,7 @@ function saveLiveTagShotEdit(){
   shot.location = hasPin ? classifyShotLocation(ltEditState.loc_x, ltEditState.loc_y) : shot.location;
 
   document.querySelectorAll("#ltEditOverlay [data-ltflag]").forEach(box => {
+    if(box.tagName === "SELECT"){ shot.pre_pass_location = box.value || null; return; }
     shot[box.dataset.ltflag] = box.checked;
   });
 
@@ -25008,6 +25175,12 @@ function liveTagShotPayload(shot, gameId, userId){
     breakaway: shot.breakaway,
     cross_ice: shot.cross_ice,
     deflection: shot.deflection,
+    pass_low_to_high: !!shot.pass_low_to_high,
+    double_royal_road: !!shot.double_royal_road,
+    triple_royal_road: !!shot.triple_royal_road,
+    turnover_shot: !!shot.turnover_shot,
+    draw_shot: !!shot.draw_shot,
+    pre_pass_location: shot.pre_pass_location || null,
     // How the save went (glove_rebound, blocker_goal, ...). Kept per shot
     // so the Rebound Control tab can link each one to its clip.
     rebound_tag: shot.reboundTag && shot.reboundTag !== "skip" ? shot.reboundTag : null
@@ -27600,7 +27773,7 @@ const FS_TYPES = ["Wrist","Slap","Snap","Flick","Backhand","Deke","Wraparound"];
 const FS_STRENGTH = ["5v5","4v4","3v3","4v5","3v5","3v4","5v6","5v4","5v3","4v3"];
 const FS_RELEASE = [["one_timer","One-Timer"],["catch_and_release","Catch & Release"],["extended_possession","Extended Possession"]];
 const FS_REBOUND = [["glove_caught","Glove — Caught"],["glove_rebound","Glove — Rebound"],["glove_goal","Glove — Goal"],["blocker_good","Blocker — Good"],["blocker_bad","Blocker — Bad"],["blocker_goal","Blocker — Goal"],["midsection_good","Midsection — Good"],["midsection_bad","Midsection — Bad"],["midsection_goal","Midsection — Goal"],["pad_stick_good","Pad/Stick — Good"],["pad_stick_bad","Pad/Stick — Bad"],["pad_stick_goal","Pad/Stick — Goal"]];
-const FS_FLAGS = [["rush","Rush"],["rebound","Rebound"],["screened","Screened"],["breakaway","Breakaway"],["cross_ice","Cross Ice"],["deflection","Deflection"]];
+const FS_FLAGS = [["rush","Rush"],["rebound","Rebound"],["screened","Screened"],["breakaway","Breakaway"],["cross_ice","Cross Ice"],["deflection","Deflection"],["pass_low_to_high","Low→high"],["double_royal_road","Double RR"],["triple_royal_road","Triple RR"],["turnover_shot","Turnover"],["draw_shot","Draw"]];
 
 function fsDoneKey(){ return "giq-rv-done-" + (review.video ? review.video.id : "none"); }
 function fsDoneSet(){
@@ -27743,6 +27916,9 @@ function renderFsPanel(){
   if(d){
     const flags = FS_FLAGS.map(([k, t]) =>
       `<label class="fs-flag"><input type="checkbox" ${d[k] ? "checked" : ""} onchange="updateReviewShot('${k}', this.checked); this.blur()"> ${t}</label>`).join("");
+    const prePass = `<label class="fs-flag">Pass from <select onchange="updateReviewShot('pre_pass_location', this.value || null); this.blur()">` +
+      [["","—"],["behind_net","Behind net"],["corner","Corner"],["below_goal_line","Below goal line"],["half_wall","Half wall"],["slot","Slot"],["point","Point"],["other","Other"]]
+        .map(([v,t]) => `<option value="${v}"${(d.pre_pass_location || "") === v ? " selected" : ""}>${t}</option>`).join("") + `</select></label>`;
     editor = `
       <div class="fs-nav">
         <button type="button" onclick="fsStep(-1); this.blur()" aria-label="Previous shot">◀</button>
@@ -27753,7 +27929,18 @@ function renderFsPanel(){
         <button type="button" class="fs-done${done.has(String(d.id)) ? " on" : ""}" onclick="fsToggleDone(${jsArg(d.id)}); this.blur()">${done.has(String(d.id)) ? "✓ Done" : "Mark done"}</button>
         <button type="button" class="fs-next" onclick="fsMarkDoneAndNext(); this.blur()">Done · next</button>
         <button type="button" class="fs-del" onclick="deleteReviewShot(); renderFsPanel(); this.blur()">Delete</button>
-      </div>`;
+      </div>
+      <div class="fs-grid">
+        ${fsSel("outcome", "Result", [["save","Save"],["goal","Goal"]], d.outcome || "save")}
+        ${fsSel("period", "Period", [["1","1st"],["2","2nd"],["3","3rd"],["OT","OT"]], d.period || "", "From period marks")}
+        ${fsSel("shot_type", "Shot type", FS_TYPES, d.shot_type || "", "Unknown")}
+        ${fsSel("strength", "Strength", FS_STRENGTH, d.strength || "", "Not tagged")}
+        ${fsSel("release_type", "Release", FS_RELEASE, d.release_type || "", "Unclear")}
+        ${fsSel("rebound_tag", "Rebound control", [["skip","Not tagged"]].concat(FS_REBOUND), d.rebound_tag || "skip")}
+      </div>
+      <div class="fs-flags">${flags}${prePass}</div>
+      <div class="fs-maplabel">Release point <span id="fs-readout"></span></div>
+      <div id="fs-map" class="shotmap-wrap"></div>`;
   }
 
   const scroll = panel.querySelector(".fs-scroll");
@@ -28078,6 +28265,11 @@ function renderReviewEditor(){
   document.getElementById("rv-ed-rebound").value = d.rebound_tag || "skip";
 
   document.querySelectorAll("#rv-editor [data-rv-flag]").forEach(box => {
+    if(box.tagName === "SELECT"){
+      box.value = d.pre_pass_location || "";
+      box.onchange = () => updateReviewShot("pre_pass_location", box.value || null);
+      return;
+    }
     box.checked = !!d[box.dataset.rvFlag];
     box.onchange = () => updateReviewShot(box.dataset.rvFlag, box.checked);
   });
@@ -28207,15 +28399,26 @@ function updateReviewShot(field, value){
   }
   else{
     patch[field] = value;
+    if(value === true && ["double_royal_road","triple_royal_road"].includes(field)){
+      const tmp = { [field]: true, cross_ice: !!d.cross_ice, double_royal_road: !!d.double_royal_road, triple_royal_road: !!d.triple_royal_road };
+      passFlagFix(tmp, field);
+      patch.cross_ice = tmp.cross_ice;
+      patch.double_royal_road = tmp.double_royal_road;
+      patch.triple_royal_road = tmp.triple_royal_road;
+    }
   }
 
   patch.edited = true;
   Object.assign(d, patch);
+  if(patch.cross_ice !== undefined || field === "double_royal_road" || field === "triple_royal_road"){
+    document.querySelectorAll("#rv-editor [data-rv-flag]").forEach(box => { box.checked = !!d[box.dataset.rvFlag]; });
+  }
 
   if(field === "loc"){ renderReviewEditorPin(d); }
   renderReviewShots();
 
   saveReviewDraftSoon(d, patch);
+  if((field === "double_royal_road" || field === "triple_royal_road") && document.getElementById("fs-map")){ renderFsPanel(); }
 
 }
 
@@ -31785,6 +31988,12 @@ async function publishReviewFile(item, gameId, details){
     breakaway: !!d.breakaway,
     cross_ice: !!d.cross_ice,
     deflection: !!d.deflection,
+    pass_low_to_high: !!d.pass_low_to_high,
+    double_royal_road: !!d.double_royal_road,
+    triple_royal_road: !!d.triple_royal_road,
+    turnover_shot: !!d.turnover_shot,
+    draw_shot: !!d.draw_shot,
+    pre_pass_location: d.pre_pass_location || null,
     reboundTag: d.rebound_tag || "skip",
     ai: d.source === "ai" ? { confidence: d.ai_confidence, model: d.ai_model, notes: d.ai_notes } : null,
     t: Number(d.t_seconds),
@@ -32321,17 +32530,6 @@ async function loadReviewUser(userId){
         <h4>${escapeHtml(p.full_name || "Unnamed account")}</h4>
         <span class="small-note">${escapeHtml(p.role || "")}</span>
       </div>
-      <div class="fs-grid">
-        ${fsSel("outcome", "Result", [["save","Save"],["goal","Goal"]], d.outcome || "save")}
-        ${fsSel("period", "Period", [["1","1st"],["2","2nd"],["3","3rd"],["OT","OT"]], d.period || "", "From period marks")}
-        ${fsSel("shot_type", "Shot type", FS_TYPES, d.shot_type || "", "Unknown")}
-        ${fsSel("strength", "Strength", FS_STRENGTH, d.strength || "", "Not tagged")}
-        ${fsSel("release_type", "Release", FS_RELEASE, d.release_type || "", "Unclear")}
-        ${fsSel("rebound_tag", "Rebound control", [["skip","Not tagged"]].concat(FS_REBOUND), d.rebound_tag || "skip")}
-      </div>
-      <div class="fs-flags">${flags}</div>
-      <div class="fs-maplabel">Release point <span id="fs-readout"></span></div>
-      <div id="fs-map" class="shotmap-wrap"></div>
       <div class="grid grid-4 rv-user-facts">
         <div class="card metric-card"><div class="metric">${escapeHtml(totals)}</div><div class="metric-label">Paid in total</div></div>
         <div class="card metric-card"><div class="metric">${escapeHtml(planLabel)}</div><div class="metric-label">Plan · ${escapeHtml(a.status || "no access row")}</div></div>
