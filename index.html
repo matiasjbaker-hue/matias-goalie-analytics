@@ -2268,20 +2268,153 @@
 
   <div class="section-heading">
     <h3>Pass &amp; Possession</h3>
-    <p>Each tag on its own, against the same shots' expected goals. Tagged shots get a small xG bump (low-to-high 1.10, double royal road 1.15, triple 1.25, turnover 1.15, draw 1.05) -- these are starting estimates, so GSAx here shows how the goalie did against that estimate, and the goal rate vs xGA shows whether the bump is about right.</p>
+    <p>Each tag on its own. A shot can carry several tags, so cards overlap. Tagged shots get a small xG bump (low-to-high 1.10, double royal road 1.15, triple 1.25, turnover 1.15, draw 1.05) -- these are starting estimates. GSAx is expected goals minus actual goals, so positive is good.</p>
   </div>
 
-  <div class="card">
-    <div style="overflow-x:auto">
-      <table class="shot-log-table">
-        <thead>
-          <tr><th>Tag</th><th>Shots</th><th>Goals</th><th>SV%</th><th>xGA</th><th>GSAx</th><th>Goals / xGA</th></tr>
-        </thead>
-        <tbody id="passContextBody"></tbody>
-      </table>
+  <div class="grid grid-3 section-space">
+
+    <div class="card">
+      <h3>Low-to-High Pass</h3>
+      <div class="stat-list">
+        <div class="stat-row">
+          <span class="stat-name">Shots</span>
+          <span class="stat-value" id="pcLowHighShots">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">SV%</span>
+          <span class="stat-value" id="pcLowHighSV">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">Goals</span>
+          <span class="stat-value" id="pcLowHighGoals">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">GSAx</span>
+          <span class="stat-value" id="pcLowHighGsax">—</span>
+        </div>
+      </div>
+      <div class="small-note">Shot came off a pass from low to high, so the goalie has to track the puck up and reset.</div>
     </div>
-    <div class="small-note" id="passContextNote"></div>
+
+    <div class="card">
+      <h3>Double Royal Road</h3>
+      <div class="stat-list">
+        <div class="stat-row">
+          <span class="stat-name">Shots</span>
+          <span class="stat-value" id="pcDoubleShots">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">SV%</span>
+          <span class="stat-value" id="pcDoubleSV">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">Goals</span>
+          <span class="stat-value" id="pcDoubleGoals">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">GSAx</span>
+          <span class="stat-value" id="pcDoubleGsax">—</span>
+        </div>
+      </div>
+      <div class="small-note">A cross-ice pass over the crease with a second option available.</div>
+    </div>
+
+    <div class="card">
+      <h3>Triple Royal Road</h3>
+      <div class="stat-list">
+        <div class="stat-row">
+          <span class="stat-name">Shots</span>
+          <span class="stat-value" id="pcTripleShots">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">SV%</span>
+          <span class="stat-value" id="pcTripleSV">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">Goals</span>
+          <span class="stat-value" id="pcTripleGoals">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">GSAx</span>
+          <span class="stat-value" id="pcTripleGsax">—</span>
+        </div>
+      </div>
+      <div class="small-note">Cross-ice pass with two more options after it.</div>
+    </div>
+
+    <div class="card">
+      <h3>Off a Turnover</h3>
+      <div class="stat-list">
+        <div class="stat-row">
+          <span class="stat-name">Shots</span>
+          <span class="stat-value" id="pcTurnoverShots">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">SV%</span>
+          <span class="stat-value" id="pcTurnoverSV">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">Goals</span>
+          <span class="stat-value" id="pcTurnoverGoals">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">GSAx</span>
+          <span class="stat-value" id="pcTurnoverGsax">—</span>
+        </div>
+      </div>
+      <div class="small-note">Shot right after the other team gave the puck away.</div>
+    </div>
+
+    <div class="card">
+      <h3>Off a Draw</h3>
+      <div class="stat-list">
+        <div class="stat-row">
+          <span class="stat-name">Shots</span>
+          <span class="stat-value" id="pcDrawShots">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">SV%</span>
+          <span class="stat-value" id="pcDrawSV">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">Goals</span>
+          <span class="stat-value" id="pcDrawGoals">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">GSAx</span>
+          <span class="stat-value" id="pcDrawGsax">—</span>
+        </div>
+      </div>
+      <div class="small-note">Shot right after a faceoff.</div>
+    </div>
+
+    <div class="card">
+      <h3>Royal Road (Double or Triple)</h3>
+      <div class="stat-list">
+        <div class="stat-row">
+          <span class="stat-name">Shots</span>
+          <span class="stat-value" id="pcRoyalShots">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">SV%</span>
+          <span class="stat-value" id="pcRoyalSV">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">Goals</span>
+          <span class="stat-value" id="pcRoyalGoals">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-name">GSAx</span>
+          <span class="stat-value" id="pcRoyalGsax">—</span>
+        </div>
+      </div>
+      <div class="small-note">Both royal road tags together.</div>
+    </div>
+
   </div>
+
+  <div class="small-note" id="passContextNote"></div>
+
 
   <div class="card" id="passLaneCard">
     <h3>Passing lanes before the shot</h3>
@@ -10956,15 +11089,6 @@ function strengthRowStats(list){
 
 }
 
-const PASS_CONTEXT_ROWS = [
-  ["Low-to-high pass", s => shotBoolean(s.pass_low_to_high)],
-  ["Royal road (double or triple)", s => shotBoolean(s.double_royal_road) || shotBoolean(s.triple_royal_road)],
-  ["Double royal road option", s => shotBoolean(s.double_royal_road)],
-  ["Triple royal road option", s => shotBoolean(s.triple_royal_road)],
-  ["Off a turnover", s => shotBoolean(s.turnover_shot)],
-  ["Off a draw", s => shotBoolean(s.draw_shot)]
-];
-
 const PRE_PASS_LABELS = {
   behind_net:"Behind the net", corner:"Corner", below_goal_line:"Below goal line (wall)",
   half_wall:"Half wall", slot:"Slot / middle", point:"Point", other:"Other"
@@ -11029,54 +11153,34 @@ function renderPassLanes(rebuild){
 
 function renderPassContextBreakdown(){
 
-  const body = document.getElementById("passContextBody");
-  if(!body){ return; }
+  const cards = [
+    ["pcLowHigh", s => shotBoolean(s.pass_low_to_high)],
+    ["pcDouble", s => shotBoolean(s.double_royal_road)],
+    ["pcTriple", s => shotBoolean(s.triple_royal_road)],
+    ["pcTurnover", s => shotBoolean(s.turnover_shot)],
+    ["pcDraw", s => shotBoolean(s.draw_shot)],
+    ["pcRoyal", s => shotBoolean(s.double_royal_road) || shotBoolean(s.triple_royal_road)]
+  ];
 
-  const fmtPct = v => v === null ? "—" : `${v.toFixed(1)}%`;
-  const fmtNum = v => v === null ? "—" : v.toFixed(2);
-  const fmtGsax = v => v === null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(2)}`;
-
-  const row = (label, list, strong, indent) => {
-    const st = strengthRowStats(list);
-    const ratio = st.xga ? (st.goals / st.xga) : null;
-    return `<tr${strong ? ' style="font-weight:700"' : ""}>
-      <td${indent ? ' style="padding-left:26px;color:var(--muted)"' : ""}>${label}</td>
-      <td>${st.shots}</td><td>${st.goals}</td><td>${fmtPct(st.sv)}</td>
-      <td>${fmtNum(st.xga)}</td><td>${fmtGsax(st.gsax)}</td>
-      <td>${ratio === null ? "—" : ratio.toFixed(2) + "x"}</td></tr>`;
-  };
-
-  const anyTag = s => PASS_CONTEXT_ROWS.some(([, t]) => t(s));
-  const rows = [];
-
-  PASS_CONTEXT_ROWS.forEach(([label, test]) => {
+  cards.forEach(([prefix, test]) => {
     const list = seasonShots.filter(test);
-    rows.push(row(label, list, false, label.includes("royal road option")));
+    setSubset(prefix, subsetStats(seasonShots, test));
+    const el = document.getElementById(prefix + "Gsax");
+    if(el){
+      const st = strengthRowStats(list);
+      el.textContent = st.gsax === null ? "—" : `${st.gsax >= 0 ? "+" : ""}${st.gsax.toFixed(2)}`;
+    }
   });
-
-  const untagged = seasonShots.filter(s => !anyTag(s));
-  if(seasonShots.length){ rows.push(row("No pass/possession tag", untagged, true, false)); }
-
-  const rr = seasonShots.filter(s => shotBoolean(s.double_royal_road) || shotBoolean(s.triple_royal_road));
-  const locs = Object.keys(PRE_PASS_LABELS).filter(k => rr.some(s => s.pre_pass_location === k));
-  if(locs.length){
-    rows.push(`<tr><td colspan="7" style="font-weight:700;padding-top:14px">Where the pass came from (royal road shots)</td></tr>`);
-    locs.forEach(k => rows.push(row(PRE_PASS_LABELS[k], rr.filter(s => s.pre_pass_location === k), false, true)));
-  }
-
-  body.innerHTML = seasonShots.length
-    ? rows.join("")
-    : `<tr><td colspan="7"><div class="empty-state">No shots tracked yet.</div></td></tr>`;
-
-  renderPassLanes(true);
 
   const note = document.getElementById("passContextNote");
   if(note){
-    const tagged = seasonShots.length - untagged.length;
+    const tagged = seasonShots.filter(s => cards.some(([, t]) => t(s))).length;
     note.textContent = tagged
-      ? `${tagged} of ${seasonShots.length} shots carry a pass/possession tag. A shot can have several tags, so rows overlap. Goals / xGA above 1.00 means more goals than the model expected (the bump may be too small); below 1.00 means fewer.`
+      ? `${tagged} of ${seasonShots.length} shots carry a pass/possession tag.`
       : "No shots have pass/possession tags yet. They are added while tagging a game.";
   }
+
+  renderPassLanes(true);
 
 }
 
