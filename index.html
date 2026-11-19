@@ -14735,8 +14735,23 @@ supabaseClient.auth.onAuthStateChange(function(event, session){
   currentSession = session;
 
   if(event === "PASSWORD_RECOVERY"){
-    showAuthScreen();
-    showAuthView("newpassword");
+    if(needsInviteSetup(session)){
+      // A goalie a coach set up who still has to accept the terms:
+      // show the consent boxes too, or Update Password can't succeed.
+      showInviteSetup();
+    }
+    else{
+      showAuthScreen();
+      showAuthView("newpassword");
+      document.getElementById("newpassword-consent").style.display = "none";
+      document.querySelector("#newpassword-form .auth-btn").textContent = "Update Password";
+      showAuthMessage("Choose a new password to finish.");
+      focusAuthCard();
+    }
+  }
+  else if(event === "SIGNED_IN" && needsInviteSetup(session)
+          && document.getElementById("newpassword-form").style.display === "none"){
+    showInviteSetup();
   }
 
   // Session ended underneath us (expired refresh token, signed out in
@@ -19759,6 +19774,21 @@ function showInviteSetup(){
   showAuthView("newpassword");
   document.getElementById("newpassword-consent").style.display = "block";
   document.querySelector("#newpassword-form .auth-btn").textContent = "Finish setting up";
+  showAuthMessage("You're almost in. Choose a password and accept the terms below to finish setting up your account.");
+  focusAuthCard();
+}
+
+// The sign-in card sits lower on the landing page. After an invite or
+// reset link, bring it into view so the person sees the password step
+// instead of tapping "Create an account" at the top of the page.
+function focusAuthCard(){
+  try{
+    const card = document.getElementById("auth-screen");
+    if(card){ card.scrollIntoView({ behavior: "smooth", block: "center" }); }
+    const pw = document.getElementById("newpassword-password");
+    if(pw){ setTimeout(() => { try{ pw.focus({ preventScroll: true }); }catch(e){} }, 400); }
+  }
+  catch(e){ /* cosmetic only */ }
 }
 
 async function initAuth(){
