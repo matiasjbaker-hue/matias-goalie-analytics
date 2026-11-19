@@ -20423,7 +20423,7 @@ async function renderGameFilm(game){
     <div class="go-film-head">
       <h3>Game film</h3>
       ${(currentRole === "coach" || currentRole === "admin") && gameShots.some(s => s.game_video_id && clipsById[String(s.game_video_id)]) ? `<button type="button" class="btn-secondary go-film-dlall" onclick="downloadAllGameClips(${jsArg(game.id)}, this)" title="Download every shot clip of this game to your computer">Download all clips (${gameShots.filter(s => s.game_video_id && clipsById[String(s.game_video_id)]).length})</button>` : ""}
-      ${currentRole === "admin" && gameShots.some(s => s.game_video_id && !clipsById[String(s.game_video_id)] && fulls.some(v => String(v.id) === String(s.game_video_id))) ? `<button type="button" class="btn-secondary go-film-mkclips" onclick="makeMissingGameClips(${jsArg(game.id)}, this)" title="Some shots still play from the full game video. Cut them into MP4 clips.">Make missing clips (${gameShots.filter(s => s.game_video_id && !clipsById[String(s.game_video_id)] && fulls.some(v => String(v.id) === String(s.game_video_id))).length})</button>` : ""}
+      ${watchCanMark() && gameShots.some(s => s.game_video_id && !clipsById[String(s.game_video_id)] && fulls.some(v => String(v.id) === String(s.game_video_id))) ? `<button type="button" class="btn-secondary go-film-mkclips" onclick="makeMissingGameClips(${jsArg(game.id)}, this)" title="Some shots still play from the full game video. Cut them into MP4 clips.">Make missing clips (${gameShots.filter(s => s.game_video_id && !clipsById[String(s.game_video_id)] && fulls.some(v => String(v.id) === String(s.game_video_id))).length})</button>` : ""}
       ${hasParts ? `<div class="go-trend-controls go-film-parts" role="group" aria-label="Game film files">${partVideos.map((video, i) =>
         `<button type="button" class="${String(video.id) === String(full.id) ? "active" : ""}" onclick="goFilmPickPart(${jsArg(game.id)}, ${jsArg(video.id)})">Part ${i + 1} · ${placed(video).length} shot${placed(video).length === 1 ? "" : "s"}</button>`
       ).join("")}</div>` : ""}
@@ -20850,7 +20850,7 @@ async function downloadAllGameClips(gameId, button){
   const withClip = shots.filter(s => clipIds.has(String(s.game_video_id)));
 
   if(!withClip.length){
-    showToast("This game has no shot clips to download yet.", "error");
+    showToast(watchCanMark() ? "No shot clips are made for this game yet. Press Make missing clips first." : "This game has no shot clips to download yet.", "error");
     return;
   }
 
@@ -20921,7 +20921,7 @@ async function downloadAllGameClips(gameId, button){
 // publish step uses, so keep this tab open until it finishes.
 async function makeMissingGameClips(gameId, button){
 
-  if(currentRole !== "admin" || !currentSession){ return; }
+  if(!watchCanMark() || !currentSession){ return; }
 
   const videos = goFilmVideoCache[gameId] || [];
   const fulls = videos.filter(v => v.status !== "clip");
@@ -20949,23 +20949,31 @@ async function makeMissingGameClips(gameId, button){
     while(next < jobs.length){
       const { sh, full, t } = jobs[next++];
       try{
-        const res = await fetch("/api/admin/make-clip", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            accessToken: currentSession.access_token,
-            gameVideoId: full.id,
-            start: Math.max(0, Math.round((t - 4) * 10) / 10),
-            end: Math.round((t + 3) * 10) / 10
-          })
-        });
         let data = {};
-        try{ data = await res.json(); }catch(e){ data = {}; }
-        if(!res.ok){ throw new Error(data.detail || data.error || `Clip failed (${res.status}).`); }
-        const { error } = await supabaseClient.from("Shots")
-          .update({ game_video_id: data.gameVideoId, clip_start_seconds: 0, clip_end_seconds: null })
-          .eq(shotIdColumn(sh), sh.shot_id ?? sh.id);
-        if(error){ throw error; }
+        for(let attempt = 0; attempt < 2; attempt++){
+          const res = await fetch("/api/admin/make-clip", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              accessToken: currentSession.access_token,
+              gameVideoId: full.id,
+              start: Math.max(0, Math.round((t - 4) * 10) / 10),
+              end: Math.round((t + 3) * 10) / 10,
+              shotId: sh.shot_id ?? sh.id,
+              shotColumn: shotIdColumn(sh)
+            })
+          });
+          data = {};
+          try{ data = await res.json(); }catch(e){ data = {}; }
+          if(res.ok){ break; }
+          if(attempt === 1){ throw new Error(data.detail || data.error || `Clip failed (${res.status}).`); }
+        }
+        if(!data.shotUpdated){
+          const { error } = await supabaseClient.from("Shots")
+            .update({ game_video_id: data.gameVideoId, clip_start_seconds: 0, clip_end_seconds: null })
+            .eq(shotIdColumn(sh), sh.shot_id ?? sh.id);
+          if(error){ throw error; }
+        }
         sh.game_video_id = data.gameVideoId;
         sh.clip_start_seconds = 0;
         sh.clip_end_seconds = null;
@@ -32202,19 +32210,24 @@ async function makeShotClips(v, shots, insertedRows){
     while(next < jobs.length && !unavailable){
       const { s, row } = jobs[next++];
       try{
-        const res = await fetch("/api/admin/make-clip", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            accessToken: currentSession.access_token,
-            gameVideoId: v.id,
-            start: s.clip ? s.clip.start : Math.max(0, Math.round((s.t - 4) * 10) / 10),
-            end: s.clip ? s.clip.end : Math.round((s.t + 3) * 10) / 10
-          })
-        });
-        let data = {};
-        try{ data = await res.json(); }catch(e){ data = {}; }
-        if(res.status === 501){ unavailable = true; break; }
+        let res, data = {};
+        for(let attempt = 0; attempt < 2; attempt++){
+          res = await fetch("/api/admin/make-clip", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              accessToken: currentSession.access_token,
+              gameVideoId: v.id,
+              start: s.clip ? s.clip.start : Math.max(0, Math.round((s.t - 4) * 10) / 10),
+              end: s.clip ? s.clip.end : Math.round((s.t + 3) * 10) / 10
+            })
+          });
+          data = {};
+          try{ data = await res.json(); }catch(e){ data = {}; }
+          if(res.status === 501){ unavailable = true; break; }
+          if(res.ok){ break; }
+        }
+        if(unavailable){ break; }
         if(!res.ok){ throw new Error(data.detail || data.error || `Clip failed (${res.status}).`); }
 
         const { error } = await supabaseClient.from("Shots")

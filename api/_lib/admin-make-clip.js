@@ -149,7 +149,27 @@ export default async function handler(req, res) {
       review_status: "approved",
     });
 
-    res.status(200).json({ gameVideoId: clip.id });
+    // Optionally point a published shot at the new clip. Done here with the
+    // service key so a coach (who can't edit shots) can make a game's missing
+    // clips; the shot must belong to this film's goalie and still point at it.
+    let shotUpdated = false;
+    const shotId = req.body && req.body.shotId;
+    const shotColumn = req.body && req.body.shotColumn === "shot_id" ? "shot_id" : "id";
+    if (shotId !== undefined && shotId !== null && /^\d+$/.test(String(shotId))) {
+      const found = await serviceSelect("Shots", `select=user_id,game_video_id&${shotColumn}=eq.${shotId}`);
+      const shot = found[0];
+      if (shot && String(shot.user_id) === String(source.user_id) && String(shot.game_video_id) === String(source.id)) {
+        const key2 = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        const upd = await fetch(`${SUPABASE_URL}/rest/v1/Shots?${shotColumn}=eq.${shotId}`, {
+          method: "PATCH",
+          headers: { apikey: key2, Authorization: `Bearer ${key2}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+          body: JSON.stringify({ game_video_id: clip.id, clip_start_seconds: 0, clip_end_seconds: null }),
+        });
+        shotUpdated = upd.ok;
+      }
+    }
+
+    res.status(200).json({ gameVideoId: clip.id, shotUpdated });
   } catch (error) {
     console.error(error);
     // Admin-only endpoint: the reason helps fix setup problems.
