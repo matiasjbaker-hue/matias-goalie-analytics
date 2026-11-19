@@ -2283,6 +2283,12 @@
     <div class="small-note" id="passContextNote"></div>
   </div>
 
+  <div class="card" id="passLaneCard">
+    <h3>Passing lanes before the shot</h3>
+    <div class="shotmap-wrap"><div id="passLaneMap"></div></div>
+    <div class="small-note" id="passLaneNote"></div>
+  </div>
+
 
   <div class="section-heading">
     <h3>Game Strength</h3>
@@ -10994,6 +11000,18 @@ function renderPassContextBreakdown(){
   body.innerHTML = seasonShots.length
     ? rows.join("")
     : `<tr><td colspan="7"><div class="empty-state">No shots tracked yet.</div></td></tr>`;
+
+  const laneHost = document.getElementById("passLaneMap");
+  if(laneHost){
+    const laneShots = seasonShots.filter(sh => shotMapPassOrigin(sh));
+    laneHost.innerHTML = shotMapSvg("passlane", shotMapPassLinesMarkup(laneShots) + shotMapDotsMarkup(laneShots), false);
+    const ln = document.getElementById("passLaneNote");
+    if(ln){
+      ln.textContent = laneShots.length
+        ? `${laneShots.length} shot${laneShots.length === 1 ? "" : "s"} with a pass location tagged. Each arrow runs from where the pass came from to where the shot was taken (blue = save, red dashed = goal). The start point is the tagged zone's usual spot on the side opposite the shot, so read it as the lane, not an exact track.`
+        : "No passing lanes yet. Tag a pass location and pin the shot on the map and the lane shows up here.";
+    }
+  }
 
   const note = document.getElementById("passContextNote");
   if(note){
@@ -20952,7 +20970,7 @@ function goFilmSelect(t){
       <dl>${facts.map(([k, v]) => `<div><dt>${escapeHtml(k)}</dt><dd class="${k === "Result" ? (goal ? "bad" : "good") : ""}">${escapeHtml(v)}</dd></div>`).join("")}</dl>
     </div>
     <div class="go-film-detail-map">
-      ${shotMapSvg("gofilmmap", shotMapHasPin(s) ? shotMapDotsMarkup([s]) : "", false)}
+      ${shotMapSvg("gofilmmap", shotMapHasPin(s) ? shotMapPassLinesMarkup([s]) + shotMapDotsMarkup([s]) : "", false)}
       <p class="small-note">${shotMapHasPin(s) ? `Released ${shotMapDistanceFt(Number(s.loc_x), Number(s.loc_y))} ft from the net.` : "No release point tagged for this shot."}</p>
     </div>
   `;
@@ -23373,6 +23391,50 @@ function shotMapDotsMarkup(shotList){
     .concat(pinned.filter(isGoalShot))
     .map(o => shotMapDotMarkup(o.s, o.i))
     .join("");
+
+}
+
+// Passing lanes. The tag only records a zone for where the pass came
+// from, so each zone maps to a typical spot on the rink, on the side
+// opposite the shot (a royal-road pass crosses the middle). Lines are
+// therefore approximate lanes, not measured pass tracks.
+const PASS_ORIGIN_ANCHORS = {
+  behind_net:      { x:9,  y:-6 },
+  corner:          { x:35, y:6 },
+  below_goal_line: { x:24, y:-5 },
+  half_wall:       { x:37, y:22 },
+  slot:            { x:0,  y:14, noSide:true },
+  point:           { x:26, y:54 }
+};
+
+function shotMapPassOrigin(shot){
+  const a = PASS_ORIGIN_ANCHORS[shot.pre_pass_location];
+  if(!a || !shotMapHasPin(shot)){ return null; }
+  const side = a.noSide ? 1 : (Number(shot.loc_x) > 0 ? -1 : 1);
+  return { x: a.x * side, y: a.y };
+}
+
+function shotMapPassLinesMarkup(shotList){
+
+  return shotList.map(sh => {
+
+    const o = shotMapPassOrigin(sh);
+    if(!o){ return ""; }
+
+    const goal = String(sh.outcome || "").toLowerCase() === "goal";
+    const x1 = o.x, y1 = shotMapSvgY(o.y);
+    const x2 = Number(sh.loc_x), y2 = shotMapSvgY(Number(sh.loc_y));
+    const ang = Math.atan2(y2 - y1, x2 - x1);
+    const ex = x2 - Math.cos(ang) * 2.6, ey = y2 - Math.sin(ang) * 2.6;
+    const hx = (r, da) => (ex + Math.cos(ang + da) * r).toFixed(2);
+    const hy = (r, da) => (ey + Math.sin(ang + da) * r).toFixed(2);
+    const col = goal ? "#B3261E" : "#0F5C8A";
+
+    return `<g opacity=".8"><circle cx="${x1}" cy="${y1}" r=".9" fill="${col}"/>` +
+      `<line x1="${x1}" y1="${y1}" x2="${ex.toFixed(2)}" y2="${ey.toFixed(2)}" stroke="${col}" stroke-width=".55"${goal ? ' stroke-dasharray="1.4 .8"' : ""}/>` +
+      `<polygon points="${ex.toFixed(2)},${ey.toFixed(2)} ${hx(1.6, 2.7)},${hy(1.6, 2.7)} ${hx(1.6, -2.7)},${hy(1.6, -2.7)}" fill="${col}"/></g>`;
+
+  }).join("");
 
 }
 
