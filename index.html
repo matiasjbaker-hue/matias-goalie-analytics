@@ -2285,6 +2285,16 @@
 
   <div class="card" id="passLaneCard">
     <h3>Passing lanes before the shot</h3>
+    <div class="field-grid" id="passLaneFilters">
+      <div class="field"><label for="plfResult">Result</label>
+        <select id="plfResult" onchange="renderPassLanes()"><option value="">All</option><option value="goal">Goals</option><option value="save">Saves</option></select></div>
+      <div class="field"><label for="plfType">Pass type</label>
+        <select id="plfType" onchange="renderPassLanes()"><option value="">All</option><option value="royal">Any royal road</option><option value="double">Double royal road</option><option value="triple">Triple royal road</option><option value="lowhigh">Low-to-high</option><option value="turnover">Off a turnover</option><option value="draw">Off a draw</option></select></div>
+      <div class="field"><label for="plfFrom">Pass from</label>
+        <select id="plfFrom" onchange="renderPassLanes()"></select></div>
+      <div class="field"><label for="plfGame">Game</label>
+        <select id="plfGame" onchange="renderPassLanes()"></select></div>
+    </div>
     <div class="shotmap-wrap"><div id="passLaneMap"></div></div>
     <div class="small-note" id="passLaneNote"></div>
   </div>
@@ -10960,6 +10970,63 @@ const PRE_PASS_LABELS = {
   half_wall:"Half wall", slot:"Slot / middle", point:"Point", other:"Other"
 };
 
+function renderPassLanes(rebuild){
+
+  const laneHost = document.getElementById("passLaneMap");
+  if(!laneHost){ return; }
+
+  const base = seasonShots.filter(sh => shotMapPassOrigin(sh));
+
+  const fromSel = document.getElementById("plfFrom");
+  const gameSel = document.getElementById("plfGame");
+
+  if(rebuild){
+    const keepFrom = fromSel.value, keepGame = gameSel.value;
+    fromSel.innerHTML = `<option value="">All</option>` +
+      Object.keys(PASS_ORIGIN_ANCHORS).map(k => `<option value="${k}">${PRE_PASS_LABELS[k]}</option>`).join("");
+    const ids = [...new Set(base.map(sh => String(sh.game_id)))];
+    gameSel.innerHTML = `<option value="">All games</option>` + ids.map(id => {
+      const g = (typeof allGames !== "undefined" ? allGames : []).find(x => String(x.id) === id);
+      const label = g ? `${gameDate(g) || ""} vs ${gameOpponent(g)}`.trim() : `Game ${id}`;
+      return `<option value="${escapeHtml(id)}">${escapeHtml(label)}</option>`;
+    }).join("");
+    fromSel.value = [...fromSel.options].some(o => o.value === keepFrom) ? keepFrom : "";
+    gameSel.value = [...gameSel.options].some(o => o.value === keepGame) ? keepGame : "";
+  }
+
+  const res = document.getElementById("plfResult").value;
+  const type = document.getElementById("plfType").value;
+  const from = fromSel.value;
+  const game = gameSel.value;
+
+  const typeTests = {
+    royal: sh => shotBoolean(sh.double_royal_road) || shotBoolean(sh.triple_royal_road),
+    double: sh => shotBoolean(sh.double_royal_road),
+    triple: sh => shotBoolean(sh.triple_royal_road),
+    lowhigh: sh => shotBoolean(sh.pass_low_to_high),
+    turnover: sh => shotBoolean(sh.turnover_shot),
+    draw: sh => shotBoolean(sh.draw_shot)
+  };
+
+  const laneShots = base.filter(sh =>
+    (!res || (res === "goal") === isGoal(sh)) &&
+    (!type || typeTests[type](sh)) &&
+    (!from || sh.pre_pass_location === from) &&
+    (!game || String(sh.game_id) === game));
+
+  laneHost.innerHTML = shotMapSvg("passlane", shotMapPassLinesMarkup(laneShots) + shotMapDotsMarkup(laneShots), false);
+
+  const ln = document.getElementById("passLaneNote");
+  if(ln){
+    ln.textContent = !base.length
+      ? "No passing lanes yet. Tag a pass location and pin the shot on the map and the lane shows up here."
+      : !laneShots.length
+        ? "No shots match those filters."
+        : `Showing ${laneShots.length} of ${base.length} shot${base.length === 1 ? "" : "s"} with a pass location tagged. Each arrow runs from where the pass came from to where the shot was taken (blue = save, red dashed = goal). The start point is the tagged zone's usual spot on the side opposite the shot, so read it as the lane, not an exact track.`;
+  }
+
+}
+
 function renderPassContextBreakdown(){
 
   const body = document.getElementById("passContextBody");
@@ -11001,17 +11068,7 @@ function renderPassContextBreakdown(){
     ? rows.join("")
     : `<tr><td colspan="7"><div class="empty-state">No shots tracked yet.</div></td></tr>`;
 
-  const laneHost = document.getElementById("passLaneMap");
-  if(laneHost){
-    const laneShots = seasonShots.filter(sh => shotMapPassOrigin(sh));
-    laneHost.innerHTML = shotMapSvg("passlane", shotMapPassLinesMarkup(laneShots) + shotMapDotsMarkup(laneShots), false);
-    const ln = document.getElementById("passLaneNote");
-    if(ln){
-      ln.textContent = laneShots.length
-        ? `${laneShots.length} shot${laneShots.length === 1 ? "" : "s"} with a pass location tagged. Each arrow runs from where the pass came from to where the shot was taken (blue = save, red dashed = goal). The start point is the tagged zone's usual spot on the side opposite the shot, so read it as the lane, not an exact track.`
-        : "No passing lanes yet. Tag a pass location and pin the shot on the map and the lane shows up here.";
-    }
-  }
+  renderPassLanes(true);
 
   const note = document.getElementById("passContextNote");
   if(note){
