@@ -4309,7 +4309,7 @@
                 <button type="button" class="wv-rec" onclick="watchVoiceToggle()">&#9679; Record voice note</button>
                 <span class="wv-time" aria-live="polite"></span>
                 <audio class="wv-preview" controls hidden></audio>
-                <button type="button" class="wv-clear" onclick="watchVoiceClear()" hidden>Remove voice</button>
+                <button type="button" class="wv-clear" onclick="watchVoiceRemoveClick()" hidden>Remove voice</button>
               </div>
               <div class="watch-mark-actions">
                 <button type="button" onclick="watchMarkUndo()">Undo</button>
@@ -4867,7 +4867,7 @@
           <button type="button" class="wv-rec" onclick="watchVoiceToggle()">&#9679; Record voice note</button>
           <span class="wv-time" aria-live="polite"></span>
           <audio class="wv-preview" controls hidden></audio>
-          <button type="button" class="wv-clear" onclick="watchVoiceClear()" hidden>Remove voice</button>
+          <button type="button" class="wv-clear" onclick="watchVoiceRemoveClick()" hidden>Remove voice</button>
         </div>
         <div class="watch-mark-actions">
           <button type="button" onclick="watchMarkUndo()">Undo</button>
@@ -10016,14 +10016,20 @@ function watchVoiceUi(){
   rec.innerHTML = recording ? "&#9632; Stop" : ready ? "&#9679; Record again" : "&#9679; Record voice note";
   if(time){
     const secs = watchVoice && watchVoice.startedAt ? Math.floor((Date.now() - watchVoice.startedAt) / 1000) : 0;
+    const editing = !!(watchMark && watchMark.editAudio);
     time.textContent = recording ? `Recording… ${watchAnnFmt(secs)}`
-      : (!ready && watchMark && watchMark.editAudio) ? "Current voice note is kept. Record again to replace it." : "";
+      : (!ready && editing && watchMark.removeAudio) ? "The voice note will be removed when you save."
+      : (!ready && editing) ? "Current voice note is kept. Record again to replace it, or remove it." : "";
   }
   if(prev){
     if(ready){ if(prev.src !== watchVoice.url){ prev.src = watchVoice.url; } prev.hidden = false; }
     else{ prev.removeAttribute("src"); prev.hidden = true; }
   }
-  if(clear){ clear.hidden = !ready; }
+  if(clear){
+    const hasOld = !!(watchMark && watchMark.editAudio && !watchMark.removeAudio);
+    clear.hidden = !(ready || hasOld);
+    clear.textContent = ready ? "Remove voice" : "Remove current voice note";
+  }
 }
 
 function watchVoiceStopTracks(){
@@ -10050,7 +10056,8 @@ async function watchVoiceToggle(){
     return;
   }
 
-  // Replacing an earlier take.
+  // Replacing an earlier take (and a new take replaces any voice note marked for removal).
+  if(watchMark){ watchMark.removeAudio = false; }
   if(watchVoice && watchVoice.url){ URL.revokeObjectURL(watchVoice.url); }
   const mime = ["audio/mp4;codecs=mp4a.40.2", "audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"].find(t => MediaRecorder.isTypeSupported(t)) || "";
   const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
@@ -10080,6 +10087,15 @@ async function watchVoiceToggle(){
   watchVoiceUi();
 }
 
+// The Remove button: drops a new take, or (when editing saved feedback)
+// marks the existing voice note to be removed on save.
+function watchVoiceRemoveClick(){
+  const hasTake = !!(watchVoice && (watchVoice.blob || (watchVoice.recorder && watchVoice.recorder.state === "recording")));
+  if(hasTake){ watchVoiceClear(); }
+  else if(watchMark && watchMark.editAudio){ watchMark.removeAudio = true; }
+  watchVoiceUi();
+}
+
 // Discards the take (Remove voice, Cancel, or after saving).
 function watchVoiceClear(){
   const v = watchVoice;
@@ -10099,6 +10115,7 @@ function watchVoiceClear(){
     const rec = x.bar.querySelector(".wv-rec"); if(rec){ rec.innerHTML = "&#9679; Record voice note"; }
     const t = x.bar.querySelector(".wv-time"); if(t){ t.textContent = ""; }
   });
+  if(watchMark){ watchVoiceUi(); }
 }
 
 // The take as a blob, stopping the recorder first if it's still going.
@@ -10270,9 +10287,10 @@ async function markUpdateAnnotation(m, goalieId){
     audioPath = await watchVoiceUpload(goalieId);
     const patch = { items: m.items };
     if(audioPath){ patch.audio_path = audioPath; }
+    else if(m.removeAudio){ patch.audio_path = null; }
     const { data: row, error } = await supabaseClient.from("shot_annotations").update(patch).eq("id", m.editId).select().single();
     if(error){ throw error; }
-    if(audioPath && m.editAudio && m.editAudio !== audioPath){ watchVoiceRemoveFile(m.editAudio); }
+    if((audioPath || m.removeAudio) && m.editAudio && m.editAudio !== audioPath){ watchVoiceRemoveFile(m.editAudio); }
     return row;
   }
   catch(e){ if(audioPath){ watchVoiceRemoveFile(audioPath); } throw e; }
