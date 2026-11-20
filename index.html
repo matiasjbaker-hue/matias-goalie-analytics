@@ -27974,8 +27974,10 @@ async function openReview(videoId){
   document.getElementById("rv-puck-high").checked = false;
   renderReviewPuck();
   document.getElementById("rv-editor").hidden = true;
-  document.getElementById("rv-scanbar").hidden = true;
-  document.getElementById("rv-scanbar").classList.remove("is-floating");
+  if(!review.publishing){
+    document.getElementById("rv-scanbar").hidden = true;
+    document.getElementById("rv-scanbar").classList.remove("is-floating");
+  }
 
   const { data, error } =
     await supabaseClient.from("video_shot_drafts").select("*").eq("game_video_id", v.id).order("t_seconds");
@@ -33077,6 +33079,15 @@ async function approveReview(){
 
 }
 
+// Closing or reloading the tab while publishing is what cuts clip-making short.
+window.addEventListener("beforeunload", e => {
+  if(typeof review !== "undefined" && review && review.publishing){
+    e.preventDefault();
+    e.returnValue = "Clips are still being made. Leaving now will leave some shots without clips.";
+    return e.returnValue;
+  }
+});
+
 // Progress bar for publishing. It floats over everything so it shows in
 // full screen too, and it appears the moment you click Approve.
 function rvPublishBar(text, pct){
@@ -33217,8 +33228,10 @@ async function makeShotClips(v, shots, insertedRows){
   let unavailable = false;
   let firstError = "";
 
+  // Always shown while clips are being made, even if the admin has opened
+  // another game or the queue: leaving mid-way is what makes clips fail.
   const show = () => {
-    if(!bar || !reviewIsShowing(v)){ return; }
+    if(!bar){ return; }
     bar.hidden = false;
     bar.classList.add("is-floating");
     fill.style.width = `${Math.round((done + failed) / jobs.length * 100)}%`;
@@ -33269,7 +33282,7 @@ async function makeShotClips(v, shots, insertedRows){
 
   await Promise.all([worker(), worker(), worker()]);
 
-  if(bar && reviewIsShowing(v)){ bar.hidden = true; }
+  // The publish flow hides the bar once every file's clips are done.
 
   if(unavailable){
     showToast("Published. MP4 clips couldn't be made on this server, so shots link into the full game video.", "error");
