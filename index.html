@@ -28521,13 +28521,15 @@ function updateReviewHud(total, goals){
   c.textContent = `${total} shot${total === 1 ? "" : "s"}`;
   document.getElementById("rv-hud-tally").textContent = total ? `${total - goals} saves · ${goals} goal${goals === 1 ? "" : "s"}` : "";
   const prev = reviewHudLast;
-  reviewHudLast = { total, vid: review.video && review.video.id };
+  reviewHudLast = { total, goals, vid: review.video && review.video.id };
   if(!prev || prev.vid !== reviewHudLast.vid || prev.total === total){ return; }
   const f = document.getElementById("rv-flash");
-  const last = review.drafts.find(x => String(x.id) === String(review.lastQuickId));
   if(!f){ return; }
   const added = total > prev.total;
-  const goal = added && last && last.outcome === "goal";
+  // Judged from the goal count going up, not from "the last tagged shot":
+  // that id is only set after this render, so it was always one shot behind
+  // (a goal flashed green, and the next save flashed GOAL).
+  const goal = added && goals > (prev.goals || 0);
   f.textContent = added ? `#${total}${goal ? " GOAL" : ""}` : `Removed · ${total}`;
   f.className = `rv-flash is-on ${added ? (goal ? "is-goal" : "is-save") : "is-undo"}`;
   clearTimeout(updateReviewHud.t);
