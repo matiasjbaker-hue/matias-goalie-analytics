@@ -2268,7 +2268,7 @@
 
   <div class="section-heading">
     <h3>Pass &amp; Possession</h3>
-    <p>Each tag on its own. A shot can carry several tags, so cards overlap. Tagged shots get an xG factor: royal road 1.90 (set from published NHL rates, about 30% for the average royal-road shot), double 1.35 and triple 1.50 (provisional, no published rate), turnover 1.15, draw 1.05, low-to-high neutral (NHL data shows it is a low-danger shot). GSAx is expected goals minus actual goals, so positive is good.</p>
+    <p>Each tag on its own. A shot can carry several tags, so cards overlap. Tagged shots get an xG factor, fitted so the average xG of each tagged group equals its target rate: royal road 1.90 (about 30%), rebound 1.48 (31.3%), screened 2.13 (11.6%), deflection 2.13 (12.5%), breakaway 1.53 (32.7%), low-to-high 0.13 (2%); double 1.35 and triple 1.50 are provisional; turnover 1.15, draw 1.05. The factors live in the xg_tag_factors table. GSAx is expected goals minus actual goals, so positive is good.</p>
   </div>
 
   <div class="grid grid-3 section-space">
@@ -5875,21 +5875,21 @@ function calculateShotXG(shot){
 
   if(shotIsRebound(shot)){
 
-    multiplier *= 1.15;
+    multiplier *= 1.48;
 
   }
 
 
   if(isScreened(shot)){
 
-    multiplier *= 1.08;
+    multiplier *= 2.13;
 
   }
 
 
   if(isBreakaway(shot)){
 
-    multiplier *= 1.45;
+    multiplier *= 1.53;
 
   }
 
@@ -5907,14 +5907,14 @@ function calculateShotXG(shot){
   // to a crease-area shot. Matches calculate_shot_xg() in the database.
   if(shotBoolean(shot.deflection)){
 
-    multiplier *= 1.20;
+    multiplier *= 2.13;
 
   }
 
 
   multiplier =
     Math.min(
-      2.25,
+      4.0,
       multiplier
     );
 
