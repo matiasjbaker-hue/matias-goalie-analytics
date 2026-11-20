@@ -408,6 +408,12 @@
           <label for="signup-password">Password</label>
           <input type="password" id="signup-password" required autocomplete="new-password" minlength="6">
 
+          <label for="signup-team">Team</label>
+          <input type="text" id="signup-team" required autocomplete="off" maxlength="80" placeholder="Your current team">
+
+          <label for="signup-birthyear">Birth year</label>
+          <input type="number" id="signup-birthyear" required min="1950" step="1" inputmode="numeric" placeholder="e.g. 2010">
+
           <label for="signup-heard">How did you hear about us?</label>
           <select id="signup-heard" required onchange="onSignupHeardChange()">
             <option value="">Choose one…</option>
@@ -3518,6 +3524,16 @@
       <div class="field">
         <label for="video-new-game-opponent">Opponent</label>
         <input type="text" id="video-new-game-opponent" placeholder="Opponent name">
+      </div>
+
+      <div class="field">
+        <label for="video-new-game-teamgoals">Your team's goals</label>
+        <input type="number" id="video-new-game-teamgoals" min="0" step="1" inputmode="numeric">
+      </div>
+
+      <div class="field">
+        <label for="video-new-game-oppgoals">Opponent's goals</label>
+        <input type="number" id="video-new-game-oppgoals" min="0" step="1" inputmode="numeric">
       </div>
 
       <div class="field">
@@ -14908,6 +14924,20 @@ document.getElementById("signup-form")
     const heard = document.getElementById("signup-heard").value;
     const heardOther = document.getElementById("signup-heard-other").value.trim();
 
+    const suTeam = document.getElementById("signup-team").value.trim();
+    const suBirth = parseInt(document.getElementById("signup-birthyear").value, 10);
+    const suYear = new Date().getFullYear();
+
+    if(!suTeam){
+      showAuthError("Please enter your team.");
+      return;
+    }
+
+    if(!Number.isInteger(suBirth) || suBirth < 1950 || suBirth > suYear){
+      showAuthError(`Birth year must be between 1950 and ${suYear}.`);
+      return;
+    }
+
     if(!heard){
       showAuthError("Please tell us how you heard about us.");
       return;
@@ -14929,6 +14959,8 @@ document.getElementById("signup-form")
           // Consent record kept with the account (auth user metadata).
           data:{
             name,
+            team: suTeam,
+            birth_year: suBirth,
             heard_from: heard,
             // "Other" text, or the name of the teammate who sent them.
             heard_from_other: (heard === "Other" || heard === "A teammate or friend") ? heardOther : "",
@@ -27403,8 +27435,24 @@ async function uploadGameVideo(){
       return;
     }
 
+    const newDate = textOrNull(document.getElementById("video-new-game-date").value);
+    const newTG = numOrNull(document.getElementById("video-new-game-teamgoals").value);
+    const newOG = numOrNull(document.getElementById("video-new-game-oppgoals").value);
+
+    if(!newDate){
+      showToast("Enter the date of the game.", "error");
+      return;
+    }
+
+    if(newTG === null || newOG === null || newTG < 0 || newOG < 0){
+      showToast("Enter the final score (both teams' goals).", "error");
+      return;
+    }
+
     requestedGame = {
-      date: textOrNull(document.getElementById("video-new-game-date").value),
+      date: newDate,
+      team_goals: newTG,
+      opponent_goals: newOG,
       opponent: opponent,
       home_away: document.getElementById("video-new-game-homeaway").value || null,
       season: (ownerProfile && ownerProfile.season) || (currentProfile && currentProfile.season) || null
