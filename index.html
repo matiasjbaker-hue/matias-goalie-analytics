@@ -7450,6 +7450,28 @@ function renderLast5(){
 ============================================================ */
 
 let shotLogModalGameId = null;
+let shotLogFeedback = {}; // shot id -> { n, video, voice } for the open game
+
+// Which shots in this game have coach feedback, so the list can flag them
+// before anyone opens the clip.
+async function loadShotLogFeedback(gameId){
+  try{
+    const ids = allShots.filter(s => String(s.game_id) === String(gameId)).map(s => s.shot_id ?? s.id);
+    if(!ids.length){ shotLogFeedback = {}; return; }
+    const { data, error } = await supabaseClient.from("shot_annotations").select("shot_id,audio_path,video_path").in("shot_id", ids);
+    if(error){ throw error; }
+    if(String(shotLogModalGameId) !== String(gameId)){ return; }
+    const map = {};
+    (data || []).forEach(a => {
+      const k = String(a.shot_id);
+      const e = map[k] || (map[k] = { n: 0, video: false, voice: false });
+      e.n++; if(a.video_path){ e.video = true; } if(a.audio_path){ e.voice = true; }
+    });
+    shotLogFeedback = map;
+    renderShotLogTable();
+  }
+  catch(e){ console.error("Feedback flags unavailable:", e); }
+}
 
 
 function openShotLogModal(gameId){
@@ -7469,7 +7491,9 @@ function openShotLogModal(gameId){
   document.getElementById("shotLogFilterRelease").value = "";
   document.getElementById("shotLogFilterStrength").value = "";
 
+  shotLogFeedback = {};
   renderShotLogTable();
+  loadShotLogFeedback(gameId);
 
   document.getElementById("shotLogBulkClipsBtn").style.display =
     currentRole === "admin" ? "" : "none";
@@ -7918,6 +7942,11 @@ function renderShotLogTable(){
 
       let actionCell;
 
+      const fb = shotLogFeedback[String(shotId)];
+      const fbFlag = fb
+        ? `<button type="button" class="fb-flag" onclick="watchShotClip(${arg})" title="Open the clip to see the feedback">${fb.video ? "&#127909;" : fb.voice ? "&#127908;" : "&#128172;"} Coach feedback${fb.n > 1 ? " (" + fb.n + ")" : ""}</button>`
+        : "";
+
       const editBtn =
         canEdit
           ? `<button type="button" class="watch-btn" onclick="openShotEditModal(${arg})">Edit</button>`
@@ -7936,6 +7965,7 @@ function renderShotLogTable(){
         actionCell = `
           <div class="clip-actions">
             <button type="button" class="watch-btn" onclick="watchShotClip(${arg})">▶ Watch</button>
+            ${fbFlag}
             ${editBtn}
             ${
               isAdmin

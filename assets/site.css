@@ -5762,3 +5762,7 @@ button.rv-hud{pointer-events:auto;border:0;cursor:pointer;font-family:inherit}
 .watch-ann-video{ margin-top:8px; }
 .watch-ann-video video{ width:100%; max-width:360px; border-radius:10px; background:#000; display:block; }
 .watch-ann-video a{ display:inline-block; margin-top:4px; font-size:12px; }
+
+.fb-flag{ border:1px solid #3b82f6; background:rgba(59,130,246,.14); color:#2563eb; border-radius:999px; padding:3px 10px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap; }
+.fb-flag:hover{ background:rgba(59,130,246,.28); }
+:root[data-theme="dark"] .fb-flag{ color:#8ab4ff; }
