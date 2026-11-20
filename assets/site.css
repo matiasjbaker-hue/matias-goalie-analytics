@@ -5766,3 +5766,11 @@ button.rv-hud{pointer-events:auto;border:0;cursor:pointer;font-family:inherit}
 .fb-flag{ border:1px solid #3b82f6; background:rgba(59,130,246,.14); color:#2563eb; border-radius:999px; padding:3px 10px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap; }
 .fb-flag:hover{ background:rgba(59,130,246,.28); }
 :root[data-theme="dark"] .fb-flag{ color:#8ab4ff; }
+
+/* Full screen: draggable divider between the film and the controls bar */
+.rv-dock-handle{display:none}
+.rv-grid.rv-fs-wrap:fullscreen .rv-dock-handle,.rv-grid.rv-fs-wrap.is-fs .rv-dock-handle{display:flex;flex:0 0 auto;justify-content:center;align-items:center;height:16px;margin:-4px 0;cursor:ns-resize;touch-action:none;user-select:none;position:relative;z-index:4}
+.rv-dock-handle::before{content:"";width:64px;height:5px;border-radius:3px;background:rgba(255,255,255,.45)}
+.rv-dock-handle:hover::before{background:rgba(255,255,255,.85)}
+.rv-dock-grip{position:absolute;right:12px;font-size:13px;color:rgba(255,255,255,.6);line-height:1}
+.rv-grid.rv-fs-wrap:fullscreen .rv-dock,.rv-grid.rv-fs-wrap.is-fs .rv-dock{flex:0 0 auto;display:flex;flex-direction:column;gap:8px;overflow:hidden;min-height:0}

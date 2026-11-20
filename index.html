@@ -4011,6 +4011,8 @@
           <div class="rv-flash" id="rv-flash" aria-hidden="true"></div>
         </div>
 
+        <div class="rv-dock-handle" id="rv-dock-handle" role="separator" aria-orientation="horizontal" title="Drag up or down to resize the controls. Double-click to hide or show them." aria-label="Resize the controls bar"><span class="rv-dock-grip">⇕</span></div>
+        <div class="rv-dock" id="rv-dock">
         <div class="rv-timeline" id="rv-timeline" title="Click to jump; ticks are shots">
           <div class="rv-scanned" id="rv-scanned"></div>
           <div id="rv-ticks"></div>
@@ -4064,6 +4066,7 @@
           <button type="button" class="btn-secondary rv-ai" onclick="jumpReviewAction(-1)">Previous action</button>
           <button type="button" class="btn-secondary rv-ai" onclick="jumpReviewAction(1)">Next action</button>
           <span class="small-note rv-ai" id="rv-action-note"></span>
+        </div>
         </div>
 
        </div>
@@ -28515,6 +28518,7 @@ async function toggleReviewFullscreen(){
     w.classList.remove("is-fs"); document.body.classList.remove("rv-fs-lock");
     reviewZoomReset();
     syncReviewFsBtn();
+    if(window.rvDockApply){ window.rvDockApply(); }
     return;
   }
   try{
@@ -28523,7 +28527,61 @@ async function toggleReviewFullscreen(){
   // No Fullscreen API for a block (older iPad/iPhone): fill the window.
   w.classList.add("is-fs"); document.body.classList.add("rv-fs-lock");
   syncReviewFsBtn();
+  if(window.rvDockApply){ window.rvDockApply(); }
 }
+
+
+// ---- Full screen: drag the handle above the controls to give the film more room. ----
+(function(){
+  const KEY = "rvDockH";
+  let startY = 0, startH = 0, dragging = false;
+  const els = () => ({ h: document.getElementById("rv-dock-handle"), d: document.getElementById("rv-dock") });
+
+  function natural(d){
+    const prev = d.style.height; d.style.height = "auto";
+    const n = d.scrollHeight; d.style.height = prev; return n;
+  }
+  function setH(px, save){
+    const { d } = els(); if(!d){ return; }
+    const max = natural(d);
+    const v = Math.max(0, Math.min(max, px));
+    d.style.height = v + "px";
+    if(save){ try{ localStorage.setItem(KEY, String(Math.round(v))); }catch(e){} }
+  }
+  window.rvDockApply = function(){
+    const { d } = els(); if(!d){ return; }
+    if(!reviewFsActive()){ d.style.height = ""; return; }
+    let v = null;
+    try{ v = localStorage.getItem(KEY); }catch(e){}
+    if(v !== null && v !== "" && !isNaN(Number(v))){ setH(Number(v), false); } else { d.style.height = ""; }
+  };
+  document.addEventListener("pointerdown", e => {
+    const { h, d } = els();
+    if(!h || !d || !h.contains(e.target) || !reviewFsActive()){ return; }
+    dragging = true; startY = e.clientY; startH = d.getBoundingClientRect().height;
+    try{ h.setPointerCapture(e.pointerId); }catch(_){}
+    e.preventDefault();
+  });
+  document.addEventListener("pointermove", e => {
+    if(!dragging){ return; }
+    setH(startH + (startY - e.clientY), false);
+  });
+  const end = () => {
+    if(!dragging){ return; }
+    dragging = false;
+    const { d } = els();
+    if(d){ try{ localStorage.setItem(KEY, String(Math.round(d.getBoundingClientRect().height))); }catch(e){} }
+  };
+  document.addEventListener("pointerup", end);
+  document.addEventListener("pointercancel", end);
+  document.addEventListener("dblclick", e => {
+    const { h, d } = els();
+    if(!h || !d || !h.contains(e.target) || !reviewFsActive()){ return; }
+    const cur = d.getBoundingClientRect().height;
+    setH(cur > 8 ? 0 : natural(d), true);
+  });
+  document.addEventListener("fullscreenchange", () => setTimeout(window.rvDockApply, 50));
+})();
 
 function syncReviewFsBtn(){
   const b = document.getElementById("rv-fs-btn");
