@@ -2268,7 +2268,7 @@
 
   <div class="section-heading">
     <h3>Pass &amp; Possession</h3>
-    <p>Each tag on its own. A shot can carry several tags, so cards overlap. Tagged shots get a small xG bump (low-to-high 1.10, double royal road 1.15, triple 1.25, turnover 1.15, draw 1.05) -- these are starting estimates. GSAx is expected goals minus actual goals, so positive is good.</p>
+    <p>Each tag on its own. A shot can carry several tags, so cards overlap. Tagged shots get an xG factor: royal road 1.90 (set from published NHL rates, about 30% for the average royal-road shot), double 1.35 and triple 1.50 (provisional, no published rate), turnover 1.15, draw 1.05, low-to-high neutral (NHL data shows it is a low-danger shot). GSAx is expected goals minus actual goals, so positive is good.</p>
   </div>
 
   <div class="grid grid-3 section-space">
@@ -5894,9 +5894,10 @@ function calculateShotXG(shot){
   }
 
 
+  // v1.9: royal road set from published NHL rates (was 1.10).
   if(shotBoolean(shot.cross_ice)){
 
-    multiplier *= 1.10;
+    multiplier *= 1.90;
 
   }
 
@@ -5937,7 +5938,7 @@ function calculateShotXG(shot){
     Math.max(
       0.005,
       Math.min(
-        0.35,
+        0.50,
         rawXG
       )
     );
