@@ -5752,3 +5752,13 @@ button.rv-hud{pointer-events:auto;border:0;cursor:pointer;font-family:inherit}
 /* Edit button on saved feedback chips */
 .watch-ann-edit{ background:none; border:none; border-left:1.5px solid var(--seam-strong); color:var(--muted-ink); font-size:16px; padding:0 11px; cursor:pointer; }
 .watch-ann-edit:hover{ color:var(--ink,#121412); }
+
+.watch-mark-cam{ display:flex; flex-wrap:wrap; gap:8px 10px; align-items:center; }
+.watch-mark-cam .wc-rec{ border-color:#b42318; color:#b42318; }
+.watch-mark-cam .wc-time{ font-size:13px; font-weight:700; color:#b42318; }
+.watch-mark-cam video{ width:160px; max-width:100%; border-radius:8px; background:#000; }
+.watch-mark-cam .wc-live{ transform:scaleX(-1); }
+.watch-mark-cam [hidden]{ display:none; }
+.watch-ann-video{ margin-top:8px; }
+.watch-ann-video video{ width:100%; max-width:360px; border-radius:10px; background:#000; display:block; }
+.watch-ann-video a{ display:inline-block; margin-top:4px; font-size:12px; }
