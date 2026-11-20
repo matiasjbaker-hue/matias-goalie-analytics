@@ -2268,7 +2268,7 @@
 
   <div class="section-heading">
     <h3>Pass &amp; Possession</h3>
-    <p>Each tag on its own. A shot can carry several tags, so cards overlap. Tagged shots get an xG factor, fitted so the average xG of each tagged group equals its target rate: royal road 1.90 (about 30%), rebound 1.48 (31.3%), screened 2.13 (11.6%), deflection 2.13 (12.5%), breakaway 1.53 (32.7%), low-to-high 0.13 (2%); double 1.35 and triple 1.50 are provisional; turnover 1.15, draw 1.05. The factors live in the xg_tag_factors table. GSAx is expected goals minus actual goals, so positive is good.</p>
+    <p>Each tag on its own. A shot can carry several tags, so cards overlap. The league baseline is set so untagged shots average their actual goal rate (5.4%). Tagged shots get an xG factor, fitted so the average xG of each tagged group equals its target rate: royal road 36%, rebound 31.3%, screened 11.6%, deflection 12.5%, breakaway 32.7%, low-to-high 2%; double and triple royal road (x1.35, x1.50 on top) are provisional; turnover 1.15, draw 1.05. The factors live in the xg_tag_factors table. GSAx is expected goals minus actual goals, so positive is good.</p>
   </div>
 
   <div class="grid grid-3 section-space">
@@ -5875,21 +5875,21 @@ function calculateShotXG(shot){
 
   if(shotIsRebound(shot)){
 
-    multiplier *= 1.48;
+    multiplier *= 2.28;
 
   }
 
 
   if(isScreened(shot)){
 
-    multiplier *= 2.13;
+    multiplier *= 3.00;
 
   }
 
 
   if(isBreakaway(shot)){
 
-    multiplier *= 1.53;
+    multiplier *= 2.42;
 
   }
 
@@ -5897,7 +5897,7 @@ function calculateShotXG(shot){
   // v1.9: royal road set from published NHL rates (was 1.10).
   if(shotBoolean(shot.cross_ice)){
 
-    multiplier *= 1.90;
+    multiplier *= 3.75;
 
   }
 
@@ -5907,14 +5907,14 @@ function calculateShotXG(shot){
   // to a crease-area shot. Matches calculate_shot_xg() in the database.
   if(shotBoolean(shot.deflection)){
 
-    multiplier *= 2.13;
+    multiplier *= 2.77;
 
   }
 
 
   multiplier =
     Math.min(
-      4.0,
+      10.0,
       multiplier
     );
 
@@ -5923,7 +5923,7 @@ function calculateShotXG(shot){
   // shot mix produces the league-average SV% (~.9025). Recomputed from
   // 1.28 after distance imputation. Applied before the 0.35 cap.
   // Matches league_calibration in calculate_shot_xg().
-  const LEAGUE_CALIBRATION = 1.62;
+  const LEAGUE_CALIBRATION = 1.62 * 0.623; // baseline factor: untagged shots average their actual 5.4%
 
   let rawXG =
     baseXG *
@@ -5938,7 +5938,7 @@ function calculateShotXG(shot){
     Math.max(
       0.005,
       Math.min(
-        0.50,
+        0.60,
         rawXG
       )
     );

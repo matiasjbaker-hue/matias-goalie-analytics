@@ -1,0 +1,9 @@
+-- xG v1.9 final state (applied via several steps on 2026-11-20).
+-- xg_tag_factors rows added: baseline (scales league calibration 1.62 / 1.60), mult_cap (per-shot product cap).
+-- Functions calculate_shot_xg / calculate_shot_xg_measured read baseline and mult_cap from the table;
+-- shot_xg_for() is the single scorer used by the set_shot_xg() trigger; clamp is [0.005, 0.60].
+-- Fitted factors (target = average xG of the tagged group):
+--   baseline 0.623 (untagged shots -> 5.43%), cross_ice 3.750 (36%), rebound 2.282 (31.3%),
+--   screened 3.000 (11.6%), deflection 2.773 (12.5%), breakaway 2.421 (32.7%), low_high 0.163 (2%),
+--   double 1.35 / triple 1.50 (provisional, on top of cross_ice), mult_cap 10.
+-- Refit with: select public.xg_fit_step(8);  (repeat until it returns < 0.003), then: update "Shots" set xg = xg;
