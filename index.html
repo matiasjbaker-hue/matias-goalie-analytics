@@ -2268,7 +2268,7 @@
 
   <div class="section-heading">
     <h3>Pass &amp; Possession</h3>
-    <p>Each tag on its own. A shot can carry several tags, so cards overlap. The league baseline is set so untagged shots average their actual goal rate (5.4%). Tagged shots get an xG factor, fitted so the average xG of each tagged group equals its target rate: royal road 36%, rebound 31.3%, screened 11.6%, deflection 12.5%, breakaway 32.7%, low-to-high 2%; double and triple royal road (x1.35, x1.50 on top) are provisional; turnover 1.15, draw 1.05. The factors live in the xg_tag_factors table. GSAx is expected goals minus actual goals, so positive is good.</p>
+    <p>Each tag on its own. A shot can carry several tags, so cards overlap. The league baseline is set so untagged shots average their actual goal rate (5.4%). Tagged shots get an xG factor, fitted so the average xG of each tagged group equals its target rate: royal road 36%, rebound 31.3%, screened 11.6%, deflection 12.5%, breakaway 32.7%, low-to-high 28.6%; double and triple royal road (x1.35, x1.50 on top) are provisional; turnover 1.15, draw 1.05. The factors live in the xg_tag_factors table. GSAx is expected goals minus actual goals, so positive is good.</p>
   </div>
 
   <div class="grid grid-3 section-space">
@@ -5897,7 +5897,7 @@ function calculateShotXG(shot){
   // v1.9: royal road set from published NHL rates (was 1.10).
   if(shotBoolean(shot.cross_ice)){
 
-    multiplier *= 3.75;
+    multiplier *= 3.71;
 
   }
 
@@ -5907,7 +5907,7 @@ function calculateShotXG(shot){
   // to a crease-area shot. Matches calculate_shot_xg() in the database.
   if(shotBoolean(shot.deflection)){
 
-    multiplier *= 2.77;
+    multiplier *= 2.76;
 
   }
 
