@@ -4316,7 +4316,7 @@
                 <button type="button" class="wc-rec" onclick="watchCamToggle()">&#127909; Record video</button>
                 <span class="wc-time" aria-live="polite"></span>
                 <video class="wc-live" muted playsinline hidden></video>
-                <video class="wc-preview" controls playsinline hidden></video>
+                <video class="wc-preview" controls playsinline preload="auto" hidden></video>
                 <button type="button" class="wc-clear" onclick="watchCamRemoveClick()" hidden>Remove video</button>
               </div>
               <div class="watch-mark-actions">
@@ -4881,7 +4881,7 @@
           <button type="button" class="wc-rec" onclick="watchCamToggle()">&#127909; Record video</button>
           <span class="wc-time" aria-live="polite"></span>
           <video class="wc-live" muted playsinline hidden></video>
-          <video class="wc-preview" controls playsinline hidden></video>
+          <video class="wc-preview" controls playsinline preload="auto" hidden></video>
           <button type="button" class="wc-clear" onclick="watchCamRemoveClick()" hidden>Remove video</button>
         </div>
         <div class="watch-mark-actions">
@@ -10280,7 +10280,7 @@ function watchCamUi(){
     else{ live.srcObject = null; live.hidden = true; }
   }
   if(prev){
-    if(ready && !recording){ if(prev.src !== watchCam.url){ prev.src = watchCam.url; } prev.hidden = false; }
+    if(ready && !recording){ if(prev.dataset.u !== watchCam.url){ prev.dataset.u = watchCam.url; prev.src = watchCam.url + "#t=0.001"; } prev.hidden = false; }
     else{ prev.removeAttribute("src"); prev.hidden = true; }
   }
   if(clear){
@@ -10365,7 +10365,7 @@ function watchCamClear(){
   [watchCtx(), reviewMarkCtx()].forEach(x => {
     if(!x.bar){ return; }
     const live = x.bar.querySelector(".wc-live"); if(live){ live.srcObject = null; live.hidden = true; }
-    const prev = x.bar.querySelector(".wc-preview"); if(prev){ prev.pause(); prev.removeAttribute("src"); prev.hidden = true; }
+    const prev = x.bar.querySelector(".wc-preview"); if(prev){ prev.pause(); prev.removeAttribute("src"); delete prev.dataset.u; prev.hidden = true; }
     const clr = x.bar.querySelector(".wc-clear"); if(clr){ clr.hidden = true; }
     const rec = x.bar.querySelector(".wc-rec"); if(rec){ rec.innerHTML = "&#127909; Record video"; }
     const t = x.bar.querySelector(".wc-time"); if(t){ t.textContent = ""; }
@@ -10402,20 +10402,48 @@ function watchVideoStopPlayback(boxId){
 }
 
 // Shows the video note for a feedback row under the clip. Returns true when there is one.
+// The file is loaded whole and played from memory (like voice notes): streaming a
+// recorder's file by range requests can leave the player on a blank grey frame.
 function watchVideoPlay(a, boxId, autoplay){
   const box = document.getElementById(boxId);
   if(!box){ return false; }
   if(!a || !a.video_path){ box.innerHTML = ""; return false; }
   box.dataset.for = String(a.id);
   box.innerHTML = `<span class="watch-ann-empty">Loading video…</span>`;
-  supabaseClient.storage.from("voice-notes").createSignedUrl(a.video_path, 3600).then(({ data, error }) => {
-    if(box.dataset.for !== String(a.id)){ return; }
-    if(error || !data){ box.innerHTML = `<span class="watch-ann-empty">Couldn't load the video.</span>`; return; }
-    box.innerHTML = `<video controls playsinline preload="metadata" src="${escapeHtml(data.signedUrl)}"></video>
-      <a class="watch-ann-empty" href="${escapeHtml(data.signedUrl)}" target="_blank" rel="noopener" download>Download video</a>`;
-    const el = box.querySelector("video");
-    if(autoplay){ el.play().catch(() => {}); }
-  }).catch(() => { box.innerHTML = `<span class="watch-ann-empty">Couldn't load the video.</span>`; });
+  const stale = () => box.dataset.for !== String(a.id);
+  (async () => {
+    let signedUrl = null;
+    try{
+      const { data, error } = await supabaseClient.storage.from("voice-notes").createSignedUrl(a.video_path, 3600);
+      if(error || !data){ throw error || new Error("no link"); }
+      signedUrl = data.signedUrl;
+      if(stale()){ return; }
+      let src = watchVoiceBlobUrls[a.video_path];
+      if(!src){
+        const res = await fetch(signedUrl);
+        if(!res.ok){ throw new Error("fetch " + res.status); }
+        const raw = await res.blob();
+        if(!raw.size){ throw new Error("empty file"); }
+        const type = /\.mp4$/i.test(a.video_path) ? "video/mp4" : "video/webm";
+        src = URL.createObjectURL(new Blob([raw], { type }));
+        watchVoiceBlobUrls[a.video_path] = src;
+      }
+      if(stale()){ return; }
+      // #t=0.001 makes the browser paint the first frame instead of a grey box.
+      box.innerHTML = `<video controls playsinline preload="auto" src="${escapeHtml(src)}#t=0.001"></video>
+        <a class="watch-ann-empty" href="${escapeHtml(signedUrl)}" target="_blank" rel="noopener" download>Download video</a>`;
+      const el = box.querySelector("video");
+      el.addEventListener("error", () => {
+        if(stale()){ return; }
+        box.innerHTML = `<span class="watch-ann-empty">This browser couldn't play the video.</span> <a class="watch-ann-empty" href="${escapeHtml(signedUrl)}" target="_blank" rel="noopener" download>Download it</a>`;
+      });
+      if(autoplay){ el.play().catch(() => {}); }
+    }
+    catch(e){
+      console.error(e);
+      if(!stale()){ box.innerHTML = `<span class="watch-ann-empty">Couldn't load the video.</span>`; }
+    }
+  })();
   return true;
 }
 
