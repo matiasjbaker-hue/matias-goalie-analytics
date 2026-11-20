@@ -33049,6 +33049,7 @@ async function approveReview(){
       await emailPublishedStats(current, gameId, allRepublish);
     }
 
+    clipRun = { total: published.reduce((n, r) => n + r.insertedShots.filter(Boolean).length, 0), finished: 0 };
     for(const result of published){
       const clipIds = await makeShotClips(result.video, result.shots, result.insertedShots);
       result.snapshot.clipIds = clipIds;
@@ -33056,6 +33057,14 @@ async function approveReview(){
       syncReviewCache(result.video);
     }
     delete goFilmVideoCache[gameId];
+    {
+      const t = clipRun ? clipRun.total : 0;
+      const bad = clipRun ? (clipRun.failed || 0) : 0;
+      clipProgress(bad ? `Finished, but ${bad} of ${t} clips failed. Those shots play from the full game video; use Make missing clips on the game to retry.`
+        : t ? `All ${t} clips are done. You can leave this page now.` : "Publishing is done. You can leave this page now.", 100, bad ? "warn" : "done");
+      setTimeout(() => { if(!review.publishing){ clipProgress(null); } }, 12000);
+    }
+    clipRun = null;
 
     await loadDashboard().catch(err => console.error(err));
     renderReviewHeader();
@@ -33065,6 +33074,8 @@ async function approveReview(){
   catch(error){
 
     console.error(error);
+    clipRun = null;
+    clipProgress(`Publishing stopped: ${error.message || error}`, 100, "warn");
     showToast(`Publishing stopped: ${error.message || error}. Check the game before trying again.`, "error");
     renderReviewHeader();
     renderReviewParts();
@@ -33079,6 +33090,33 @@ async function approveReview(){
 
 }
 
+/* A progress box that lives on the page itself (not inside the review
+   screen), so it is always visible while publishing and making clips, no
+   matter which screen is open. */
+let clipRun = null; // { total, finished } across every file of one publish
+
+function clipBox(){
+  let el = document.getElementById("clipProgressBox");
+  if(el){ return el; }
+  el = document.createElement("div");
+  el.id = "clipProgressBox";
+  el.setAttribute("role", "status");
+  el.setAttribute("aria-live", "polite");
+  el.style.cssText = "position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:100000;width:min(560px,92vw);box-sizing:border-box;padding:12px 16px;border-radius:12px;background:#fff8e1;color:#121412;box-shadow:0 8px 28px rgba(0,0,0,.4);font:600 14px/1.4 system-ui,sans-serif;display:none";
+  el.innerHTML = '<div style="height:8px;border-radius:99px;background:rgba(0,0,0,.12);overflow:hidden;margin-bottom:8px"><i id="clipProgressFill" style="display:block;height:100%;width:0;background:#1f8f4d;transition:width .3s"></i></div><div id="clipProgressText"></div>';
+  document.body.appendChild(el);
+  return el;
+}
+
+function clipProgress(text, pct, state){
+  const el = clipBox();
+  if(text === null){ el.style.display = "none"; return; }
+  el.style.display = "block";
+  el.style.background = state === "done" ? "#e6f6ec" : state === "warn" ? "#fdecea" : "#fff8e1";
+  document.getElementById("clipProgressText").textContent = text;
+  if(pct !== undefined){ document.getElementById("clipProgressFill").style.width = `${Math.max(0, Math.min(100, pct))}%`; }
+}
+
 // Closing or reloading the tab while publishing is what cuts clip-making short.
 window.addEventListener("beforeunload", e => {
   if(typeof review !== "undefined" && review && review.publishing){
@@ -33091,6 +33129,7 @@ window.addEventListener("beforeunload", e => {
 // Progress bar for publishing. It floats over everything so it shows in
 // full screen too, and it appears the moment you click Approve.
 function rvPublishBar(text, pct){
+  if(text !== null){ clipProgress(text, pct); }
   const bar = document.getElementById("rv-scanbar");
   if(!bar){ return; }
   if(text === null){
@@ -33231,11 +33270,16 @@ async function makeShotClips(v, shots, insertedRows){
   // Always shown while clips are being made, even if the admin has opened
   // another game or the queue: leaving mid-way is what makes clips fail.
   const show = () => {
-    if(!bar){ return; }
-    bar.hidden = false;
-    bar.classList.add("is-floating");
-    fill.style.width = `${Math.round((done + failed) / jobs.length * 100)}%`;
-    status.textContent = `Making MP4 clips: ${done + failed} of ${jobs.length}${failed ? ` (${failed} failed${firstError ? ": " + firstError : ""})` : ""}. Keep this tab open.`;
+    const total = clipRun ? clipRun.total : jobs.length;
+    const finished = (clipRun ? clipRun.finished : 0) + done + failed;
+    const text = `Making MP4 clips: ${finished} of ${total}${failed ? ` (${failed} failed${firstError ? ": " + firstError : ""})` : ""}. Keep this tab open until it finishes.`;
+    clipProgress(text, Math.round(finished / Math.max(1, total) * 100), failed ? "warn" : undefined);
+    if(bar){
+      bar.hidden = false;
+      bar.classList.add("is-floating");
+      fill.style.width = `${Math.round(finished / Math.max(1, total) * 100)}%`;
+      status.textContent = text;
+    }
   };
 
   show();
@@ -33283,6 +33327,7 @@ async function makeShotClips(v, shots, insertedRows){
   await Promise.all([worker(), worker(), worker()]);
 
   // The publish flow hides the bar once every file's clips are done.
+  if(clipRun){ clipRun.finished += jobs.length; clipRun.failed = (clipRun.failed || 0) + failed + (unavailable ? jobs.length - done - failed : 0); }
 
   if(unavailable){
     showToast("Published. MP4 clips couldn't be made on this server, so shots link into the full game video.", "error");
