@@ -7,3 +7,6 @@
 --   screened 3.009 (11.6%), deflection 2.764 (12.5%), breakaway 2.421 (32.7%), low_high 3.200 (28.6%, the observed 2 of 7; ctx_cap 4.0),
 --   double 1.35 / triple 1.50 (provisional, on top of cross_ice), mult_cap 10.
 -- Refit with: select public.xg_fit_step(8);  (repeat until it returns < 0.003), then: update "Shots" set xg = xg;
+-- FIX (13:25): the fit had left factors and every stored xg with thousands of digits (41 MB of numbers
+-- across the Shots table), which made the site load blank. Factors are now rounded to 4 decimals,
+-- set_shot_xg() stores round(xg, 5), xg_fit_step() rounds each factor, and all shots were rescored.
