@@ -1,0 +1,306 @@
+{
+ "_about": "Side of the picture the tracked goalie's net is on, per period, labelled from frames at tagged shot moments (ml/video/net_frames.py). 'goalcam' = camera behind the tracked net (never flipped). Films 452 701 791 1738 1739 1740 1829 were already marked in Video Review. confidence: low = net rarely visible in the sampled frames. 2026-11-17: 63 more files labelled the same way, grouped by game (each game's periods checked for consistent end switches); 'exclude' = not readable, left out of training.",
+ "1363": {
+  "1": "right"
+ },
+ "1364": {
+  "1": "left"
+ },
+ "1365": {
+  "1": "left"
+ },
+ "1693": {
+  "1": "right"
+ },
+ "1735": {
+  "1": "left"
+ },
+ "1442": {
+  "1": "left"
+ },
+ "790": {
+  "1": "left",
+  "2": "left",
+  "3": "left",
+  "OT": "left",
+  "note": "no period marks; net on the left at shots across the whole film"
+ },
+ "452": {
+  "1": "left"
+ },
+ "598": {
+  "1": "left"
+ },
+ "1227": {
+  "1": "left"
+ },
+ "701": {
+  "1": "left"
+ },
+ "791": {
+  "1": "left"
+ },
+ "919": {
+  "1": "right"
+ },
+ "1026": {
+  "1": "left"
+ },
+ "1062": {
+  "1": "left",
+  "note": "second file of 1026's game; whole file is period 3"
+ },
+ "1366": {
+  "1": "left",
+  "confidence": "low"
+ },
+ "949": {
+  "1": "right"
+ },
+ "1154": {
+  "goalcam": true
+ },
+ "1181": {
+  "1": "right"
+ },
+ "1226": {
+  "1": "right",
+  "confidence": "low"
+ },
+ "1404": {
+  "1": "right"
+ },
+ "1305": {
+  "goalcam": true
+ },
+ "1739": {
+  "1": "right"
+ },
+ "1740": {
+  "1": "right"
+ },
+ "1572": {
+  "1": "left"
+ },
+ "1549": {
+  "goalcam": true
+ },
+ "1743": {
+  "1": "right",
+  "confidence": "low",
+  "note": "U11 game split in three files"
+ },
+ "1744": {
+  "1": "right",
+  "confidence": "low"
+ },
+ "1745": {
+  "1": "right",
+  "confidence": "low"
+ },
+ "1829": {
+  "1": "right"
+ },
+ "1738": {
+  "1": "right"
+ },
+ "1736": {
+  "1": "left"
+ },
+ "1737": {
+  "1": "right"
+ },
+ "2343": {
+  "1": "right"
+ },
+ "2287": {
+  "1": "left"
+ },
+ "2288": {
+  "1": "left"
+ },
+ "2548": {
+  "goalcam": true
+ },
+ "2388": {
+  "1": "left",
+  "confidence": "low"
+ },
+ "2331": {
+  "1": "right"
+ },
+ "2332": {
+  "1": "right"
+ },
+ "2333": {
+  "1": "right"
+ },
+ "2488": {
+  "goalcam": true
+ },
+ "2186": {
+  "1": "left"
+ },
+ "2245": {
+  "1": "left"
+ },
+ "2246": {
+  "1": "left"
+ },
+ "2487": {
+  "goalcam": true
+ },
+ "2457": {
+  "1": "left"
+ },
+ "2247": {
+  "1": "left"
+ },
+ "2107": {
+  "goalcam": true
+ },
+ "2321": {
+  "1": "left"
+ },
+ "2322": {
+  "1": "left"
+ },
+ "2323": {
+  "1": "left"
+ },
+ "2485": {
+  "1": "left"
+ },
+ "2045": {
+  "1": "right",
+  "2": "left",
+  "3": "left",
+  "confidence": "low",
+  "note": "camera position differs in period 3; sides as seen"
+ },
+ "2340": {
+  "1": "left"
+ },
+ "2341": {
+  "1": "left"
+ },
+ "2106": {
+  "goalcam": true
+ },
+ "2134": {
+  "1": "left"
+ },
+ "2161": {
+  "1": "left"
+ },
+ "2162": {
+  "1": "left"
+ },
+ "2406": {
+  "exclude": true,
+  "note": "corner camera, net side not readable"
+ },
+ "2352": {
+  "goalcam": true
+ },
+ "2539": {
+  "1": "right"
+ },
+ "2489": {
+  "goalcam": true
+ },
+ "2540": {
+  "exclude": true,
+  "note": "low camera, net rarely visible"
+ },
+ "2545": {
+  "goalcam": true
+ },
+ "2541": {
+  "1": "left"
+ },
+ "2599": {
+  "goalcam": true
+ },
+ "2643": {
+  "1": "left"
+ },
+ "2644": {
+  "1": "left"
+ },
+ "2645": {
+  "1": "left"
+ },
+ "2041": {
+  "1": "left"
+ },
+ "2042": {
+  "1": "left"
+ },
+ "2047": {
+  "1": "left"
+ },
+ "2086": {
+  "1": "right"
+ },
+ "2103": {
+  "1": "right"
+ },
+ "2105": {
+  "1": "right"
+ },
+ "2221": {
+  "1": "left"
+ },
+ "2222": {
+  "1": "left"
+ },
+ "2542": {
+  "1": "right"
+ },
+ "2546": {
+  "1": "right"
+ },
+ "2547": {
+  "1": "right"
+ },
+ "2407": {
+  "1": "right"
+ },
+ "2408": {
+  "1": "right"
+ },
+ "2409": {
+  "1": "right"
+ },
+ "2410": {
+  "1": "right"
+ },
+ "2411": {
+  "1": "right"
+ },
+ "2600": {
+  "1": "left"
+ },
+ "2601": {
+  "1": "left"
+ },
+ "2602": {
+  "1": "left"
+ },
+ "2621": {
+  "1": "right"
+ },
+ "2622": {
+  "1": "right"
+ },
+ "2623": {
+  "1": "right"
+ },
+ "2624": {
+  "1": "right"
+ },
+ "2625": {
+  "1": "right"
+ }
+}

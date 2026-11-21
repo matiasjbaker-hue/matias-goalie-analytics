@@ -4245,6 +4245,48 @@ textarea:focus-visible,
   flex-wrap:wrap;
 }
 
+/* Find shots: the model picker and Run AI read as one control */
+.rv-ai-run{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:4px;
+  border:1.5px solid var(--seam-strong);
+  border-radius:var(--radius);
+  background:var(--face);
+}
+.rv-ai-run select{ padding:6px 8px; }
+
+/* More: the less-used review actions, out of the main row */
+.rv-more{ position:relative; }
+.rv-more > summary{ list-style:none; cursor:pointer; }
+.rv-more > summary::-webkit-details-marker{ display:none; }
+.rv-more > summary::after{ content:" ▾"; }
+.rv-more[open] > summary{ background:var(--channel); }
+.rv-more-menu{
+  position:absolute;
+  right:0;
+  top:calc(100% + 6px);
+  z-index:30;
+  display:grid;
+  gap:8px;
+  min-width:260px;
+  padding:12px;
+  background:var(--face);
+  border:1.5px solid var(--seam-strong);
+  border-radius:var(--radius);
+  box-shadow:0 14px 32px -8px rgba(18,20,18,.28);
+}
+.rv-more-menu > button{ width:100%; text-align:left; }
+.rv-more-settings{
+  display:grid;
+  gap:8px;
+  padding-bottom:10px;
+  border-bottom:1px solid var(--seam);
+}
+.rv-more-settings[hidden]{ display:none; }
+.rv-more-settings .rv-density{ justify-content:space-between; }
+
 .rv-scanbar{
   display:flex;
   align-items:center;
