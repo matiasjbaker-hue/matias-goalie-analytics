@@ -32328,10 +32328,12 @@ function readReviewGameDetails(){
     team_goals: numOrNull(document.getElementById("rv-gd-teamgoals").value),
     "opponent goals": numOrNull(document.getElementById("rv-gd-oppgoals").value),
     minutes_played: minutes && minutes > 0 ? minutes : null,
-    // game_length is the regulation length used to scale GAA, and the
-    // database only accepts 10-90. Minutes played can be outside that
-    // (two files, overtime), so it's left out then instead of failing.
-    ...(minutes && minutes >= 10 && minutes <= 90 ? { game_length: minutes } : {})
+    // game_length is the regulation length of the game (the goalie's
+    // standard, 60 when none is set), NOT the minutes this goalie played:
+    // GAA = goals x game_length / minutes played. Saving the minutes played
+    // here made a 10-minute stint look like a 10-minute game (1 goal = 1.00
+    // instead of 6.00). The database only accepts 10-90; null means 60.
+    game_length: reviewStandardLength() || null
   };
 }
 
