@@ -9,6 +9,11 @@ even if this Mac sleeps or loses its connection. Collect results later.
 
     ml/.venv/bin/python ml/video/launch.py --final            # train the model the site's Review button uses
 
+Round 5 (sharper net-side crop + the round-4 model's mistakes as "no shot" examples):
+    ml/.venv/bin/python ml/video/launch.py --mine                                  # free: reads round-4 scores
+    ml/.venv/bin/python ml/video/launch.py --net --variant r5 --prepare            # cut sharper clips (~$4)
+    ml/.venv/bin/python ml/video/launch.py --net --variant r5 --run r5 --only 1,2,3   # then 4,5, then --report
+
 Options: --epochs 8 --folds 5 --no-curve (100% only)
          --net  mirror clips so the tracked net is always on the left
                 (uses ml/video/net_sides.json; 100% data only; results kept
@@ -29,7 +34,10 @@ import shots_modal as S  # noqa: E402
 APP = "goalieiq-shots"
 
 
-def load_films(net=False):
+HARD_NEGS = S.REPO / "ml" / "data" / "hard_negs_r4.json"
+
+
+def load_films(net=False, variant="r4"):
     sides = json.loads((Path(__file__).resolve().parent / "net_sides.json").read_text()) if net else {}
     films = {}
     for line in (S.REPO / "ml" / "data" / "games.jsonl").read_text().splitlines():
@@ -38,10 +46,42 @@ def load_films(net=False):
             films[str(f["video_id"])] = dict(f, video_id=str(f["video_id"]), user_id=str(g["user_id"]),
                                              date=g.get("date"), opponent=g.get("opponent"),
                                              net_sides=sides.get(str(f["video_id"])))
+    if variant != "r4":
+        hard = json.loads(HARD_NEGS.read_text()) if HARD_NEGS.exists() else {}
+        if not hard:
+            sys.exit("No mined mistakes yet: run with --mine first.")
+        for v, f in films.items():
+            f["hard_negs"] = hard.get(v, [])
     return films
 
 
-def job_list(films, k, fold_of, fractions, epochs, net=False, run=""):
+def mine_hard_negatives(threshold=0.2):
+    """The round-4 model's mistakes on every film (each scored by a model that never saw it):
+    peaks above threshold at least HARD_NEG_MIN_DIST s from any tagged shot. The strongest,
+    up to one per tagged shot (at least 5), become extra "no shot" examples for round 5."""
+    films = load_films(True)
+    done = modal.Function.from_name(APP, "load_scores").remote()
+    out, total = {}, 0
+    for lab, res in done.items():
+        if not lab.startswith("r4net100%/"):
+            continue
+        for v, segs in res.items():
+            shots = films.get(v, {}).get("shot_times") or []
+            cand = []
+            for t, sc, a, b in segs:
+                pt, ps = S.pick_peaks(np.array(t), np.array(sc), threshold)
+                d = S.nearest_dist(pt, shots)
+                cand += [(float(s_), float(t_)) for t_, s_, dd in zip(pt, ps, d) if dd >= S.HARD_NEG_MIN_DIST]
+            cand.sort(reverse=True)
+            out[v] = sorted(round(t_, 2) for _, t_ in cand[: max(5, len(shots))])
+            total += len(out[v])
+    if len(out) < len(films):
+        sys.exit(f"Round-4 scores cover {len(out)} of {len(films)} films; finish round 4 first.")
+    HARD_NEGS.write_text(json.dumps(out))
+    print(f"Mined {total} mistakes across {len(out)} films -> {HARD_NEGS}")
+
+
+def job_list(films, k, fold_of, fractions, epochs, net=False, run="", variant="r4"):
     jobs = []
     for frac in fractions:
         for f in range(k):
@@ -51,7 +91,7 @@ def job_list(films, k, fold_of, fractions, epochs, net=False, run=""):
                 n = max(2, int(round(frac * len(train))))
                 train = sorted(np.random.default_rng(100 + f).choice(train, n, replace=False).tolist())
             label = f"{run}{'net' if net else ''}{int(frac * 100)}%/fold{f + 1}"
-            extra = (None, {v: films[v] for v in train}, True) if net else ()
+            extra = (None, {v: films[v] for v in train}, True, variant) if net else ()
             jobs.append((label, train, test, epochs, *extra))
     return jobs
 
@@ -68,9 +108,16 @@ def main():
     ap.add_argument("--run", default="", help="name prefix for this run's results, e.g. r4 (keeps older runs apart)")
     ap.add_argument("--prepare", action="store_true", help="cut clips for films not prepared yet, then exit")
     ap.add_argument("--final", action="store_true", help="train the model the site uses on every film (~$2), then exit")
+    ap.add_argument("--variant", default="r4", choices=sorted(S.VARIANTS), help="r5: sharper net-side crop + mined mistakes")
+    ap.add_argument("--mine", action="store_true", help="save the round-4 model's mistakes for round 5, then exit")
     args = ap.parse_args()
 
-    films = load_films(args.net)
+    if args.mine:
+        mine_hard_negatives()
+        return
+    if args.variant != "r4" and not args.net:
+        sys.exit("--variant r5 needs --net (the crop follows the tracked net).")
+    films = load_films(args.net, args.variant)
     fold_of, k = S.goalie_folds(films, args.folds)
     fractions = [1.0] if (args.no_curve or args.net) else [1.0, 0.5, 0.25]
     if "_" in args.run or "/" in args.run:
@@ -82,16 +129,20 @@ def main():
               "About 45 minutes; it's saved as ckpt/final.pt on the volume and used from the next scan on.")
         return
     if args.prepare:
-        done_ids = {e.path.split("/")[-1][:-5] for e in modal.Volume.from_name("goalieiq-ml").iterdir("windows")
-                    if e.path.endswith(".json")}
+        sub = S.VARIANTS[args.variant]["sub"]
+        try:
+            entries = modal.Volume.from_name("goalieiq-ml").iterdir(f"{sub}/windows" if sub else "windows")
+            done_ids = {e.path.split("/")[-1][:-5] for e in entries if e.path.endswith(".json")}
+        except Exception:      # folder not made yet: nothing prepared
+            done_ids = set()
         todo = [f for v, f in films.items() if v not in done_ids]
         print(f"{len(films) - len(todo)} films already prepared; starting {len(todo)}")
         prep = modal.Function.from_name(APP, "prepare_film")
         for f in todo:
-            prep.spawn(f)
+            prep.spawn(f, args.variant)
         print("Running in the cloud. Re-run with --prepare to see what's left.")
         return
-    jobs = job_list(films, k, fold_of, fractions, args.epochs, args.net, args.run)
+    jobs = job_list(films, k, fold_of, fractions, args.epochs, args.net, args.run, args.variant)
     pre = args.run + ("net" if args.net else "")
 
     load_scores = modal.Function.from_name(APP, "load_scores")
