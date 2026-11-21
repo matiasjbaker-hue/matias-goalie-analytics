@@ -5816,3 +5816,8 @@ button.rv-hud{pointer-events:auto;border:0;cursor:pointer;font-family:inherit}
 .rv-dock-handle:hover::before{background:rgba(255,255,255,.85)}
 .rv-dock-grip{position:absolute;right:12px;font-size:13px;color:rgba(255,255,255,.6);line-height:1}
 .rv-grid.rv-fs-wrap:fullscreen .rv-dock,.rv-grid.rv-fs-wrap.is-fs .rv-dock{flex:0 0 auto;display:flex;flex-direction:column;gap:8px;overflow:hidden;min-height:0}
+
+/* Unseen coach feedback */
+.fb-flag.is-new{ border-color:#16a34a; background:rgba(22,163,74,.16); color:#15803d; }
+.fb-new{ background:#16a34a; color:#fff; border-radius:999px; padding:1px 6px; font-size:10px; letter-spacing:.04em; margin-right:2px; }
+:root[data-theme="dark"] .fb-flag.is-new{ color:#86efac; }

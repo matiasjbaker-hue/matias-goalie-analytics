@@ -4611,6 +4611,12 @@
           <option value="untagged">Not tagged</option>
         </select>
 
+        <select id="shotLogFilterFeedback" onchange="renderShotLogTable()">
+          <option value="">All shots</option>
+          <option value="has">Has feedback</option>
+          <option value="new">New feedback</option>
+        </select>
+
         <select id="shotLogFilterRelease" onchange="renderShotLogTable()">
           <option value="">All Release Contexts</option>
           <option value="extended">Extended Possession</option>
@@ -7488,20 +7494,41 @@ function renderLast5(){
 let shotLogModalGameId = null;
 let shotLogFeedback = {}; // shot id -> { n, video, voice } for the open game
 
+// "New" = feedback the goalie hasn't opened yet. Remembered per goalie in
+// this browser (the time of the newest note they have seen on that shot).
+function fbSeenKey(shotId){
+  return "fbSeen:" + ((currentSession && currentSession.user && currentSession.user.id) || "x") + ":" + shotId;
+}
+function fbSeenAt(shotId){
+  try{ return Number(localStorage.getItem(fbSeenKey(shotId))) || 0; }catch(e){ return 0; }
+}
+function fbIsNew(shotId){
+  const fb = shotLogFeedback[String(shotId)];
+  return !!fb && currentRole === "goalie" && fb.latest > fbSeenAt(shotId);
+}
+function fbMarkSeen(shotId){
+  const fb = shotLogFeedback[String(shotId)];
+  if(!fb || currentRole !== "goalie" || !fbIsNew(shotId)){ return; }
+  try{ localStorage.setItem(fbSeenKey(shotId), String(fb.latest)); }catch(e){}
+  if(shotLogModalGameId){ renderShotLogTable(); }
+}
+
 // Which shots in this game have coach feedback, so the list can flag them
 // before anyone opens the clip.
 async function loadShotLogFeedback(gameId){
   try{
     const ids = allShots.filter(s => String(s.game_id) === String(gameId)).map(s => s.shot_id ?? s.id);
     if(!ids.length){ shotLogFeedback = {}; return; }
-    const { data, error } = await supabaseClient.from("shot_annotations").select("shot_id,audio_path,video_path").in("shot_id", ids);
+    const { data, error } = await supabaseClient.from("shot_annotations").select("shot_id,audio_path,video_path,created_at").in("shot_id", ids);
     if(error){ throw error; }
     if(String(shotLogModalGameId) !== String(gameId)){ return; }
     const map = {};
     (data || []).forEach(a => {
       const k = String(a.shot_id);
-      const e = map[k] || (map[k] = { n: 0, video: false, voice: false });
+      const e = map[k] || (map[k] = { n: 0, video: false, voice: false, latest: 0 });
       e.n++; if(a.video_path){ e.video = true; } if(a.audio_path){ e.voice = true; }
+      const t = a.created_at ? Date.parse(a.created_at) : 0;
+      if(t > e.latest){ e.latest = t; }
     });
     shotLogFeedback = map;
     renderShotLogTable();
@@ -7526,6 +7553,7 @@ function openShotLogModal(gameId){
   document.getElementById("shotLogFilterResult").value = "";
   document.getElementById("shotLogFilterRelease").value = "";
   document.getElementById("shotLogFilterStrength").value = "";
+  document.getElementById("shotLogFilterFeedback").value = "";
 
   shotLogFeedback = {};
   renderShotLogTable();
@@ -7914,6 +7942,25 @@ function renderShotLogTable(){
       s => String(s.game_id) === String(shotLogModalGameId)
     );
 
+  // Count feedback on the filter itself so it's visible before filtering.
+  const fbSel = document.getElementById("shotLogFilterFeedback");
+  const fbFilter = fbSel ? fbSel.value : "";
+  if(fbSel){
+    const sid = s => s.shot_id ?? s.id;
+    const nHas = gameShotsList.filter(s => shotLogFeedback[String(sid(s))]).length;
+    const nNew = gameShotsList.filter(s => fbIsNew(sid(s))).length;
+    fbSel.options[1].textContent = "Has feedback" + (nHas ? ` (${nHas})` : "");
+    fbSel.options[2].textContent = "New feedback" + (nNew ? ` (${nNew})` : "");
+    fbSel.options[2].hidden = currentRole !== "goalie";
+  }
+
+  if(fbFilter === "has"){
+    gameShotsList = gameShotsList.filter(s => shotLogFeedback[String(s.shot_id ?? s.id)]);
+  }
+  else if(fbFilter === "new"){
+    gameShotsList = gameShotsList.filter(s => fbIsNew(s.shot_id ?? s.id));
+  }
+
   if(periodFilter){
     gameShotsList =
       gameShotsList.filter(s => normalize(s.period) === normalize(periodFilter));
@@ -7979,8 +8026,9 @@ function renderShotLogTable(){
       let actionCell;
 
       const fb = shotLogFeedback[String(shotId)];
+      const fbNew = fb && fbIsNew(shotId);
       const fbFlag = fb
-        ? `<button type="button" class="fb-flag" onclick="watchShotClip(${arg})" title="Open the clip to see the feedback">${fb.video ? "&#127909;" : fb.voice ? "&#127908;" : "&#128172;"} Coach feedback${fb.n > 1 ? " (" + fb.n + ")" : ""}</button>`
+        ? `<button type="button" class="fb-flag${fbNew ? " is-new" : ""}" onclick="watchShotClip(${arg})" title="Open the clip to see the feedback">${fbNew ? '<span class="fb-new">NEW</span> ' : ""}${fb.video ? "&#127909;" : fb.voice ? "&#127908;" : "&#128172;"} Coach feedback${fb.n > 1 ? " (" + fb.n + ")" : ""}</button>`
         : "";
 
       const editBtn =
@@ -9370,6 +9418,8 @@ async function watchShotClip(shotId, keepQueue, shotLike){
 
   const shot = shotLike ||
     allShots.find(s => String(s.shot_id ?? s.id) === String(shotId));
+
+  try{ fbMarkSeen(shot ? (shot.shot_id ?? shot.id) : shotId); }catch(e){}
 
   if(!shot || !shot.game_video_id){
     showToast("No video clip linked to this shot.", "error");
