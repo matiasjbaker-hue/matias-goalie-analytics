@@ -4038,7 +4038,7 @@
           <span><i class="lg-save"></i>Save</span>
           <span><i class="lg-goal"></i>Goal</span>
           <span><i class="lg-check"></i>Moment to check</span>
-          <span class="rv-ai"><i class="lg-action"></i>Action: play in the goalie's zone</span>
+          <span><i class="lg-action"></i>Clip: play around the goalie's net</span>
           <span><i class="lg-cut"></i>Cut</span>
           <span><i class="lg-flag"></i>Flagged moment</span>
           <span><i class="lg-miss"></i>Missed shot</span>
@@ -4082,11 +4082,11 @@
         <div class="rv-attemptlist" id="rv-attemptlist"></div>
 
         <div class="rv-action-bar">
-          <label class="rv-check rv-ai"><input type="checkbox" id="rv-action-only" onchange="onReviewActionOnlyChange()"> <span>Play action only</span></label>
+          <label class="rv-check" title="Plays only the clips of play around the goalie's net (from Find shots), back to back, like a condensed game. Press S at each shot. In tests about a third of the game held 93-95% of the shots."><input type="checkbox" id="rv-action-only" onchange="onReviewActionOnlyChange()"> <span>Play net clips only</span></label>
           <label class="rv-check" title="S marks a shot (Shift+S a goal) without pausing or opening the editor, so you can keep watching. Z removes the last one you marked. Fill in details later from the shot list."><input type="checkbox" id="rv-quick-tag" onchange="onReviewQuickTagChange(this.checked)"> <span>Quick tag (S shot, Shift+S goal, Z undo)</span></label>
-          <button type="button" class="btn-secondary rv-ai" onclick="jumpReviewAction(-1)">Previous action</button>
-          <button type="button" class="btn-secondary rv-ai" onclick="jumpReviewAction(1)">Next action</button>
-          <span class="small-note rv-ai" id="rv-action-note"></span>
+          <button type="button" class="btn-secondary" onclick="jumpReviewAction(-1)" title="Previous clip ([)">Previous clip</button>
+          <button type="button" class="btn-secondary" onclick="jumpReviewAction(1)" title="Next clip (])">Next clip</button>
+          <span class="small-note" id="rv-action-note"></span>
         </div>
         </div>
 
@@ -4189,7 +4189,7 @@
         </section>
         </details>
 
-        <p class="small-note rv-keys">Keys: Space play/pause · ← → 5 seconds · Shift + ← → 1 second · , . one frame · S mark a shot (Shift + S a goal, Z removes the last) · N / P next or previous shot · G toggle goal · M flag a moment for the video coaches (M again near it removes it) · W missed shot, Shift + W blocked shot: attempts that didn't reach the goalie (again near it removes it) · Shift + N / P next or previous AI moment to check</p>
+        <p class="small-note rv-keys">Keys: Space play/pause · ← → 5 seconds · Shift + ← → 1 second · , . one frame · S mark a shot (Shift + S a goal, Z removes the last) · N / P next or previous shot · G toggle goal · M flag a moment for the video coaches (M again near it removes it) · W missed shot, Shift + W blocked shot: attempts that didn't reach the goalie (again near it removes it) · Shift + N / P next or previous AI moment to check · ] / [ next or previous net clip</p>
 
       </div>
 
@@ -28341,9 +28341,45 @@ const REVIEW_ACTION_SAFE_BEFORE = 5;
 const REVIEW_ACTION_SAFE_AFTER = 3;
 const REVIEW_ACTION_SAFE_JOIN = 15;
 
+// Clips around the net from the GoalieIQ model (Find shots): the moments it
+// flagged, padded and joined, played back to back with "Play net clips only"
+// so the admin watches the play around the net instead of the whole game.
+// Picking clips only needs the model to know play is at the net, not to tell
+// shots from near-misses. Clips under 20 s apart join into one, which halves
+// how many there are. Measured on 98 games (every goalie held out), with the
+// second opinion's score s2 deciding which moments count:
+//   s2 >= 0.15: ~40 clips per hour of play, 30% of the game, 93% of tagged shots
+//   s2 >= 0.10: ~41 clips per hour, 36% of the game, 95% of shots
+// Runs from before the second opinion use round 4's score >= 0.05 (46%, 96%).
+const REVIEW_ML_CLIPS = {
+  fewer: { s2: 0.15, before: 4, after: 3, join: 20, share: "93%" },
+  more: { s2: 0.10, before: 4, after: 3, join: 20, share: "95%" },
+  round4: { min: 0.05, before: 4, after: 3, join: 20, share: "96%" }
+};
+
+function reviewMlClipSetting(v = review.video){
+  return reviewMlHasS2(v) ? (REVIEW_ML_CLIPS[reviewMlPickName()] || REVIEW_ML_CLIPS.fewer) : REVIEW_ML_CLIPS.round4;
+}
+
+function reviewMlClipStretches(v = review.video){
+  const all = reviewMlShots(v);
+  if(!all.length){ return []; }
+  const c = reviewMlClipSetting(v);
+  const keep = all.filter(x => c.s2 !== undefined ? Number(x.s2) >= c.s2 : Number(x.score) >= c.min);
+  return mergeActionStretches(keep.map(x => [Number(x.t) - c.before, Number(x.t) + c.after]), c.join);
+}
+
 function reviewActionStretches(){
   const v = review.video;
   if(!v){ return []; }
+  const ml = reviewMlClipStretches(v);
+  if(ml.length){
+    // The model scored every half second of the uncut game, so its clips need no
+    // extra safety padding; tagged shots always stay inside a clip.
+    const d = reviewDuration() || Number(v.duration_seconds) || 0;
+    const aroundShots = review.drafts.map(dr => [Number(dr.t_seconds) - 6, Number(dr.t_seconds) + 4]);
+    return mergeActionStretches([...ml, ...aroundShots], reviewMlClipSetting(v).join).map(r => [r[0], d ? Math.min(d, r[1]) : r[1]]);
+  }
   const saved = (v.period_marks && Array.isArray(v.period_marks._action)) ? v.period_marks._action : [];
   const padded = saved.map(r => [Number(r[0]) - REVIEW_ACTION_SAFE_BEFORE, Number(r[1]) + REVIEW_ACTION_SAFE_AFTER]);
   const aroundShots = review.drafts.map(d => [Number(d.t_seconds) - 8, Number(d.t_seconds) + 5]);
@@ -28372,9 +28408,13 @@ function renderReviewActionNote(){
   const total = st.reduce((sum, r) => sum + (r[1] - r[0]), 0);
   const v = review.video;
   const scanned = v && Number(v.scan_progress) >= 1;
-  note.textContent = st.length
-    ? `${st.length} action stretch${st.length === 1 ? "" : "es"}, ${formatClock(total)} of ${formatClock(d)} to watch${d ? ` (${Math.round(total / d * 100)}%)` : ""}.${scanned ? "" : " The zone scan isn't finished, so everything it hasn't checked plays too: run AI with Sonnet or Opus (Fast, Half price is cheapest) to cut it down."}`
-    : "Run AI with Sonnet or Opus to find the action stretches.";
+  if(reviewMlClipStretches(v).length){
+    note.textContent = `${st.length} clip${st.length === 1 ? "" : "s"} around the net, ${formatClock(total)} of ${formatClock(d)} to watch${d ? ` (${Math.round(total / d * 100)}%)` : ""}. In tests about ${reviewMlClipSetting(v).share} of shots were inside them: tick Play net clips only, play, and press S at each shot.`;
+    return;
+  }
+  note.textContent = st.length && scanned
+    ? `${st.length} action stretch${st.length === 1 ? "" : "es"}, ${formatClock(total)} of ${formatClock(d)} to watch${d ? ` (${Math.round(total / d * 100)}%)` : ""}.`
+    : "Press Find shots (GoalieIQ model) to get clips of the play around the net.";
 }
 
 function onReviewActionOnlyChange(){
@@ -28394,13 +28434,13 @@ function onReviewActionOnlyChange(){
 function jumpReviewAction(dir){
   const video = document.getElementById("rv-video");
   const st = reviewActionStretches();
-  if(!st.length){ showToast("No action stretches yet. Run AI first."); return; }
+  if(!st.length){ showToast("No clips yet: press Find shots (GoalieIQ model) first."); return; }
   const now = video.currentTime;
   const target = dir > 0
     ? st.find(r => r[0] > now + 0.5)
     : [...st].reverse().find(r => r[0] < now - 1.5);
   if(target){ video.currentTime = target[0]; video.play().catch(() => {}); }
-  else{ showToast(dir > 0 ? "That was the last action stretch." : "That was the first action stretch."); }
+  else{ showToast(dir > 0 ? "That was the last clip." : "That was the first clip."); }
 }
 
 // With "Play action only" on, playback skips the gaps between stretches.
@@ -28415,7 +28455,7 @@ function enforceReviewActionOnly(){
   if(st.some(r => now >= r[0] - 0.2 && now < r[1])){ review._aoInside = true; return; }
   const next = st.find(r => r[0] > now);
   if(next){ video.currentTime = next[0]; }
-  else if(review._aoInside){ review._aoInside = false; video.pause(); showToast("End of the action stretches."); }
+  else if(review._aoInside){ review._aoInside = false; video.pause(); showToast("End of the net clips."); }
   // Pressing play after the last stretch just plays: it used to pause again at once.
 }
 
@@ -31462,8 +31502,9 @@ function onReviewMlPickChange(value){
   if(!v || !reviewMlShots(v).length){ return; }
   const n = applyReviewMlShots(v);
   renderReviewShots();
+  renderReviewTimeline();
   const m = reviewChecks().length;
-  showToast(`Showing ${n} likely shot${n === 1 ? "" : "s"} from the model (${m} moment${m === 1 ? "" : "s"} still to check). Nothing was charged again.`);
+  showToast(`Showing ${n} likely shot${n === 1 ? "" : "s"} from the model (${m} moment${m === 1 ? "" : "s"} still to check), and the matching net clips. Nothing was charged again.`);
 }
 let reviewMlTimer = null;
 
@@ -31580,7 +31621,7 @@ async function collectReviewShotModel(manual){
     if(data.status === "ready"){
       const n = reviewChecks().length;
       showToast(
-        `GoalieIQ model finished: ${kept} likely shot${kept === 1 ? "" : "s"} (${reviewMlPickName() === "fewer" ? "fewer extras" : "catch more"}), grouped into ${n} moment${n === 1 ? "" : "s"} to check on the right. Shift+N plays each one: press S at each real shot or D if there wasn't one, then watch the game at 2× for any it missed.` +
+        `GoalieIQ model finished: ${kept} likely shot${kept === 1 ? "" : "s"} (${reviewMlPickName() === "fewer" ? "fewer extras" : "catch more"}), grouped into ${n} moment${n === 1 ? "" : "s"} to check on the right. Shift+N plays each one: press S at each real shot or D if there wasn't one. Faster: tick Play net clips only to watch just the play around the net (about a third of the game) and press S at each shot.` +
         (data.stage2_error ? ` The close-up double-check didn't run this time, so these are the first-pass moments (${data.stage2_error}).` : ""),
         "success"
       );
