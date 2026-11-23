@@ -170,6 +170,73 @@ moments from 14 games (720p–1080p, two 640x360, goal cams included).
 - **Speed:** ~0.5 s per frame unbatched. Batch it, or train a small fast
   detector on OWLv2's boxes, before running it on every candidate.
 
+*Step 2 first results (2026-11-23, `ml/video/stage2_modal.py`):* all 17,528
+round-4 moments on 98 games.
+
+- **Method:** full-resolution close-ups of the net (t−2 to t+4 s, 160×160),
+  described by a frozen Kinetics R(2+1)D. Each signal becomes an out-of-fold
+  score, then the scores are stacked (two levels; one classifier on all the
+  raw features memorizes).
+- **Close-ups alone:** AUC 0.79 overall, 0.70 on round 4's confident moments,
+  the same as round 4 there.
+
+| Extras/h | at 80% found | at 70% | at 60% |
+|---|---|---|---|
+| Round 4 only (98 games) | 110 | 61 | 39 |
+| Round 4 + close-up (stacked) | 93 (−15%) | 53 (−13%) | 33 (−15%) |
+| Round 4 only (30 games with sound) | 65 | 44 | 27 |
+| Round 4 + close-up + sound (stacked) | 46 (−29%) | 30 (−32%) | 21 (−22%) |
+
+With sound finished for every game (88 of 98 have an audio track),
+extras/h:
+
+| 88 games with sound | AUC (confident) | at 80% found | at 70% | at 60% | at 50% |
+|---|---|---|---|---|---|
+| Round 4 only | 0.69 | 120 | 66 | 43 | 27 |
+| + sound | 0.77 | 103 | 48 | 31 | 19 |
+| + close-up + sound | 0.80 | 87 (−28%) | 43 (−35%) | 25 (−42%) | 15 (−44%) |
+
+**This clears the 30% bar at 70% and below, and nearly at 80%.** The first
+real step forward since round 4. Each signal sees something the others
+don't: round 4 the play, the close-up the goalie and crease, the sound the
+whistle and crowd.
+
+**Fine-tuned close-up model (2026-11-23):**
+
+- **Recipe:** Kinetics R(2+1)D trained on the close-ups, 5 goalie folds,
+  round 4's recipe (8 epochs, backbone lr 1e-4, dropout 0.5, random 144 crops
+  and ±2-frame jitter). 32 frames from t−1 to t+2.8 s.
+- **It generalizes:** on held-out goalies, AUC 0.88, and 0.82 on round 4's
+  confident moments. That's better than round 4 alone (0.84 / 0.70).
+- **Why it didn't memorize like round 6:** it trains on candidate moments, so
+  the negatives are near-misses from the same rinks. The input is a crop of
+  the net, so there's little scenery to memorize. And it starts from a
+  Kinetics video model and trains briefly.
+
+Final stack on all 98 games (sound used where the game has it), extras/h:
+
+| | AUC (confident) | at 80% found | at 70% | at 60% | at 50% |
+|---|---|---|---|---|---|
+| Round 4 only | 0.70 | 110 | 61 | 39 | 26 |
+| Close-up model alone | 0.82 | 97 | 36 | 21 | 14 |
+| **Round 4 + close-ups + sound** | **0.84** | **64 (−42%)** | **29 (−52%)** | **16 (−59%)** | **10 (−62%)** |
+
+How sure it can be (share of all tagged shots found at a given precision):
+
+| Precision | Round 4 | Round 4 + close-ups + sound |
+|---|---|---|
+| 50% | 9% | 58% |
+| 60% | 2% | 38% |
+| 70% | 1% | 22% |
+
+There's no ≥90%-precision tier yet, so nothing can be auto-accepted without
+a person. The list to check is about twice as clean, though: at 60–70%
+found, roughly 1 in 2 to 1 in 3 flagged moments is a real shot, against
+1 in 4 to 1 in 5 today.
+
+Next: final models trained on all games, then a Review pipeline. Round 4
+finds the moments; stage 2 re-scores them with net close-ups and sound.
+
 **Process changes (free):**
 
 - Feed Review's S/D decisions back as labels. Re-export after a few weeks of
