@@ -10,10 +10,13 @@
 // the review screen turns them into moments to check.
 //
 // Body: { accessToken, op, gameVideoId, ... }
-//   op "start":  { duration }  -> { callId }
+//   op "start":  { duration, stage2 }  -> { callId }
 //     duration: the player's length in seconds, used when the row has none.
+//     stage2: true to double-check each moment with a full-resolution close-up of
+//       the net and the game's sound (ml/video/stage2_modal.py); adds "s2".
 //   op "status": { callId }    -> { status: running | ready | failed,
-//                                   shots?: [{ t, score }], model?, minutes?, error? }
+//                                   shots?: [{ t, score, s2? }], stage2?: { thresholds, ... },
+//                                   stage2_error?, model?, minutes?, error? }
 //
 // Vercel environment variables: SHOT_MODEL_URL (the shot_api web endpoint
 // that `modal deploy ml/video/shots_modal.py` prints) and SHOT_MODEL_SECRET
@@ -58,7 +61,7 @@ async function checkAdmin(accessToken) {
 }
 
 async function start(req, res) {
-  const { gameVideoId, duration } = req.body || {};
+  const { gameVideoId, duration, stage2 } = req.body || {};
   const rows = await serviceSelect("game_videos", `select=id,user_id,storage_path,duration_seconds,period_marks&id=eq.${encodeURIComponent(gameVideoId)}`);
   const video = rows[0];
   if (!video || !(await storagePathIsTrusted(video))) { res.status(404).json({ error: "Video not found." }); return; }
@@ -82,6 +85,7 @@ async function start(req, res) {
   const data = await modal({
     op: "start",
     film: { video_id: String(video.id), storage_path: video.storage_path, duration_seconds: seconds, period_marks: keep },
+    stage2: stage2 === true,
   });
   res.status(200).json({ callId: data.callId });
 }
@@ -91,11 +95,18 @@ async function status(req, res) {
   if (!CALL_ID_RE.test(callId)) { res.status(400).json({ error: "Unknown run. Press Run AI to start again." }); return; }
   const data = await modal({ op: "status", callId });
   const shots = Array.isArray(data.shots)
-    ? data.shots.map(s => ({ t: Number(s.t), score: Number(s.score) })).filter(s => Number.isFinite(s.t) && s.t >= 0 && Number.isFinite(s.score))
+    ? data.shots.map(s => ({ t: Number(s.t), score: Number(s.score), ...(Number.isFinite(Number(s.s2)) ? { s2: Number(s.s2) } : {}) }))
+        .filter(s => Number.isFinite(s.t) && s.t >= 0 && Number.isFinite(s.score))
+    : undefined;
+  const th = data.stage2 && data.stage2.thresholds;
+  const stage2 = th && Number.isFinite(Number(th.fewer)) && Number.isFinite(Number(th.more))
+    ? { thresholds: { fewer: Number(th.fewer), more: Number(th.more) }, ...(typeof data.stage2.sound === "boolean" ? { sound: data.stage2.sound } : {}) }
     : undefined;
   res.status(200).json({
     status: ["running", "ready", "failed"].includes(data.status) ? data.status : "failed",
     ...(shots ? { shots } : {}),
+    ...(stage2 ? { stage2 } : {}),
+    ...(data.stage2_error ? { stage2_error: String(data.stage2_error).slice(0, 300) } : {}),
     ...(data.model ? { model: String(data.model).slice(0, 60) } : {}),
     ...(Number.isFinite(Number(data.minutes)) ? { minutes: Number(data.minutes) } : {}),
     ...(data.error ? { error: String(data.error).slice(0, 300) } : {}),
