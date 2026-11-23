@@ -33,7 +33,7 @@ footer a{margin:0 8px}
 <header><a href="index.html">GoalieIQ Analytics</a></header>
 <main>
 <h1>Privacy Policy</h1>
-<div class="updated">Last updated: October 2026</div>
+<div class="updated">Last updated: November 2026</div>
 
 <p>GoalieIQ Analytics ("GoalieIQ", "we", "us") is operated by Matias Baker in Ontario, Canada. This policy explains what personal information we collect, why, who we share it with, and the choices you have. We follow Canada's privacy law (PIPEDA). Questions or requests: <a href="mailto:goalieiqanalytics@gmail.com">goalieiqanalytics@gmail.com</a>.</p>
 
@@ -53,15 +53,26 @@ footer a{margin:0 8px}
   <li>To track your games from the film you provide.</li>
   <li>To run optional AI features (AI Coach and AI game reports), which send a written summary of your stats, not your video, to our AI provider.</li>
   <li>To process subscriptions and send account, billing and security emails.</li>
+  <li>To train and test GoalieIQ's own shot-finding models (see <a href="#training">Training our shot-finding models</a>).</li>
   <li>To improve GoalieIQ and respond to your requests.</li>
 </ul>
 <p>We don't sell your personal information, and we don't send marketing emails without your consent. Any marketing email we send will include an unsubscribe link.</p>
+
+<h2 id="training">Training our shot-finding models</h2>
+<p>GoalieIQ builds its own machine-learning models that find shots in game film, so games can be tracked faster and more consistently. To build and test them, we use game film uploaded to GoalieIQ together with how each game was tracked: shot times and details, missed and blocked shots, period marks and our reviewers' decisions.</p>
+<ul>
+  <li>The training is done by GoalieIQ on our own cloud computing account (Modal, servers in the United States). We don't give or sell your film, stats or tags to anyone else to train their models.</li>
+  <li>The models learn general patterns of play, like what a shot on goal looks like. They aren't used to identify people, and a trained model doesn't contain copies of your video.</li>
+  <li>Only GoalieIQ staff working on the models can access the film and data used for training. It stays in the same private, access-controlled storage as the rest of your data.</li>
+  <li><strong>You can opt out.</strong> Email <a href="mailto:goalieiqanalytics@gmail.com">goalieiqanalytics@gmail.com</a> and we'll stop using your film and game data for training from then on. Opting out doesn't change your stats or anything else in the service. A parent or guardian can opt out for a user under 18.</li>
+  <li>If you delete your account or your film, or opt out, we take your film and data out of what we train on. A model trained before then isn't rebuilt right away, but it contains no copy of your video, and later versions are trained without it.</li>
+</ul>
 
 <h2>Who can see your data</h2>
 <ul>
   <li><strong>You.</strong></li>
   <li><strong>Coaches you're connected to.</strong> A coach can only see goalies that have been linked to them. Goalies only ever see their own data.</li>
-  <li><strong>GoalieIQ staff,</strong> to track games and provide support.</li>
+  <li><strong>GoalieIQ staff,</strong> to track games, provide support and build our shot-finding models.</li>
   <li><strong>Public sharing only with permission.</strong> We will never post your name, stats or video (for example as a testimonial or on social media) without your permission, and a parent's or guardian's permission if you're under 18.</li>
 </ul>
 
@@ -74,6 +85,7 @@ footer a{margin:0 8px}
   <tr><td>Cloudflare R2</td><td>Storage for game film and clips</td></tr>
   <tr><td>Stripe</td><td>Payments and subscriptions</td></tr>
   <tr><td>Anthropic</td><td>AI Coach and AI game reports (receives stat summaries), and finding shots in uploaded game film (receives still frames from the video)</td></tr>
+  <tr><td>Modal</td><td>Running and training GoalieIQ's own shot-finding model (receives game film; servers in the United States)</td></tr>
   <tr><td>Twelve Labs</td><td>Finding shots in uploaded game film, when our reviewer chooses it (receives the game video for analysis)</td></tr>
   <tr><td>jsDelivr, cdnjs</td><td>Delivering the site's code libraries to your browser</td></tr>
 </table>
@@ -86,12 +98,13 @@ footer a{margin:0 8px}
 <p>Access to data is restricted at the database level, so each person can only reach the data they're allowed to see. Payments are handled by Stripe. No system is perfectly secure, but we take reasonable steps to protect your information and will tell you if a breach puts you at real risk.</p>
 
 <h2>How long we keep it</h2>
-<p>We keep your data while your account is open, so your history and trends stay available even if your subscription ends. When you delete your account, we delete your profile, games, stats, notes and access records. Uploaded video files are removed from storage on request. Stripe keeps billing records as required by law.</p>
+<p>We keep your data while your account is open, so your history and trends stay available even if your subscription ends. When you delete your account, we delete your profile, games, stats, notes and access records. Uploaded video files are removed from storage on request. When you delete your account or your film, or opt out of model training, we also take your film and game data out of what we train our models on. Stripe keeps billing records as required by law.</p>
 
 <h2>Your rights and choices</h2>
 <ul>
   <li><strong>Access or correct</strong> your information: email us.</li>
   <li><strong>Delete your account:</strong> use <em>Delete my account</em> on the About page, or email us and we'll do it within 30 days.</li>
+  <li><strong>Opt out of model training</strong>: email us and we'll stop using your film and game data to train our models.</li>
   <li><strong>Withdraw consent</strong> or ask a question: email <a href="mailto:goalieiqanalytics@gmail.com">goalieiqanalytics@gmail.com</a>.</li>
 </ul>
 <p>If you're not satisfied with our response, you can contact the Office of the Privacy Commissioner of Canada.</p>
