@@ -37,12 +37,18 @@ APP = "goalieiq-shots"
 HARD_NEGS = S.REPO / "ml" / "data" / "hard_negs_r4.json"
 
 
+HOLDOUT = S.REPO / "ml" / "data" / "holdout.json"   # {"video_ids": [...], "why": ...}: never trained on
+
+
 def load_films(net=False, variant="r4"):
     sides = json.loads((Path(__file__).resolve().parent / "net_sides.json").read_text()) if net else {}
+    held = set(map(str, json.loads(HOLDOUT.read_text()).get("video_ids", []))) if HOLDOUT.exists() else set()
     films = {}
     for line in (S.REPO / "ml" / "data" / "games.jsonl").read_text().splitlines():
         g = json.loads(line)
         for f in g["film"]:
+            if str(f["video_id"]) in held:             # kept for honest tests only
+                continue
             films[str(f["video_id"])] = dict(f, video_id=str(f["video_id"]), user_id=str(g["user_id"]),
                                              date=g.get("date"), opponent=g.get("opponent"),
                                              net_sides=sides.get(str(f["video_id"])))
