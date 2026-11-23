@@ -320,13 +320,18 @@ def finetune(fold, jobs, labels, folds, epochs=8, batch=16, variant="base"):
     out_path = SUB / (cfg["final"] if fold < 0 else f"{cfg['oof']}/fold{fold}.json")   # fold -1: every film, for Review
     if out_path.exists():
         return fold
+    from concurrent.futures import ThreadPoolExecutor
     log = lambda m: print(f"[{variant} fold{fold}] {m}", flush=True)
     local, t0 = Path("/tmp/s2"), time.time()
+    pairs = []                                         # copy many files at once: a volume read is latency-bound
     for j in jobs:
         src, dst = SUB / cfg["clips"] / j["video_id"], local / j["video_id"]
-        if src.exists() and not dst.exists():
-            shutil.copytree(src, dst, ignore=shutil.ignore_patterns("_done"))
-    log(f"copied clips in {time.time() - t0:.0f}s")
+        if src.exists():
+            dst.mkdir(parents=True, exist_ok=True)
+            pairs += [(f, dst / f.name) for f in src.iterdir() if f.suffix == ".mp4" and not (dst / f.name).exists()]
+    with ThreadPoolExecutor(32) as pool:
+        list(pool.map(lambda p: shutil.copyfile(*p), pairs))
+    log(f"copied {len(pairs)} clips in {time.time() - t0:.0f}s")
     n = int(round((WIN[1] - WIN[0]) * cfg["fps"]))
     step = cfg["fps"] / DFPS
     idx0 = np.round(FT_IDX * step).astype(int)
@@ -369,9 +374,11 @@ def finetune(fold, jobs, labels, folds, epochs=8, batch=16, variant="base"):
     head = list(model.fc.parameters())
     body = [p for name, p in model.named_parameters() if not name.startswith("fc.")]
     opt = torch.optim.AdamW([dict(params=body, lr=1e-4), dict(params=head, lr=1e-3)], weight_decay=1e-4)
-    loader = DataLoader(Clips(train, True), batch_size=batch, shuffle=True, num_workers=8, pin_memory=True,
+    accum = 2 if cfg["px"] > FT_CROP else 1            # sharper input: half the batch, two steps per update (same maths)
+    loader = DataLoader(Clips(train, True), batch_size=batch // accum, shuffle=True, num_workers=8, pin_memory=True,
                         drop_last=True, persistent_workers=True)
-    sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=[1e-4, 1e-3], total_steps=epochs * len(loader), pct_start=0.15)
+    per_epoch = len(loader) // accum
+    sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=[1e-4, 1e-3], total_steps=epochs * per_epoch, pct_start=0.15)
     loss_fn = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor((len(train) - n_pos) / max(n_pos, 1), device="cuda"))
     mean = torch.tensor(S.MEAN, device="cuda").view(1, 3, 1, 1, 1)
     std = torch.tensor(S.STD, device="cuda").view(1, 3, 1, 1, 1)
@@ -385,14 +392,18 @@ def finetune(fold, jobs, labels, folds, epochs=8, batch=16, variant="base"):
     for ep in range(epochs):
         model.train()
         tot, seen, t0 = 0.0, 0, time.time()
-        for x, y in loader:
+        opt.zero_grad(set_to_none=True)
+        for k, (x, y) in enumerate(loader):
+            if k >= per_epoch * accum:
+                break
             x = prep(x) * torch.empty(x.shape[0], 1, 1, 1, 1, device="cuda").uniform_(0.85, 1.15)
             with torch.autocast("cuda", dtype=torch.bfloat16):
                 loss = loss_fn(model(x).float().squeeze(1), y.cuda())
-            opt.zero_grad(set_to_none=True)
-            loss.backward()
-            opt.step()
-            sched.step()
+            (loss / accum).backward()
+            if (k + 1) % accum == 0:
+                opt.step()
+                sched.step()
+                opt.zero_grad(set_to_none=True)
             tot += loss.item() * len(y); seen += len(y)
         log(f"epoch {ep + 1}/{epochs}: loss {tot / max(seen, 1):.4f} ({time.time() - t0:.0f}s)")
     model.eval()

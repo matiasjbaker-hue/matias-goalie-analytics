@@ -250,6 +250,22 @@ found, roughly 1 in 2 to 1 in 3 flagged moments is a real shot, against
 - **Still to check:** a run from the deployed site with an admin login after
   merging, and a test on games tagged after the 2026-11-17 export (the only
   truly unseen ones).
+- **Honest test, 2026-11-23:** one game tagged after the export, from a goalie
+  never seen in training, held out via `ml/data/holdout.json` so it is never
+  trained on. Run through the live "Find shots" path over the whole uncut
+  game (1.6 h of play, 28 tagged shots):
+
+  | Setting | Moments | Shots found | False alarms |
+  |---|---|---|---|
+  | Round 4 "Fewer extras" | 144 | 24/28 | 120 |
+  | Round 4 "Catch more" | 309 | 24/28 | 284 |
+  | **New "Fewer extras"** | **104** | **23/28** | **81** (50/h) |
+  | New "Catch more" | 149 | 24/28 | 125 |
+
+  A third fewer false alarms than today's default for one fewer shot. On
+  this game the "fewer" threshold landed at 82% found rather than 70%;
+  ~50 extras/h there sits on (slightly better than) the cross-validated
+  curve. Still ~3.5 false alarms per real shot.
 - **Still too many extras for automation** (29/h at 70% found, 64/h at 80%).
   Next levers: sharper close-ups (256 px, 25 fps), more labels
   (W / Shift+W, new games), a camera behind the net.
