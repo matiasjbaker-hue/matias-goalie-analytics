@@ -55,7 +55,9 @@ image = (
     .run_commands(f"python -c \"from transformers import Owlv2Processor as P, Owlv2ForObjectDetection as M; "
                   f"P.from_pretrained('{OWL}'); M.from_pretrained('{OWL}')\"",
                   "python -c \"from torchvision.models.video import r2plus1d_18, R2Plus1D_18_Weights as W; "
-                  "r2plus1d_18(weights=W.KINETICS400_V1)\"")
+                  "r2plus1d_18(weights=W.KINETICS400_V1)\"",
+                  "python -c \"from transformers import ASTFeatureExtractor as F, ASTForAudioClassification as M; "
+                  "F.from_pretrained('MIT/ast-finetuned-audioset-10-10-0.4593'); M.from_pretrained('MIT/ast-finetuned-audioset-10-10-0.4593')\"")
     .add_local_python_source("shots_modal")
 )
 volume = modal.Volume.from_name("goalieiq-ml", create_if_missing=True)
@@ -274,7 +276,7 @@ def finetune(fold, jobs, labels, folds, epochs=8, batch=16):
     from torch.utils.data import Dataset, DataLoader
     from torchvision.models.video import r2plus1d_18, R2Plus1D_18_Weights
     volume.reload()
-    out_path = SUB / "oof" / f"fold{fold}.json"
+    out_path = SUB / ("final_closeup.pt" if fold < 0 else f"oof/fold{fold}.json")   # fold -1: every film, for Review
     if out_path.exists():
         return fold
     log = lambda m: print(f"[fold{fold}] {m}", flush=True)
@@ -291,7 +293,7 @@ def finetune(fold, jobs, labels, folds, epochs=8, batch=16):
         for i, lab in enumerate(labels[v]):
             p = local / v / f"{i}.mp4"
             if p.exists():
-                items.append((str(p), float(lab), bool(j["sides"][i] < 0 and not j["goalcam"]), folds[v] != fold, v, i))
+                items.append((str(p), float(lab), bool(j["sides"][i] < 0 and not j["goalcam"]), fold < 0 or folds[v] != fold, v, i))
     train, test = [it for it in items if it[3]], [it for it in items if not it[3]]
     n_pos = sum(it[1] for it in train)
     log(f"train {len(train)} close-ups ({int(n_pos)} shots), test {len(test)}")
@@ -345,6 +347,12 @@ def finetune(fold, jobs, labels, folds, epochs=8, batch=16):
             tot += loss.item() * len(y); seen += len(y)
         log(f"epoch {ep + 1}/{epochs}: loss {tot / max(seen, 1):.4f} ({time.time() - t0:.0f}s)")
     model.eval()
+    if fold < 0:
+        torch.save({"model": model.state_dict(), "films": len(jobs), "clips": len(train), "frames": FT_T, "crop": FT_CROP},
+                   out_path)
+        volume.commit()
+        log(f"saved the final close-up model ({len(train)} close-ups)")
+        return fold
     scores, k = {}, 0
     for x, _ in DataLoader(Clips(test, False), batch_size=32, shuffle=False, num_workers=8):
         with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
@@ -359,6 +367,170 @@ def finetune(fold, jobs, labels, folds, epochs=8, batch=16):
     volume.commit()
     log(f"scored {len(test)} held-out close-ups")
     return fold
+
+
+# ---------------------------------------------------------------- Review: re-score one new game
+
+AST = "MIT/ast-finetuned-audioset-10-10-0.4593"
+SR = 16000
+SOUND_WIN = {"at": (-1.5, 1.5), "after": (1.5, 4.5)}   # as ml/video/audio_modal.py
+GOALCAM_AREA = 0.05            # median net box > 5% of the picture: a camera behind the net
+
+
+def lin(m, x):
+    """A logistic regression exported by export_stack(): decision value(s) for feature rows x."""
+    x = np.atleast_2d(np.asarray(x, np.float64))
+    return ((x - np.array(m["mean"])) / np.array(m["scale"])) @ np.array(m["coef"]) + m["intercept"]
+
+
+def orig_frame(url, t):
+    """One frame of the original film at t seconds, scaled to 640x360 (as the round-6 copies)."""
+    raw = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-ss", f"{max(t, 0):.2f}", "-i", url,
+                          "-frames:v", "1", "-vf", f"scale={DW}:{DH}", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+                         capture_output=True).stdout
+    a = np.frombuffer(raw, np.uint8)
+    return a.reshape(DH, DW, 3) if a.size == DH * DW * 3 else None
+
+
+@app.function(image=image, gpu="A10G", volumes={"/data": volume}, secrets=[modal.Secret.from_name("goalieiq-r2")],
+              cpu=8.0, memory=16384, timeout=3600)
+def rescore(film, shots):
+    """Second opinion on round 4's moments for one game, for Review's "Find shots".
+
+    film: {video_id, storage_path, duration_seconds, period_marks}; shots: [{t, score}] from round 4.
+    Returns the same list with "s2": the stacked probability that it's a shot on goal (round 4 +
+    net close-ups + sound, exactly as evaluated in ml/AUDIT.md), and a summary."""
+    from concurrent.futures import ThreadPoolExecutor
+    import torch
+    from PIL import Image
+    from torchvision.models.video import r2plus1d_18, R2Plus1D_18_Weights
+    from transformers import ASTFeatureExtractor, ASTForAudioClassification, Owlv2Processor, Owlv2ForObjectDetection
+    t_start = time.time()
+    volume.reload()
+    stack = json.loads((SUB / "stack.json").read_text())
+    shots = [dict(s) for s in shots]
+    ts = [float(s["t"]) for s in shots]
+    if not ts:
+        return {"shots": shots, "summary": {}}
+    film = dict(film, net_sides=None)                  # live games: the net side comes from the period marks
+    sides = [S.tracked_side(film, t) for t in ts]
+    url = S.r2_url(film["storage_path"])
+    probe = json.loads(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,width,height",
+                                       "-of", "json", url], capture_output=True, text=True).stdout or "{}")
+    vstream = next((st for st in probe.get("streams", []) if st.get("codec_type") == "video"), {})
+    ow, oh = int(vstream.get("width") or 1920), int(vstream.get("height") or 1080)
+    has_audio = any(st.get("codec_type") == "audio" for st in probe.get("streams", []))
+
+    # 1. find the net at t-1, t+1, t+3 (frames straight from the original, scaled like the training copies)
+    want = [(i, k, t + dt) for i, t in enumerate(ts) for k, dt in enumerate(LOOK)]
+    with ThreadPoolExecutor(8) as pool:
+        frames = list(pool.map(lambda w: orig_frame(url, w[2]), want))
+    proc = Owlv2Processor.from_pretrained(OWL)
+    owl = Owlv2ForObjectDetection.from_pretrained(OWL).cuda().eval()
+    post = getattr(proc, "post_process_grounded_object_detection", None) or proc.post_process_object_detection
+    queue = [(i, k, Image.fromarray(im)) for (i, k, _), im in zip(want, frames) if im is not None]
+    raw = [[None] * len(LOOK) for _ in ts]
+    for b in range(0, len(queue), 16):
+        chunk = queue[b: b + 16]
+        inputs = proc(text=[QUERIES] * len(chunk), images=[c[2] for c in chunk], return_tensors="pt").to("cuda")
+        with torch.no_grad(), torch.autocast("cuda", dtype=torch.float16):
+            o = owl(**inputs)
+        o.logits, o.pred_boxes = o.logits.float(), o.pred_boxes.float()
+        sz = torch.tensor([[DW, DW]] * len(chunk), device="cuda")
+        try:
+            res = post(outputs=o, threshold=0.05, target_sizes=sz)
+        except TypeError:
+            res = proc.post_process_object_detection(outputs=o, threshold=0.05, target_sizes=sz)
+        for (i, k, _), r in zip(chunk, res):
+            raw[i][k] = [[*map(float, bb), float(sc), int(lb)] for bb, sc, lb in
+                         zip(r["boxes"].cpu(), r["scores"].cpu(), r["labels"].cpu())]
+    del owl
+    big = [max(((d[2] - d[0]) * (d[3] - d[1]) / (DW * DH) for d in dets if d[5] == 0 and d[4] >= 0.15), default=0.0)
+           for row in raw for dets in row if dets is not None]
+    goalcam = bool(big) and float(np.median(big)) > GOALCAM_AREA
+    boxes = [[pick_box(dets, sides[i], goalcam) if dets is not None else None for dets in raw[i]] for i in range(len(ts))]
+
+    # 2. full-resolution close-ups around the net, t-2..t+4 s
+    work = Path("/tmp/rescore"); work.mkdir(parents=True, exist_ok=True)
+    plans = [crop_plan(boxes[i], sides[i], goalcam, ow, oh) for i in range(len(ts))]
+
+    def cut(i):
+        x0, y0, size, _ = plans[i]
+        subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-threads", "2",
+                        "-ss", f"{max(ts[i] + WIN[0], 0):.2f}", "-i", url, "-t", f"{WIN[1] - WIN[0]:.2f}", "-an",
+                        "-vf", f"fps={DFPS},crop={size}:{size}:{x0}:{y0},scale={CROP_OUT}:{CROP_OUT}",
+                        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", str(work / f"{i}.mp4")], capture_output=True)
+    with ThreadPoolExecutor(4) as pool:
+        list(pool.map(cut, range(len(ts))))
+
+    # 3. close-up scores: frozen Kinetics features and the fine-tuned close-up model
+    n = int(round((WIN[1] - WIN[0]) * DFPS))
+    at_idx = np.linspace(round((-1 - WIN[0]) * DFPS), round((1 - WIN[0]) * DFPS) - 1, 16).round().astype(int)
+    af_idx = np.linspace(round((1 - WIN[0]) * DFPS), n - 1, 16).round().astype(int)
+    frozen_m = r2plus1d_18(weights=R2Plus1D_18_Weights.KINETICS400_V1)
+    frozen_m.fc = torch.nn.Identity()
+    frozen_m = frozen_m.cuda().eval()
+    ft_m = r2plus1d_18()
+    ft_m.fc = torch.nn.Sequential(torch.nn.Dropout(0.5), torch.nn.Linear(512, 1))
+    ft_m.load_state_dict(torch.load(SUB / "final_closeup.pt", map_location="cpu", weights_only=False)["model"])
+    ft_m = ft_m.cuda().eval()
+    mean = torch.tensor(S.MEAN, device="cuda").view(1, 3, 1, 1, 1)
+    std = torch.tensor(S.STD, device="cuda").view(1, 3, 1, 1, 1)
+    prep = lambda a: (torch.from_numpy(np.ascontiguousarray(a)).cuda().float().div(255).permute(0, 4, 1, 2, 3) - mean) / std
+    m0 = (CROP_OUT - FT_CROP) // 2
+    frozen_x, ft_p = np.zeros((len(ts), 1024)), np.full(len(ts), 0.5)
+    for i in range(len(ts)):
+        a = clip_frames(work / f"{i}.mp4", n)
+        if a is None:
+            continue
+        if sides[i] < 0 and not goalcam:
+            a = a[:, :, ::-1]
+        with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
+            f = frozen_m(prep(np.stack([a[at_idx], a[af_idx]]))).float().cpu().numpy()
+            p = torch.sigmoid(ft_m(prep(a[FT_IDX][None, :, m0: m0 + FT_CROP, m0: m0 + FT_CROP])).float()).item()
+        frozen_x[i], ft_p[i] = np.concatenate([f[0], f[1]]), p
+    del frozen_m, ft_m
+
+    # 4. sound around each moment (AudioSet AST), relative to the whole game's loudness
+    snd = np.zeros(len(ts))
+    if has_audio:
+        audio = np.frombuffer(subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", url, "-vn", "-ac", "1",
+                                              "-ar", str(SR), "-f", "f32le", "-"], capture_output=True).stdout, np.float32)
+        has_audio = audio.size > SR
+    if has_audio:
+        fe = ASTFeatureExtractor.from_pretrained(AST)
+        ast = ASTForAudioClassification.from_pretrained(AST).cuda().eval()
+        film_rms = float(np.sqrt(np.mean(audio[::50] ** 2)) + 1e-9)
+
+        def clip(t, a, b):
+            i, j = int((t + a) * SR), int((t + b) * SR)
+            x = audio[max(i, 0):max(j, 0)]
+            return np.pad(x, (0, (j - i) - len(x))) if len(x) < j - i else x
+        feats = {}
+        for name, (a, b) in SOUND_WIN.items():
+            clips = [clip(t, a, b) for t in ts]
+            embs, rms = [], [float(np.sqrt(np.mean(c ** 2)) + 1e-9) for c in clips]
+            for k in range(0, len(clips), 32):
+                x = fe(clips[k: k + 32], sampling_rate=SR, return_tensors="pt").to("cuda")
+                with torch.no_grad():
+                    embs.append(ast.audio_spectrogram_transformer(**x)[1].float().cpu().numpy().astype(np.float16))
+            feats[name] = (np.concatenate(embs).astype(np.float32), np.array(rms))
+        A = np.c_[feats["at"][0], feats["after"][0], np.log(feats["at"][1] / film_rms), np.log(feats["after"][1] / film_rms)]
+        snd = lin(stack["sound"], A)
+        del ast
+
+    # 5. the stack, exactly as cross-validated
+    lgt = lambda p: np.log(np.clip(p, 1e-6, 1 - 1e-6) / np.clip(1 - np.asarray(p, float), 1e-6, 1))
+    r4 = lgt([float(s.get("score", 0.02)) for s in shots])
+    F2 = np.c_[r4, lin(stack["frozen"], frozen_x), lgt(ft_p), snd, np.full(len(ts), float(has_audio))]
+    s2 = 1 / (1 + np.exp(-lin(stack["stack"], F2)))
+    for s, p in zip(shots, s2):
+        s["s2"] = round(float(p), 4)
+    summary = dict(moments=len(ts), goalcam=goalcam, sound=bool(has_audio), seconds=round(time.time() - t_start),
+                   net_found=round(float(np.mean([any(b) for b in boxes])), 3), thresholds=stack["thresholds"],
+                   kept_fewer=int((s2 >= stack["thresholds"]["fewer"]).sum()), kept_more=int((s2 >= stack["thresholds"]["more"]).sum()))
+    print(f"rescore {film['video_id']}: {summary}", flush=True)
+    return {"shots": shots, "summary": summary}
 
 
 @app.function(image=image, timeout=6 * 3600, volumes={"/data": volume})
@@ -481,13 +653,82 @@ def evaluate():
     print(report)
 
 
+def export_stack(targets=(("fewer", 0.70), ("more", 0.80))):
+    """The models Review's re-scoring uses, as plain numbers on the volume (/data/stage2/stack.json):
+    frozen close-up and sound logistic regressions fit on every game, and the stack fit on the
+    out-of-fold scores (as evaluated). Thresholds: the stacked probability where the cross-validated
+    run found 70% ("fewer") and 80% ("more") of all tagged shots."""
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+    import audio_eval as AE
+    cands = json.loads((S.REPO / "ml" / "data" / "audio" / "candidates.json").read_text())
+    vol = modal.Volume.from_name("goalieiq-ml")
+    oof = {}
+    for k in range(5):
+        oof.update(json.loads(b"".join(vol.read_file(f"stage2/oof/fold{k}.json"))))
+    _, arows = AE.load()
+    sound = {}
+    for r in arows:
+        sound.setdefault(r["v"], []).append(np.concatenate([r["emb"], r["loud"]]))
+    rows = []
+    for v, f in cands.items():
+        if not f["cands"]:
+            continue
+        z = np.load(io.BytesIO(b"".join(vol.read_file(f"stage2/feats/{v}.npz"))))
+        for i, c in enumerate(f["cands"]):
+            rows.append((f["fold"], c["shot"], c["score"], oof[v][i], np.concatenate([z["at"][i], z["after"][i]]).astype(np.float32),
+                         sound[v][i] if v in sound and len(sound[v]) == len(f["cands"]) else None))
+    fold = np.array([r[0] for r in rows]); y = np.array([r[1] for r in rows])
+    lg = lambda p: np.log(np.clip(p, 1e-6, 1 - 1e-6) / np.clip(1 - np.asarray(p, float), 1e-6, 1))
+    r4, ft = lg([r[2] for r in rows]), lg([r[3] for r in rows])
+    X = np.stack([r[4] for r in rows])
+    has_a = np.array([r[5] is not None for r in rows])
+    A = np.stack([rows[i][5] for i in np.where(has_a)[0]])
+    model = lambda C: make_pipeline(StandardScaler(), LogisticRegression(C=C, max_iter=4000, class_weight="balanced"))
+
+    def cv(F, yy, ff, C):
+        out = np.zeros(len(yy))
+        for k in sorted(set(ff)):
+            tr, te = ff != k, ff == k
+            out[te] = model(C).fit(F[tr], yy[tr]).decision_function(F[te])
+        return out
+    frozen_oof = cv(X, y, fold, 0.001)
+    snd_oof = np.zeros(len(y)); snd_oof[has_a] = cv(A, y[has_a], fold[has_a], 0.001)
+    F2 = np.c_[r4, frozen_oof, ft, snd_oof, has_a.astype(float)]
+    stack_oof = cv(F2, y, fold, 1.0)
+    dump = lambda m: dict(mean=m[0].mean_.tolist(), scale=m[0].scale_.tolist(), coef=m[1].coef_[0].tolist(),
+                          intercept=float(m[1].intercept_[0]))
+    m_frozen, m_sound, m_stack = model(0.001).fit(X, y), model(0.001).fit(A, y[has_a]), model(1.0).fit(F2, y)
+    n_true = sum(f["n_true"] for f in cands.values()); hours = sum(f["hours"] for f in cands.values())
+    prob = 1 / (1 + np.exp(-stack_oof))
+    order = np.argsort(-prob); tp = np.cumsum(y[order]); fp = np.cumsum(1 - y[order])
+    thresholds, points = {}, {}
+    for name, rec in targets:
+        k = int(np.searchsorted(tp, rec * n_true))
+        thresholds[name] = round(float(prob[order][k]), 4)
+        points[name] = dict(found=round(float(tp[k] / n_true), 3), extras_per_hour=round(float(fp[k] / hours), 1),
+                            real_per_hour=round(float(tp[k] / hours), 1), precision=round(float(tp[k] / (tp[k] + fp[k])), 3))
+    out = dict(version=1, made=time.strftime("%Y-%m-%d"), features=["round4_logit", "frozen", "closeup_logit", "sound", "has_sound"],
+               frozen=dump(m_frozen), sound=dump(m_sound), stack=dump(m_stack), thresholds=thresholds, cv=points,
+               trained_on=dict(games=len(cands), moments=len(y), shots=int(y.sum())))
+    local = S.REPO / "ml" / "data" / "stage2" / "stack.json"
+    local.parent.mkdir(parents=True, exist_ok=True)
+    local.write_text(json.dumps(out))
+    with vol.batch_upload(force=True) as b:
+        b.put_file(str(local), "/stage2/stack.json")
+    print(json.dumps(dict(thresholds=thresholds, cv=points, stack_coef=out["stack"]["coef"]), indent=1))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--smoke", action="store_true")
     ap.add_argument("--launch", action="store_true")
     ap.add_argument("--status", action="store_true")
     ap.add_argument("--eval", action="store_true")
-    ap.add_argument("--finetune", action="store_true", help="train + score the close-up model on 5 goalie folds (~$5-6)")
+    ap.add_argument("--finetune", action="store_true", help="train + score the close-up model on 5 goalie folds (~$11)")
+    ap.add_argument("--final", action="store_true", help="with --finetune: one model on every film, for Review (~$2.50)")
+    ap.add_argument("--export", action="store_true", help="write the stacking models + Review thresholds to the volume")
     ap.add_argument("--out", default="", help="--smoke: folder for sample crops")
     args = ap.parse_args()
     fn = lambda name: modal.Function.from_name("goalieiq-stage2", name)
@@ -524,11 +765,13 @@ def main():
         cands = json.loads((S.REPO / "ml" / "data" / "audio" / "candidates.json").read_text())
         labels = {v: [c["shot"] for c in f["cands"]] for v, f in cands.items()}
         folds = {v: f["fold"] for v, f in cands.items()}
-        for k in range(5):
+        for k in (range(5) if not args.final else [-1]):
             print(f"fold {k}: started {fn('finetune').spawn(k, jobs, labels, folds).object_id}")
         return
     if args.eval:
         evaluate()
+    if args.export:
+        export_stack()
 
 
 if __name__ == "__main__":

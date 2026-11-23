@@ -669,8 +669,11 @@ def suggest_score(film):
 
 @app.function(image=image, volumes={"/data": volume}, secrets=[modal.Secret.from_name("goalieiq-r2")],
               cpu=4.0, memory=16384, timeout=2 * 3600)
-def suggest_shots(film):
-    """One untagged game -> likely shot times. Cuts (warm-up, intermissions) are skipped."""
+def suggest_shots(film, stage2=False):
+    """One untagged game -> likely shot times. Cuts (warm-up, intermissions) are skipped.
+    stage2: also re-score round 4's moments with full-resolution close-ups of the net + the game's
+    sound (ml/video/stage2_modal.py, app goalieiq-stage2), adding "s2" to each shot. If that step
+    fails, round 4's results come back unchanged with a "stage2_error"."""
     import shutil
     vid = str(film["video_id"])
     film = dict(film, video_id=vid, shot_times=[], net_sides=None)
@@ -690,7 +693,14 @@ def suggest_shots(film):
         meta.append(dict(n=n, start=a, end=b, path=f"film/{vid}/{n}.mp4"))
     (INFER / "windows" / f"{vid}.json").write_text(json.dumps({"video_id": vid, "segments": meta}))
     volume.commit()
-    return suggest_score.remote(film)
+    result = suggest_score.remote(film)
+    if stage2 and result.get("shots"):
+        try:
+            out = modal.Function.from_name("goalieiq-stage2", "rescore").remote(film, result["shots"])
+            result = dict(result, shots=out["shots"], stage2=out["summary"])
+        except Exception as e:  # never lose round 4's moments over the second opinion
+            result = dict(result, stage2_error=(str(e) or type(e).__name__)[:300])
+    return result
 
 
 web_image = modal.Image.debian_slim(python_version="3.12").pip_install("fastapi[standard]", "numpy")
@@ -713,7 +723,7 @@ def shot_api(body: dict):
                 or not isinstance(dur, (int, float)) or not 10 <= dur <= 6 * 3600 or not isinstance(marks, dict)):
             raise HTTPException(status_code=400, detail="That video can't be scanned.")
         call = suggest_shots.spawn({"video_id": vid, "storage_path": path, "duration_seconds": float(dur),
-                                    "period_marks": marks})
+                                    "period_marks": marks}, bool(body.get("stage2")))
         return {"callId": call.object_id}
     if op == "status":
         cid = str(body.get("callId", ""))
