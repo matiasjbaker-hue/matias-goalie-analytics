@@ -234,8 +234,25 @@ a person. The list to check is about twice as clean, though: at 60–70%
 found, roughly 1 in 2 to 1 in 3 flagged moments is a real shot, against
 1 in 4 to 1 in 5 today.
 
-Next: final models trained on all games, then a Review pipeline. Round 4
-finds the moments; stage 2 re-scores them with net close-ups and sound.
+**In Review (2026-11-23):**
+
+- **How it runs:** "Find shots" asks the shot service for a second opinion
+  (`stage2: true`). Round 4 finds the moments. `goalieiq-stage2`'s
+  `rescore()` cuts close-ups from the original and adds the game's sound,
+  using the final models trained on all 98 games, then stacks them into
+  `s2`.
+- **Site change:** PR #8. Merging it is the switch; the cloud side is
+  deployed and inert without the flag.
+- **Live tests:** on 4 real games (camera behind the net, no sound, two side
+  cameras), live matched evaluated on 86–96% of keep/drop decisions, at about
+  2.6 min and $0.08 per game. Run through the site's own entry point
+  (`suggest_shots`) on one game: 3.9 min total, no errors.
+- **Still to check:** a run from the deployed site with an admin login after
+  merging, and a test on games tagged after the 2026-11-17 export (the only
+  truly unseen ones).
+- **Still too many extras for automation** (29/h at 70% found, 64/h at 80%).
+  Next levers: sharper close-ups (256 px, 25 fps), more labels
+  (W / Shift+W, new games), a camera behind the net.
 
 **Process changes (free):**
 
