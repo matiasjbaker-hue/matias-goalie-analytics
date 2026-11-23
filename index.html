@@ -4082,7 +4082,7 @@
         <div class="rv-attemptlist" id="rv-attemptlist"></div>
 
         <div class="rv-action-bar">
-          <label class="rv-check" title="Plays only the clips of play around the goalie's net (from Find shots), back to back. Press S at each shot. In tests about a third of the game held about 95% of the shots."><input type="checkbox" id="rv-action-only" onchange="onReviewActionOnlyChange()"> <span>Play net clips only</span></label>
+          <label class="rv-check" title="Plays only the clips of play around the goalie's net (from Find shots), back to back, like a condensed game. Press S at each shot. In tests about a third of the game held 93-95% of the shots."><input type="checkbox" id="rv-action-only" onchange="onReviewActionOnlyChange()"> <span>Play net clips only</span></label>
           <label class="rv-check" title="S marks a shot (Shift+S a goal) without pausing or opening the editor, so you can keep watching. Z removes the last one you marked. Fill in details later from the shot list."><input type="checkbox" id="rv-quick-tag" onchange="onReviewQuickTagChange(this.checked)"> <span>Quick tag (S shot, Shift+S goal, Z undo)</span></label>
           <button type="button" class="btn-secondary" onclick="jumpReviewAction(-1)" title="Previous clip ([)">Previous clip</button>
           <button type="button" class="btn-secondary" onclick="jumpReviewAction(1)" title="Next clip (])">Next clip</button>
@@ -28341,25 +28341,32 @@ const REVIEW_ACTION_SAFE_BEFORE = 5;
 const REVIEW_ACTION_SAFE_AFTER = 3;
 const REVIEW_ACTION_SAFE_JOIN = 15;
 
-// Clips around the net from the GoalieIQ model (Find shots): every moment it
-// flagged, padded, played back to back with "Play net clips only" so the
-// admin watches the play around the net instead of the whole game. Picking
-// a clip doesn't need the model to tell shots from near-misses, only that
-// play is at the net, which it does well. Measured on 98 games (round-4
-// scores, every goalie held out): moments scoring >= 0.05 padded 4 s before /
-// 3 s after covered 31% of the game and held 95% of tagged shots; >= 0.02
-// padded 6 s / 4 s, 48% and 97%. "Fewer extras" / "Catch more" picks which.
-const REVIEW_ML_CLIPS = { fewer: { min: 0.05, before: 4, after: 3, share: "95%" }, more: { min: 0.02, before: 6, after: 4, share: "97%" } };
+// Clips around the net from the GoalieIQ model (Find shots): the moments it
+// flagged, padded and joined, played back to back with "Play net clips only"
+// so the admin watches the play around the net instead of the whole game.
+// Picking clips only needs the model to know play is at the net, not to tell
+// shots from near-misses. Clips under 20 s apart join into one, which halves
+// how many there are. Measured on 98 games (every goalie held out), with the
+// second opinion's score s2 deciding which moments count:
+//   s2 >= 0.15: ~40 clips per hour of play, 30% of the game, 93% of tagged shots
+//   s2 >= 0.10: ~41 clips per hour, 36% of the game, 95% of shots
+// Runs from before the second opinion use round 4's score >= 0.05 (46%, 96%).
+const REVIEW_ML_CLIPS = {
+  fewer: { s2: 0.15, before: 4, after: 3, join: 20, share: "93%" },
+  more: { s2: 0.10, before: 4, after: 3, join: 20, share: "95%" },
+  round4: { min: 0.05, before: 4, after: 3, join: 20, share: "96%" }
+};
 
-function reviewMlClipSetting(){
-  return REVIEW_ML_CLIPS[reviewMlPickName()] || REVIEW_ML_CLIPS.fewer;
+function reviewMlClipSetting(v = review.video){
+  return reviewMlHasS2(v) ? (REVIEW_ML_CLIPS[reviewMlPickName()] || REVIEW_ML_CLIPS.fewer) : REVIEW_ML_CLIPS.round4;
 }
 
 function reviewMlClipStretches(v = review.video){
   const all = reviewMlShots(v);
   if(!all.length){ return []; }
-  const c = reviewMlClipSetting();
-  return mergeActionStretches(all.filter(x => Number(x.score) >= c.min).map(x => [Number(x.t) - c.before, Number(x.t) + c.after]), 2);
+  const c = reviewMlClipSetting(v);
+  const keep = all.filter(x => c.s2 !== undefined ? Number(x.s2) >= c.s2 : Number(x.score) >= c.min);
+  return mergeActionStretches(keep.map(x => [Number(x.t) - c.before, Number(x.t) + c.after]), c.join);
 }
 
 function reviewActionStretches(){
@@ -28371,7 +28378,7 @@ function reviewActionStretches(){
     // extra safety padding; tagged shots always stay inside a clip.
     const d = reviewDuration() || Number(v.duration_seconds) || 0;
     const aroundShots = review.drafts.map(dr => [Number(dr.t_seconds) - 6, Number(dr.t_seconds) + 4]);
-    return mergeActionStretches([...ml, ...aroundShots], 2).map(r => [r[0], d ? Math.min(d, r[1]) : r[1]]);
+    return mergeActionStretches([...ml, ...aroundShots], reviewMlClipSetting(v).join).map(r => [r[0], d ? Math.min(d, r[1]) : r[1]]);
   }
   const saved = (v.period_marks && Array.isArray(v.period_marks._action)) ? v.period_marks._action : [];
   const padded = saved.map(r => [Number(r[0]) - REVIEW_ACTION_SAFE_BEFORE, Number(r[1]) + REVIEW_ACTION_SAFE_AFTER]);
@@ -28402,7 +28409,7 @@ function renderReviewActionNote(){
   const v = review.video;
   const scanned = v && Number(v.scan_progress) >= 1;
   if(reviewMlClipStretches(v).length){
-    note.textContent = `${st.length} clip${st.length === 1 ? "" : "s"} around the net, ${formatClock(total)} of ${formatClock(d)} to watch${d ? ` (${Math.round(total / d * 100)}%)` : ""}. In tests about ${reviewMlClipSetting().share} of shots were inside them: tick Play net clips only and press S at each shot.`;
+    note.textContent = `${st.length} clip${st.length === 1 ? "" : "s"} around the net, ${formatClock(total)} of ${formatClock(d)} to watch${d ? ` (${Math.round(total / d * 100)}%)` : ""}. In tests about ${reviewMlClipSetting(v).share} of shots were inside them: tick Play net clips only, play, and press S at each shot.`;
     return;
   }
   note.textContent = st.length && scanned
