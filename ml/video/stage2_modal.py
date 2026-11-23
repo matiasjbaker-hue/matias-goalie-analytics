@@ -445,9 +445,11 @@ def rescore(film, shots):
             raw[i][k] = [[*map(float, bb), float(sc), int(lb)] for bb, sc, lb in
                          zip(r["boxes"].cpu(), r["scores"].cpu(), r["labels"].cpu())]
     del owl
-    big = [max(((d[2] - d[0]) * (d[3] - d[1]) / (DW * DH) for d in dets if d[5] == 0 and d[4] >= 0.15), default=0.0)
-           for row in raw for dets in row if dets is not None]
-    goalcam = bool(big) and float(np.median(big)) > GOALCAM_AREA
+    # Camera behind the net? The best net box after the usual filters (either side), as in the
+    # analysis that set GOALCAM_AREA; the biggest raw box misfires on stray large detections.
+    picked = [pick_box(dets, 0, False) for row in raw for dets in row if dets is not None]
+    areas = [(p[2] - p[0]) * (p[3] - p[1]) / (DW * DH) for p in picked if p]
+    goalcam = bool(areas) and float(np.median(areas)) > GOALCAM_AREA
     boxes = [[pick_box(dets, sides[i], goalcam) if dets is not None else None for dets in raw[i]] for i in range(len(ts))]
 
     # 2. full-resolution close-ups around the net, t-2..t+4 s
