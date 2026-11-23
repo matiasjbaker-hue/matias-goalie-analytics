@@ -210,13 +210,14 @@ def crop(job):
     return v
 
 
-def clip_frames(path, n_expected):
+def clip_frames(path, n_expected, size=CROP_OUT):
     raw = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(path), "-f", "rawvideo",
                           "-pix_fmt", "rgb24", "-"], capture_output=True).stdout
     a = np.frombuffer(raw, np.uint8)
-    if a.size < CROP_OUT * CROP_OUT * 3:
+    fs = size * size * 3
+    if a.size < fs:
         return None
-    a = a[: a.size // (CROP_OUT * CROP_OUT * 3) * CROP_OUT * CROP_OUT * 3].reshape(-1, CROP_OUT, CROP_OUT, 3)
+    a = a[: a.size // fs * fs].reshape(-1, size, size, 3)
     if len(a) < n_expected:
         a = np.concatenate([a, np.repeat(a[-1:], n_expected - len(a), 0)])
     return a[:n_expected]
@@ -264,10 +265,48 @@ def features(jobs):
 
 FT_T, FT_CROP = 32, 144            # fine-tuning input: 32 frames, t-1 s .. t+2.8 s (~8 fps), 144x144
 FT_IDX = np.round(np.linspace((-1.0 - WIN[0]) * DFPS, (2.8 - WIN[0]) * DFPS, FT_T)).astype(int)
+# Close-up variants. "hi": the same crop squares cut at 256 px / 25 fps (2.6x the pixels), the model
+# sees 192 px instead of 144 (same 32 frames, same timing), so only sharpness changes.
+CLOSEUP = {"base": dict(clips="clips", fps=DFPS, size=CROP_OUT, crop=FT_CROP, px=FT_CROP, oof="oof", final="final_closeup.pt"),
+           "hi": dict(clips="clips256", fps=25.0, size=256, crop=224, px=192, oof="oof_hi", final="final_closeup_hi.pt")}
+
+
+@app.function(image=image, volumes={"/data": volume}, secrets=[modal.Secret.from_name("goalieiq-r2")],
+              cpu=4.0, memory=4096, timeout=3 * 3600, retries=1)
+def crop_hi(job):
+    """The same crop squares as crop() (stage2/plans), cut again at 256 px and 25 fps -> stage2/clips256."""
+    from concurrent.futures import ThreadPoolExecutor
+    volume.reload()
+    v = job["video_id"]
+    done_flag = SUB / "clips256" / v / "_done"
+    if done_flag.exists():
+        return v
+    plans = json.loads((SUB / "plans" / f"{v}.json").read_text())["plans"]
+    url = S.r2_url(job["storage_path"])
+    out_dir = SUB / "clips256" / v
+    out_dir.mkdir(parents=True, exist_ok=True)
+    cfg = CLOSEUP["hi"]
+
+    def cut(i):
+        p, out = plans[i], out_dir / f"{i}.mp4"
+        if out.exists():
+            return
+        r = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-threads", "2",
+                            "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "10",
+                            "-ss", f"{p['start']:.2f}", "-i", url, "-t", f"{WIN[1] - WIN[0]:.2f}", "-an",
+                            "-vf", f"fps={cfg['fps']},crop={p['size']}:{p['size']}:{p['x0']}:{p['y0']},scale={cfg['size']}:{cfg['size']}",
+                            "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", str(out)], capture_output=True)
+        if r.returncode:
+            print(f"{v} #{i}: ffmpeg failed: {r.stderr[-200:]!r}", flush=True)
+    with ThreadPoolExecutor(3) as pool:
+        list(pool.map(cut, range(len(plans))))
+    done_flag.write_text("ok")
+    volume.commit()
+    return v
 
 
 @app.function(image=image, gpu="A10G", volumes={"/data": volume}, cpu=8.0, memory=32768, timeout=4 * 3600)
-def finetune(fold, jobs, labels, folds, epochs=8, batch=16):
+def finetune(fold, jobs, labels, folds, epochs=8, batch=16, variant="base"):
     """Fine-tune Kinetics R(2+1)D on the close-ups of every film outside `fold` (round 4's recipe:
     8 epochs, low backbone learning rate, dropout), then score the held-out films' close-ups.
     -> /data/stage2/oof/fold<k>.json {video_id: [score per candidate]}"""
@@ -276,17 +315,21 @@ def finetune(fold, jobs, labels, folds, epochs=8, batch=16):
     from torch.utils.data import Dataset, DataLoader
     from torchvision.models.video import r2plus1d_18, R2Plus1D_18_Weights
     volume.reload()
-    out_path = SUB / ("final_closeup.pt" if fold < 0 else f"oof/fold{fold}.json")   # fold -1: every film, for Review
+    import torch.nn.functional as TF
+    cfg = CLOSEUP[variant]
+    out_path = SUB / (cfg["final"] if fold < 0 else f"{cfg['oof']}/fold{fold}.json")   # fold -1: every film, for Review
     if out_path.exists():
         return fold
-    log = lambda m: print(f"[fold{fold}] {m}", flush=True)
+    log = lambda m: print(f"[{variant} fold{fold}] {m}", flush=True)
     local, t0 = Path("/tmp/s2"), time.time()
     for j in jobs:
-        src, dst = SUB / "clips" / j["video_id"], local / j["video_id"]
+        src, dst = SUB / cfg["clips"] / j["video_id"], local / j["video_id"]
         if src.exists() and not dst.exists():
-            shutil.copytree(src, dst)
+            shutil.copytree(src, dst, ignore=shutil.ignore_patterns("_done"))
     log(f"copied clips in {time.time() - t0:.0f}s")
-    n = int(round((WIN[1] - WIN[0]) * DFPS))
+    n = int(round((WIN[1] - WIN[0]) * cfg["fps"]))
+    step = cfg["fps"] / DFPS
+    idx0 = np.round(FT_IDX * step).astype(int)
     items = []                                         # (path, label, mirror, train?, video, index)
     for j in jobs:
         v = j["video_id"]
@@ -307,16 +350,16 @@ def finetune(fold, jobs, labels, folds, epochs=8, batch=16):
 
         def __getitem__(self, k):
             path, lab, mirror = self.items[k][:3]
-            a = clip_frames(Path(path), n)
+            a = clip_frames(Path(path), n, cfg["size"])
             if a is None:
-                a = np.zeros((n, CROP_OUT, CROP_OUT, 3), np.uint8)
-            shift = np.random.randint(-2, 3) if self.aug else 0
-            a = a[np.clip(FT_IDX + shift, 0, n - 1)]
+                a = np.zeros((n, cfg["size"], cfg["size"], 3), np.uint8)
+            shift = int(round(np.random.randint(-2, 3) * step)) if self.aug else 0
+            a = a[np.clip(idx0 + shift, 0, n - 1)]
             if mirror:
                 a = a[:, :, ::-1]
-            m = CROP_OUT - FT_CROP
+            m = cfg["size"] - cfg["crop"]
             y0, x0 = (np.random.randint(0, m + 1, 2) if self.aug else (m // 2, m // 2))
-            a = a[:, y0: y0 + FT_CROP, x0: x0 + FT_CROP]
+            a = a[:, y0: y0 + cfg["crop"], x0: x0 + cfg["crop"]]
             return torch.from_numpy(np.ascontiguousarray(a)), torch.tensor(lab, dtype=torch.float32)
 
     torch.backends.cudnn.benchmark = True
@@ -332,7 +375,13 @@ def finetune(fold, jobs, labels, folds, epochs=8, batch=16):
     loss_fn = torch.nn.BCEWithLogitsLoss(pos_weight=torch.tensor((len(train) - n_pos) / max(n_pos, 1), device="cuda"))
     mean = torch.tensor(S.MEAN, device="cuda").view(1, 3, 1, 1, 1)
     std = torch.tensor(S.STD, device="cuda").view(1, 3, 1, 1, 1)
-    prep = lambda x: (x.cuda(non_blocking=True).float().div(255).permute(0, 4, 1, 2, 3) - mean) / std
+    def prep(x):
+        x = x.cuda(non_blocking=True).float().div(255).permute(0, 4, 1, 2, 3)     # [B, 3, T, H, W]
+        if cfg["px"] != cfg["crop"]:                                              # e.g. 224 crop -> 192 model input
+            b, c, t, h, w = x.shape
+            x = TF.interpolate(x.permute(0, 2, 1, 3, 4).reshape(b * t, c, h, w), size=(cfg["px"], cfg["px"]),
+                               mode="bilinear", antialias=True, align_corners=False).reshape(b, t, c, cfg["px"], cfg["px"]).permute(0, 2, 1, 3, 4)
+        return (x - mean) / std
     for ep in range(epochs):
         model.train()
         tot, seen, t0 = 0.0, 0, time.time()
@@ -348,7 +397,8 @@ def finetune(fold, jobs, labels, folds, epochs=8, batch=16):
         log(f"epoch {ep + 1}/{epochs}: loss {tot / max(seen, 1):.4f} ({time.time() - t0:.0f}s)")
     model.eval()
     if fold < 0:
-        torch.save({"model": model.state_dict(), "films": len(jobs), "clips": len(train), "frames": FT_T, "crop": FT_CROP},
+        torch.save({"model": model.state_dict(), "films": len(jobs), "clips": len(train), "frames": FT_T, "variant": variant,
+                    "px": cfg["px"]},
                    out_path)
         volume.commit()
         log(f"saved the final close-up model ({len(train)} close-ups)")
@@ -535,6 +585,14 @@ def rescore(film, shots):
     return {"shots": shots, "summary": summary}
 
 
+@app.function(image=image, timeout=8 * 3600, volumes={"/data": volume})
+def hi_pipeline(jobs, labels, folds, fold_list):
+    """Sharper close-ups: cut every candidate again at 256 px / 25 fps, then train the "hi" close-up model."""
+    volume.reload()
+    list(crop_hi.map(jobs, return_exceptions=True))
+    return list(finetune.starmap([(k, jobs, labels, folds, 8, 16, "hi") for k in fold_list]))
+
+
 @app.function(image=image, timeout=6 * 3600, volumes={"/data": volume})
 def pipeline(jobs):
     """Runs the three steps for every film in the cloud, so the laptop can sleep."""
@@ -655,6 +713,86 @@ def evaluate():
     print(report)
 
 
+def compare_hi():
+    """Sharper close-ups vs the current ones, on the games of the folds the "hi" model ran
+    (all signals out of fold, stacked the same way; also with detection-confidence inputs)."""
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import roc_auc_score
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+    import audio_eval as AE
+    cands = json.loads((S.REPO / "ml" / "data" / "audio" / "candidates.json").read_text())
+    vol = modal.Volume.from_name("goalieiq-ml")
+    read = lambda path: json.loads(b"".join(vol.read_file(path)))
+    base, hi = {}, {}
+    for k in range(5):
+        base.update(read(f"stage2/oof/fold{k}.json"))
+        try:
+            hi.update(read(f"stage2/oof_hi/fold{k}.json"))
+        except Exception:
+            pass
+    _, arows = AE.load()
+    sound = {}
+    for r in arows:
+        sound.setdefault(r["v"], []).append(np.concatenate([r["emb"], r["loud"]]))
+    rows = []
+    for v, f in cands.items():
+        if not f["cands"]:
+            continue
+        z = np.load(io.BytesIO(b"".join(vol.read_file(f"stage2/feats/{v}.npz"))))
+        bx = read(f"stage2/boxes/{v}.json")["boxes"]
+        for i, c in enumerate(f["cands"]):
+            got = [b for b in bx[i] if b]
+            rows.append(dict(v=v, fold=f["fold"], y=c["shot"], s=c["score"], base=base[v][i],
+                             hi=(hi.get(v) or [None] * len(f["cands"]))[i],
+                             x=np.concatenate([z["at"][i], z["after"][i]]).astype(np.float32),
+                             a=sound[v][i] if v in sound and len(sound[v]) == len(f["cands"]) else None,
+                             q_found=len(got) / 3, q_score=float(np.mean([b[4] for b in got])) if got else 0.0))
+    y = np.array([r["y"] for r in rows]); fold = np.array([r["fold"] for r in rows])
+    lg = lambda p: np.log(np.clip(p, 1e-6, 1 - 1e-6) / np.clip(1 - np.asarray(p, float), 1e-6, 1))
+    model = lambda C: make_pipeline(StandardScaler(), LogisticRegression(C=C, max_iter=4000, class_weight="balanced"))
+
+    def cv(F, mask, C):
+        out = np.zeros(int(mask.sum())); yy, ff = y[mask], fold[mask]
+        for k in sorted(set(ff)):
+            tr, te = ff != k, ff == k
+            out[te] = model(C).fit(F[tr], yy[tr]).decision_function(F[te])
+        return out
+    allm = np.ones(len(y), bool)
+    frozen = cv(np.stack([r["x"] for r in rows]), allm, 0.001)
+    has_a = np.array([r["a"] is not None for r in rows]); snd = np.zeros(len(y))
+    snd[has_a] = cv(np.stack([rows[i]["a"] for i in np.where(has_a)[0]]), has_a, 0.001)
+    m = np.array([r["hi"] is not None for r in rows])
+    r4, ftb = lg([r["s"] for r in rows]), lg([r["base"] for r in rows])
+    fth = lg([r["hi"] if r["hi"] is not None else 0.5 for r in rows])
+    qf, qs = np.array([r["q_found"] for r in rows]), np.array([r["q_score"] for r in rows])
+    used = sorted({rows[i]["v"] for i in np.where(m)[0]})
+    n_true = sum(cands[v]["n_true"] for v in used); hours = sum(cands[v]["hours"] for v in used)
+    hard = np.array([r["s"] >= 0.5 for r in rows])
+
+    def line(name, s):
+        c = AE.curve(s, y[m], n_true, hours)
+        cell = lambda r: "—" if c[r] is None else f"{c[r][0]:.0f} ({c[r][1] * 100:.0f}%)"
+        return (f"| {name} | {roc_auc_score(y[m], s):.3f} | {roc_auc_score(y[m][hard[m]], s[hard[m]]):.3f} | "
+                + " | ".join(cell(r) for r in (0.8, 0.7, 0.6, 0.5)) + " |")
+    st = lambda cols: cv(np.stack([c[m] for c in cols], 1), m, 1.0)
+    lines = [f"# Sharper close-ups (256 px clips, 192 px model) vs current (160 / 144 px)", "",
+             f"{len(used)} games (folds the sharp model ran), {int(m.sum())} moments, {int(y[m].sum())} real shots, {hours:.1f} h. "
+             "All scores out of fold; extras per game hour at the share of tagged shots found.", "",
+             "| scorer | AUC all | AUC confident | @80% | @70% | @60% | @50% |", "|---|---|---|---|---|---|---|",
+             line("round 4 only", r4[m]),
+             line("close-up, current, alone", ftb[m]),
+             line("close-up, sharp, alone", fth[m]),
+             line("stack with current close-up", st([r4, frozen, ftb, snd, has_a.astype(float)])),
+             line("stack with sharp close-up", st([r4, frozen, fth, snd, has_a.astype(float)])),
+             line("stack with both close-ups", st([r4, frozen, ftb, fth, snd, has_a.astype(float)])),
+             line("both + net-detection confidence", st([r4, frozen, ftb, fth, snd, has_a.astype(float), qf, qs, fth * qf, ftb * qf]))]
+    report = "\n".join(lines)
+    out = S.REPO / "ml" / "data" / "stage2"
+    (out / "compare_hi.md").write_text(report + "\n")
+    print(report)
+
+
 def export_stack(targets=(("fewer", 0.70), ("more", 0.80))):
     """The models Review's re-scoring uses, as plain numbers on the volume (/data/stage2/stack.json):
     frozen close-up and sound logistic regressions fit on every game, and the stack fit on the
@@ -731,6 +869,8 @@ def main():
     ap.add_argument("--finetune", action="store_true", help="train + score the close-up model on 5 goalie folds (~$11)")
     ap.add_argument("--final", action="store_true", help="with --finetune: one model on every film, for Review (~$2.50)")
     ap.add_argument("--export", action="store_true", help="write the stacking models + Review thresholds to the volume")
+    ap.add_argument("--hi", action="store_true", help="sharper close-ups: re-cut at 256 px / 25 fps + train folds 0-2 (~$17-25)")
+    ap.add_argument("--compare-hi", action="store_true", help="sharper vs current close-ups, stacked, on the same games")
     ap.add_argument("--out", default="", help="--smoke: folder for sample crops")
     args = ap.parse_args()
     fn = lambda name: modal.Function.from_name("goalieiq-stage2", name)
@@ -774,6 +914,14 @@ def main():
         evaluate()
     if args.export:
         export_stack()
+    if args.hi:
+        cands = json.loads((S.REPO / "ml" / "data" / "audio" / "candidates.json").read_text())
+        labels = {v: [c["shot"] for c in f["cands"]] for v, f in cands.items()}
+        folds = {v: f["fold"] for v, f in cands.items()}
+        call = fn("hi_pipeline").spawn(make_jobs(), labels, folds, [0, 1, 2])
+        print(f"started the sharper close-up run in the cloud ({call.object_id}); then --compare-hi")
+    if args.compare_hi:
+        compare_hi()
 
 
 if __name__ == "__main__":
