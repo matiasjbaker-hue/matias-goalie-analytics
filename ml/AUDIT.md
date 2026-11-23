@@ -123,13 +123,52 @@ Keep them.
 - **Cost:** about $3–5 to cut 12.5 fps copies, plus ~$2–3 per fold.
 - **Stop rule:** keep it only if it cuts extras by ≥30% at 70–80% found.
 
-**Step 2, if step 1 helps but isn't enough: a full-resolution checker.**
+**Result of step 1 (2026-11-22): round 6 failed.** Compared on the same 60
+games (folds 1–3), extras per hour:
+
+| Model | Best F1 | at 80% found | at 70% | at 60% |
+|---|---|---|---|---|
+| Round 4 | 0.42 | 109 | 57 | 35 |
+| Round 6 | 0.26 | 492 | 190 | 124 |
+| Round 4 + 15% round 6 | 0.43 | 106 | 56 | 36 |
+
+- **Not a timing bug:** averaged around every tagged shot, both models' scores
+  peak exactly at the tag. Round 6's peak is just weak: 0.12 vs round 4's 0.58.
+- **It memorized:** training loss fell from 0.33 at epoch 7 to 0.09 at epoch 15.
+  A model that learned nothing would sit at about 0.44. Held-out games stayed
+  poor.
+- **Why:** with ~1,400 tagged shots per training fold, a higher-resolution
+  per-frame model memorizes clips, rinks and goalies. Round 4's small
+  Kinetics-pretrained model, trained briefly at low resolution, generalizes
+  better.
+- **Lesson:** on this much data, extra capacity and resolution need strong
+  regularization, or must be confined to a narrow sub-task. Round 4 stays live.
+- **Cost:** ~$9.
+
+**Step 2, now: a full-resolution checker on round 4's flagged moments.**
 
 - Re-judge each flagged moment from a full-resolution crop around the net
   (located with a detector trained on HockeyAI's goal/goaltender boxes), at
   25 fps, 2 s before to 4 s after, with sound.
 - Train it on the ~17,500 flagged moments we already have labels for.
 - This is the only route where the puck itself is visible (2–3 px at 1080p).
+
+*Feasibility check for step 2 (2026-11-22):* I ran OWLv2
+(`google/owlv2-base-patch16-ensemble`, zero-shot, prompts "a hockey goal
+net" / "an ice hockey goaltender") on full-resolution frames at 28 flagged
+moments from 14 games (720p–1080p, two 640x360, goal cams included).
+
+- **Hit rate:** about 20 of 28 gave a good crop of the tracked net with the
+  goalie and the players in front, far more detail than any input so far.
+- **Fixable misses:**
+  - goal-cam films need no "tracked side" filter;
+  - the crop should scale with the net's box, not a fixed size (fisheye goal
+    cams);
+  - frames with no net in view (scoreboard overlay, ice resurfacing, camera on
+    the ads) need a score floor, box-shape checks and the net position from
+    neighbouring frames.
+- **Speed:** ~0.5 s per frame unbatched. Batch it, or train a small fast
+  detector on OWLv2's boxes, before running it on every candidate.
 
 **Process changes (free):**
 
