@@ -3906,7 +3906,7 @@
         <span id="rv-status"></span>
         <span class="rv-cost rv-ai" id="rv-ai-cost" hidden title="What the AI work on this video has cost, priced from the token counts Anthropic returns with each answer"></span>
         <div class="rv-ai-run" role="group" aria-label="Find shots with the GoalieIQ model">
-          <button type="button" class="btn-secondary" id="rv-scan-btn" onclick="toggleReviewScan()" title="Our own shot model, trained on the games tagged here. It finds likely shots, double-checks each one with a full-resolution close-up of the net and the game's sound, and marks the likely ones as moments to check; you confirm each one. About 30 cents a game.">Find shots (GoalieIQ model)</button>
+          <button type="button" class="btn-secondary" id="rv-scan-btn" onclick="toggleReviewScan()" title="Our own shot model, trained on the games tagged here. It finds likely shots, double-checks each one with a full-resolution close-up of the net and the game's sound, and marks the likely ones as moments to check; you confirm each one. About 20 cents a game.">Find shots (GoalieIQ model)</button>
           <select id="rv-ml-pick" onchange="onReviewMlPickChange(this.value)" aria-label="How picky the model is" title="Fewer extras: finds about 70% of shots with about 30 extra moments per game hour. Catch more: about 80% with about 65. Switching after a run re-filters its results; nothing is charged again.">
             <option value="fewer" selected>Fewer extras (~70% of shots)</option>
             <option value="more">Catch more (~80% of shots)</option>
@@ -31396,7 +31396,7 @@ async function runReviewShotModel(){
     `Run the GoalieIQ model on ${formatClock(seconds)} of game?\n\n` +
     `It finds likely shots on the goalie, double-checks each one with a close-up of the net and the game's sound, and marks the likely ones as moments to check. On "${reviewMlPickName() === "fewer" ? "Fewer extras" : "Catch more"}" it finds about ${reviewMlPickName() === "fewer" ? "70% of shots, with about 30 extra moments" : "80% of shots, with about 65 extra moments"} per hour of game. You can switch after it's done without paying again.\n\n` +
     `Then: Shift+N plays each moment; press S at each real shot, or D if there wasn't one. Last, watch the game at 2× and add any shots it missed.\n\n` +
-    `About 30 cents. Results usually take 10 to 25 minutes; you can close this request and come back.`
+    `About 20 cents. Results usually take 5 to 20 minutes; you can close this request and come back.`
   )){ return; }
 
   review.collecting = true;
