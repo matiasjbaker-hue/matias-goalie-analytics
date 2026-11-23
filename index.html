@@ -4041,6 +4041,8 @@
           <span class="rv-ai"><i class="lg-action"></i>Action: play in the goalie's zone</span>
           <span><i class="lg-cut"></i>Cut</span>
           <span><i class="lg-flag"></i>Flagged moment</span>
+          <span><i class="lg-miss"></i>Missed shot</span>
+          <span><i class="lg-block"></i>Blocked shot</span>
         </div>
 
         <div class="rv-controls">
@@ -4072,9 +4074,12 @@
           <button type="button" class="btn-secondary" onclick="markReviewPeriod('OT')">OT starts here</button>
           <button type="button" class="btn-secondary" onclick="cutReviewGameEdge('end')" title="Cut everything after the playhead">Game ends here</button>
           <button type="button" class="btn-secondary rv-flag-btn" onclick="addReviewFlag()" title="Flag this moment for the video coaches to look at with the goalie, shot or no shot (M)">Flag a moment (M)</button>
+          <button type="button" class="btn-secondary rv-attempt-btn" onclick="addReviewAttempt('missed')" title="A shot that missed the net: wide, high or off the post. It doesn't count as a shot on goal, but it teaches the shot model the difference (W)">Missed shot (W)</button>
+          <button type="button" class="btn-secondary rv-attempt-btn" onclick="addReviewAttempt('blocked')" title="A shot blocked by a skater before it reached the goalie. It doesn't count as a shot on goal (Shift+W)">Blocked shot (Shift+W)</button>
         </div>
         <div class="rv-cut-list" id="rv-cut-list"></div>
         <div class="rv-flaglist" id="rv-flaglist"></div>
+        <div class="rv-attemptlist" id="rv-attemptlist"></div>
 
         <div class="rv-action-bar">
           <label class="rv-check rv-ai"><input type="checkbox" id="rv-action-only" onchange="onReviewActionOnlyChange()"> <span>Play action only</span></label>
@@ -4184,7 +4189,7 @@
         </section>
         </details>
 
-        <p class="small-note rv-keys">Keys: Space play/pause · ← → 5 seconds · Shift + ← → 1 second · , . one frame · S mark a shot (Shift + S a goal, Z removes the last) · N / P next or previous shot · G toggle goal · M flag a moment for the video coaches (M again near it removes it) · Shift + N / P next or previous AI moment to check</p>
+        <p class="small-note rv-keys">Keys: Space play/pause · ← → 5 seconds · Shift + ← → 1 second · , . one frame · S mark a shot (Shift + S a goal, Z removes the last) · N / P next or previous shot · G toggle goal · M flag a moment for the video coaches (M again near it removes it) · W missed shot, Shift + W blocked shot: attempts that didn't reach the goalie (again near it removes it) · Shift + N / P next or previous AI moment to check</p>
 
       </div>
 
@@ -4203,7 +4208,7 @@
           <h4>Moments to check <span id="rv-check-count"></span></h4>
           <button type="button" class="rv-linkbtn" onclick="dismissAllReviewChecks()">Dismiss all</button>
         </div>
-        <p class="small-note rv-check-note" id="rv-check-note" hidden>Where the AI saw a likely shot but can't tell the exact second. Shift+N plays the next one: press S at the shot (the moment then clears), D if there wasn't one, or A to take the AI's best guess.</p>
+        <p class="small-note rv-check-note" id="rv-check-note" hidden>Where the AI saw a likely shot but can't tell the exact second. Shift+N plays the next one: press S at the shot (the moment then clears), W if it was a shot that missed the net (Shift+W if blocked), D if there wasn't one, or A to take the AI's best guess.</p>
         <ol class="rv-checklist" id="rv-checklist" hidden></ol>
 
         <div class="rv-side-head rv-check-head rv-ai" id="rv-zone-head" hidden>
@@ -28466,6 +28471,9 @@ function renderReviewTimeline(){
     reviewFlags(v).map((f, i) =>
       `<button type="button" class="rv-flagtick" style="left:${pct(f.t)}%" onclick="event.stopPropagation(); reviewJumpToFlag(${i})" title="Flagged moment ${escapeHtml(formatClock(f.t))}${f.note ? ": " + escapeHtml(f.note) : ""}" aria-label="Flagged moment at ${escapeHtml(formatClock(f.t))}"></button>`
     ).join("") +
+    reviewAttempts(v).map((a, i) =>
+      `<button type="button" class="rv-attempttick is-${a.kind}" style="left:${pct(a.t)}%" onclick="event.stopPropagation(); reviewJumpToAttempt(${i})" title="${REVIEW_ATTEMPT_KINDS[a.kind]} ${escapeHtml(formatClock(a.t))}: not a shot on goal" aria-label="${REVIEW_ATTEMPT_KINDS[a.kind]} at ${escapeHtml(formatClock(a.t))}"></button>`
+    ).join("") +
     review.drafts.map(dr => {
       const cls = ["rv-tick", dr.outcome === "goal" ? "is-goal" : "is-save", String(dr.id) === String(review.selectedId) ? "is-selected" : ""].join(" ");
       return `<button type="button" class="${cls}" style="left:${pct(dr.t_seconds)}%" onclick="event.stopPropagation(); selectReviewShot(${jsArg(dr.id)}, true)" title="${escapeHtml(formatClock(dr.t_seconds))} · ${dr.outcome === "goal" ? "Goal" : "Save"}${shotZoneDisplay(dr) ? " · " + escapeHtml(shotZoneDisplay(dr)) : ""}" aria-label="Shot at ${escapeHtml(formatClock(dr.t_seconds))}"></button>`;
@@ -28475,6 +28483,7 @@ function renderReviewTimeline(){
   renderReviewActionNote();
   renderReviewCuts();
   renderReviewFlags();
+  renderReviewAttempts();
 
 }
 
@@ -28560,6 +28569,109 @@ function renderReviewFlags(){
       <button type="button" class="btn-danger" onclick="removeReviewFlag(${i})">Remove</button>
     </div>`
   ).join("");
+}
+
+/* ---------- missed and blocked shots ----------
+   Shot attempts that never reached the goalie. W marks a missed shot
+   (wide, high, off the post) at the playhead, Shift+W a blocked one; the
+   same key again near it removes it, the other key switches it. They
+   don't count as shots on goal or touch any stat: they label exactly the
+   plays the shot model confuses with shots, so the next model learns the
+   difference. On a moment to check, W answers it like D (no shot on goal)
+   while keeping what it was. Stored on the file as period_marks._attempts,
+   which the ML export already carries. */
+
+const REVIEW_ATTEMPT_KINDS = { missed: "Missed shot", blocked: "Blocked shot" };
+
+function reviewAttempts(v){
+  const list = v && v.period_marks && Array.isArray(v.period_marks._attempts) ? v.period_marks._attempts : [];
+  return list
+    .map(a => ({ t: Number(a && a.t), kind: a && a.kind === "blocked" ? "blocked" : "missed" }))
+    .filter(a => Number.isFinite(a.t))
+    .sort((a, b) => a.t - b.t);
+}
+
+function setReviewAttempts(list){
+  const v = review.video;
+  if(!v){ return; }
+  const { _attempts, ...rest } = v.period_marks || {};
+  v.period_marks = list.length ? { ...rest, _attempts: list.map(a => ({ t: a.t, kind: a.kind })) } : rest;
+  clearTimeout(review.attemptSaveTimer);
+  review.attemptSaveTimer = setTimeout(() => {
+    saveReviewMarks(v).catch(error => showToast(`Couldn't save the missed and blocked shots: ${error.message}`, "error"));
+  }, 500);
+  renderReviewTimeline();
+}
+
+// The moment to check being watched, if t falls in it (with its padding).
+function reviewCheckAround(t){
+  if(!Number.isFinite(review.checkT)){ return null; }
+  const m = reviewMomentAt(review.checkT);
+  if(!m || t < m.start - REVIEW_MOMENT_PAD - 2 || t > m.end + REVIEW_MOMENT_PAD + 2){ return null; }
+  return m;
+}
+
+function addReviewAttempt(kind = "missed"){
+  const v = review.video;
+  if(!v){ return; }
+  kind = kind === "blocked" ? "blocked" : "missed";
+  const t = Math.round(document.getElementById("rv-video").currentTime * 10) / 10;
+  const list = reviewAttempts(v);
+  const label = REVIEW_ATTEMPT_KINDS[kind].toLowerCase();
+  const key = kind === "blocked" ? "Shift+W" : "W";
+  const near = list.findIndex(a => Math.abs(a.t - t) < 2);
+  if(near >= 0 && list[near].kind === kind){
+    const gone = list.splice(near, 1)[0];
+    setReviewAttempts(list);
+    showToast(`Removed the ${label} at ${formatClock(gone.t)}.`);
+    return;
+  }
+  const at = near >= 0 ? list[near].t : t;
+  if(near >= 0){ list[near].kind = kind; } else{ list.push({ t, kind }); }
+  const check = reviewCheckAround(at);
+  setReviewAttempts(list);
+  if(check){ dismissReviewCheck(check.start); }
+  showToast(`${near >= 0 ? "Changed to a" : "Marked a"} ${label} at ${formatClock(at)}${check ? ", and cleared that moment to check" : ""}. It doesn't count as a shot on goal. ${key} again removes it.`, "success");
+}
+
+function removeReviewAttempt(i){
+  const list = reviewAttempts(review.video);
+  list.splice(i, 1);
+  setReviewAttempts(list);
+}
+
+function setReviewAttemptKind(i, kind){
+  const list = reviewAttempts(review.video);
+  if(!list[i]){ return; }
+  list[i].kind = kind === "blocked" ? "blocked" : "missed";
+  setReviewAttempts(list);
+}
+
+function reviewJumpToAttempt(i){
+  const a = reviewAttempts(review.video)[i];
+  if(!a){ return; }
+  document.getElementById("rv-video").currentTime = Math.max(0, a.t - 3);
+}
+
+function renderReviewAttempts(){
+  const box = document.getElementById("rv-attemptlist");
+  if(!box){ return; }
+  const list = reviewAttempts(review.video);
+  if(!list.length){ box.innerHTML = ""; return; }
+  const missed = list.filter(a => a.kind === "missed").length;
+  const blocked = list.length - missed;
+  const open = box.querySelector("details") && box.querySelector("details").open;
+  box.innerHTML = `<details${open ? " open" : ""}><summary>Missed and blocked shots: ${missed} missed, ${blocked} blocked <span class="small-note">(not shots on goal; they teach the shot model)</span></summary>` +
+    list.map((a, i) =>
+      `<div class="rv-flagrow">
+        <button type="button" class="btn-secondary" onclick="reviewJumpToAttempt(${i})" title="Jump to 3 seconds before">${escapeHtml(formatClock(a.t))}</button>
+        <select onchange="setReviewAttemptKind(${i}, this.value)" aria-label="What happened at ${escapeHtml(formatClock(a.t))}">
+          <option value="missed"${a.kind === "missed" ? " selected" : ""}>Missed shot</option>
+          <option value="blocked"${a.kind === "blocked" ? " selected" : ""}>Blocked shot</option>
+        </select>
+        <button type="button" class="btn-danger" onclick="removeReviewAttempt(${i})">Remove</button>
+      </div>`
+    ).join("") + `</details>`;
 }
 
 function updateReviewPlayhead(){
@@ -33893,6 +34005,7 @@ async function loadReviewUser(userId){
     else if(reviewFsActive() && e.key === "0"){ e.preventDefault(); reviewZoomReset(); }
     else if(k === "z" && reviewQuickTagOn()){ e.preventDefault(); undoReviewQuickTag(); }
     else if(k === "m"){ e.preventDefault(); addReviewFlag(); }
+    else if(k === "w"){ e.preventDefault(); addReviewAttempt(e.shiftKey ? "blocked" : "missed"); }
     else if((k === "n" || k === "p") && e.shiftKey){ e.preventDefault(); nextReviewCheck(k === "p" ? -1 : 1); }
     else if(k === "a"){ e.preventDefault(); acceptReviewCheck(); }
     else if(k === "d"){ e.preventDefault(); dismissReviewCheck(); }

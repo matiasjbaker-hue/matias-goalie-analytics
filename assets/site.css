@@ -5762,6 +5762,19 @@ button.rv-hud{pointer-events:auto;border:0;cursor:pointer;font-family:inherit}
 .rv-flagtick::before{content:"";position:absolute;left:50%;top:0;width:3px;height:100%;background:#7b5cff;border-radius:2px;transform:translateX(-50%)}
 .rv-flagtick::after{content:"";position:absolute;left:50%;top:2px;width:10px;height:10px;background:#7b5cff;border-radius:50%;transform:translateX(-50%);box-shadow:0 0 0 2px rgba(255,255,255,.85)}
 .lg-flag{display:inline-block;width:10px;height:10px;border-radius:50%;background:#7b5cff;margin-right:6px}
+/* Missed / blocked shots: a diamond at the bottom of the timeline, so they never read as shots or flags */
+.rv-attempttick{position:absolute;top:0;bottom:0;width:0;border:0;padding:0;background:none;cursor:pointer;z-index:3;transform:translateX(-50%)}
+.rv-attempttick::before{content:"";position:absolute;left:50%;top:40%;width:2px;height:60%;background:var(--muted-ink);transform:translateX(-50%)}
+.rv-attempttick::after{content:"";position:absolute;left:50%;bottom:3px;width:8px;height:8px;background:var(--muted-ink);transform:translateX(-50%) rotate(45deg);box-shadow:0 0 0 2px rgba(255,255,255,.85)}
+.rv-attempttick.is-blocked::before,.rv-attempttick.is-blocked::after{background:var(--warn)}
+.rv-attempttick:hover::after,.rv-attempttick:focus-visible::after{width:10px;height:10px}
+.lg-miss,.lg-block{display:inline-block;width:8px;height:8px;transform:rotate(45deg);margin:0 4px 0 2px}
+.lg-miss{background:var(--muted-ink)}
+.lg-block{background:var(--warn)}
+.rv-attemptlist{margin:6px 0 10px}
+.rv-attemptlist summary{cursor:pointer;font-size:15px;font-weight:600;margin-bottom:6px}
+.rv-attemptlist summary .small-note{font-weight:400}
+.rv-attemptlist select{min-width:9.5em}
 .rv-flaglist{margin:10px 0}
 .rv-flaglist h4{margin:0 0 8px;font-size:14px}
 .rv-flagrow{display:flex;gap:8px;align-items:center;margin-bottom:6px}
@@ -5769,7 +5782,10 @@ button.rv-hud{pointer-events:auto;border:0;cursor:pointer;font-family:inherit}
 .go-film-flags{margin-top:14px}
 .go-film-flags h4{margin:0 0 4px}
 .go-film-flags ol{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
-.go-film-flag{display:flex;gap:10px;align-items:center;width:100%;text-align:left;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:transparent;cursor:pointer;color:inherit;font:inherit;border-left:4px solid #7b5cff}
+.go-film-flag{display:flex;gap:10px;align-items:center;width:100%;text-align:left;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:transparent;cursor:pointer;color:inherit;font:inherit}
+/* Same purple dot as the flag on the Review timeline, instead of a thick side border */
+.go-film-flag::before{content:"";flex:none;width:10px;height:10px;border-radius:50%;background:#7b5cff}
+.go-film-flag:hover,.go-film-flag:focus-visible{border-color:#7b5cff}
 /* Coach moments in the game film */
 .go-moment-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
 .go-moment-form{margin-top:10px;display:flex;flex-direction:column;gap:8px;padding:12px;border:1.5px solid var(--ink);border-radius:var(--radius)}
