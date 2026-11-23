@@ -282,3 +282,29 @@ found, roughly 1 in 2 to 1 in 3 flagged moments is a real shot, against
 
 **Hardware option:** a camera behind or above the net (what Spiideo's pro
 setup does) makes the shot-on-goal call easy for both people and models.
+
+## 5. Sharper close-ups: tested, not shipped (2026-11-23)
+
+256 px clips at 25 fps, 192 px model input, folds 0–2 (60 games, 944
+real shots, 40.9 h). All scores out of fold. Extras per game hour at the
+share of tagged shots found:
+
+| scorer | AUC | @80% | @70% | @60% | @50% |
+|---|---|---|---|---|---|
+| round 4 only | 0.841 | 110 | 58 | 36 | 25 |
+| stack, current close-up (live) | 0.905 | 62 | 29 | 17 | 11 |
+| stack, sharp close-up | 0.914 | 61 | 27 | 15 | 9 |
+| stack, both close-ups | 0.914 | 58 | 26 | 15 | 10 |
+
+The gain is real but small: about 2 fewer extras per hour at 70% found,
+roughly 5–10%. Shipping it would take a 2–3 h final training run
+(~$10–15) and make every Review double-check slower (crops at twice the
+frame rate and larger). Not worth it. The live model stays as it is.
+
+Conclusion: resolution was not the bottleneck. The close-up model already
+sees what a full-resolution crop can show. What's left is the labels:
+"attack at the net, no shot on goal" has no positive example in training
+yet. The next lever is the W / Shift+W attempt tags in Review, then a
+camera that sees the net from behind or above.
+
+Modal billed cost at the end of this test: $96.64.
