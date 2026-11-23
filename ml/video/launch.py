@@ -38,16 +38,24 @@ HARD_NEGS = S.REPO / "ml" / "data" / "hard_negs_r4.json"
 
 
 HOLDOUT = S.REPO / "ml" / "data" / "holdout.json"   # {"video_ids": [...], "why": ...}: never trained on
+# People who opted out of model training (privacy policy, "Training our shot-finding models"):
+# {"user_ids": [...], "video_ids": [...]}. Their film is never loaded for training.
+OPTOUT = S.REPO / "ml" / "data" / "training_optout.json"
 
 
 def load_films(net=False, variant="r4"):
     sides = json.loads((Path(__file__).resolve().parent / "net_sides.json").read_text()) if net else {}
     held = set(map(str, json.loads(HOLDOUT.read_text()).get("video_ids", []))) if HOLDOUT.exists() else set()
+    out = json.loads(OPTOUT.read_text()) if OPTOUT.exists() else {}
+    held |= set(map(str, out.get("video_ids", [])))
+    opted_users = set(map(str, out.get("user_ids", [])))
     films = {}
     for line in (S.REPO / "ml" / "data" / "games.jsonl").read_text().splitlines():
         g = json.loads(line)
+        if str(g["user_id"]) in opted_users:          # opted out of model training
+            continue
         for f in g["film"]:
-            if str(f["video_id"]) in held:             # kept for honest tests only
+            if str(f["video_id"]) in held:             # held out for tests, or opted out
                 continue
             films[str(f["video_id"])] = dict(f, video_id=str(f["video_id"]), user_id=str(g["user_id"]),
                                              date=g.get("date"), opponent=g.get("opponent"),
