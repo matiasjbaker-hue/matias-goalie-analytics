@@ -3906,10 +3906,10 @@
         <span id="rv-status"></span>
         <span class="rv-cost rv-ai" id="rv-ai-cost" hidden title="What the AI work on this video has cost, priced from the token counts Anthropic returns with each answer"></span>
         <div class="rv-ai-run" role="group" aria-label="Find shots with the GoalieIQ model">
-          <button type="button" class="btn-secondary" id="rv-scan-btn" onclick="toggleReviewScan()" title="Our own shot model, trained on the games tagged here. It marks likely shots as moments to check; you confirm each one. About 10 cents a game.">Find shots (GoalieIQ model)</button>
-          <select id="rv-ml-pick" onchange="onReviewMlPickChange(this.value)" aria-label="How picky the model is" title="Fewer extras: finds about 80% of shots with about 100 extra moments per game hour. Catch more: about 87% with about 220. Switching after a run re-filters its results; nothing is charged again.">
-            <option value="fewer" selected>Fewer extras (~80% of shots)</option>
-            <option value="more">Catch more (~87% of shots)</option>
+          <button type="button" class="btn-secondary" id="rv-scan-btn" onclick="toggleReviewScan()" title="Our own shot model, trained on the games tagged here. It finds likely shots, double-checks each one with a full-resolution close-up of the net and the game's sound, and marks the likely ones as moments to check; you confirm each one. About 30 cents a game.">Find shots (GoalieIQ model)</button>
+          <select id="rv-ml-pick" onchange="onReviewMlPickChange(this.value)" aria-label="How picky the model is" title="Fewer extras: finds about 70% of shots with about 30 extra moments per game hour. Catch more: about 80% with about 65. Switching after a run re-filters its results; nothing is charged again.">
+            <option value="fewer" selected>Fewer extras (~70% of shots)</option>
+            <option value="more">Catch more (~80% of shots)</option>
           </select>
         </div>
         <label class="rv-check" title="Sends the goalie a recap with their PDF stat sheet from the company Gmail">
@@ -30677,7 +30677,7 @@ async function clearReviewAiResults(){
       }
     }
 
-    const { _action, _candidates, _batches, _untagged, _tl, _tl_raw, _ml, _ml_shots, ...rest } = marks;
+    const { _action, _candidates, _batches, _untagged, _tl, _tl_raw, _ml, _ml_shots, _ml_s2, ...rest } = marks;
     const { error } = await supabaseClient.from("game_videos")
       .update({ period_marks: rest, scan_cursor: 0, scan_progress: 0 }).eq("id", v.id);
     if(error){ throw error; }
@@ -31293,10 +31293,37 @@ const REVIEW_ML_POLL_MS = 20 * 1000;
 // re-filters. Round 4 on 98 films: 0.2 found 80% of shots at ~100 extra
 // moments per game hour; 0.02 found 87% at ~220.
 const REVIEW_ML_PICK = { fewer: 0.2, more: 0.02 };
+// The second opinion (ml/video/stage2_modal.py): each moment is double-checked
+// with a full-resolution close-up of the net and the game's sound, and gets
+// "s2", the chance it's a shot on goal. Those limits apply instead. Cross-
+// validated on 98 games: 0.534 found 70% of shots at ~29 extra moments per
+// game hour, 0.259 found 80% at ~64. Each run saves the limits it was made
+// with (period_marks._ml_s2), so a retrained model can move them; runs from
+// before the second opinion keep the round-4 limits above.
+const REVIEW_ML_PICK2 = { fewer: 0.534, more: 0.259 };
 
-function reviewMlMin(){
+function reviewMlPickName(){
   const sel = document.getElementById("rv-ml-pick");
-  return REVIEW_ML_PICK[sel && sel.value] ?? REVIEW_ML_PICK.fewer;
+  return sel && REVIEW_ML_PICK[sel.value] !== undefined ? sel.value : "fewer";
+}
+
+function reviewMlScore(x){
+  const s2 = Number(x && x.s2);
+  return Number.isFinite(s2) ? s2 : Number(x && x.score);
+}
+
+function reviewMlHasS2(v){
+  return reviewMlShots(v).some(x => Number.isFinite(Number(x.s2)));
+}
+
+function reviewMlMin(v = review.video){
+  const name = reviewMlPickName();
+  if(reviewMlHasS2(v)){
+    const saved = v && v.period_marks && v.period_marks._ml_s2;
+    const t = saved ? Number(saved[name]) : NaN;
+    return Number.isFinite(t) ? t : REVIEW_ML_PICK2[name];
+  }
+  return REVIEW_ML_PICK[name];
 }
 
 function reviewMlShots(v){
@@ -31310,9 +31337,9 @@ function applyReviewMlShots(v){
   if(!all.length){ return 0; }
   const key = t => Math.round(Number(t) * 100);
   const mine = new Set(all.map(x => key(x.t)));
-  const keep = all.filter(x => Number(x.score) >= reviewMlMin());
+  const keep = all.filter(x => reviewMlScore(x) >= reviewMlMin(v));
   review.candidates = review.candidates.filter(c => !mine.has(key(c.t)))
-    .concat(keep.map(x => ({ t: Math.round(Number(x.t) * 100) / 100, confidence: Number(x.score) || 0, goal: false })));
+    .concat(keep.map(x => ({ t: Math.round(Number(x.t) * 100) / 100, confidence: reviewMlScore(x) || 0, goal: false })));
   saveReviewCandidates();
   return keep.length;
 }
@@ -31367,9 +31394,9 @@ async function runReviewShotModel(){
   const seconds = parts.reduce((sum, r) => sum + (r[1] - r[0]), 0);
   if(!confirm(
     `Run the GoalieIQ model on ${formatClock(seconds)} of game?\n\n` +
-    `It marks likely shots on the goalie as moments to check. On "${reviewMlMin() >= REVIEW_ML_PICK.fewer ? "Fewer extras" : "Catch more"}" it finds about ${reviewMlMin() >= REVIEW_ML_PICK.fewer ? "80% of shots, with about 100 extra moments" : "87% of shots, with about 220 extra moments"} per hour of game. You can switch after it's done without paying again.\n\n` +
+    `It finds likely shots on the goalie, double-checks each one with a close-up of the net and the game's sound, and marks the likely ones as moments to check. On "${reviewMlPickName() === "fewer" ? "Fewer extras" : "Catch more"}" it finds about ${reviewMlPickName() === "fewer" ? "70% of shots, with about 30 extra moments" : "80% of shots, with about 65 extra moments"} per hour of game. You can switch after it's done without paying again.\n\n` +
     `Then: Shift+N plays each moment; press S at each real shot, or D if there wasn't one. Last, watch the game at 2× and add any shots it missed.\n\n` +
-    `About 10 cents. Results usually take 5 to 15 minutes; you can close this request and come back.`
+    `About 30 cents. Results usually take 10 to 25 minutes; you can close this request and come back.`
   )){ return; }
 
   review.collecting = true;
@@ -31377,7 +31404,7 @@ async function runReviewShotModel(){
   setReviewTlProgress("Sending the game to the GoalieIQ model…", 100);
 
   try{
-    const data = await shotModelApi({ op: "start", gameVideoId: v.id, duration: reviewDuration() || Number(v.duration_seconds) || 0 });
+    const data = await shotModelApi({ op: "start", gameVideoId: v.id, duration: reviewDuration() || Number(v.duration_seconds) || 0, stage2: true });
     v.period_marks = { ...(v.period_marks || {}), _ml: { callId: data.callId, sent_at: new Date().toISOString(), seconds: Math.round(seconds) } };
     await saveReviewMarks(v);
     showToast("Sent to the GoalieIQ model. Results usually take 5 to 15 minutes and are checked every 20 seconds while this request is open.", "success");
@@ -31424,9 +31451,14 @@ async function collectReviewShotModel(manual){
       return;
     }
 
-    const { _ml, ...rest } = v.period_marks || {};
+    const { _ml, _ml_s2, ...rest } = v.period_marks || {};
     const shots = data.status === "ready" ? (data.shots || []) : [];
-    v.period_marks = shots.length ? { ...rest, _ml_shots: shots.map(x => ({ t: x.t, score: x.score })) } : rest;
+    const limits = data.stage2 && data.stage2.thresholds;
+    v.period_marks = shots.length ? {
+      ...rest,
+      _ml_shots: shots.map(x => ({ t: x.t, score: x.score, ...(Number.isFinite(x.s2) ? { s2: x.s2 } : {}) })),
+      ...(limits && Number.isFinite(limits.fewer) && Number.isFinite(limits.more) ? { _ml_s2: { fewer: limits.fewer, more: limits.more } } : {})
+    } : rest;
     const kept = applyReviewMlShots(v);
     clearTimeout(review.candidateSaveTimer);
     await saveReviewMarks(v);
@@ -31436,7 +31468,8 @@ async function collectReviewShotModel(manual){
     if(data.status === "ready"){
       const n = reviewChecks().length;
       showToast(
-        `GoalieIQ model finished: ${kept} likely shot${kept === 1 ? "" : "s"} (${reviewMlMin() >= REVIEW_ML_PICK.fewer ? "fewer extras" : "catch more"}), grouped into ${n} moment${n === 1 ? "" : "s"} to check on the right. Shift+N plays each one: press S at each real shot or D if there wasn't one, then watch the game at 2× for any it missed.`,
+        `GoalieIQ model finished: ${kept} likely shot${kept === 1 ? "" : "s"} (${reviewMlPickName() === "fewer" ? "fewer extras" : "catch more"}), grouped into ${n} moment${n === 1 ? "" : "s"} to check on the right. Shift+N plays each one: press S at each real shot or D if there wasn't one, then watch the game at 2× for any it missed.` +
+        (data.stage2_error ? ` The close-up double-check didn't run this time, so these are the first-pass moments (${data.stage2_error}).` : ""),
         "success"
       );
     }
