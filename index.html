@@ -8122,7 +8122,7 @@ let shotEditState = null; // { shotId, original, loc_x, loc_y }
 // Admins and goalies can fix shots (a goalie only ever has their own
 // loaded, and the database refuses anything else).
 function canEditShots(){
-  return currentRole === "admin" || currentRole === "goalie";
+  return currentRole === "admin" || currentRole === "goalie" || currentRole === "coach";
 }
 
 function openAddShotModal(){
@@ -21881,9 +21881,9 @@ function renderGameOverviewHero(game, m){
       </div>
       <div class="go-actions">
         <button type="button" class="btn-secondary" onclick="generateGameReportPDF(${Number(game.id)}, this)">Download PDF Report</button>
-        <button type="button" class="btn-secondary" onclick="openShotLogModal(${Number(game.id)})">${currentRole === "goalie" || currentRole === "admin" ? "Shot Log · edit shots" : "Shot Log"}</button>
+        <button type="button" class="btn-secondary" onclick="openShotLogModal(${Number(game.id)})">${currentRole === "goalie" || currentRole === "admin" || currentRole === "coach" ? "Shot Log · edit shots" : "Shot Log"}</button>
         ${currentRole === "admin" ? `<button type="button" class="btn-secondary" onclick="openRecapEmailModal(${Number(game.id)})">Email recap</button>` : ""}
-        ${currentRole === "admin" || currentRole === "goalie" ? `
+        ${currentRole === "admin" || currentRole === "goalie" || currentRole === "coach" ? `
           <button type="button" class="btn-primary" onclick="openGameDetailsModal(${Number(game.id)})">Edit game</button>
         ` : ""}
         ${currentRole === "goalie" ? `
