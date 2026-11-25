@@ -21742,8 +21742,8 @@ async function makeMissingGameClips(gameId, button){
             body: JSON.stringify({
               accessToken: currentSession.access_token,
               gameVideoId: full.id,
-              start: Math.max(0, Math.round((t - 4) * 10) / 10),
-              end: Math.round((t + 3) * 10) / 10,
+              start: Math.max(0, Math.round((t - REVIEW_CLIP_BEFORE) * 10) / 10),
+              end: Math.round((t + REVIEW_CLIP_AFTER) * 10) / 10,
               shotId: sh.shot_id ?? sh.id,
               shotColumn: shotIdColumn(sh)
             })
@@ -29438,14 +29438,15 @@ function renderReviewEditor(){
 }
 
 /* ---------- clip trim per drafted shot ----------
-   By default a shot publishes with a clip from 4 s before to 3 s after
+   By default a shot publishes with a 12 s clip: 7 s before to 5 s after
    its time. Start / End clip here set the clip's own edges from the
    playhead (e.g. to drop zone play before the shot); Reset goes back to
    the default. Saved on the draft (clip_start_seconds /
    clip_end_seconds) and used when the game is published. */
 
-const REVIEW_CLIP_BEFORE = 4;
-const REVIEW_CLIP_AFTER = 3;
+// A default clip is 12 s: 7 before the shot, 5 after.
+const REVIEW_CLIP_BEFORE = 7;
+const REVIEW_CLIP_AFTER = 5;
 const REVIEW_CLIP_MAX = 30; // api/_lib/admin-make-clip.js MAX_CLIP_SECONDS
 
 function reviewClipWindow(d){
@@ -29466,7 +29467,7 @@ function renderReviewClip(d){
   const w = reviewClipWindow(d);
   el.textContent =
     `${formatClock(w.start)} to ${formatClock(w.end)} (${(w.end - w.start).toFixed(1)} s)` +
-    (w.trimmed ? " · trimmed" : " · default: 4 s before to 3 s after the shot");
+    (w.trimmed ? " · trimmed" : " · default: 7 s before to 5 s after the shot");
   document.getElementById("rv-ed-clip-reset").disabled = !w.trimmed;
 }
 
@@ -33396,8 +33397,8 @@ async function publishReviewFile(item, gameId, details){
     ...liveTagShotPayload(s, gameId, v.user_id),
     ...(s.ai ? { ai_reviewed_at: now } : {}),
     game_video_id: v.id,
-    clip_start_seconds: s.clip ? s.clip.start : Math.max(0, Math.round((s.t - 4) * 10) / 10),
-    clip_end_seconds: s.clip ? s.clip.end : Math.round((s.t + 3) * 10) / 10
+    clip_start_seconds: s.clip ? s.clip.start : Math.max(0, Math.round((s.t - REVIEW_CLIP_BEFORE) * 10) / 10),
+    clip_end_seconds: s.clip ? s.clip.end : Math.round((s.t + REVIEW_CLIP_AFTER) * 10) / 10
   })));
 
   // Give feedback drawn in Review its shot, so the goalie's shot log shows it.
@@ -33882,8 +33883,8 @@ async function makeShotClips(v, shots, insertedRows){
             body: JSON.stringify({
               accessToken: currentSession.access_token,
               gameVideoId: v.id,
-              start: s.clip ? s.clip.start : Math.max(0, Math.round((s.t - 4) * 10) / 10),
-              end: s.clip ? s.clip.end : Math.round((s.t + 3) * 10) / 10
+              start: s.clip ? s.clip.start : Math.max(0, Math.round((s.t - REVIEW_CLIP_BEFORE) * 10) / 10),
+              end: s.clip ? s.clip.end : Math.round((s.t + REVIEW_CLIP_AFTER) * 10) / 10
             })
           });
           data = {};
