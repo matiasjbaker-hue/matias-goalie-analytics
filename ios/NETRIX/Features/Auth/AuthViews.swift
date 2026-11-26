@@ -24,9 +24,10 @@ struct AuthFlowView: View {
                     }
             }
             #if DEBUG
-            .onAppear {
-                if AppState.debugScreen == "login" { path.append(AuthRoute.login) }
-                if AppState.debugScreen == "signup" { path.append(AuthRoute.signUp) }
+            .task {
+                try? await Task.sleep(nanoseconds: 400_000_000)
+                if AppState.debugScreen == "login", path.isEmpty { path.append(AuthRoute.login) }
+                if AppState.debugScreen == "signup", path.isEmpty { path.append(AuthRoute.signUp) }
             }
             #endif
         }

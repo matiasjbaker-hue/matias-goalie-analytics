@@ -72,7 +72,7 @@ extension Font {
             switch weight {
             case .bold, .heavy, .black: name = "Sora-Bold"
             case .semibold: name = "Sora-SemiBold"
-            case .medium: name = "Sora-Medium"
+            case .medium: name = "Sora-Regular" // Sora ships no Medium file
             case .light, .thin, .ultraLight: name = "Sora-Light"
             default: name = "Sora-Regular"
             }
