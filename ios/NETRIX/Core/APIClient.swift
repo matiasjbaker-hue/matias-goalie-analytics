@@ -23,6 +23,15 @@ enum APIClient {
         return try await post("api/video/r2-start-upload", body)
     }
 
+    /// Fresh part links for an upload already under way (the originals last 24 hours).
+    static func resignParts(key: String, uploadId: String, partNumbers: [Int]) async throws -> [Int: URL] {
+        struct Res: Decodable { let partUrls: [StartUpload.PartURL] }
+        struct Resume: Encodable { let key: String; let uploadId: String; let partNumbers: [Int] }
+        let res: Res = try await post("api/video/r2-start-upload",
+                                      ["resume": AnyEncodable(Resume(key: key, uploadId: uploadId, partNumbers: partNumbers))])
+        return Dictionary(uniqueKeysWithValues: res.partUrls.map { ($0.partNumber, $0.url) })
+    }
+
     static func completeUpload(key: String, uploadId: String, parts: [Part], expectedSize: Int64) async throws {
         struct Done: Decodable { let key: String? }
         let _: Done = try await post("api/video/r2-complete-upload", [

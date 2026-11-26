@@ -221,7 +221,7 @@ extension GoalieStore {
             for k in 0..<r.0 {
                 let grade = ["A+", "A", "B", "C", "C", "B"][k % 6]
                 let xg = ["A+": 0.2, "A": 0.1, "B": 0.05, "C": 0.02][grade]!
-                shotJSON.append(#"{"game_id":\#(i + 1),"outcome":"\#(k < r.0 - r.1 ? "goal" : "save")","xg":\#(xg),"xg_grade":"\#(grade)"}"#)
+                shotJSON.append(#"{"game_id":\#(i + 1),"outcome":"\#(k < r.0 - r.1 ? "goal" : "save")","xg":\#(xg),"xg_grade":"\#(grade)","game_video_id":\#(500 + i),"clip_start_seconds":\#(k * 410 + 95),"period":"\#(k % 3 + 1)"}"#)
             }
             shots += decode("[" + shotJSON.joined(separator: ",") + "]")
         }

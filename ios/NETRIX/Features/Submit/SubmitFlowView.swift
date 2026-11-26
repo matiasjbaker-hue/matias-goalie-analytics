@@ -241,7 +241,7 @@ struct SubmitFlowView: View {
             }
             await startUpload(movie.url)
         } catch {
-            footageError = "That video couldn't be opened. If it's in iCloud, wait for it to download and try again."
+            footageError = "That video couldn't be opened. If it's in iCloud, wait for it to download. If your iPhone is nearly full, free up space and try again."
         }
     }
 

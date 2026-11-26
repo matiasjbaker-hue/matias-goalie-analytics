@@ -61,7 +61,18 @@ export default async function handler(req, res) {
 
   // ownerId: an admin (or a coach assigned to the goalie) uploading for a
   // goalie stores it in that goalie's folder, so the file and its game_videos row match owners.
-  const { accessToken, fileName, fileSizeBytes, contentType, ownerId } = req.body || {};
+  const { accessToken, fileName, fileSizeBytes, contentType, ownerId, resume } = req.body || {};
+
+  // resume: { key, uploadId, partNumbers } -- fresh presigned URLs for the parts
+  // of an upload that is already under way. The phone app uses this when an
+  // upload was paused longer than the 24 h the original URLs last. Same owner
+  // rule as r2-complete-upload: the caller's own folder, or an admin / the
+  // goalie's assigned coach for that goalie's folder.
+  if (resume) {
+    await resignParts(req, res, accessToken, resume);
+    return;
+  }
+
   const size = Number(fileSizeBytes);
 
   if (!accessToken || !fileName || !fileSizeBytes) {
@@ -140,5 +151,51 @@ export default async function handler(req, res) {
     res.status(200).json({ key, uploadId, partSize: PART_SIZE_BYTES, partUrls });
   } catch (error) {
     sendServerError(res, error, "Could not start the upload.");
+  }
+}
+
+const MAX_RESIGN_PARTS = 1000;
+
+async function resignParts(req, res, accessToken, resume) {
+  const key = resume && typeof resume.key === "string" ? resume.key : "";
+  const uploadId = resume && typeof resume.uploadId === "string" ? resume.uploadId : "";
+  const numbers = Array.isArray(resume && resume.partNumbers) ? resume.partNumbers : [];
+  const parts = [...new Set(numbers.map(Number))].filter(n => Number.isInteger(n) && n >= 1 && n <= MAX_RESIGN_PARTS);
+  if (!accessToken || !key || !uploadId || !parts.length || parts.length !== numbers.length || key.includes("..")) {
+    res.status(400).json({ error: "Missing or invalid key, uploadId, or partNumbers." });
+    return;
+  }
+  if (!r2Configured()) {
+    res.status(503).json({ error: "Video storage isn't configured yet." });
+    return;
+  }
+  try {
+    const user = await verifyUser(accessToken);
+    if (!user) {
+      res.status(401).json({ error: "Invalid or expired session." });
+      return;
+    }
+    const folder = key.split("/")[0];
+    let allowed = folder === user.id;
+    if (!allowed && UUID_RE.test(folder)) {
+      const role = await callerRole(user.id, accessToken);
+      allowed = role === "admin" || (role === "coach" && (await callerCoachesGoalie(user.id, folder, accessToken)));
+    }
+    if (!allowed) {
+      res.status(403).json({ error: "This upload does not belong to you." });
+      return;
+    }
+    const client = r2Client();
+    const partUrls = await Promise.all(parts.map(async partNumber => ({
+      partNumber,
+      url: await getSignedUrl(
+        client,
+        new UploadPartCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: key, UploadId: uploadId, PartNumber: partNumber }),
+        { expiresIn: PRESIGN_EXPIRY_SECONDS }
+      ),
+    })));
+    res.status(200).json({ key, uploadId, partUrls });
+  } catch (error) {
+    sendServerError(res, error, "Could not refresh the upload.");
   }
 }

@@ -76,6 +76,25 @@ struct RootView: View {
 
     var body: some View {
         ZStack {
+            #if DEBUG
+            if AppState.debugScreen == "widgets" { DebugWidgetGallery() } else { phaseView }
+            #else
+            phaseView
+            #endif
+        }
+        .overlay {
+            if lock.locked && app.phase == .signedIn { LockScreen(lock: lock).transition(.opacity) }
+        }
+        .overlay(alignment: .top) { ToastHost() }
+        .task {
+            lock.appLaunched()
+            await app.bootstrap()
+            if let r = LaunchRoute.pending { app.pendingRoute = r; LaunchRoute.pending = nil }
+        }
+    }
+
+    @ViewBuilder private var phaseView: some View {
+        ZStack {
             switch app.phase {
             case .launching:
                 SplashView().transition(.opacity)
@@ -86,15 +105,6 @@ struct RootView: View {
             case .signedIn:
                 MainTabView().transition(.opacity)
             }
-        }
-        .overlay {
-            if lock.locked && app.phase == .signedIn { LockScreen(lock: lock).transition(.opacity) }
-        }
-        .overlay(alignment: .top) { ToastHost() }
-        .task {
-            lock.appLaunched()
-            await app.bootstrap()
-            if let r = LaunchRoute.pending { app.pendingRoute = r; LaunchRoute.pending = nil }
         }
     }
 }

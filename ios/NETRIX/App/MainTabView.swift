@@ -114,6 +114,8 @@ extension MainTabView {
         case "patterns": homePath.append(AppRoute.patterns)
         case "progress": if let v = store.requests.first { homePath.append(AppRoute.request(v)) }
         case "account": tab = .profile; profilePath.append(AppRoute.accountSettings)
+        case "inbox": homePath.append(AppRoute.inbox)
+        case "notifsettings": tab = .profile; profilePath.append(AppRoute.notifications)
         default: break
         }
     }

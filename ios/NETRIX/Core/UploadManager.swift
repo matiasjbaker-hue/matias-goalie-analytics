@@ -31,6 +31,8 @@ final class UploadManager: NSObject, ObservableObject {
         var state: State = .uploading
         var errorMessage: String?
         var gameVideoId: String?
+        /// When the part links were issued; they expire after 24 hours.
+        var urlsIssuedAt: Date? = Date()
 
         var totalParts: Int { partURLs.count }
         func partRange(_ n: Int) -> Range<Int64> {
@@ -106,9 +108,18 @@ final class UploadManager: NSObject, ObservableObject {
         let id = UUID().uuidString
         let ext = file.pathExtension.isEmpty ? "mp4" : file.pathExtension.lowercased()
         let dest = Self.jobDir(id).appendingPathComponent("source.\(ext)")
+        // The film is moved (not copied) into the app, but up to 12 parts (300 MB) are cut ahead of the upload.
+        let free = (try? URL(fileURLWithPath: NSHomeDirectory()).resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
+            .volumeAvailableCapacityForImportantUsage ?? Int64.max
+        if free < 500_000_000 {
+            try? FileManager.default.removeItem(at: Self.jobDir(id))
+            throw AppError(message: "This iPhone is almost out of space. Free up at least 1 GB, then try again.")
+        }
         try await Task.detached(priority: .userInitiated) {
             if FileManager.default.fileExists(atPath: dest.path) { try FileManager.default.removeItem(at: dest) }
-            try FileManager.default.copyItem(at: file, to: dest)
+            // The picked file is already the app's own temporary copy, so move it rather than copy it again.
+            do { try FileManager.default.moveItem(at: file, to: dest) }
+            catch { try FileManager.default.copyItem(at: file, to: dest) }
         }.value
         let size = (try FileManager.default.attributesOfItem(atPath: dest.path)[.size] as? NSNumber)?.int64Value ?? 0
         guard size > 0 else { throw AppError(message: "That video file is empty.") }
@@ -155,6 +166,7 @@ final class UploadManager: NSObject, ObservableObject {
         j.jerseyColor = jerseyColor
         job = j
         save()
+        UploadActivity.start(opponent: requested.opponent ?? "your game", fileSize: j.fileSize, progress: progress)
         if j.state == .uploading && j.completed.count == j.totalParts { Task { await finish() } }
     }
 
@@ -165,6 +177,10 @@ final class UploadManager: NSObject, ObservableObject {
         guard let job else { return }
         switch job.state {
         case .uploading:
+            if let issued = job.urlsIssuedAt, Date().timeIntervalSince(issued) > 23 * 3600 {
+                Task { await refreshPartLinks() }
+                return
+            }
             session.getAllTasks { [weak self] tasks in
                 DispatchQueue.main.async {
                     guard let self else { return }
@@ -201,6 +217,7 @@ final class UploadManager: NSObject, ObservableObject {
         job = nil
         progress = 0
         save()
+        UploadActivity.end(phase: "failed")
     }
 
     func clearFinished() {
@@ -272,6 +289,7 @@ final class UploadManager: NSObject, ObservableObject {
     private func fail(_ message: String) {
         Self.notify("Upload paused", message)
         Haptics.error()
+        UploadActivity.end(phase: "failed")
         guard var j = job else { return }
         for t in inFlight.values { t.cancel() }
         inFlight = [:]; inFlightBytes = [:]
@@ -287,6 +305,28 @@ final class UploadManager: NSObject, ObservableObject {
         let done = j.completed.keys.reduce(Int64(0)) { $0 + Int64(j.partRange($1).count) }
         let flying = inFlightBytes.values.reduce(0, +)
         progress = min(1, Double(done + flying) / Double(j.fileSize))
+        if j.requested != nil { UploadActivity.update(progress: progress, phase: "uploading") }
+    }
+
+    /// Re-signs the parts that haven't uploaded yet, then queues them again.
+    @MainActor
+    private func refreshPartLinks() async {
+        guard var j = job, j.state == .uploading else { return }
+        let missing = (1...j.totalParts).filter { j.completed[$0] == nil }
+        guard !missing.isEmpty else { enqueueParts(); return }
+        do {
+            let fresh = try await APIClient.resignParts(key: j.key, uploadId: j.uploadId, partNumbers: missing)
+            for (n, url) in fresh { j.partURLs[n] = url }
+            j.urlsIssuedAt = Date()
+            j.retries = [:]
+            job = j
+            save()
+            for t in inFlight.values { t.cancel() }
+            inFlight = [:]; inFlightBytes = [:]
+            enqueueParts()
+        } catch {
+            fail("The upload link expired and couldn't be refreshed. Check your connection, then tap Try again.")
+        }
     }
 
     // MARK: Finish
@@ -298,6 +338,7 @@ final class UploadManager: NSObject, ObservableObject {
         job = j
         save()
         recomputeProgress()
+        UploadActivity.update(progress: 1, phase: "finishing")
         do {
             let parts = j.completed.map { APIClient.Part(PartNumber: $0.key, ETag: $0.value) }.sorted { $0.PartNumber < $1.PartNumber }
             try await APIClient.completeUpload(key: j.key, uploadId: j.uploadId, parts: parts, expectedSize: j.fileSize)
@@ -318,6 +359,7 @@ final class UploadManager: NSObject, ObservableObject {
             save()
             NotificationCenter.default.post(name: .filmUploadFinished, object: nil)
             Self.notify("Game submitted", "Your film is uploaded. An analyst will review it shortly.")
+            UploadActivity.end(phase: "done")
         } catch {
             j.state = .failed
             j.errorMessage = error.localizedDescription
@@ -355,6 +397,11 @@ extension UploadManager: URLSessionTaskDelegate, URLSessionDataDelegate {
             return
         }
         if (error as? URLError)?.code == .cancelled, j.state != .uploading { return }
+        // 403 from storage = the part link expired: get fresh links and carry on.
+        if http?.statusCode == 403 {
+            Task { await refreshPartLinks() }
+            return
+        }
         let attempts = (j.retries[n] ?? 0) + 1
         j.retries[n] = attempts
         job = j

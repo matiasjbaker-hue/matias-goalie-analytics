@@ -272,6 +272,7 @@ actor SupabaseClient {
         if lower.contains("no games left") || lower.contains("buy more") || lower.contains("paywall") {
             return "No game credits are left on this account, so this game can't be submitted right now."
         }
+        if lower.contains("access isn't active") { return "This account doesn't have active access to submit games right now." }
         if lower.contains("row-level security") { return "Your account doesn't have access to do that." }
         return text
     }
