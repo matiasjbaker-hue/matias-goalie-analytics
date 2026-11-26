@@ -108,9 +108,7 @@ struct CoachRoster: View {
                                 let selected = g.id == app.selectedGoalieId
                                 Button { Haptics.select(); app.selectedGoalieId = g.id } label: {
                                     VStack(alignment: .leading, spacing: 8) {
-                                        Text(g.initials).font(.sora(13, .semibold)).foregroundStyle(selected ? NX.navy : .white)
-                                            .frame(width: 36, height: 36)
-                                            .background(Circle().fill(selected ? Color.white : NX.royal.opacity(0.5)))
+                                        AvatarView(profile: g, size: 36, style: selected ? .light : .brand)
                                         Text(g.fullName ?? "Goalie").font(.nxLabel).foregroundStyle(.white).lineLimit(1)
                                         Text([g.team, g.level].compactMap { $0 }.joined(separator: " · ")).font(.nxCaption)
                                             .foregroundStyle(NX.textMuted).lineLimit(1)

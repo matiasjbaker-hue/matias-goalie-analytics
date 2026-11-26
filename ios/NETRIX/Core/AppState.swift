@@ -140,6 +140,21 @@ struct Toast: Identifiable, Equatable {
 
 #if DEBUG
 extension AppState {
+    /// A stand-in photo (rink-blue gradient with a mask shape) for previews.
+    static let debugPhoto: UIImage = {
+        let size = CGSize(width: 900, height: 1200)
+        return UIGraphicsImageRenderer(size: size).image { ctx in
+            let colors = [UIColor(red: 0.12, green: 0.25, blue: 0.66, alpha: 1).cgColor, UIColor(red: 0.85, green: 0.88, blue: 0.93, alpha: 1).cgColor]
+            let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors as CFArray, locations: [0, 1])!
+            ctx.cgContext.drawLinearGradient(g, start: .zero, end: CGPoint(x: 0, y: size.height), options: [])
+            UIColor.white.setFill()
+            ctx.cgContext.fillEllipse(in: CGRect(x: 300, y: 380, width: 300, height: 360))
+            UIColor(red: 0.04, green: 0.09, blue: 0.2, alpha: 1).setFill()
+            ctx.cgContext.fill(CGRect(x: 330, y: 520, width: 240, height: 40))
+            ctx.cgContext.fillEllipse(in: CGRect(x: 180, y: 760, width: 540, height: 600))
+        }
+    }()
+
     /// Debug-only: `-NXScreen <name>` opens a screen with sample data (no network, no account).
     static var debugScreen: String? {
         let args = ProcessInfo.processInfo.arguments
@@ -150,11 +165,15 @@ extension AppState {
     func applyDebugScreen(_ screen: String) {
         let json = #"[{"id":"sample","full_name":"Alex Morgan","role":"goalie","team":"Northside Wolves","season":"2026-27","level":"U18 · AAA / Elite","catches":"L"}]"#
         me = (try? JSONDecoder().decode([Profile].self, from: Data(json.utf8)))?.first
+        if screen == "avatar" || screen == "crop" { me?.avatarURL = AvatarCodec.dataURL(from: Self.debugPhoto) }
         selectedGoalieId = "sample"
         switch screen {
         case "intro": UserDefaults.standard.set(false, forKey: "seenIntro"); phase = .signedOut
         case "welcome", "login", "signup": UserDefaults.standard.set(true, forKey: "seenIntro"); phase = .signedOut
         case "setup": phase = .setup
+        case "avatar", "crop":
+            store.loadSample()
+            phase = .signedIn
         default:
             store.loadSample(empty: screen == "empty")
             phase = .signedIn

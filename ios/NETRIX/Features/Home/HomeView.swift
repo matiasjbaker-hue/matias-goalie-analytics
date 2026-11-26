@@ -216,9 +216,7 @@ struct HomeHeader: View {
 
     var body: some View {
         HStack(spacing: NX.S.m) {
-            Text(app.me?.initials ?? "N")
-                .font(.sora(14, .semibold)).foregroundStyle(NX.navy)
-                .frame(width: 40, height: 40).background(Circle().fill(.white))
+            AvatarView(profile: app.me, size: 40)
             VStack(alignment: .leading, spacing: 1) {
                 Text(greeting).font(.nxCaption).foregroundStyle(NX.textSecondary)
                 Text(app.me?.fullName ?? "Welcome").font(.sora(17, .semibold)).foregroundStyle(.white).lineLimit(1)

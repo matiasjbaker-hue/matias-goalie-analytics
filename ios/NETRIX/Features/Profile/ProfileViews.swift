@@ -11,10 +11,7 @@ struct ProfileView: View {
         ScrollView {
             VStack(spacing: NX.S.l) {
                 VStack(spacing: NX.S.s) {
-                    Text(app.me?.initials ?? "N").font(.sora(26, .semibold)).foregroundStyle(.white)
-                        .frame(width: 84, height: 84)
-                        .background(Circle().fill(LinearGradient(colors: [NX.royal, NX.navy], startPoint: .top, endPoint: .bottom)))
-                        .overlay(Circle().stroke(NX.borderStrong))
+                    AvatarEditor()
                     Text(app.me?.fullName ?? "").font(.nxH2).foregroundStyle(.white)
                     Text(meta).font(.nxBodyS).foregroundStyle(NX.textMuted)
                 }
@@ -112,6 +109,12 @@ struct PersonalInfoView: View {
 
     var body: some View {
         SettingsScreen(title: "Personal information", canSave: !first.trimmed.isEmpty, saving: saving, onSave: save) {
+            VStack(spacing: 6) {
+                AvatarEditor()
+                Text("Tap to change your photo").font(.nxCaption).foregroundStyle(NX.textMuted)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.bottom, NX.S.s)
             HStack(spacing: NX.S.m) {
                 NXTextField(label: "First name", text: $first, contentType: .givenName, autocapitalization: .words)
                 NXTextField(label: "Last name", text: $last, contentType: .familyName, autocapitalization: .words)

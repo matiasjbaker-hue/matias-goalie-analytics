@@ -93,6 +93,8 @@ struct Profile: Decodable, Identifiable, Equatable {
     var weightLbs: Int?
     var level: String?
     var league: String?
+    /// Small square photo stored as a data URL (same column the website uses).
+    var avatarURL: String?
 
     var firstName: String { (fullName ?? "").split(separator: " ").first.map(String.init) ?? "" }
     var lastName: String { (fullName ?? "").split(separator: " ").dropFirst().joined(separator: " ") }
@@ -117,6 +119,17 @@ struct Profile: Decodable, Identifiable, Equatable {
         weightLbs = c.flexInt(AnyKey("weight_lbs"))
         level = c.flexString(AnyKey("level"))
         league = c.flexString(AnyKey("league"))
+        avatarURL = c.flexString(AnyKey("avatar_url"))
+    }
+}
+
+/// Sets or clears the profile photo (`null` removes it).
+struct AvatarPatch: Encodable {
+    let avatar_url: String?
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: AnyKey.self)
+        if let avatar_url { try c.encode(avatar_url, forKey: AnyKey("avatar_url")) }
+        else { try c.encodeNil(forKey: AnyKey("avatar_url")) }
     }
 }
 

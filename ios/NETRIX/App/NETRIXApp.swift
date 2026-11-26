@@ -77,7 +77,9 @@ struct RootView: View {
     var body: some View {
         ZStack {
             #if DEBUG
-            if AppState.debugScreen == "widgets" { DebugWidgetGallery() } else { phaseView }
+            if AppState.debugScreen == "widgets" { DebugWidgetGallery() }
+            else if AppState.debugScreen == "crop" { AvatarCropView(image: AppState.debugPhoto) { _ in } }
+            else { phaseView }
             #else
             phaseView
             #endif
