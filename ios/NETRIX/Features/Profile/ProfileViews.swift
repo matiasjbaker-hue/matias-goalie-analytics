@@ -245,11 +245,11 @@ struct NotificationsView: View {
             toggle("Upload updates", "When your film finishes uploading, or needs a retry", $uploads)
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Report ready").font(.nxBody).foregroundStyle(.white)
-                    Text("We email you when your analysis is published").font(.nxCaption).foregroundStyle(NX.textMuted)
+                    Text("Game recaps").font(.nxBody).foregroundStyle(.white)
+                    Text("The NETRIX team may email you a recap when your report is published").font(.nxCaption).foregroundStyle(NX.textMuted)
                 }
                 Spacer()
-                Text("By email").font(.nxCaption).foregroundStyle(NX.textMuted)
+                Text("Email").font(.nxCaption).foregroundStyle(NX.textMuted)
             }
             .nxCard(radius: NX.R.lg)
             if status == .denied {

@@ -119,8 +119,8 @@ actor SupabaseClient {
 
     /// Returns a session when the project signs users straight in, or nil when the
     /// account must be confirmed by email first.
-    func signUp(email: String, password: String, metadata: [String: String]) async throws -> AuthSession? {
-        struct Body: Encodable { let email: String; let password: String; let data: [String: String] }
+    func signUp(email: String, password: String, metadata: [String: AnyEncodable]) async throws -> AuthSession? {
+        struct Body: Encodable { let email: String; let password: String; let data: [String: AnyEncodable] }
         let data = try await authRequest("signup", method: "POST",
                                          body: Body(email: email, password: password, data: metadata))
         if let token = try? decoder.decode(TokenResponse.self, from: data) {

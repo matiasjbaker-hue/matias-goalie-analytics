@@ -117,12 +117,13 @@ struct SignUpView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var agreed = false
+    @State private var ageConfirmed = false
     @State private var loading = false
     @State private var error: String?
     @State private var confirmSent = false
 
     private var passwordOK: Bool { password.count >= 8 && password.rangeOfCharacter(from: .decimalDigits) != nil }
-    private var canSubmit: Bool { name.trimmed.count >= 2 && email.isPlausibleEmail && passwordOK && agreed && !loading }
+    private var canSubmit: Bool { name.trimmed.count >= 2 && email.isPlausibleEmail && passwordOK && agreed && ageConfirmed && !loading }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -150,6 +151,11 @@ struct SignUpView: View {
                             Link("Privacy Policy", destination: AppConfig.privacyURL).foregroundStyle(NX.ice)
                         }
                         .font(.nxBodyS)
+                    }
+                    // Same consent the website asks for at sign-up.
+                    NXCheckbox(isOn: $ageConfirmed) {
+                        Text("I'm 18 or older, or my parent or guardian has agreed to these terms for me.")
+                            .font(.nxBodyS).foregroundStyle(NX.textSecondary)
                     }
                     if let error {
                         Label(error, systemImage: "exclamationmark.circle").font(.nxBodyS).foregroundStyle(NX.error)
@@ -180,12 +186,12 @@ struct SignUpView: View {
         Task {
             do {
                 // Same consent record the website keeps with the account (auth user metadata).
-                let meta: [String: String] = [
-                    "name": name.trimmed,
-                    "terms_accepted_at": ISO8601DateFormatter().string(from: Date()),
-                    "terms_version": "2026-10",
-                    "age_or_guardian_confirmed": "true",
-                    "heard_from": "iOS app",
+                let meta: [String: AnyEncodable] = [
+                    "name": AnyEncodable(name.trimmed),
+                    "terms_accepted_at": AnyEncodable(ISO8601DateFormatter().string(from: Date())),
+                    "terms_version": AnyEncodable("2026-10"),
+                    "age_or_guardian_confirmed": AnyEncodable(ageConfirmed),
+                    "heard_from": AnyEncodable("iOS app"),
                 ]
                 if let s = try await SupabaseClient.shared.signUp(email: email.trimmed.lowercased(), password: password, metadata: meta) {
                     await app.signedIn(s)
