@@ -12,6 +12,7 @@
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A10000000000000000000002 /* NETRIX */ = {isa = PBXFileSystemSynchronizedRootGroup; path = NETRIX; sourceTree = "<group>"; };
+		A10000000000000000000020 /* Shared */ = {isa = PBXFileSystemSynchronizedRootGroup; path = Shared; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -29,6 +30,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000002 /* NETRIX */,
+				A10000000000000000000020 /* Shared */,
 				A10000000000000000000005 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -58,6 +60,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				A10000000000000000000002 /* NETRIX */,
+				A10000000000000000000020 /* Shared */,
 			);
 			name = NETRIX;
 			packageProductDependencies = (

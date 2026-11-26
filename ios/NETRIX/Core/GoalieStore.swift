@@ -53,6 +53,10 @@ final class GoalieStore: ObservableObject {
     @Published private(set) var requests: [GameVideo] = []
     @Published private(set) var notes: [CoachNote] = []
     @Published private(set) var access: GoalieAccess?
+    /// Film that became a game (approved), for "report ready" times in the inbox.
+    @Published private(set) var approvedFilms: [GameVideo] = []
+    /// What changed since the app last looked (report published, needs attention, new note).
+    @Published var lastChanges: [ReportWatcher.Change] = []
     @Published private(set) var isLoading = false
     @Published private(set) var hasLoaded = false
     @Published var error: AppError?
@@ -93,7 +97,13 @@ final class GoalieStore: ObservableObject {
             requests = videos.filter { $0.gameId == nil && $0.reviewStatus != .approved && ($0.status ?? "") != "clip" }
             notes = noteRows
             access = accessRows.first
+            approvedFilms = videos.filter { $0.gameId != nil && ($0.status ?? "") != "clip" }
             hasLoaded = true
+            // Notice changes and refresh the home screen widget.
+            let old = ReportWatcher.loadSnapshot(goalieId)
+            lastChanges = ReportWatcher.diff(old: old, games: gameRows, requests: requests, notes: noteRows)
+            ReportWatcher.save(ReportWatcher.snapshot(games: gameRows, requests: requests, notes: noteRows), for: goalieId)
+            WidgetBridge.publish(store: self)
         } catch let e as AppError {
             error = e
         } catch {
@@ -102,7 +112,7 @@ final class GoalieStore: ObservableObject {
     }
 
     func reset() {
-        profile = nil; games = []; requests = []; notes = []; access = nil
+        profile = nil; games = []; requests = []; notes = []; access = nil; approvedFilms = []; lastChanges = []
         hasLoaded = false
     }
 
@@ -133,6 +143,61 @@ final class GoalieStore: ObservableObject {
     }
 
     var latestNote: CoachNote? { notes.first }
+
+    func approvedAt(_ game: Game) -> Date? {
+        approvedFilms.first { $0.gameId == game.id.value }?.approvedAt
+    }
+
+    // MARK: Inbox
+
+    struct InboxItem: Identifiable, Hashable {
+        enum Kind: Hashable { case report, review, attention, feedback, submitted }
+        let id: String
+        let kind: Kind
+        let title: String
+        let body: String
+        let date: Date
+        let route: AppRoute?
+    }
+
+    var inbox: [InboxItem] {
+        var items: [InboxItem] = []
+        for m in games.prefix(30) {
+            let when = approvedAt(m.game) ?? m.game.date ?? .distantPast
+            let sv = m.svPct.map { " · \(Fmt.pct($0))% save percentage" } ?? ""
+            items.append(InboxItem(id: "g\(m.game.id)", kind: .report, title: "Report ready",
+                                   body: "vs \(m.game.opponentName)\(sv)", date: when, route: .game(m)))
+        }
+        for r in requests {
+            let opp = r.requested?.opponent ?? "your game"
+            let when = r.createdAt ?? .distantPast
+            switch r.reviewStatus {
+            case .needsAttention:
+                items.append(InboxItem(id: "r\(r.id)", kind: .attention, title: "Needs your attention",
+                                       body: r.adminNote ?? "The analyst needs something from you for vs \(opp).", date: when, route: .request(r)))
+            case .inReview:
+                items.append(InboxItem(id: "r\(r.id)", kind: .review, title: "In review", body: "An analyst is reviewing vs \(opp).", date: when, route: .request(r)))
+            default:
+                items.append(InboxItem(id: "r\(r.id)", kind: .submitted, title: "Game submitted", body: "vs \(opp) is waiting for an analyst.", date: when, route: .request(r)))
+            }
+        }
+        for n in notes.prefix(20) {
+            items.append(InboxItem(id: "n\(n.id)", kind: .feedback, title: "Coach feedback", body: n.text,
+                                   date: n.createdAt ?? .distantPast, route: nil))
+        }
+        return items.sorted { $0.date > $1.date }
+    }
+
+    private var seenKey: String { "inbox.seen.\(goalieId ?? "")" }
+    var unreadCount: Int {
+        let seen = UserDefaults.standard.double(forKey: seenKey)
+        guard seen > 0 else { return min(inbox.count, 9) > 0 ? 1 : 0 }
+        return inbox.filter { $0.date.timeIntervalSince1970 > seen }.count
+    }
+    func markInboxSeen() {
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: seenKey)
+        objectWillChange.send()
+    }
 }
 
 #if DEBUG

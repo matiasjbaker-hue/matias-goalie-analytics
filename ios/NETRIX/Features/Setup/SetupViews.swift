@@ -117,7 +117,7 @@ struct SetupFlowView: View {
     }
 
     private func handButton(_ title: String, _ code: String) -> some View {
-        Button { withAnimation(.spring(response: 0.3)) { hand = code } } label: {
+        Button { Haptics.select(); withAnimation(.spring(response: 0.3)) { hand = code } } label: {
             Label(title, systemImage: "hand.raised")
                 .font(.sora(15, .semibold))
                 .foregroundStyle(hand == code ? NX.navy : .white)

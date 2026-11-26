@@ -20,6 +20,8 @@ struct ProfileView: View {
                 }
                 .padding(.top, NX.S.xxl)
 
+                CreditsCard()
+
                 group("Account") {
                     NavigationLink(value: AppRoute.personalInfo) { ListRow(icon: "person", title: "Personal information") }
                     if app.me?.role != .coach {
@@ -235,14 +237,37 @@ struct TeamLevelEditView: View {
 // MARK: 07.13 Notifications
 
 struct NotificationsView: View {
+    @AppStorage("notify.reports") private var reports = true
+    @AppStorage("notify.feedback") private var feedback = true
     @AppStorage("notify.uploads") private var uploads = true
+    @AppStorage("haptics.enabled") private var haptics = true
     @State private var status: UNAuthorizationStatus = .notDetermined
 
     var body: some View {
         SettingsScreen(title: "Notifications", saveTitle: nil) {
             Text("Stay in the loop").font(.nxH1).foregroundStyle(.white)
             Text("Choose what NETRIX sends you.").font(.nxBodyS).foregroundStyle(NX.textMuted)
+            if status == .denied {
+                HStack(alignment: .top, spacing: NX.S.m) {
+                    Image(systemName: "bell.slash").foregroundStyle(NX.warning)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Notifications are off for NETRIX").font(.nxLabel).foregroundStyle(.white)
+                        Button("Open Settings") {
+                            if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                        }
+                        .font(.nxLabel).foregroundStyle(NX.ice)
+                    }
+                }
+                .nxCard(radius: NX.R.lg)
+            } else if status == .notDetermined {
+                Button("Turn on notifications") { Task { await ReportWatcher.requestPermissionIfNeeded(); await refreshStatus() } }
+                    .buttonStyle(.nxPrimary)
+            }
+            toggle("Report ready", "When an analyst publishes your game report", $reports)
+            toggle("Analyst & coach feedback", "New coach notes, and when a game needs your attention", $feedback)
             toggle("Upload updates", "When your film finishes uploading, or needs a retry", $uploads)
+            Text("FEEL").font(.nxOverline).tracking(1.2).foregroundStyle(NX.textMuted).padding(.top, 4)
+            toggle("Vibrations", "Haptic feedback on taps, uploads and results", $haptics)
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Game recaps").font(.nxBody).foregroundStyle(.white)
@@ -252,17 +277,15 @@ struct NotificationsView: View {
                 Text("Email").font(.nxCaption).foregroundStyle(NX.textMuted)
             }
             .nxCard(radius: NX.R.lg)
-            if status == .denied {
-                Button("Turn on notifications in Settings") {
-                    if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
-                }
-                .buttonStyle(.nxSecondary)
-            }
         }
-        .task { status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus }
-        .onChange(of: uploads) { _, on in
-            if on { Task { _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) } }
-        }
+        .task { await refreshStatus() }
+        .onChange(of: reports) { _, on in if on { Task { await ReportWatcher.requestPermissionIfNeeded(); await refreshStatus() } } }
+        .onChange(of: feedback) { _, on in if on { Task { await ReportWatcher.requestPermissionIfNeeded(); await refreshStatus() } } }
+        .onChange(of: uploads) { _, on in if on { Task { await ReportWatcher.requestPermissionIfNeeded(); await refreshStatus() } } }
+    }
+
+    private func refreshStatus() async {
+        status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
     }
 
     private func toggle(_ title: String, _ subtitle: String, _ binding: Binding<Bool>) -> some View {
@@ -273,6 +296,7 @@ struct NotificationsView: View {
             }
         }
         .tint(NX.royal)
+        .onChange(of: binding.wrappedValue) { _, _ in Haptics.select() }
         .nxCard(radius: NX.R.lg)
     }
 }
@@ -293,6 +317,8 @@ struct AccountSettingsView: View {
             sectionLabel("Login")
             Button { sheet = .email } label: { ListRow(icon: "envelope", title: "Change email", subtitle: app.session?.user.email) }.buttonStyle(.plain)
             Button { sheet = .password } label: { ListRow(icon: "lock", title: "Change password") }.buttonStyle(.plain)
+            sectionLabel("Security")
+            BiometricToggle()
             sectionLabel("Danger zone")
             HStack(alignment: .top, spacing: NX.S.m) {
                 Image(systemName: "exclamationmark.circle").foregroundStyle(NX.warning)
@@ -330,6 +356,26 @@ struct AccountSettingsView: View {
             } catch { self.error = error.localizedDescription }
             deleting = false
         }
+    }
+}
+
+private struct BiometricToggle: View {
+    @ObservedObject private var lock = AppLock.shared
+    @State private var on = AppLock.shared.enabled
+    var body: some View {
+        Toggle(isOn: $on) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Require \(lock.biometryName)").font(.nxBody).foregroundStyle(.white)
+                Text("Lock NETRIX when you leave the app").font(.nxCaption).foregroundStyle(NX.textMuted)
+            }
+        }
+        .tint(NX.royal)
+        .disabled(!lock.isAvailable)
+        .onChange(of: on) { _, new in
+            guard new != lock.enabled else { return }
+            Task { let ok = await lock.setEnabled(new); if !ok { on = false } }
+        }
+        .nxCard(radius: NX.R.lg)
     }
 }
 

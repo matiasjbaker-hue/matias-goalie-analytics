@@ -13,6 +13,7 @@ struct HomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: NX.S.xxl) {
                 HomeHeader()
+                CoachRoster()
                 if uploads.job != nil { UploadStatusCard() }
                 content
             }
@@ -224,6 +225,18 @@ struct HomeHeader: View {
             }
             Spacer()
             if app.isCoach { GoaliePicker() }
+            NavigationLink(value: AppRoute.inbox) {
+                Image(systemName: "bell")
+                    .font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(Color.white.opacity(0.08)))
+                    .overlay(Circle().stroke(NX.borderSubtle, lineWidth: 1))
+                    .overlay(alignment: .topTrailing) {
+                        if store.unreadCount > 0 { Circle().fill(NX.ice).frame(width: 8, height: 8).offset(x: -8, y: 8) }
+                    }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(store.unreadCount > 0 ? "Notifications, \(store.unreadCount) new" : "Notifications")
         }
         .padding(.top, NX.S.s)
     }

@@ -271,6 +271,7 @@ final class UploadManager: NSObject, ObservableObject {
 
     private func fail(_ message: String) {
         Self.notify("Upload paused", message)
+        Haptics.error()
         guard var j = job else { return }
         for t in inFlight.values { t.cancel() }
         inFlight = [:]; inFlightBytes = [:]

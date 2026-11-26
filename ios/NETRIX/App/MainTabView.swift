@@ -62,9 +62,40 @@ struct MainTabView: View {
             #endif
             await app.refreshStore(force: false)
         }
+        .onChange(of: app.pendingRoute) { _, route in if let route { open(route); app.pendingRoute = nil } }
+        .onAppear { if let route = app.pendingRoute { open(route); app.pendingRoute = nil } }
+        .onChange(of: store.lastChanges) { _, changes in
+            if let c = changes.first { app.toast = Toast(c.title, message: c.body, style: c.pref == .reports ? .success : .info) }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .filmUploadFinished)) { _ in
             app.toast = Toast("Game submitted", message: "An analyst will review it shortly.", style: .success)
             Task { await app.refreshStore() }
+        }
+    }
+}
+
+extension MainTabView {
+    /// Opens a route from a notification, widget, Shortcut or netrix:// link.
+    func open(_ route: String) {
+        let parts = route.split(separator: ":", maxSplits: 1).map(String.init)
+        switch parts.first {
+        case "submit": showSubmit = true
+        case "history": tab = .history; historyPath = NavigationPath()
+        case "stats": tab = .stats; statsPath = NavigationPath()
+        case "profile": tab = .profile
+        case "latest":
+            tab = .home; homePath = NavigationPath()
+            if let m = store.games.first { homePath.append(AppRoute.game(m)) }
+        case "inbox": tab = .home; homePath = NavigationPath(); homePath.append(AppRoute.inbox)
+        case "game":
+            tab = .home; homePath = NavigationPath()
+            if parts.count > 1, let m = store.games.first(where: { $0.game.id.value == parts[1] }) { homePath.append(AppRoute.game(m)) }
+            else { tab = .history }
+        case "request":
+            tab = .home; homePath = NavigationPath()
+            if parts.count > 1, let v = store.requests.first(where: { $0.id.value == parts[1] }) { homePath.append(AppRoute.request(v)) }
+            else { tab = .history }
+        default: tab = .home
         }
     }
 }
@@ -102,6 +133,7 @@ private struct TabBar: View {
             HStack(spacing: 0) {
                 ForEach(items, id: \.0) { item in
                     Button {
+                        if tab != item.0 { Haptics.select() }
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { tab = item.0 }
                     } label: {
                         Image(systemName: item.1)
@@ -126,7 +158,7 @@ private struct TabBar: View {
             .background(Capsule().fill(Color(hex: 0x12141A).opacity(0.85)))
             .overlay(Capsule().stroke(NX.borderSubtle))
 
-            Button(action: onPlus) {
+            Button { Haptics.tap(.medium); onPlus() } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 20, weight: .medium))
                     .foregroundStyle(.white)
@@ -152,6 +184,7 @@ enum AppRoute: Hashable {
     case skills
     case patterns
     case personalInfo, athleteInfo, teamLevel, notifications, accountSettings, help
+    case inbox
 }
 
 extension View {
@@ -169,6 +202,7 @@ extension View {
             case .notifications: NotificationsView()
             case .accountSettings: AccountSettingsView()
             case .help: HelpView()
+            case .inbox: InboxView()
             }
         }
     }

@@ -16,6 +16,8 @@ struct GameMetrics: Hashable {
     let reboundGood: Int
     let reboundTracked: Int
     let gradeCounts: [String: (shots: Int, saves: Int)]
+    /// Goals against that were tagged from the film, in order: (film id, start second, period).
+    let goalClips: [(videoId: String, start: Double, period: String?)]
 
     static func == (l: GameMetrics, r: GameMetrics) -> Bool { l.game.id == r.game.id }
     func hash(into h: inout Hasher) { h.combine(game.id) }
@@ -67,6 +69,10 @@ struct GameMetrics: Hashable {
             grades[g] = (cur.0 + 1, cur.1 + (s.isGoal ? 0 : 1))
         }
         gradeCounts = grades.mapValues { (shots: $0.0, saves: $0.1) }
+        goalClips = tagged.filter { $0.isGoal }.compactMap { s in
+            guard let v = s.gameVideoId, let t = s.clipStart else { return nil }
+            return (videoId: v, start: t, period: s.period)
+        }.sorted { $0.start < $1.start }
     }
 }
 

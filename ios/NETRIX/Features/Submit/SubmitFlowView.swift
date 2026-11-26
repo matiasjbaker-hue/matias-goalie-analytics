@@ -429,10 +429,12 @@ struct SubmitFlowView: View {
                     if !focus.isEmpty { note = "Focus: \(focus.sorted().joined(separator: ", "))\n" + note }
                     try await APIClient.sendFilmLink(url: link.trimmed, note: note, game: g, jerseyColor: jersey.trimmed)
                     sentLink = true
+                    Haptics.success()
                     step = .done
                 } catch { submitError = error.localizedDescription }
             } else {
                 uploads.attach(requested: requested, jerseyColor: jersey.trimmed)
+                Haptics.success()
                 step = .done
             }
         }

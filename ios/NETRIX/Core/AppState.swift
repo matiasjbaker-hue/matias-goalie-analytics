@@ -13,6 +13,8 @@ final class AppState: ObservableObject {
     /// The goalie whose data the tabs show: yourself, or the goalie a coach picked.
     @Published var selectedGoalieId: String?
     @Published var toast: Toast?
+    /// A screen to open once signed in (from a notification, widget, Shortcut or link).
+    @Published var pendingRoute: String?
 
     let store = GoalieStore()
 
@@ -93,6 +95,7 @@ final class AppState: ObservableObject {
 
     func signOut() async {
         await SupabaseClient.shared.signOut()
+        WidgetBridge.clear()
         session = nil; me = nil; coachGoalies = []; selectedGoalieId = nil
         store.reset()
         withAnimation { phase = .signedOut }
@@ -100,6 +103,7 @@ final class AppState: ObservableObject {
 
     func accountDeleted() async {
         await SupabaseClient.shared.clearLocalSession()
+        WidgetBridge.clear()
         session = nil; me = nil; coachGoalies = []; selectedGoalieId = nil
         store.reset()
         withAnimation { phase = .signedOut }
@@ -110,6 +114,16 @@ final class AppState: ObservableObject {
         guard let id = selectedGoalieId else { return }
         await store.load(goalieId: id, force: force)
         if store.error == .signedOut { await signOut() }
+    }
+}
+
+extension AppState {
+    /// netrix://submit, netrix://history, netrix://stats, netrix://inbox, netrix://game/<id>
+    func handle(url: URL) {
+        guard url.scheme?.lowercased() == "netrix" else { return }
+        var route = url.host ?? "home"
+        if let id = url.pathComponents.dropFirst().first { route += ":\(id)" }
+        pendingRoute = route
     }
 }
 

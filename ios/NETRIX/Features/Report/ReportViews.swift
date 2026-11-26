@@ -131,15 +131,27 @@ struct GameReportView: View {
     @EnvironmentObject private var store: GoalieStore
 
     private var season: SummaryMetrics { SummaryMetrics(games: store.seasonGames.filter { $0.game.id != metrics.game.id }) }
+    @State private var pdfURL: URL?
+    @EnvironmentObject private var app: AppState
 
     var body: some View {
         VStack(spacing: 0) {
-            AppBar(title: "Game report", onBack: { dismiss() })
+            AppBar(title: "Game report", onBack: { dismiss() }) {
+                if let pdfURL {
+                    ShareLink(item: pdfURL) {
+                        Image(systemName: "square.and.arrow.up").font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
+                            .frame(width: 40, height: 40).background(Circle().fill(Color.white.opacity(0.08)))
+                            .overlay(Circle().stroke(NX.borderSubtle))
+                    }
+                    .accessibilityLabel("Share report as PDF")
+                }
+            }
             ScrollView {
                 VStack(alignment: .leading, spacing: NX.S.l) {
                     GameTitle(metrics: metrics, profile: store.profile)
                     RingCard(metrics: metrics, season: season)
                     StatGrid(metrics: metrics, season: season)
+                    GameFilmSection(metrics: metrics).padding(.top, NX.S.s)
 
                     SectionHeader(title: "Shot quality", action: "Over time") {}
                         .overlay(alignment: .trailing) { NavigationLink(value: AppRoute.skills) { Color.clear.frame(width: 100, height: 30) } }
@@ -188,11 +200,15 @@ struct GameReportView: View {
                         }
                         .nxCard(radius: 20)
                     }
+                    if app.isCoach { CoachNoteComposer(gameId: metrics.game.id.value) }
                 }
                 .padding(.horizontal, NX.margin).padding(.bottom, NX.S.xxl)
             }
         }
         .nxScreen()
+        .task {
+            pdfURL = ReportExporter.pdf(metrics: metrics, season: season, profile: store.profile, note: store.note(for: metrics.game))
+        }
     }
 
     private func gradeLabel(_ g: String) -> String {

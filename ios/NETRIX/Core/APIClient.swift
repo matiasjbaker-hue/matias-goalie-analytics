@@ -48,6 +48,14 @@ enum APIClient {
         let _: Done = try await post("api/admin/film-link", body)
     }
 
+    /// A signed link (30 minutes) to stream a game film or clip the caller can see.
+    static func watchURL(gameVideoId: String) async throws -> URL {
+        struct Res: Decodable { let url: URL? }
+        let res: Res = try await post("api/video/get-watch-url", ["gameVideoId": AnyEncodable(gameVideoId)])
+        guard let url = res.url else { throw AppError(message: "This film isn't available to watch yet.") }
+        return url
+    }
+
     /// Any non-admin user may delete their own account (see api/_lib/admin-delete-account.js).
     static func deleteAccount(userId: String) async throws {
         struct Done: Decodable { let ok: Bool? }

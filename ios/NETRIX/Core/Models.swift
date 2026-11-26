@@ -191,6 +191,9 @@ struct Shot: Decodable, Hashable {
     let rebound: String?
     let strength: String?
     let period: String?
+    /// Where the shot sits in the game film, when it was tagged from video.
+    let gameVideoId: String?
+    let clipStart: Double?
 
     var isGoal: Bool { (outcome ?? "").lowercased() == "goal" }
     var isHighDanger: Bool { grade == "A+" || grade == "A" }
@@ -204,6 +207,28 @@ struct Shot: Decodable, Hashable {
         rebound = c.flexString(AnyKey("rebound"))
         strength = c.flexString(AnyKey("strength"))
         period = c.flexString(AnyKey("period"))
+        gameVideoId = c.flexString(AnyKey("game_video_id"))
+        clipStart = c.flexDouble(AnyKey("clip_start_seconds"))
+    }
+}
+
+/// A moment a coach flagged in the game film.
+struct CoachMoment: Decodable, Identifiable, Hashable {
+    let id: FlexID
+    let gameId: String?
+    let gameVideoId: String?
+    let seconds: Double
+    let title: String?
+    let authorName: String?
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        id = (try? c.decode(FlexID.self, forKey: AnyKey("id"))) ?? FlexID(UUID().uuidString)
+        gameId = c.flexString(AnyKey("game_id"))
+        gameVideoId = c.flexString(AnyKey("game_video_id"))
+        seconds = c.flexDouble(AnyKey("t_seconds")) ?? 0
+        title = c.flexString(AnyKey("title"))
+        authorName = c.flexString(AnyKey("author_name"))
     }
 }
 

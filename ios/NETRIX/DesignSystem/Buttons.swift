@@ -25,6 +25,10 @@ struct NXButtonStyle: ButtonStyle {
         .opacity(pressed ? 0.88 : 1)
         .animation(.easeOut(duration: 0.12), value: pressed)
         .contentShape(Capsule())
+        .onChange(of: pressed) { _, isDown in
+            guard isDown, isEnabled else { return }
+            Haptics.tap(kind == .primary || kind == .destructive ? .medium : .light)
+        }
     }
 
     private var foreground: Color {
@@ -75,7 +79,7 @@ struct CircleIconButton: View {
     var badge = false
     let action: () -> Void
     var body: some View {
-        Button(action: action) {
+        Button { Haptics.tap(); action() } label: {
             Image(systemName: systemName)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(.white)

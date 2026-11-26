@@ -99,8 +99,10 @@ struct LoginView: View {
         Task {
             do {
                 let s = try await SupabaseClient.shared.signIn(email: email.trimmed.lowercased(), password: password)
+                Haptics.success()
                 await app.signedIn(s)
             } catch {
+                Haptics.error()
                 self.error = error.localizedDescription
             }
             loading = false

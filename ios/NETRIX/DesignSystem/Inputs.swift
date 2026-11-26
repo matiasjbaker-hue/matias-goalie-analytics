@@ -132,7 +132,7 @@ struct NXCheckbox<Label: View>: View {
     @ViewBuilder var label: () -> Label
     var body: some View {
         HStack(spacing: 10) {
-            Button { isOn.toggle() } label: {
+            Button { isOn.toggle(); Haptics.select() } label: {
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
                     .fill(isOn ? Color.white : Color.clear)
                     .overlay(RoundedRectangle(cornerRadius: 5).stroke(isOn ? Color.white : NX.borderStrong, lineWidth: 1.5))

@@ -45,7 +45,7 @@ struct ChoiceChip: View {
     var icon: String? = nil
     let action: () -> Void
     var body: some View {
-        Button(action: action) {
+        Button { Haptics.select(); action() } label: {
             HStack(spacing: 6) {
                 if selected { Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)) }
                 else if let icon { Image(systemName: icon).font(.system(size: 12, weight: .semibold)).foregroundStyle(NX.ice) }
@@ -96,6 +96,7 @@ struct PillSegment<T: Hashable & Identifiable>: View {
         HStack(spacing: 0) {
             ForEach(options) { opt in
                 Button {
+                    if selection != opt { Haptics.select() }
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { selection = opt }
                 } label: {
                     Text(title(opt))
@@ -187,7 +188,13 @@ struct ScoreRing: View {
     let caption: String
     var size: CGFloat = 132
     var lineWidth: CGFloat = 12
-    @State private var shown: Double = 0
+    @State private var shown: Double
+
+    init(fraction: Double, value: String, caption: String, size: CGFloat = 132, lineWidth: CGFloat = 12, animated: Bool = true) {
+        self.fraction = fraction; self.value = value; self.caption = caption; self.size = size; self.lineWidth = lineWidth
+        _shown = State(initialValue: animated ? 0 : min(max(fraction, 0), 1))
+    }
+
     var body: some View {
         ZStack {
             Circle().stroke(Color.white.opacity(0.08), lineWidth: lineWidth)
