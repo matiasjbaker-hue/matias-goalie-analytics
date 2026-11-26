@@ -283,6 +283,7 @@ struct SubmitFlowView: View {
         do {
             try await uploads.start(file: file, ownerId: ownerId)
             recordedFile = nil
+            if recorded { RecordingStorage.sweepEmptyFolders() }
         } catch {
             footageError = error.localizedDescription
             if recorded { recordedFile = file; return }
@@ -306,6 +307,7 @@ struct SubmitFlowView: View {
                     Text("Full quality, 60 fps and sound, straight from your iPhone camera.").font(.nxCaption).foregroundStyle(NX.textSecondary)
                 }
             }
+            if recordedFile == nil { StorageBanner() }
             if let recordedFile {
                 Button("Upload recorded game") { Task { await startUpload(recordedFile, recorded: true) } }.buttonStyle(.nxPrimary)
             } else {

@@ -55,6 +55,8 @@ struct GameRecorderView: View {
     @State private var joining = false
     @State private var error: String?
     @State private var battery: Float = UIDevice.current.batteryLevel
+    @State private var showFinish = false
+    @State private var savingCopy = false
 
     var body: some View {
         ZStack {
@@ -70,6 +72,7 @@ struct GameRecorderView: View {
             }
             if showFraming { FramingGuide().allowsHitTesting(false) }
             controls
+            if showFinish { finishSheet }
             if joining { joiningOverlay }
             if dimmed { dimOverlay }
         }
@@ -84,7 +87,12 @@ struct GameRecorderView: View {
             rec.teardown()
             OrientationLock.set(.portrait, rotateTo: .portrait)
         }
-        .task { await rec.prepare() }
+        .task {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-NXFinish") { showFinish = true }
+            #endif
+            await rec.prepare()
+        }
         .onReceive(NotificationCenter.default.publisher(for: UIDevice.batteryLevelDidChangeNotification)) { _ in
             battery = UIDevice.current.batteryLevel
         }
@@ -116,8 +124,12 @@ struct GameRecorderView: View {
                 if battery >= 0 && battery < 0.2 && UIDevice.current.batteryState != .charging {
                     warning("Battery \(Int(battery * 100))% — plug in a battery pack", icon: "battery.25")
                 }
-                if rec.minutesLeft < 90 && rec.state != .idle {
-                    warning("Storage for about \(rec.minutesLeft) min left", icon: "internaldrive")
+                if recording && rec.minutesLeft < 15 {
+                    warning(rec.minutesLeft <= 1 ? "Storage full — recording will stop"
+                                                 : "Storage almost full: about \(RecordingStorage.duration(rec.minutesLeft)) left", icon: "internaldrive")
+                } else if !recording && rec.periods.isEmpty && rec.state != .idle {
+                    StorageBanner(mbPerMinute: rec.quality.mbPerMinute, qualityName: rec.quality.rawValue, keepCopy: rec.keepCopy)
+                        .frame(maxWidth: 420)
                 }
                 if case .failed(let msg) = rec.state { warning(msg, icon: "exclamationmark.triangle") }
                 if let error { warning(error, icon: "exclamationmark.triangle") }
@@ -146,7 +158,7 @@ struct GameRecorderView: View {
                     optionsMenu
                 }
                 if !recording && !rec.periods.isEmpty {
-                    Button(action: finish) {
+                    Button { showFinish = true } label: {
                         Text("Finish").font(.sora(13, .semibold)).foregroundStyle(NX.navy)
                             .frame(width: 72, height: 36).background(Capsule().fill(NX.cream))
                     }
@@ -236,7 +248,7 @@ struct GameRecorderView: View {
     private var joiningOverlay: some View {
         VStack(spacing: 12) {
             ProgressView().tint(.white).scaleEffect(1.3)
-            Text("Saving your game at full quality…").font(.sora(15, .semibold)).foregroundStyle(.white)
+            Text(savingCopy ? "Saving a copy to Photos…" : "Saving your game at full quality…").font(.sora(15, .semibold)).foregroundStyle(.white)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black.opacity(0.75))
@@ -276,17 +288,62 @@ struct GameRecorderView: View {
         return s >= 3600 ? String(format: "%d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60) : String(format: "%d:%02d", s / 60, s % 60)
     }
 
-    private func finish() {
+    /// Finish screen: what was recorded, keep a copy in Photos, then upload.
+    private var finishSheet: some View {
+        let bytes = rec.recordedBytes
+        let enoughForCopy = RecordingStorage.freeBytes > bytes + 1_300_000_000
+        return ZStack {
+            Color.black.opacity(0.7).ignoresSafeArea().onTapGesture { showFinish = false }
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Finish game").font(.sora(22, .bold)).foregroundStyle(.white)
+                Text("\(rec.periods.count) period\(rec.periods.count == 1 ? "" : "s") · \(clock(rec.totalRecorded)) · \(RecordingStorage.size(bytes))")
+                    .font(.sora(13)).foregroundStyle(NX.textSecondary)
+                Toggle(isOn: Binding(get: { rec.keepCopy && enoughForCopy }, set: { rec.keepCopy = $0; Haptics.select() })) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Keep a copy in Photos").font(.sora(15, .semibold)).foregroundStyle(.white)
+                        Text(enoughForCopy
+                             ? "Uses another \(RecordingStorage.size(bytes)) on this iPhone. Otherwise the film is deleted from your phone once it's uploaded."
+                             : "Not enough free space for a copy (\(RecordingStorage.size(bytes)) needed). The film is deleted from your phone once it's uploaded.")
+                            .font(.sora(12)).foregroundStyle(enoughForCopy ? NX.textMuted : NX.warning)
+                    }
+                }
+                .tint(NX.royal)
+                .disabled(!enoughForCopy)
+                HStack(spacing: 10) {
+                    Button("Keep recording") { showFinish = false }.buttonStyle(.nxSecondary)
+                    Button("Upload game") { showFinish = false; finish(keepCopy: rec.keepCopy && enoughForCopy) }.buttonStyle(.nxPrimary)
+                }
+            }
+            .padding(22)
+            .frame(maxWidth: 460)
+            .background(RoundedRectangle(cornerRadius: 24).fill(Color(hex: 0x111318)))
+            .overlay(RoundedRectangle(cornerRadius: 24).stroke(NX.borderSubtle))
+        }
+    }
+
+    private func finish(keepCopy: Bool) {
         joining = true
         Task {
             do {
                 let url = try await rec.finishGame()
-                let info = rec.captureInfo
+                var info = rec.captureInfo
+                if keepCopy {
+                    savingCopy = true
+                    do {
+                        try await RecordingStorage.saveToPhotos(url)
+                        info["copy_in_photos"] = "yes"
+                    } catch {
+                        // The upload matters more than the copy: report it and carry on.
+                        self.error = error.localizedDescription
+                    }
+                    savingCopy = false
+                }
                 joining = false
                 Haptics.success()
                 onFinished(url, info)
             } catch {
                 joining = false
+                savingCopy = false
                 self.error = error.localizedDescription
             }
         }

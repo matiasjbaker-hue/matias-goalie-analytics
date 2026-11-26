@@ -38,6 +38,10 @@ final class GameRecorder: NSObject, ObservableObject {
     @Published private(set) var thermalWarning = false
     @Published var quality: Quality = .hd60 { didSet { if oldValue != quality { reconfigure() } } }
     @Published var lens: Lens = .wide { didSet { if oldValue != lens { reconfigure() } } }
+    /// Also save the finished game to the user's Photos (off by default: it doubles the space needed).
+    @Published var keepCopy = UserDefaults.standard.bool(forKey: "record.keepCopy") {
+        didSet { UserDefaults.standard.set(keepCopy, forKey: "record.keepCopy") }
+    }
 
     nonisolated let session = AVCaptureSession()
     nonisolated private let output = AVCaptureMovieFileOutput()
@@ -304,10 +308,14 @@ final class GameRecorder: NSObject, ObservableObject {
 
     // MARK: Storage, level, heat
 
-    var minutesLeft: Int {
-        let free = (try? URL(fileURLWithPath: NSHomeDirectory()).resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
-            .volumeAvailableCapacityForImportantUsage ?? 0
-        return max(0, Int(Double(free) / 1_048_576 / quality.mbPerMinute) - 10)
+    /// Recording time that still fits on the phone at the chosen quality.
+    var minutesLeft: Int { RecordingStorage.minutesLeft(mbPerMinute: quality.mbPerMinute) }
+
+    /// Size of what's been recorded so far.
+    var recordedBytes: Int64 {
+        periods.reduce(Int64(0)) { sum, url in
+            sum + ((try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.int64Value ?? 0)
+        }
     }
 
     private func startMotion() {

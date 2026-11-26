@@ -33,7 +33,7 @@ struct RecordingGuideView: View {
              art: AnyView(TripodArt())),
         Page(overline: "Step 5", title: "Before\npuck drop",
              body: "",
-             art: AnyView(ChecklistArt())),
+             art: AnyView(VStack(spacing: 14) { ChecklistArt(); StorageBanner().padding(.horizontal, 8) })),
         Page(overline: "Step 6", title: "Between\nperiods",
              body: "Teams switch ends after the 1st and 2nd. Stop recording, move the camera behind your goalie's net again, then start the next period.",
              art: AnyView(SwitchEndsArt())),
@@ -51,7 +51,7 @@ struct RecordingGuideView: View {
                 ForEach(pages.indices, id: \.self) { i in
                     ScrollView {
                         VStack(alignment: .leading, spacing: NX.S.m) {
-                            pages[i].art.frame(height: 260).frame(maxWidth: .infinity).padding(.vertical, NX.S.s)
+                            pages[i].art.frame(height: i == 5 ? 380 : 260).frame(maxWidth: .infinity).padding(.vertical, NX.S.s)
                             Overline(pages[i].overline)
                             Text(pages[i].title).font(.sora(28, .bold)).foregroundStyle(.white)
                             if !pages[i].body.isEmpty {
@@ -288,7 +288,7 @@ private struct TripodArt: View {
 private struct ChecklistArt: View {
     private let items: [(String, String, String)] = [
         ("battery.100.bolt", "Charge to 80%+ or bring a battery pack", "A full game uses a lot of battery."),
-        ("internaldrive", "Free up storage", "About 6 GB per hour at 1080p · 60 fps."),
+        ("internaldrive", "Free up storage", "About 6 GB per hour at 1080p · 60 fps. The film is deleted after it uploads."),
         ("moon.fill", "Turn on Do Not Disturb", "So calls and alerts don't interrupt the recording."),
         ("sparkles", "Wipe the lens", "Smudges blur the puck."),
         ("checkmark.shield", "Check the rink allows filming", "Some arenas and leagues have rules."),
@@ -301,7 +301,7 @@ private struct ChecklistArt: View {
                         .frame(width: 36, height: 36).background(Circle().fill(NX.ice.opacity(0.14)))
                     VStack(alignment: .leading, spacing: 1) {
                         Text(title).font(.sora(14, .semibold)).foregroundStyle(.white)
-                        Text(sub).font(.sora(12)).foregroundStyle(NX.textMuted)
+                        Text(sub).font(.sora(12)).foregroundStyle(NX.textMuted).fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }

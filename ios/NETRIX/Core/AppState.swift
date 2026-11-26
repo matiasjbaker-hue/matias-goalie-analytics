@@ -25,6 +25,7 @@ final class AppState: ObservableObject {
     }
 
     func bootstrap() async {
+        RecordingStorage.sweepEmptyFolders()
         #if DEBUG
         if let screen = Self.debugScreen {
             try? await Task.sleep(nanoseconds: 300_000_000)

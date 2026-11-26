@@ -23,6 +23,8 @@
 	<string>Use Face ID to unlock NETRIX and keep your game film and stats private.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Record game sound with your film. Sound helps the analysis find shots.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Keep a copy of the games you record in your Photos.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UIBackgroundModes</key>
