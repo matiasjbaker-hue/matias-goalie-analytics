@@ -4572,6 +4572,8 @@ textarea:focus-visible,
   margin-bottom:8px;
 }
 
+.rv-editor-head .rv-ed-del-top{ margin-left:auto; padding:5px 12px; font-size:13px; }
+
 .rv-editor-head strong{
   font-size:18px;
   font-weight:850;
