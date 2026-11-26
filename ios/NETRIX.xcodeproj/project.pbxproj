@@ -40,9 +40,21 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		A10000000000000000000002 /* NETRIX */ = {isa = PBXFileSystemSynchronizedRootGroup; path = NETRIX; sourceTree = "<group>"; };
-		A10000000000000000000020 /* Shared */ = {isa = PBXFileSystemSynchronizedRootGroup; path = Shared; sourceTree = "<group>"; };
-		B10000000000000000000002 /* NETRIXWidgets */ = {isa = PBXFileSystemSynchronizedRootGroup; path = NETRIXWidgets; sourceTree = "<group>"; };
+		A10000000000000000000002 /* NETRIX */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = NETRIX;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000020 /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		B10000000000000000000002 /* NETRIXWidgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = NETRIXWidgets;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -123,8 +135,8 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				B10000000000000000000002 /* NETRIXWidgets */,
 				A10000000000000000000020 /* Shared */,
+				B10000000000000000000002 /* NETRIXWidgets */,
 			);
 			name = NETRIXWidgets;
 			packageProductDependencies = (
@@ -308,7 +320,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = NETRIX;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.sports";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UIUserInterfaceStyle = Dark;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -342,7 +354,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = NETRIX;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.sports";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UIUserInterfaceStyle = Dark;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

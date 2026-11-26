@@ -276,6 +276,8 @@ struct RequestedGame: Codable, Hashable {
     var shots_faced: Int?
     var saves: Int?
     var minutes_played: Int?
+    /// Set when the film was recorded in the app: quality, lens, sound, periods.
+    var capture: [String: String]?
 }
 
 enum ReviewStatus: String {

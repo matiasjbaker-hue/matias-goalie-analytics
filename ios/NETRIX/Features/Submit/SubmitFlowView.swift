@@ -67,6 +67,12 @@ struct SubmitFlowView: View {
     @State private var footageError: String?
     @State private var link = ""
     @State private var useLink = false
+    @State private var showRecorder = false
+    @State private var showRecordGuide = false
+    @AppStorage("seenRecordGuide") private var seenRecordGuide = false
+    @State private var captureInfo: [String: String]?
+    /// A game recorded in the app whose upload couldn't start yet (kept so nothing is lost).
+    @State private var recordedFile: URL?
 
     // Details
     @State private var date = Date()
@@ -112,10 +118,16 @@ struct SubmitFlowView: View {
         .nxScreen()
         .animation(.easeInOut(duration: 0.25), value: step)
         .confirmationDialog("Discard this submission?", isPresented: $confirmExit, titleVisibility: .visible) {
-            Button("Discard", role: .destructive) { if uploads.isBusy && uploads.awaitingDetails { uploads.cancel() }; dismiss() }
+            Button(captureInfo != nil || recordedFile != nil ? "Delete recorded game" : "Discard", role: .destructive) {
+                if uploads.isBusy && uploads.awaitingDetails { uploads.cancel() }
+                if let f = recordedFile { try? FileManager.default.removeItem(at: f.deletingLastPathComponent()) }
+                dismiss()
+            }
             Button("Keep editing", role: .cancel) {}
         } message: {
-            Text(uploads.awaitingDetails ? "The film that's uploading will be removed. Nothing is used." : "Nothing has been submitted yet.")
+            Text(captureInfo != nil || recordedFile != nil
+                 ? "Your recorded game will be permanently deleted from this iPhone."
+                 : (uploads.awaitingDetails ? "The film that's uploading will be removed. Nothing is used." : "Nothing has been submitted yet."))
         }
         .onChange(of: photoItem) { _, item in if let item { Task { await importPhoto(item) } } }
         .fileImporter(isPresented: $showFiles, allowedContentTypes: [.movie, .mpeg4Movie, .quickTimeMovie]) { result in
@@ -127,7 +139,7 @@ struct SubmitFlowView: View {
     private func back() {
         switch step {
         case .footage:
-            if uploads.awaitingDetails || !opponent.isEmpty { confirmExit = true } else { dismiss() }
+            if uploads.awaitingDetails || !opponent.isEmpty || recordedFile != nil { confirmExit = true } else { dismiss() }
         case .details: step = .footage
         case .notes: step = .details
         case .review: step = .notes
@@ -151,7 +163,8 @@ struct SubmitFlowView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: NX.S.l) {
                     Text("Add your game footage").font(.nxH1).foregroundStyle(.white).padding(.top, NX.S.l)
-                    Text("Upload a video or paste a link from your hockey video platform.").font(.nxBody).foregroundStyle(NX.textSecondary)
+                    Text("Record the game in NETRIX for the best analysis, or upload a video or link.").font(.nxBody).foregroundStyle(NX.textSecondary)
+                    if uploads.job == nil && !preparing { recordCard }
                     dropzone
                     if let footageError {
                         Label(footageError, systemImage: "exclamationmark.circle").font(.nxBodyS).foregroundStyle(NX.error)
@@ -260,19 +273,77 @@ struct SubmitFlowView: View {
         }
     }
 
-    private func startUpload(_ file: URL) async {
+    private func startUpload(_ file: URL, recorded: Bool = false) async {
         guard let ownerId else { return }
         if let blocked = await SubmitGate.check(isCoach: app.isCoach) {
             footageError = blocked
-            try? FileManager.default.removeItem(at: file)
+            if recorded { recordedFile = file } else { try? FileManager.default.removeItem(at: file) }
             return
         }
         do {
             try await uploads.start(file: file, ownerId: ownerId)
+            recordedFile = nil
         } catch {
             footageError = error.localizedDescription
+            if recorded { recordedFile = file; return }
         }
-        try? FileManager.default.removeItem(at: file)
+        if !recorded { try? FileManager.default.removeItem(at: file) }
+    }
+
+    // MARK: Record in the app
+
+    private var recordCard: some View {
+        VStack(alignment: .leading, spacing: NX.S.m) {
+            HStack(spacing: NX.S.m) {
+                Image(systemName: "video.fill").font(.system(size: 18, weight: .semibold)).foregroundStyle(NX.navy)
+                    .frame(width: 48, height: 48).background(Circle().fill(NX.cream))
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text("Record the game").font(.sora(17, .semibold)).foregroundStyle(.white)
+                        Text("BEST").font(.sora(10, .bold)).tracking(1).foregroundStyle(NX.navy)
+                            .padding(.horizontal, 6).padding(.vertical, 2).background(Capsule().fill(NX.ice))
+                    }
+                    Text("Full quality, 60 fps and sound, straight from your iPhone camera.").font(.nxCaption).foregroundStyle(NX.textSecondary)
+                }
+            }
+            if let recordedFile {
+                Button("Upload recorded game") { Task { await startUpload(recordedFile, recorded: true) } }.buttonStyle(.nxPrimary)
+            } else {
+                HStack(spacing: NX.S.s) {
+                    Button("Start recording") { openRecorder() }.buttonStyle(.nxPrimary)
+                    Button { showRecordGuide = true } label: { Image(systemName: "questionmark").frame(width: 24) }
+                        .buttonStyle(.nxSecondary).frame(width: 64)
+                        .accessibilityLabel("How to set up the camera")
+                }
+            }
+        }
+        .padding(NX.S.l)
+        .background(RoundedRectangle(cornerRadius: 24, style: .continuous)
+            .fill(LinearGradient(colors: [NX.royal.opacity(0.45), NX.navy.opacity(0.6)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(NX.ice.opacity(0.35)))
+        .fullScreenCover(isPresented: $showRecorder) {
+            GameRecorderView(onFinished: { url, info in
+                showRecorder = false
+                captureInfo = info
+                Task { await startUpload(url, recorded: true) }
+            }, onCancel: { showRecorder = false })
+        }
+        .sheet(isPresented: $showRecordGuide) {
+            RecordingGuideView(startTitle: seenRecordGuide ? "Got it" : "Start recording") {
+                showRecordGuide = false
+                if !seenRecordGuide { seenRecordGuide = true; openRecorder() }
+            }
+        }
+    }
+
+    private func openRecorder() {
+        footageError = nil
+        guard seenRecordGuide else { showRecordGuide = true; return }
+        Task {
+            // Check before filming a whole game that this account can submit it.
+            if let blocked = await SubmitGate.check(isCoach: app.isCoach) { footageError = blocked; return }
+            showRecorder = true
+        }
     }
 
     // MARK: 04.04 Game details
@@ -414,7 +485,7 @@ struct SubmitFlowView: View {
                       season: app.selectedGoalie?.season ?? store.profile?.season,
                       goalie_note: notes.trimmed.isEmpty ? nil : notes.trimmed,
                       focus_areas: focus.isEmpty ? nil : focus.sorted(),
-                      shots_faced: Int(shots), saves: Int(saves), minutes_played: Int(minutes))
+                      shots_faced: Int(shots), saves: Int(saves), minutes_played: Int(minutes), capture: captureInfo)
     }
 
     private func submit() {

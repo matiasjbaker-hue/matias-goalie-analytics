@@ -18,9 +18,11 @@
 		</dict>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>Take a profile photo for your NETRIX account.</string>
+	<string>Record your games at full quality for analysis, and take a profile photo.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Use Face ID to unlock NETRIX and keep your game film and stats private.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Record game sound with your film. Sound helps the analysis find shots.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UIBackgroundModes</key>

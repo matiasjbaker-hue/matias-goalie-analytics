@@ -61,6 +61,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         }
     }
 
+    /// Portrait everywhere except the game recorder, which switches to landscape.
+    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        OrientationLock.mask
+    }
+
     /// The system relaunches the app in the background when film upload parts finish.
     func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String,
                      completionHandler: @escaping () -> Void) {
@@ -79,6 +84,8 @@ struct RootView: View {
             #if DEBUG
             if AppState.debugScreen == "widgets" { DebugWidgetGallery() }
             else if AppState.debugScreen == "crop" { AvatarCropView(image: AppState.debugPhoto) { _ in } }
+            else if AppState.debugScreen == "recguide" { RecordingGuideView(onDone: {}) }
+            else if AppState.debugScreen == "recorder" { GameRecorderView(onFinished: { _, _ in }, onCancel: {}) }
             else { phaseView }
             #else
             phaseView
