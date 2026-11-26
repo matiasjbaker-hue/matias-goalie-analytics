@@ -4,6 +4,14 @@
 # and an app record for bundle ID com.alkhaldi.netrix in App Store Connect.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+# Two builds at once corrupt Xcode's build database ("disk I/O error"), so allow one at a time.
+LOCK=/tmp/netrix-build.lock
+if ! mkdir "$LOCK" 2>/dev/null; then
+  echo "Another NETRIX build is already running. Wait for it to finish, then try again."
+  exit 1
+fi
+trap 'rmdir "$LOCK"' EXIT
 BUILD_NUMBER="${BUILD_NUMBER:-$(date +%Y%m%d%H%M)}"
 ARCHIVE=build/NETRIX.xcarchive
 rm -rf "$ARCHIVE" build/export

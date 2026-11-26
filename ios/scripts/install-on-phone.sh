@@ -6,6 +6,14 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Two builds at once corrupt Xcode's build database ("disk I/O error"), so allow one at a time.
+LOCK=/tmp/netrix-build.lock
+if ! mkdir "$LOCK" 2>/dev/null; then
+  echo "Another NETRIX build is already running. Wait for it to finish, then try again."
+  exit 1
+fi
+trap 'rmdir "$LOCK"' EXIT
+
 DEVICE=$(xcrun devicectl list devices 2>/dev/null | awk '/connected/ && /iPhone/ {for (i=1;i<=NF;i++) if ($i ~ /^[0-9A-F]{8}-[0-9A-F]{4}-/) {print $i; exit}}')
 if [[ -z "$DEVICE" ]]; then
   echo "No iPhone connected. Plug it in, unlock it, and try again."
