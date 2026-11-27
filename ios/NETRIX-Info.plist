@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.alkhaldi.netrix.refresh</string>
+	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.alkhaldi.netrix</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>netrix</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Record your games at full quality for analysis, and take a profile photo.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Use Face ID to unlock NETRIX and keep your game film and stats private.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Record game sound with your film. Sound helps the analysis find shots.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Keep a copy of the games you record in your Photos.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+	</array>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>LaunchBackground</string>
+	</dict>
+</dict>
+</plist>
