@@ -5,6 +5,8 @@
 # Needs: Xcode signed in (Settings > Accounts), iPhone unlocked with Developer Mode on.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# Use Apple's own tools only: a MacPorts/Homebrew rsync on PATH makes Xcode's upload hang forever.
+export PATH="/usr/bin:/bin:/usr/sbin:/sbin"
 
 # Two builds at once corrupt Xcode's build database ("disk I/O error"), so allow one at a time.
 LOCK=/tmp/netrix-build.lock
