@@ -4991,6 +4991,15 @@ function seasonLabel(value){
   return isAllSeasons(value) ? "All games" : String(value ?? "");
 }
 
+// The hockey season a game date falls in: August onward starts the new
+// season (Feb 2026 is "2025-26 Season", Oct 2026 is "2026-27 Season").
+function seasonForDate(dateStr){
+  const m = /^(\d{4})-(\d{2})-\d{2}/.exec(String(dateStr || ""));
+  if(!m){ return null; }
+  const start = Number(m[2]) >= 8 ? Number(m[1]) : Number(m[1]) - 1;
+  return `${start}-${String(start + 1).slice(2)} Season`;
+}
+
 const supabaseClient =
   window.supabase.createClient(
     SUPABASE_URL,
@@ -27530,7 +27539,9 @@ async function uploadGameVideo(){
       opponent_goals: newOG,
       opponent: opponent,
       home_away: document.getElementById("video-new-game-homeaway").value || null,
-      season: (ownerProfile && ownerProfile.season) || (currentProfile && currentProfile.season) || null
+      // From the game's date, so an old game isn't filed under the
+      // goalie's current season. Falls back to the profile season.
+      season: seasonForDate(newDate) || (ownerProfile && ownerProfile.season) || (currentProfile && currentProfile.season) || null
     };
 
   }
@@ -32455,7 +32466,12 @@ async function applyShotsToGameTotals(gameId, ownerId, shots, sign = 1){
 
 function reviewDefaultSeason(v){
   const rg = v.requested_game || {};
-  if(rg.season){ return rg.season; }
+  // A plain "2025-26" style season follows the game's date; labels like
+  // "2026 Pre-Season" are kept as entered.
+  if(rg.season){
+    const byDate = seasonForDate(rg.date);
+    return byDate && /^\d{4}-\d{2}\s+season$/i.test(String(rg.season).trim()) ? byDate : rg.season;
+  }
   const g = v.game_id ? allGames.find(x => String(x.id) === String(v.game_id)) : null;
   if(g && g.season){ return g.season; }
   const theirs = allGames.filter(x => x.user_id === v.user_id && x.season);
