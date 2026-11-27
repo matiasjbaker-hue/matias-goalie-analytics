@@ -391,6 +391,13 @@ re-filters. Then:
 1. Shift+N plays each moment: press S at a real shot, D if there wasn't one.
 2. Watch the game at 2x and add any shot it missed (~1 in 8). Don't skip
    this: a missed shot left untagged teaches the next model it wasn't one.
+3. Mark shots that never reached the goalie with **W** (missed: wide, high,
+   off the post) or **Shift+W** (blocked by a skater), or the "Missed shot" /
+   "Blocked shot" buttons. On a moment to check, W answers it like D but keeps
+   what it was. They don't count as shots or change any stat. They're saved as
+   `period_marks._attempts` ([{t, kind}]), which the export already carries,
+   and round 6+ training (`ml/video/dense_modal.py`) samples them as confirmed
+   "not a shot on goal" examples: exactly the plays the model confuses.
 
 It needs the goalie's net set for the 1st period (and period marks), skips
 cut parts, costs about 10 cents a game and takes 5-15 minutes; the request

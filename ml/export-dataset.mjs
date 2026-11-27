@@ -42,7 +42,12 @@ import ffmpegPath from "ffmpeg-static";
 import { SUPABASE_URL, r2Configured, r2Client } from "../api/_lib/supabase.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const OUT = path.join(HERE, "data");
+// --out <dir>: write somewhere else (e.g. a fresh export to compare with, without
+// replacing the dataset a running experiment uses). Default ml/data/.
+const OUT = (() => {
+  const i = process.argv.indexOf("--out");
+  return i >= 0 && process.argv[i + 1] ? path.resolve(process.argv[i + 1]) : path.join(HERE, "data");
+})();
 const WANT_CLIPS = process.argv.includes("--clips");
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const CSV_DIR = (() => {

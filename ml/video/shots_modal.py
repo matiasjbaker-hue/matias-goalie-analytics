@@ -52,6 +52,13 @@ NEG_PER_POS = 4
 HARD_LO, HARD_HI = 2.5, 8.0
 BEFORE_FIRST, AFTER_LAST, MIN_SEGMENT = 120, 60, 10
 MATCH_TOL, MIN_GAP = 2.0, 2.5
+# Round 5 ("variant r5"): a sharper view of the tracked goalie's end, plus the
+# round-4 model's own mistakes as extra "no shot" examples. Kept apart from
+# round 4's data under /data/r5/ so both stay reproducible.
+W5, H5 = 400, 224          # small copy: 1.75x round 4 in each direction
+CROP5 = 220                # width kept on the tracked net's side (55% of the picture)
+HARD_NEG_MIN_DIST = 3.0    # a mined mistake must be at least this far from a tagged shot (s)
+VARIANTS = {"r4": dict(w=W, h=H, crop=None, sub=""), "r5": dict(w=W5, h=H5, crop=CROP5, sub="r5")}
 MEAN = np.array([0.43216, 0.394666, 0.37645], np.float32)
 STD = np.array([0.22803, 0.22145, 0.216989], np.float32)
 
@@ -126,26 +133,37 @@ def nearest_dist(times, shots):
     return np.minimum(left, right)
 
 
-def ffmpeg_small_copy(src, start, dur, out):
+def ffmpeg_small_copy(src, start, dur, out, w=W, h=H):
     out.parent.mkdir(parents=True, exist_ok=True)
     net = ["-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "10"] if str(src).startswith("http") else []
     subprocess.run([
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *net,
         "-ss", str(start), "-i", str(src), "-t", str(dur),
-        "-an", "-vf", f"fps={FPS},scale={W}:{H}", "-c:v", "libx264", "-preset", "veryfast",
+        "-an", "-vf", f"fps={FPS},scale={w}:{h}", "-c:v", "libx264", "-preset", "veryfast",
         "-crf", "23", "-g", str(2 * FPS), str(out),
     ], check=True)
 
 
-def decode(path):
+def decode(path, w=W, h=H):
     raw = subprocess.run(
         ["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(path), "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
         check=True, capture_output=True).stdout
-    return np.frombuffer(raw, np.uint8).reshape(-1, H, W, 3)
+    return np.frombuffer(raw, np.uint8).reshape(-1, h, w, 3)
 
 
-def build_windows(frames, seg_start, shots, film, rng):
-    """Shot windows + sampled no-shot windows for one segment."""
+def crop_side(a, side, crop_w):
+    """Keep the crop_w columns on the tracked net's side ([..., H, W, 3]); centre if unknown."""
+    if not crop_w:
+        return a
+    w = a.shape[-2]
+    x = 0 if side > 0 else (w - crop_w if side < 0 else (w - crop_w) // 2)
+    return a[..., x: x + crop_w, :]
+
+
+def build_windows(frames, seg_start, shots, film, rng, hard_negs=(), crop_w=None):
+    """Shot windows + sampled no-shot windows for one segment.
+    hard_negs: extra "no shot" times (the previous model's mistakes), kept if far from a shot.
+    crop_w: keep only that many columns on the tracked net's side (round 5)."""
     n = len(frames)
     seg_end = seg_start + n / FPS
     half = CLIP_FRAMES // 2
@@ -163,12 +181,16 @@ def build_windows(frames, seg_start, shots, film, rng):
     negs = list(rng.choice(hard, n_hard, replace=False)) if n_hard else []
     n_easy = min(len(easy), n_neg - n_hard)
     negs += list(rng.choice(easy, n_easy, replace=False)) if n_easy else []
+    extra = [float(a) for a in hard_negs if seg_start + 2.0 <= a <= seg_end - 2.0]
+    if extra:
+        extra = [a for a, dd in zip(extra, nearest_dist(extra, shots)) if dd >= HARD_NEG_MIN_DIST]
+        negs += extra
     anchors = [a for a in pos + negs if index(a) is not None]
     labels = [1] * len(pos) + [0] * (len(anchors) - len(pos))
     if not anchors:
         return None
-    clips = np.stack([frames[index(a) - half: index(a) + half] for a in anchors])
     sides = [tracked_side(film, a) for a in anchors]
+    clips = np.stack([crop_side(frames[index(a) - half: index(a) + half], sd, crop_w) for a, sd in zip(anchors, sides)])
     return clips, labels, [float(a) for a in anchors], sides
 
 
@@ -278,8 +300,9 @@ def to_input(batch_u8, device):
 
 # ---------------------------------------------------------------- core steps (local or Modal)
 
-def prepare_core(film, src, root):
+def prepare_core(film, src, root, variant="r4"):
     """Small film copy + training windows for one film. Idempotent."""
+    cfg = VARIANTS[variant]
     vid = str(film["video_id"])
     meta_path = root / "windows" / f"{vid}.json"
     if meta_path.exists():
@@ -291,17 +314,18 @@ def prepare_core(film, src, root):
     for n, (a, b) in enumerate(live_segments(film)):
         mp4 = root / "film" / f"{vid}_{n}.mp4"
         if not mp4.exists():
-            ffmpeg_small_copy(src, a, b - a, mp4.with_suffix(".part.mp4"))
+            ffmpeg_small_copy(src, a, b - a, mp4.with_suffix(".part.mp4"), cfg["w"], cfg["h"])
             mp4.with_suffix(".part.mp4").rename(mp4)
-        frames = decode(mp4)
+        frames = decode(mp4, cfg["w"], cfg["h"])
         segs.append(dict(n=n, start=a, end=b, frames=int(len(frames)), path=f"film/{vid}_{n}.mp4"))
-        got = build_windows(frames, a, shots, film, rng)
+        got = build_windows(frames, a, shots, film, rng,
+                            hard_negs=film.get("hard_negs") or () if variant != "r4" else (), crop_w=cfg["crop"])
         if got:
             clips.append(got[0]); labels += got[1]; anchors += got[2]; sides += got[3]
         del frames
     if clips:
         np.save(root / "windows" / f"{vid}_clips.npy", np.concatenate(clips))
-    meta = dict(video_id=vid, user_id=str(film["user_id"]), segments=segs, labels=labels,
+    meta = dict(video_id=vid, user_id=str(film["user_id"]), variant=variant, segments=segs, labels=labels,
                 anchors=anchors, sides=sides, n_pos=int(sum(labels)), n_neg=int(len(labels) - sum(labels)))
     meta_path.write_text(json.dumps(meta))
     return meta
@@ -401,13 +425,14 @@ def train_core(root, train_ids, epochs=8, device="cuda", pretrained=True, max_wi
     return model
 
 
-def score_core(model, root, film, device="cuda", batch=64, max_seconds=None, canonical=False):
+def score_core(model, root, film, device="cuda", batch=64, max_seconds=None, canonical=False, variant="r4"):
     """Score every STRIDE seconds of a prepared film. Returns [(times, scores, seg_start, seg_end)]."""
     import torch
+    cfg = VARIANTS[variant]
     meta = json.loads((root / "windows" / f"{film['video_id']}.json").read_text())
     out = []
     for seg in meta["segments"]:
-        frames = decode(root / seg["path"])
+        frames = decode(root / seg["path"], cfg["w"], cfg["h"])
         start, n = seg["start"], len(frames)
         times = np.arange(start + LEAD, start + n / FPS - (IN_FRAMES / FPS - LEAD), STRIDE)
         if max_seconds:
@@ -417,7 +442,7 @@ def score_core(model, root, film, device="cuda", batch=64, max_seconds=None, can
         for b in range(0, len(times), batch):
             idx = [int(round((t - LEAD - start) * FPS)) for t in times[b: b + batch]]
             sd = sides[b: b + batch]
-            clips = [frames[i: i + IN_FRAMES] for i in idx]
+            clips = [crop_side(frames[i: i + IN_FRAMES], x, cfg["crop"]) for i, x in zip(idx, sd.tolist())]
             if canonical:
                 clips = [c[:, :, ::-1] if x < 0 else c for c, x in zip(clips, sd.tolist())]
                 sd = torch.zeros_like(sd)
@@ -514,6 +539,11 @@ volume = modal.Volume.from_name("goalieiq-ml", create_if_missing=True)
 DATA = Path("/data")
 
 
+def vroot(variant):
+    sub = VARIANTS[variant]["sub"]
+    return DATA / sub if sub else DATA
+
+
 def r2_url(key):
     import boto3
     from botocore.config import Config
@@ -526,10 +556,10 @@ def r2_url(key):
 
 
 @app.function(image=image, volumes={"/data": volume}, secrets=[modal.Secret.from_name("goalieiq-r2")],
-              cpu=4.0, memory=16384, timeout=3 * 3600, retries=1)
-def prepare_film(film):
+              cpu=4.0, memory=32768, timeout=3 * 3600, retries=1)
+def prepare_film(film, variant="r4"):
     volume.reload()
-    meta = prepare_core(film, r2_url(film["storage_path"]), DATA)
+    meta = prepare_core(film, r2_url(film["storage_path"]), vroot(variant), variant)
     volume.commit()
     return {k: meta[k] for k in ("video_id", "n_pos", "n_neg")} | {"segments": len(meta["segments"])}
 
@@ -537,8 +567,10 @@ def prepare_film(film):
 # 4 CPUs / 16 GB is enough (clips are read from local disk); CPU and memory are billed on
 # top of the GPU, so asking for more only costs more. The time cap bounds the bill
 # (~2 h per fold at 73 h of film; raise it if the dataset grows a lot more).
-@app.function(image=image, gpu="A10G", volumes={"/data": volume}, cpu=4.0, memory=16384, timeout=180 * 60)
-def train_and_score(label, train_ids, test_films, epochs, max_seconds=None, train_films=None, canonical=False):
+# Memory: round 5's sharper copies of a 2-hour stretch are ~15 GB once decoded.
+@app.function(image=image, gpu="A10G", volumes={"/data": volume}, cpu=4.0, memory=32768, timeout=240 * 60)
+def train_and_score(label, train_ids, test_films, epochs, max_seconds=None, train_films=None, canonical=False,
+                    variant="r4"):
     import shutil
     import time
     import torch
@@ -552,6 +584,7 @@ def train_and_score(label, train_ids, test_films, epochs, max_seconds=None, trai
     (DATA / "ckpt").mkdir(parents=True, exist_ok=True)
     ckpt, partial = DATA / "ckpt" / f"{safe}.pt", DATA / "ckpt" / f"{safe}_scores.json"
     trained = ckpt.exists() and torch.load(ckpt, map_location="cpu", weights_only=False)["epoch"] >= epochs
+    root = vroot(variant)
     local = Path("/tmp/data")
     if not trained:
         # Training reads clips at random; copy them to the container's local disk
@@ -560,11 +593,11 @@ def train_and_score(label, train_ids, test_films, epochs, max_seconds=None, trai
         (local / "windows").mkdir(parents=True, exist_ok=True)
         for v in train_ids:
             for name in (f"{v}.json", f"{v}_clips.npy"):
-                if (DATA / "windows" / name).exists():
-                    shutil.copy(DATA / "windows" / name, local / "windows" / name)
+                if (root / "windows" / name).exists():
+                    shutil.copy(root / "windows" / name, local / "windows" / name)
         log(f"copied training clips locally in {time.time() - t0:.0f}s")
     # Once trained, only the json is read (to count windows); the volume copy is fine.
-    model = train_core(DATA if trained else local, train_ids, epochs=epochs, device="cuda", log=log,
+    model = train_core(root if trained else local, train_ids, epochs=epochs, device="cuda", log=log,
                        films=train_films, canonical=canonical, ckpt=ckpt, on_save=volume.commit)
     out = json.loads(partial.read_text()) if partial.exists() else {}
     if out:
@@ -572,7 +605,8 @@ def train_and_score(label, train_ids, test_films, epochs, max_seconds=None, trai
     for film in test_films:
         if str(film["video_id"]) in out:
             continue
-        segs = score_core(model, DATA, film, device="cuda", max_seconds=max_seconds, canonical=canonical)
+        segs = score_core(model, root, film, device="cuda", max_seconds=max_seconds, canonical=canonical,
+                          variant=variant)
         out[str(film["video_id"])] = [(t.tolist(), s.tolist(), a, b) for t, s, a, b in segs]
         partial.write_text(json.dumps(out))
         volume.commit()
@@ -635,8 +669,11 @@ def suggest_score(film):
 
 @app.function(image=image, volumes={"/data": volume}, secrets=[modal.Secret.from_name("goalieiq-r2")],
               cpu=4.0, memory=16384, timeout=2 * 3600)
-def suggest_shots(film):
-    """One untagged game -> likely shot times. Cuts (warm-up, intermissions) are skipped."""
+def suggest_shots(film, stage2=False):
+    """One untagged game -> likely shot times. Cuts (warm-up, intermissions) are skipped.
+    stage2: also re-score round 4's moments with full-resolution close-ups of the net + the game's
+    sound (ml/video/stage2_modal.py, app goalieiq-stage2), adding "s2" to each shot. If that step
+    fails, round 4's results come back unchanged with a "stage2_error"."""
     import shutil
     vid = str(film["video_id"])
     film = dict(film, video_id=vid, shot_times=[], net_sides=None)
@@ -656,7 +693,14 @@ def suggest_shots(film):
         meta.append(dict(n=n, start=a, end=b, path=f"film/{vid}/{n}.mp4"))
     (INFER / "windows" / f"{vid}.json").write_text(json.dumps({"video_id": vid, "segments": meta}))
     volume.commit()
-    return suggest_score.remote(film)
+    result = suggest_score.remote(film)
+    if stage2 and result.get("shots"):
+        try:
+            out = modal.Function.from_name("goalieiq-stage2", "rescore").remote(film, result["shots"])
+            result = dict(result, shots=out["shots"], stage2=out["summary"])
+        except Exception as e:  # never lose round 4's moments over the second opinion
+            result = dict(result, stage2_error=(str(e) or type(e).__name__)[:300])
+    return result
 
 
 web_image = modal.Image.debian_slim(python_version="3.12").pip_install("fastapi[standard]", "numpy")
@@ -679,7 +723,7 @@ def shot_api(body: dict):
                 or not isinstance(dur, (int, float)) or not 10 <= dur <= 6 * 3600 or not isinstance(marks, dict)):
             raise HTTPException(status_code=400, detail="That video can't be scanned.")
         call = suggest_shots.spawn({"video_id": vid, "storage_path": path, "duration_seconds": float(dur),
-                                    "period_marks": marks})
+                                    "period_marks": marks}, bool(body.get("stage2")))
         return {"callId": call.object_id}
     if op == "status":
         cid = str(body.get("callId", ""))
